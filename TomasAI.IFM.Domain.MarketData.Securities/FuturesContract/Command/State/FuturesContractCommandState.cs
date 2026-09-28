@@ -19,8 +19,8 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.State
 /// for existence, adding, updating, and removing contracts. The state is updated based on specific domain events, such
 /// as <see cref="FuturesContractAddedEvent"/>, <see cref="FuturesContractChangedEvent"/>, and <see
 /// cref="FuturesContractRemovedEvent"/>.</remarks>
-public class FuturesContractCommandState 
-    :  BaseEventSourceActorState<FuturesContractCommandState>, IEventSourceActorState<FuturesContractCommandState>
+public class FuturesContractCommandState
+    : BaseEventSourceActorState<FuturesContractCommandState>, IEventSourceActorState<FuturesContractCommandState>
 {
     readonly FuturesContractStateModel _model = new();
 
@@ -98,7 +98,7 @@ public class FuturesContractCommandState
     /// <returns><see langword="true"/> if the futures contract does not exist and <paramref name="overwrite"/> is <see
     /// langword="false"/>;  otherwise, <see langword="false"/>.</returns>
     internal bool FuturesContractDoesNotExist(FuturesContractId futuresContractId, bool overwrite)
-        => !_model.ContainsKey(futuresContractId) && !overwrite ;
+        => !_model.ContainsKey(futuresContractId) && !overwrite;
 
 }
 

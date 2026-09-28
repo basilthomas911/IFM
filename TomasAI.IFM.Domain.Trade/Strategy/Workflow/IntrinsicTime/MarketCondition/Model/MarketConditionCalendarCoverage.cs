@@ -62,7 +62,9 @@ public static class MarketConditionCalendarCoverage
 
         return new()
         {
-            CheckedAtUtc = at, FromDate = from, ToDate = to,
+            CheckedAtUtc = at,
+            FromDate = from,
+            ToDate = to,
             MaximumDownloadAgeSeconds = MaximumDownloadAgeSeconds,
             CoverageConfirmed = reason.Length == 0,
             Reason = reason.Length == 0 ? "CalendarDownloadConfirmed" : reason,

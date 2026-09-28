@@ -29,13 +29,26 @@ public static class CompleteMarketConditionAssessment
         var completed = new MarketConditionAssessmentCompletedEvent
         {
             Subject = new(ActorType.Function, ExecuteMarketConditionAssessmentCommand.Actor, MarketConditionAssessmentCompletedEvent.Verb, c.EntityId.Format()),
-            Id = result.ResultId, EntityId = c.WorkflowEntityId, CommandId = c.CommandId, AggregateId = c.EntityId.Format(),
-            EventSource = $"{ExecuteMarketConditionAssessmentCommand.Actor}Actor", ReceivedOn = result.EvaluatedAtUtc,
-            WorkflowId = c.WorkflowId, InputWorkflowRevision = c.InputWorkflowRevision, CorrelationId = c.CorrelationId, CausationId = c.CausationId,
-            PipelineStage = StrategyWorkflowStage.MarketCondition, Result = StrategyStageResultEnvelope.CreateAssessment(result),
-            CompletedAtUtc = clock.GetUtcNow().UtcDateTime, ExpiresAtUtc = c.ExpiresAtUtc, ParameterPayloadSha256 = c.ParameterPayloadSha256,
-            MarketConditionSnapshotId = snapshot.SnapshotId, EvaluatedAtUtc = result.EvaluatedAtUtc, ValidUntilUtc = result.Assessment.ValidUntilUtc,
-            RequestFingerprint = c.Fingerprint(), Snapshot = snapshot
+            Id = result.ResultId,
+            EntityId = c.WorkflowEntityId,
+            CommandId = c.CommandId,
+            AggregateId = c.EntityId.Format(),
+            EventSource = $"{ExecuteMarketConditionAssessmentCommand.Actor}Actor",
+            ReceivedOn = result.EvaluatedAtUtc,
+            WorkflowId = c.WorkflowId,
+            InputWorkflowRevision = c.InputWorkflowRevision,
+            CorrelationId = c.CorrelationId,
+            CausationId = c.CausationId,
+            PipelineStage = StrategyWorkflowStage.MarketCondition,
+            Result = StrategyStageResultEnvelope.CreateAssessment(result),
+            CompletedAtUtc = clock.GetUtcNow().UtcDateTime,
+            ExpiresAtUtc = c.ExpiresAtUtc,
+            ParameterPayloadSha256 = c.ParameterPayloadSha256,
+            MarketConditionSnapshotId = snapshot.SnapshotId,
+            EvaluatedAtUtc = result.EvaluatedAtUtc,
+            ValidUntilUtc = result.Assessment.ValidUntilUtc,
+            RequestFingerprint = c.Fingerprint(),
+            Snapshot = snapshot
         };
         return FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent>.Complete(completed);
     }

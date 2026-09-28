@@ -30,14 +30,25 @@ public sealed record FundRiskAuthorizationReference
 
     public static FundRiskAuthorizationReference From(Guid riskInvocationId, Guid workflowId, CapacityReservationReceipt receipt) => new()
     {
-        RiskInvocationId = riskInvocationId, WorkflowId = workflowId, RiskResultId = receipt.RiskResultId,
-        CompositionResultHash = receipt.CompositionResultHash, UnitCandidateHash = receipt.UnitCandidateHash,
-        RiskAssessmentHash = receipt.RiskAssessmentHash, SizedOrderHash = receipt.SizedOrderHash,
-        ReservationId = receipt.ReservationId, ReservationCompletedEventId = receipt.CompletedEventId,
-        StrategyUnits = receipt.StrategyUnits, FinancialRevision = receipt.FinancialRevision, AuthorityEpoch = receipt.AuthorityEpoch,
-        ValidUntilUtc = receipt.ValidUntilUtc, ExecutionEnvironment = receipt.ExecutionEnvironment,
-        PortfolioId = receipt.PortfolioId, FundId = receipt.FundId, OrderId = receipt.OrderId,
-        RequirementsHash = receipt.Requirements.ContentHash, ReservationOperationId = receipt.OperationId
+        RiskInvocationId = riskInvocationId,
+        WorkflowId = workflowId,
+        RiskResultId = receipt.RiskResultId,
+        CompositionResultHash = receipt.CompositionResultHash,
+        UnitCandidateHash = receipt.UnitCandidateHash,
+        RiskAssessmentHash = receipt.RiskAssessmentHash,
+        SizedOrderHash = receipt.SizedOrderHash,
+        ReservationId = receipt.ReservationId,
+        ReservationCompletedEventId = receipt.CompletedEventId,
+        StrategyUnits = receipt.StrategyUnits,
+        FinancialRevision = receipt.FinancialRevision,
+        AuthorityEpoch = receipt.AuthorityEpoch,
+        ValidUntilUtc = receipt.ValidUntilUtc,
+        ExecutionEnvironment = receipt.ExecutionEnvironment,
+        PortfolioId = receipt.PortfolioId,
+        FundId = receipt.FundId,
+        OrderId = receipt.OrderId,
+        RequirementsHash = receipt.Requirements.ContentHash,
+        ReservationOperationId = receipt.OperationId
     };
 
     /// <summary>Checks the immutable contract; current reservation and authority checks occur under the database fence.</summary>

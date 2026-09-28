@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Shared.UnitTests.Commands
             var assemblyName = assembly.GetName().Name;
             try
             {
-    
+
                 // get all types...
                 Type[] types = assembly.GetTypes();
 

@@ -198,7 +198,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
         {
             var entityId = new FuturesRsiSignalEntityId(futuresEodData.ContractId, futuresEodData.ValueDate, timePeriod, periodLength);
             var futuresRsiSignalId = new FuturesRsiSignalId(futuresEodData.ContractId, futuresEodData.ValueDate, timePeriod, periodLength, TimeOnly.MinValue);
-            GenerateFuturesRsiSignalCommand cmd = new (futuresRsiSignalId, futuresEodData.ClosePrice);
+            GenerateFuturesRsiSignalCommand cmd = new(futuresRsiSignalId, futuresEodData.ClosePrice);
             cmd = cmd with
             {
                 CommandId = cmdId,
@@ -303,7 +303,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 futuresTdiSignalId.ValueDate,
                 timePeriod,
                 configuration.ConfigurationId);
-            GenerateFuturesTdiSignalCommand cmd = new (futuresTdiSignalId, futuresRsiSignals, configuration)
+            GenerateFuturesTdiSignalCommand cmd = new(futuresTdiSignalId, futuresRsiSignals, configuration)
             {
                 CommandId = cmdId,
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
@@ -335,7 +335,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
         try
         {
             var entityId = new FuturesItiSignalEntityId(contractId, valueDate, timePeriod);
-            GenerateFuturesItiSignalCommand cmd = new (contractId, valueDate, timePeriod, timestamp, futuresPrice, vixFuturesPrice)
+            GenerateFuturesItiSignalCommand cmd = new(contractId, valueDate, timePeriod, timestamp, futuresPrice, vixFuturesPrice)
             {
                 CommandId = cmdId,
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesItiSignalCommand.Actor, GenerateFuturesItiSignalCommand.Verb, entityId.Format()),
@@ -362,7 +362,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
         try
         {
             var entityId = new FuturesItiSignalEntityId(e.ContractId, e.ValueDate, e.TimePeriod);
-            SetFuturesItiSignalHoldTradeCommand cmd = new (e.ContractId, e.ValueDate, e.TimePeriod, e.IntrinsicTime)
+            SetFuturesItiSignalHoldTradeCommand cmd = new(e.ContractId, e.ValueDate, e.TimePeriod, e.IntrinsicTime)
             {
                 CommandId = cmdId,
                 Subject = new ActorSubject(ActorType.Command, SetFuturesItiSignalHoldTradeCommand.Actor, SetFuturesItiSignalHoldTradeCommand.Verb, entityId.Format()),
@@ -389,7 +389,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
         try
         {
             var entityId = new FuturesItiSignalEntityId(e.ContractId, e.ValueDate, e.TimePeriod);
-            ClearFuturesItiSignalHoldTradeCommand cmd = new (e.ContractId, e.ValueDate, e.TimePeriod, e.IntrinsicTime)
+            ClearFuturesItiSignalHoldTradeCommand cmd = new(e.ContractId, e.ValueDate, e.TimePeriod, e.IntrinsicTime)
             {
                 CommandId = cmdId,
                 Subject = new ActorSubject(ActorType.Command, ClearFuturesItiSignalHoldTradeCommand.Actor, ClearFuturesItiSignalHoldTradeCommand.Verb, entityId.Format()),
@@ -448,7 +448,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
         try
         {
             var entityId = futuresAdxSignalId.ToEntityId();
-            GenerateFuturesAdxSignalCommand cmd = new (futuresAdxSignalId, futuresPrice)
+            GenerateFuturesAdxSignalCommand cmd = new(futuresAdxSignalId, futuresPrice)
             {
                 CommandId = cmdId,
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesAdxSignalCommand.Actor, GenerateFuturesAdxSignalCommand.Verb, entityId.Format()),

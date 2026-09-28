@@ -62,7 +62,7 @@ public record GetFuturesRsiSignalQuery : IQuery<FuturesRsiSignalReadModel>
         Subject = subject;
         EntityId = new GetFuturesRsiSignalParameter(contractId, valueDate, timePeriod, periodLength);
         ContractId = contractId ?? string.Empty;
-        ValueDate = valueDate; 
+        ValueDate = valueDate;
         TimePeriod = timePeriod;
         PeriodLength = periodLength;
         ErrorCode = ErrorId;

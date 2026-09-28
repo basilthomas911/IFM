@@ -44,13 +44,18 @@ public static class CompleteOrderComposition
             var failure = TimeoutFailure(now);
             var timedOut = current with
             {
-                Status = WorkflowStrategyMachineStatus.TimedOut, WorkflowRevision = current.WorkflowRevision + 1,
-                CausationId = command.SourceEventId, UpdatedAtUtc = now, TerminalAtUtc = now,
+                Status = WorkflowStrategyMachineStatus.TimedOut,
+                WorkflowRevision = current.WorkflowRevision + 1,
+                CausationId = command.SourceEventId,
+                UpdatedAtUtc = now,
+                TerminalAtUtc = now,
                 StopReasonCode = now >= current.ExpiresAtUtc ? "WorkflowExecutionExpired" : "OC.TIME.EXPIRED",
                 OrderComposition = current.OrderComposition with
                 {
-                    ProcessingStatus = StrategyActorProcessingStatus.TimedOut, FailedAtUtc = now,
-                    Failure = failure, SourceEventId = command.SourceEventId
+                    ProcessingStatus = StrategyActorProcessingStatus.TimedOut,
+                    FailedAtUtc = now,
+                    Failure = failure,
+                    SourceEventId = command.SourceEventId
                 }
             };
             AppendSnapshot(state, command, current.Status, timedOut, now);
@@ -68,35 +73,62 @@ public static class CompleteOrderComposition
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or OperationCanceledException)
         {
             var expired = ex is OperationCanceledException || ex is CompositionException { ReasonCode: "OC.TIME.EXPIRED" };
-            var invalid = current with { Status = expired ? WorkflowStrategyMachineStatus.TimedOut : WorkflowStrategyMachineStatus.Failed, Outcome = StrategyWorkflowOutcome.PipelineFailed,
-                WorkflowRevision = current.WorkflowRevision + 1, UpdatedAtUtc = now, TerminalAtUtc = now, StopReasonCode = expired ? "OC.TIME.EXPIRED" : "OC.RESULT.INVALID",
-                OrderComposition = current.OrderComposition with { ProcessingStatus = expired ? StrategyActorProcessingStatus.TimedOut : StrategyActorProcessingStatus.Failed, FailedAtUtc = now,
-                    SourceEventId = command.SourceEventId, Failure = new() { ErrorCode = 23024, ErrorType = expired ? "OrderCompositionTimedOut" : "OrderCompositionResultInvalid",
-                        ErrorMessage = expired ? "Composition validity expired before acceptance." : "Composition result failed immutable-input verification.", FailedAtUtc = now } } };
+            var invalid = current with
+            {
+                Status = expired ? WorkflowStrategyMachineStatus.TimedOut : WorkflowStrategyMachineStatus.Failed,
+                Outcome = StrategyWorkflowOutcome.PipelineFailed,
+                WorkflowRevision = current.WorkflowRevision + 1,
+                UpdatedAtUtc = now,
+                TerminalAtUtc = now,
+                StopReasonCode = expired ? "OC.TIME.EXPIRED" : "OC.RESULT.INVALID",
+                OrderComposition = current.OrderComposition with
+                {
+                    ProcessingStatus = expired ? StrategyActorProcessingStatus.TimedOut : StrategyActorProcessingStatus.Failed,
+                    FailedAtUtc = now,
+                    SourceEventId = command.SourceEventId,
+                    Failure = new()
+                    {
+                        ErrorCode = 23024,
+                        ErrorType = expired ? "OrderCompositionTimedOut" : "OrderCompositionResultInvalid",
+                        ErrorMessage = expired ? "Composition validity expired before acceptance." : "Composition result failed immutable-input verification.",
+                        FailedAtUtc = now
+                    }
+                }
+            };
             AppendSnapshot(state, command, current.Status, invalid, now); return Ok(command);
         }
         var noCandidate = result.Outcome == CompositionOutcome.NoCandidate;
         var revision = current.WorkflowRevision + 1;
         var updated = current with
         {
-            CausationId = command.CausationId, WorkflowRevision = revision, UpdatedAtUtc = now,
+            CausationId = command.CausationId,
+            WorkflowRevision = revision,
+            UpdatedAtUtc = now,
             CurrentStage = noCandidate ? StrategyWorkflowStage.OrderComposition : StrategyWorkflowStage.RiskManagement,
             Status = noCandidate ? WorkflowStrategyMachineStatus.Completed : WorkflowStrategyMachineStatus.Started,
             Outcome = noCandidate ? StrategyWorkflowOutcome.NoTrade : StrategyWorkflowOutcome.None,
-            TerminalAtUtc = noCandidate ? now : null, StopReasonCode = noCandidate ? result.Reasons[0] : string.Empty,
+            TerminalAtUtc = noCandidate ? now : null,
+            StopReasonCode = noCandidate ? result.Reasons[0] : string.Empty,
             CompositionContracts = command.SelectedContracts,
             OrderComposition = current.OrderComposition with
             {
                 ProcessingStatus = StrategyActorProcessingStatus.Completed,
                 ContinuationDecision = noCandidate ? StrategyWorkflowContinuationDecision.Stop : StrategyWorkflowContinuationDecision.Proceed,
-                CompletedAtUtc = now, FailedAtUtc = null, Result = command.Result, Failure = null,
-                SourceEventId = command.SourceEventId, ContinuationRuleSetId = "IntrinsicTimeStrategyWorkflow.v1",
-                ContinuationRuleSetVersion = 1, ContinuationReasonCodes = []
+                CompletedAtUtc = now,
+                FailedAtUtc = null,
+                Result = command.Result,
+                Failure = null,
+                SourceEventId = command.SourceEventId,
+                ContinuationRuleSetId = "IntrinsicTimeStrategyWorkflow.v1",
+                ContinuationRuleSetVersion = 1,
+                ContinuationReasonCodes = []
             },
             RiskManagement = noCandidate ? current.RiskManagement : new StrategyWorkflowStageState
             {
-                ProcessingStatus = StrategyActorProcessingStatus.Processing, StartedAtUtc = now,
-                InputWorkflowRevision = revision, ExpiresAtUtc = current.ExpiresAtUtc
+                ProcessingStatus = StrategyActorProcessingStatus.Processing,
+                StartedAtUtc = now,
+                InputWorkflowRevision = revision,
+                ExpiresAtUtc = current.ExpiresAtUtc
             }
         };
         AppendSnapshot(state, command, current.Status, updated, now);
@@ -110,17 +142,27 @@ public static class CompleteOrderComposition
         {
             Subject = new ActorSubject(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor,
                 WorkflowStrategyStateUpdatedEvent.Verb, command.EntityId.Format()),
-            Id = Guid.CreateVersion7(new DateTimeOffset(now, TimeSpan.Zero)), EntityId = command.EntityId,
-            CommandId = command.CommandId, AggregateId = command.EntityId.Format(), EventSource = command.EventSource,
-            ReceivedOn = now, WorkflowId = view.WorkflowId, WorkflowRevision = view.WorkflowRevision,
-            CorrelationId = view.CorrelationId, CausationId = view.CausationId, PreviousStatus = previousStatus,
-            State = view, UpdatedAtUtc = now
+            Id = Guid.CreateVersion7(new DateTimeOffset(now, TimeSpan.Zero)),
+            EntityId = command.EntityId,
+            CommandId = command.CommandId,
+            AggregateId = command.EntityId.Format(),
+            EventSource = command.EventSource,
+            ReceivedOn = now,
+            WorkflowId = view.WorkflowId,
+            WorkflowRevision = view.WorkflowRevision,
+            CorrelationId = view.CorrelationId,
+            CausationId = view.CausationId,
+            PreviousStatus = previousStatus,
+            State = view,
+            UpdatedAtUtc = now
         }, command);
 
     static StrategyPipelineFailure TimeoutFailure(DateTime now) => new()
     {
-        ErrorCode = Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.OrderCompositionFunctionFailedEvent.ErrorId, ErrorMessage = "The fixed composition or workflow execution deadline was reached.",
-        ErrorType = "OrderCompositionTimedOut", FailedAtUtc = now
+        ErrorCode = Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.OrderCompositionFunctionFailedEvent.ErrorId,
+        ErrorMessage = "The fixed composition or workflow execution deadline was reached.",
+        ErrorType = "OrderCompositionTimedOut",
+        FailedAtUtc = now
     };
 
     static ServiceResult<GuidResult> Ok(CompleteOrderCompositionCommand command)

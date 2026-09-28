@@ -193,9 +193,13 @@ public static class PortfolioFundOrderEditorPolicy
     /// <summary>Returns the closing trade type for an opening trade type.</summary>
     public static TradeType ClosingType(TradeType type) => type switch
     {
-        TradeType.ShortIronCondor => TradeType.LongIronCondor, TradeType.LongIronCondor => TradeType.ShortIronCondor,
-        TradeType.PutCreditSpread => TradeType.PutDebitSpread, TradeType.PutDebitSpread => TradeType.PutCreditSpread,
-        TradeType.CallCreditSpread => TradeType.CallDebitSpread, TradeType.CallDebitSpread => TradeType.CallCreditSpread,
-        TradeType.FuturesOutright => TradeType.FuturesOutright, _ => TradeType.Unknown
+        TradeType.ShortIronCondor => TradeType.LongIronCondor,
+        TradeType.LongIronCondor => TradeType.ShortIronCondor,
+        TradeType.PutCreditSpread => TradeType.PutDebitSpread,
+        TradeType.PutDebitSpread => TradeType.PutCreditSpread,
+        TradeType.CallCreditSpread => TradeType.CallDebitSpread,
+        TradeType.CallDebitSpread => TradeType.CallCreditSpread,
+        TradeType.FuturesOutright => TradeType.FuturesOutright,
+        _ => TradeType.Unknown
     };
 }

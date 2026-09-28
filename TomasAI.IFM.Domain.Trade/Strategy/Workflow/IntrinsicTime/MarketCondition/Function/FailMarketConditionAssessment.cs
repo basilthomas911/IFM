@@ -44,15 +44,28 @@ public static class FailMarketConditionAssessment
         return new()
         {
             Subject = new(ActorType.Function, ExecuteMarketConditionAssessmentCommand.Actor, MarketConditionAssessmentFailedEvent.Verb, c?.EntityId.Format() ?? ""),
-            Id = Guid.NewGuid(), EntityId = c?.WorkflowEntityId ?? default, WorkflowId = c?.WorkflowId ?? default,
-            CommandId = c?.CommandId ?? Guid.Empty, InputWorkflowRevision = c?.InputWorkflowRevision ?? 0,
-            ErrorDate = now, ReceivedOn = now, ErrorCode = MarketConditionAssessmentFailedEvent.ErrorId,
-            ErrorType = ErrorType.Command, ErrorData = reason, ErrorMessage = $"Market assessment failed: {category}.",
-            EventSource = $"{ExecuteMarketConditionAssessmentCommand.Actor}Actor", AggregateId = c?.EntityId.Format() ?? "",
-            CommandName = nameof(ExecuteMarketConditionAssessmentCommand), RouteTo = c?.RouteTo.ToString() ?? "",
-            CorrelationId = c?.CorrelationId ?? Guid.Empty, CausationId = c?.CausationId ?? Guid.Empty,
-            PipelineStage = StrategyWorkflowStage.MarketCondition, FailureCategory = category,
-            ExpiresAtUtc = c?.ExpiresAtUtc ?? default, ParameterPayloadSha256 = c?.ParameterPayloadSha256 ?? "", ProcessingStarted = c?.RequestedAtUtc ?? now
+            Id = Guid.NewGuid(),
+            EntityId = c?.WorkflowEntityId ?? default,
+            WorkflowId = c?.WorkflowId ?? default,
+            CommandId = c?.CommandId ?? Guid.Empty,
+            InputWorkflowRevision = c?.InputWorkflowRevision ?? 0,
+            ErrorDate = now,
+            ReceivedOn = now,
+            ErrorCode = MarketConditionAssessmentFailedEvent.ErrorId,
+            ErrorType = ErrorType.Command,
+            ErrorData = reason,
+            ErrorMessage = $"Market assessment failed: {category}.",
+            EventSource = $"{ExecuteMarketConditionAssessmentCommand.Actor}Actor",
+            AggregateId = c?.EntityId.Format() ?? "",
+            CommandName = nameof(ExecuteMarketConditionAssessmentCommand),
+            RouteTo = c?.RouteTo.ToString() ?? "",
+            CorrelationId = c?.CorrelationId ?? Guid.Empty,
+            CausationId = c?.CausationId ?? Guid.Empty,
+            PipelineStage = StrategyWorkflowStage.MarketCondition,
+            FailureCategory = category,
+            ExpiresAtUtc = c?.ExpiresAtUtc ?? default,
+            ParameterPayloadSha256 = c?.ParameterPayloadSha256 ?? "",
+            ProcessingStarted = c?.RequestedAtUtc ?? now
         };
     }
 }

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -18,8 +19,8 @@ namespace TomasAI.IFM.Domain.MarketData.IntegrationTests;
 /// <summary>Runs real Core NATS commands/queries, PostgreSQL state and JetStream projection into Scylla.</summary>
 [Trait("Category", "Integration")]
 [Collection("DownloadLog runtime")]
-public sealed class DownloadLogActorFlowTests(WebApplicationFactory<Program> factory, MarketDataFixture fixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataFixture>
+public sealed class DownloadLogActorFlowTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory, MarketDataFixture fixture)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<MarketDataFixture>
 {
     [LiveOfficialTreasuryFact]
     public async Task Official_live_curve_import_reaches_durable_queryable_download_log()
@@ -32,8 +33,12 @@ public sealed class DownloadLogActorFlowTests(WebApplicationFactory<Program> fac
         using var focused = factory.WithWebHostBuilder(builder =>
         {
             builder.UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.MarketData");
-            builder.UseSetting("IFM_TEST_NATS_URL", Environment.GetEnvironmentVariable("IFM_DOWNLOADLOG_TEST_NATS_URL") ?? "nats://127.0.0.1:14222");
-            builder.ConfigureServices(services => services.AddSingleton(reference));
+            builder.UseSetting("IFM_TEST_NATS_URL", Environment.GetEnvironmentVariable("IFM_DOWNLOADLOG_TEST_NATS_URL") ?? DomainActorIntegrationInfrastructureFixture.NatsUrl);
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IReferenceDataApi>();
+                services.AddSingleton(reference);
+            });
         });
         var coordinator = new FmpMarketDataImportCoordinator(new MarketDataCommandApi(focused.Services.GetRequiredService<IActorProducer>()),
             new FmpMarketDataImportOptions(), NullLogger<FmpMarketDataImportCoordinator>.Instance);
@@ -77,8 +82,12 @@ public sealed class DownloadLogActorFlowTests(WebApplicationFactory<Program> fac
         using var focused = factory.WithWebHostBuilder(builder =>
         {
             builder.UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.MarketData");
-            builder.UseSetting("IFM_TEST_NATS_URL", Environment.GetEnvironmentVariable("IFM_DOWNLOADLOG_TEST_NATS_URL") ?? "nats://127.0.0.1:14222");
-            builder.ConfigureServices(services => services.AddSingleton(reference));
+            builder.UseSetting("IFM_TEST_NATS_URL", Environment.GetEnvironmentVariable("IFM_DOWNLOADLOG_TEST_NATS_URL") ?? DomainActorIntegrationInfrastructureFixture.NatsUrl);
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IReferenceDataApi>();
+                services.AddSingleton(reference);
+            });
         });
         var coordinator = new FmpMarketDataImportCoordinator(new MarketDataCommandApi(focused.Services.GetRequiredService<IActorProducer>()),
             new FmpMarketDataImportOptions(), NullLogger<FmpMarketDataImportCoordinator>.Instance);
@@ -107,21 +116,29 @@ public sealed class DownloadLogActorFlowTests(WebApplicationFactory<Program> fac
         await treasury.Received(1).GetRangeAsync(date, date, Arg.Any<CancellationToken>());
     }
 
-    [Theory] [InlineData(MarketDataDownloadDataset.EconomicCalendar, "FMP")]
+    [Theory]
+    [InlineData(MarketDataDownloadDataset.EconomicCalendar, "FMP")]
     [InlineData(MarketDataDownloadDataset.TreasuryCurve, "FMP")]
     [InlineData(MarketDataDownloadDataset.TreasuryCurve, "USTreasury")]
     public async Task Command_projects_and_queries_then_rejects_conflicting_duplicate(MarketDataDownloadDataset dataset, string provider)
     {
-        using var focused = factory.WithWebHostBuilder(builder => builder
-            .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.MarketData")
-            .UseSetting("IFM_TEST_NATS_URL", Environment.GetEnvironmentVariable("IFM_DOWNLOADLOG_TEST_NATS_URL") ?? "nats://127.0.0.1:14222"));
-        var producer = focused.Services.GetRequiredService<IActorProducer>();
+        var producer = factory.Services.GetRequiredService<IActorProducer>();
         var now = MarketDataDownloadOutcome.MillisecondUtc(DateTime.UtcNow);
         var outcome = new MarketDataDownloadOutcome
         {
-            Dataset = dataset, Provider = provider, Scope = "US", ValueDate = new(8993, 9, 5), ImportCommandId = Guid.NewGuid(), SourceTerminalEventId = Guid.NewGuid(),
-            RequestedAtUtc = now.AddSeconds(-2), StartedAtUtc = now.AddSeconds(-1), FinishedAtUtc = now,
-            Status = MarketDataDownloadStatus.Completed, DownloadedRecordCount = 0, PersistedRecordCount = 0, ElapsedMilliseconds = 1000
+            Dataset = dataset,
+            Provider = provider,
+            Scope = "US",
+            ValueDate = new(8993, 9, 5),
+            ImportCommandId = Guid.NewGuid(),
+            SourceTerminalEventId = Guid.NewGuid(),
+            RequestedAtUtc = now.AddSeconds(-2),
+            StartedAtUtc = now.AddSeconds(-1),
+            FinishedAtUtc = now,
+            Status = MarketDataDownloadStatus.Completed,
+            DownloadedRecordCount = 0,
+            PersistedRecordCount = 0,
+            ElapsedMilliseconds = 1000
         };
         var command = new InsertMarketDataDownloadLogCommand(outcome);
         var reply = await producer.RequestAsync<InsertMarketDataDownloadLogCommand, DownloadLogId, GuidResult>(command.Subject, command, command.EntityId);

@@ -93,7 +93,8 @@ public sealed class FuturesTradeSessionBarSignalContractTests
         var olderEnd = first.Bar.IntervalEndUtc.AddMinutes(-1);
         var olderBar = first.Bar with
         {
-            IntervalStartUtc = olderEnd.AddMinutes(-1), IntervalEndUtc = olderEnd,
+            IntervalStartUtc = olderEnd.AddMinutes(-1),
+            IntervalEndUtc = olderEnd,
             FirstMarketEventUtc = olderEnd.AddSeconds(-58),
             LastMarketEventUtc = olderEnd.AddSeconds(-1),
             ObservationId = FuturesTradeSessionBarId.Create(first.Bar.MarketSeriesIdentity,
@@ -109,7 +110,8 @@ public sealed class FuturesTradeSessionBarSignalContractTests
         var nextEnd = first.Bar.IntervalEndUtc.AddMinutes(1);
         var nextBar = first.Bar with
         {
-            IntervalStartUtc = first.Bar.IntervalEndUtc, IntervalEndUtc = nextEnd,
+            IntervalStartUtc = first.Bar.IntervalEndUtc,
+            IntervalEndUtc = nextEnd,
             FirstMarketEventUtc = nextEnd.AddSeconds(-58),
             LastMarketEventUtc = nextEnd.AddSeconds(-1),
             ObservationId = FuturesTradeSessionBarId.Create(first.Bar.MarketSeriesIdentity,
@@ -126,7 +128,8 @@ public sealed class FuturesTradeSessionBarSignalContractTests
         var overlapEnd = nextEnd.AddSeconds(30);
         var overlapBar = nextBar with
         {
-            IntervalStartUtc = nextEnd.AddSeconds(-15), IntervalEndUtc = overlapEnd,
+            IntervalStartUtc = nextEnd.AddSeconds(-15),
+            IntervalEndUtc = overlapEnd,
             FirstMarketEventUtc = nextEnd.AddSeconds(-14),
             LastMarketEventUtc = overlapEnd.AddSeconds(-1),
             ObservationId = FuturesTradeSessionBarId.Create(first.Bar.MarketSeriesIdentity,
@@ -152,7 +155,10 @@ public sealed class FuturesTradeSessionBarSignalContractTests
         {
             Bar = valid.Bar with
             {
-                IsComplete = false, IsValid = false, TradeCount = 0, Volume = 0,
+                IsComplete = false,
+                IsValid = false,
+                TradeCount = 0,
+                Volume = 0,
                 ContractId = string.Empty
             }
         };

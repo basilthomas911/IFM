@@ -210,24 +210,24 @@ public sealed class LiveCurrentFuturesTickSmokeTests(ITestOutputHelper output)
     private static DatabentoFeedOptions LiveOptions(
         DatabentoFeedOptions queryOptions,
         string dataset) => queryOptions with
-    {
-        Dataset = dataset,
-        DataSource = FeedDataSourceMode.DatabentoLive,
-        CpuAffinity = new FeedCpuAffinityOptions
         {
-            Mode = CpuAffinityMode.Unpinned,
-            RequirePerformanceCore = false
-        },
-        ThreadPriority = new FeedThreadPriorityOptions(),
-        Memory = new FeedMemoryOptions { LockRingMemory = false },
-        GarbageCollection = new FeedGcOptions
-        {
-            EnableSustainedLowLatency = false
-        },
-        Numa = new FeedNumaOptions { Mode = NumaLocalityMode.Disabled },
-        CoreIsolation = new FeedCoreIsolationOptions
-        {
-            Mode = FeedCoreIsolationMode.PinnedOnly
-        }
-    };
+            Dataset = dataset,
+            DataSource = FeedDataSourceMode.DatabentoLive,
+            CpuAffinity = new FeedCpuAffinityOptions
+            {
+                Mode = CpuAffinityMode.Unpinned,
+                RequirePerformanceCore = false
+            },
+            ThreadPriority = new FeedThreadPriorityOptions(),
+            Memory = new FeedMemoryOptions { LockRingMemory = false },
+            GarbageCollection = new FeedGcOptions
+            {
+                EnableSustainedLowLatency = false
+            },
+            Numa = new FeedNumaOptions { Mode = NumaLocalityMode.Disabled },
+            CoreIsolation = new FeedCoreIsolationOptions
+            {
+                Mode = FeedCoreIsolationMode.PinnedOnly
+            }
+        };
 }

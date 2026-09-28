@@ -58,7 +58,7 @@ public sealed record ExecuteIntrinsicTimeStrategyWorkflowCommand : ICommand<Intr
     [Key(16)] public MarketConditionParameterSet MarketConditionParameterSet { get; init; } = new();
     [Key(17)] public string MarketConditionParameterPayloadSha256 { get; init; } = string.Empty;
     [Key(18)] public MarketConditionAssessmentBinding? AssessmentBinding { get; init; }
-    [Key(19)] public TradeSelectionBinding? SelectionBinding {get;init;}
+    [Key(19)] public TradeSelectionBinding? SelectionBinding { get; init; }
 
 
     /// <summary>Gets the concrete command contract name.</summary>

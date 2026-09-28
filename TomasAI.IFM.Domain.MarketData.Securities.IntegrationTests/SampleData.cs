@@ -7,6 +7,28 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.IntegrationTests;
 /// </summary>
 public static class SampleData
 {
+
+    public static FuturesContractV3ReadModel OptionUnderlyingFuturesContract => new(
+        contractId: $"ES{_optionContractMonth:yyyyMMdd}",
+        description: "Option underlying futures contract",
+        symbol: "ES",
+        localSymbol: FuturesOptionContractReadModel.GetLocalSymbol("ES", _optionContractMonth),
+        securityType: "FUT",
+        currency: "USD",
+        exchange: "CME",
+        multiplier: "50",
+        lastTradeDate: _optionContractMonth,
+        onTheRun: true)
+    {
+        SchemaVersion = 1,
+        ReviewState = ReferenceReviewState.Draft,
+        Dataset = "GLBX.MDP3",
+        PublisherId = 1,
+        InstrumentId = 99,
+        RawSymbol = FuturesOptionContractReadModel.GetLocalSymbol("ES", _optionContractMonth),
+        MultiplierValue = 50m,
+        MappingVersion = "integration/v1"
+    };
     static readonly DateOnly _lastTradeDate = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(3));
     static readonly DateOnly _optionContractMonth = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(3));
 
@@ -49,22 +71,44 @@ public static class SampleData
         contractMonth: _optionContractMonth,
         strikePrice: 5000.0,
         optionType: "Call"
-    );
+    )
+    {
+        SchemaVersion = 1,
+        MultiplierValue = 50m,
+        ReviewState = ReferenceReviewState.Draft,
+        Dataset = "GLBX.MDP3",
+        PublisherId = 1,
+        InstrumentId = 5000,
+        UnderlyingContractId = OptionUnderlyingFuturesContract.ContractId,
+        UnderlyingAssetType = ReferenceAssetType.Futures,
+        OptionRight = ReferenceOptionRight.Call
+    };
 
     public static FuturesOptionContractReadModel ChangedFuturesOptionContract => new(
-        contractId: $"ES{_optionContractMonth:yyyyMMdd}C5100",
+        contractId: $"ES{_optionContractMonth:yyyyMMdd}C5000",
         description: "Changed Test Futures Option Contract",
         symbol: "ES",
         localSymbol: FuturesOptionContractReadModel.GetContractLocalSymbol(
-            FuturesOptionContractReadModel.GetLocalSymbol("ES", _optionContractMonth), "Call", 5100.0),
+            FuturesOptionContractReadModel.GetLocalSymbol("ES", _optionContractMonth), "Call", 5000.0),
         securityType: "FOP",
         currency: "USD",
         exchange: "GLOBEX",
         multiplier: "50",
         contractMonth: _optionContractMonth,
-        strikePrice: 5100.0,
+        strikePrice: 5000.0,
         optionType: "Call"
-    );
+    )
+    {
+        SchemaVersion = 1,
+        MultiplierValue = 50m,
+        ReviewState = ReferenceReviewState.Draft,
+        Dataset = "GLBX.MDP3",
+        PublisherId = 1,
+        InstrumentId = 5000,
+        UnderlyingContractId = OptionUnderlyingFuturesContract.ContractId,
+        UnderlyingAssetType = ReferenceAssetType.Futures,
+        OptionRight = ReferenceOptionRight.Call
+    };
 
     public static FuturesOptionContractReadModel[] NewFuturesOptionContracts =>
     [
@@ -81,7 +125,18 @@ public static class SampleData
             contractMonth: _optionContractMonth,
             strikePrice: 5200.0,
             optionType: "Call"
-        ),
+        )
+        {
+            SchemaVersion = 1,
+            MultiplierValue = 50m,
+            ReviewState = ReferenceReviewState.Draft,
+            Dataset = "GLBX.MDP3",
+            PublisherId = 1,
+            InstrumentId = 5200,
+            UnderlyingContractId = OptionUnderlyingFuturesContract.ContractId,
+            UnderlyingAssetType = ReferenceAssetType.Futures,
+            OptionRight = ReferenceOptionRight.Call
+        },
         new(
             contractId: $"ES{_optionContractMonth:yyyyMMdd}P4900",
             description: "Test Futures Option Contract Put 1",
@@ -95,7 +150,18 @@ public static class SampleData
             contractMonth: _optionContractMonth,
             strikePrice: 4900.0,
             optionType: "Put"
-        ),
+        )
+        {
+            SchemaVersion = 1,
+            MultiplierValue = 50m,
+            ReviewState = ReferenceReviewState.Draft,
+            Dataset = "GLBX.MDP3",
+            PublisherId = 1,
+            InstrumentId = 4900,
+            UnderlyingContractId = OptionUnderlyingFuturesContract.ContractId,
+            UnderlyingAssetType = ReferenceAssetType.Futures,
+            OptionRight = ReferenceOptionRight.Put
+        },
         new(
             contractId: $"ES{_optionContractMonth:yyyyMMdd}C1800",
             description: "Test Futures Option Contract Call 2",
@@ -110,6 +176,17 @@ public static class SampleData
             strikePrice: 1800.0,
             optionType: "Call"
         )
+        {
+            SchemaVersion = 1,
+            MultiplierValue = 50m,
+            ReviewState = ReferenceReviewState.Draft,
+            Dataset = "GLBX.MDP3",
+            PublisherId = 1,
+            InstrumentId = 1800,
+            UnderlyingContractId = OptionUnderlyingFuturesContract.ContractId,
+            UnderlyingAssetType = ReferenceAssetType.Futures,
+            OptionRight = ReferenceOptionRight.Call
+        }
     ];
 
     public static YieldCurveRateReadModel NewYieldCurveRate => new(

@@ -8,6 +8,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
+
 [MessagePackObject(AllowPrivate = true)]
 public sealed record GetMarketConditionAssessmentHistoryQuery : IQuery<MarketConditionAssessmentCompletedEvent[]>
 {
@@ -41,7 +42,7 @@ public sealed record GetMarketConditionAssessmentHistoryQuery : IQuery<MarketCon
     [Key(2)] public string MarketProfileId { get; init; } = "";
     [Key(3)] public string InstrumentRoot { get; init; } = "ES";
     [Key(4)] public TimeFrameType TargetHorizon { get; init; }
-    [Key(5)] public DateTime BeforeUtc { get; init; } = DateTime.SpecifyKind(DateTime.MaxValue,DateTimeKind.Utc);
+    [Key(5)] public DateTime BeforeUtc { get; init; } = DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc);
     [Key(6)] public int PageSize { get; init; } = 25;
     [IgnoreMember] public int ErrorCode => 23221;
     [IgnoreMember] public string? QueryParams { get; init; }

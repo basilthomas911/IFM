@@ -39,14 +39,19 @@ public static class CompleteRiskManagement
             var failure = TimeoutFailure(now);
             var timedOut = current with
             {
-                Status = WorkflowStrategyMachineStatus.TimedOut, WorkflowRevision = current.WorkflowRevision + 1,
+                Status = WorkflowStrategyMachineStatus.TimedOut,
+                WorkflowRevision = current.WorkflowRevision + 1,
                 Outcome = StrategyWorkflowOutcome.TimedOut,
-                CausationId = command.SourceEventId, UpdatedAtUtc = now, TerminalAtUtc = now,
+                CausationId = command.SourceEventId,
+                UpdatedAtUtc = now,
+                TerminalAtUtc = now,
                 StopReasonCode = now >= current.ExpiresAtUtc ? "WorkflowExecutionExpired" : "RM.TIME.EXPIRED",
                 RiskManagement = current.RiskManagement with
                 {
-                    ProcessingStatus = StrategyActorProcessingStatus.TimedOut, FailedAtUtc = now,
-                    Failure = failure, SourceEventId = command.SourceEventId
+                    ProcessingStatus = StrategyActorProcessingStatus.TimedOut,
+                    FailedAtUtc = now,
+                    Failure = failure,
+                    SourceEventId = command.SourceEventId
                 }
             };
             AppendSnapshot(state, command, current.Status, timedOut, now);
@@ -70,14 +75,23 @@ public static class CompleteRiskManagement
             {
                 Status = expired ? WorkflowStrategyMachineStatus.TimedOut : WorkflowStrategyMachineStatus.Failed,
                 Outcome = expired ? StrategyWorkflowOutcome.TimedOut : StrategyWorkflowOutcome.InvalidResult,
-                WorkflowRevision = current.WorkflowRevision + 1, UpdatedAtUtc = now, TerminalAtUtc = now,
-                CausationId = command.SourceEventId, StopReasonCode = expired ? "RM.TIME.EXPIRED" : "RM.RESULT.INVALID",
+                WorkflowRevision = current.WorkflowRevision + 1,
+                UpdatedAtUtc = now,
+                TerminalAtUtc = now,
+                CausationId = command.SourceEventId,
+                StopReasonCode = expired ? "RM.TIME.EXPIRED" : "RM.RESULT.INVALID",
                 RiskManagement = current.RiskManagement with
                 {
                     ProcessingStatus = expired ? StrategyActorProcessingStatus.TimedOut : StrategyActorProcessingStatus.Failed,
-                    SourceEventId = command.SourceEventId, FailedAtUtc = now,
-                    Failure = new() { ErrorCode = 23025, ErrorType = "RiskManagementResultInvalid",
-                        ErrorMessage = "Risk result failed immutable-input verification.", FailedAtUtc = now }
+                    SourceEventId = command.SourceEventId,
+                    FailedAtUtc = now,
+                    Failure = new()
+                    {
+                        ErrorCode = 23025,
+                        ErrorType = "RiskManagementResultInvalid",
+                        ErrorMessage = "Risk result failed immutable-input verification.",
+                        FailedAtUtc = now
+                    }
                 }
             };
             AppendSnapshot(state, command, current.Status, invalid, now);
@@ -89,16 +103,23 @@ public static class CompleteRiskManagement
             RiskExplanation = RiskExplanationModel.Create(current.RiskExecution!, result),
             Status = rejected ? WorkflowStrategyMachineStatus.Completed : WorkflowStrategyMachineStatus.Started,
             Outcome = rejected ? StrategyWorkflowOutcome.NoTrade : StrategyWorkflowOutcome.None,
-            CausationId = command.CausationId, WorkflowRevision = current.WorkflowRevision + 1,
-            UpdatedAtUtc = now, TerminalAtUtc = rejected ? now : null,
+            CausationId = command.CausationId,
+            WorkflowRevision = current.WorkflowRevision + 1,
+            UpdatedAtUtc = now,
+            TerminalAtUtc = rejected ? now : null,
             StopReasonCode = rejected ? result.Reasons[0] : string.Empty,
             RiskManagement = current.RiskManagement with
             {
                 ProcessingStatus = StrategyActorProcessingStatus.Completed,
                 ContinuationDecision = rejected ? StrategyWorkflowContinuationDecision.Stop : StrategyWorkflowContinuationDecision.None,
-                CompletedAtUtc = now, FailedAtUtc = null, Result = command.Result, Failure = null,
-                SourceEventId = command.SourceEventId, ContinuationRuleSetId = "IntrinsicTimeStrategyWorkflow.v1",
-                ContinuationRuleSetVersion = 1, ContinuationReasonCodes = []
+                CompletedAtUtc = now,
+                FailedAtUtc = null,
+                Result = command.Result,
+                Failure = null,
+                SourceEventId = command.SourceEventId,
+                ContinuationRuleSetId = "IntrinsicTimeStrategyWorkflow.v1",
+                ContinuationRuleSetVersion = 1,
+                ContinuationReasonCodes = []
             }
         };
         AppendSnapshot(state, command, current.Status, updated, now);
@@ -112,17 +133,27 @@ public static class CompleteRiskManagement
         {
             Subject = new ActorSubject(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor,
                 WorkflowStrategyStateUpdatedEvent.Verb, command.EntityId.Format()),
-            Id = Guid.CreateVersion7(new DateTimeOffset(now, TimeSpan.Zero)), EntityId = command.EntityId,
-            CommandId = command.CommandId, AggregateId = command.EntityId.Format(), EventSource = command.EventSource,
-            ReceivedOn = now, WorkflowId = view.WorkflowId, WorkflowRevision = view.WorkflowRevision,
-            CorrelationId = view.CorrelationId, CausationId = view.CausationId, PreviousStatus = previousStatus,
-            State = view, UpdatedAtUtc = now
+            Id = Guid.CreateVersion7(new DateTimeOffset(now, TimeSpan.Zero)),
+            EntityId = command.EntityId,
+            CommandId = command.CommandId,
+            AggregateId = command.EntityId.Format(),
+            EventSource = command.EventSource,
+            ReceivedOn = now,
+            WorkflowId = view.WorkflowId,
+            WorkflowRevision = view.WorkflowRevision,
+            CorrelationId = view.CorrelationId,
+            CausationId = view.CausationId,
+            PreviousStatus = previousStatus,
+            State = view,
+            UpdatedAtUtc = now
         }, command);
 
     static StrategyPipelineFailure TimeoutFailure(DateTime now) => new()
     {
-        ErrorCode = 23103, ErrorMessage = "The fixed workflow execution deadline was reached.",
-        ErrorType = "RiskManagementTimedOut", FailedAtUtc = now
+        ErrorCode = 23103,
+        ErrorMessage = "The fixed workflow execution deadline was reached.",
+        ErrorType = "RiskManagementTimedOut",
+        FailedAtUtc = now
     };
 
     static ServiceResult<GuidResult> Ok(CompleteRiskManagementCommand command)

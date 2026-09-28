@@ -14,7 +14,7 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelectio
 public interface ITradeSelectionFunctionContext : IFunctionActorContext<TradeSelectionFunctionActor>
 {
     ITradeSelectionCalculator CalculationModel { get; }
-    IStrategyCatalogCapabilities Capabilities {get;}
+    IStrategyCatalogCapabilities Capabilities { get; }
     TimeProvider TimeProvider { get; }
     ILogger<TradeSelectionFunctionActor> Logger { get; }
     IEventSourceFunctionStateRepository<TradeSelectionFunctionState, ExecuteTradeSelectionPipelineCommand> StateRepository { get; }

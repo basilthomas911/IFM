@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelectio
 public interface ITradeSelectionQueryContext : IQueryActorContext<TradeSelectionQueryActor>
 {
     IDbContextFactory DbFactory { get; }
-    IPortfolioQueryApi PortfolioQueries {get;}
+    IPortfolioQueryApi PortfolioQueries { get; }
     ILogger<TradeSelectionQueryActor> Logger { get; }
 }
 public sealed class TradeSelectionQueryContext : QueryActorContext,
@@ -20,7 +20,7 @@ public sealed class TradeSelectionQueryContext : QueryActorContext,
         ILogger<TradeSelectionQueryActor> logger)
         : base(supervisor, new ActorMailboxId(ActorType.Query, TradeSelectionQueryActor.ActorName))
     { DbFactory = IsArgumentNull.Set(dbFactory); Logger = IsArgumentNull.Set(logger); }
-    public IPortfolioQueryApi PortfolioQueries=>Container.Resolve<IPortfolioQueryApi>();
+    public IPortfolioQueryApi PortfolioQueries => Container.Resolve<IPortfolioQueryApi>();
     public IDbContextFactory DbFactory { get; }
     public ILogger<TradeSelectionQueryActor> Logger { get; }
 }

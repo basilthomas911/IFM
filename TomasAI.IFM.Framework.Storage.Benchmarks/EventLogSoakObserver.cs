@@ -30,7 +30,7 @@ internal sealed class EventLogSoakObserver : IAsyncDisposable
         try
         {
             await using var db = new NpgsqlConnection(new NpgsqlConnectionStringBuilder(connection)
-                { Pooling = false, ApplicationName = "EventLogSoakObserver" }.ConnectionString);
+            { Pooling = false, ApplicationName = "EventLogSoakObserver" }.ConnectionString);
             await db.OpenAsync(_stop.Token);
             using var process = Process.GetCurrentProcess();
             using var tick = new PeriodicTimer(TimeSpan.FromSeconds(1));
@@ -61,8 +61,13 @@ internal sealed class EventLogSoakObserver : IAsyncDisposable
     }
     static async Task<JsonElement> ContainerStats()
     {
-        var start = new ProcessStartInfo("docker") { UseShellExecute = false, CreateNoWindow = true,
-            RedirectStandardOutput = true, RedirectStandardError = true };
+        var start = new ProcessStartInfo("docker")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
         // Pressure mode validates this exact labelled, exclusive-volume, loopback container before fixtures.
         foreach (var arg in new[] { "stats", "--no-stream", "--format", "{{json .}}", "ifm-eventlog-benchmark-20260919" })
             start.ArgumentList.Add(arg);

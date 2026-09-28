@@ -21,9 +21,9 @@ public record GenerateFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityI
 
     // Base command members (keys 0..5)
     [Key(0)] public Guid CommandId { get; init; }
-    [Key(1)] public ActorSubject Subject { get; init; } 
+    [Key(1)] public ActorSubject Subject { get; init; }
     [Key(2)] public bool PostEvents { get; init; }
-    [Key(3)] public FuturesRsiSignalEntityId EntityId { get; init; } 
+    [Key(3)] public FuturesRsiSignalEntityId EntityId { get; init; }
     [Key(4)] public int ErrorCode { get; init; }
     [Key(5)] public BoundedContextName RouteTo { get; init; }
 
@@ -48,7 +48,7 @@ public record GenerateFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityI
     /// <summary>Gets the immutable closed observation that triggered this command.</summary>
     [Key(10)] public FuturesTradeSessionBarReadModel? Observation { get; init; }
 
-    
+
     /// <summary>
     /// Parameterless constructor required for MessagePack deserialization.
     /// </summary>

@@ -101,12 +101,12 @@ public class FuturesMacdSignalCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<FuturesMacdSignalCommandActor>,
         FuturesMacdSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<FuturesMacdSignalCommandActor>,
         FuturesMacdSignalCommandState, ServiceResult<GuidResult>>>()
-    {
-        [typeof(StartFuturesMacdSignalCommand)] = (cmd, context, state) => ((StartFuturesMacdSignalCommand)cmd).Execute(state),
-        [typeof(StopFuturesMacdSignalCommand)] = (cmd, context, state) => ((StopFuturesMacdSignalCommand)cmd).Execute(state),
-        [typeof(GenerateFuturesMacdSignalCommand)] = (cmd, context, state) => (cmd as GenerateFuturesMacdSignalCommand)!.Execute(state),
-        [typeof(GenerateFuturesMacdDailySignalCommand)] = (cmd, context, state) => (cmd as GenerateFuturesMacdDailySignalCommand)!.Execute(state)
-    };
+        {
+            [typeof(StartFuturesMacdSignalCommand)] = (cmd, context, state) => ((StartFuturesMacdSignalCommand)cmd).Execute(state),
+            [typeof(StopFuturesMacdSignalCommand)] = (cmd, context, state) => ((StopFuturesMacdSignalCommand)cmd).Execute(state),
+            [typeof(GenerateFuturesMacdSignalCommand)] = (cmd, context, state) => (cmd as GenerateFuturesMacdSignalCommand)!.Execute(state),
+            [typeof(GenerateFuturesMacdDailySignalCommand)] = (cmd, context, state) => (cmd as GenerateFuturesMacdDailySignalCommand)!.Execute(state)
+        };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -132,36 +132,40 @@ public class FuturesMacdSignalCommandActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
-    {
-        [typeof(StartFuturesMacdSignalCommand)] = cmd => {
-            var e = (StartFuturesMacdSignalCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesMacdConfiguration(e.EntityId.Configuration);
-        },
-        [typeof(StopFuturesMacdSignalCommand)] = cmd => {
-            var e = (StopFuturesMacdSignalCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesMacdConfiguration(e.EntityId.Configuration);
-        },
-        [typeof(GenerateFuturesMacdSignalCommand)] = cmd => {
-            var e = (GenerateFuturesMacdSignalCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesMacdSignalId(e.FuturesMacdSignalId)
-                .ValidateFuturesMacdConfiguration(e.EntityId.Configuration)
-                .ValidateClosedObservation(e.Observation, e.EntityId.ContractId,
-                    e.EntityId.ValueDate, e.EntityId.TimePeriod, e.CommandName, allowPriorValueDate: e.IsHistoricalSeed);
-        },
-        [typeof(GenerateFuturesMacdDailySignalCommand)] = cmd => {
-            var e = (GenerateFuturesMacdDailySignalCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesMacdSignalId(e.FuturesMacdSignalId)
-                .ValidateFuturesMacdConfiguration(e.EntityId.Configuration);
-        }
-    };
+        {
+            [typeof(StartFuturesMacdSignalCommand)] = cmd =>
+            {
+                var e = (StartFuturesMacdSignalCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFuturesMacdConfiguration(e.EntityId.Configuration);
+            },
+            [typeof(StopFuturesMacdSignalCommand)] = cmd =>
+            {
+                var e = (StopFuturesMacdSignalCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFuturesMacdConfiguration(e.EntityId.Configuration);
+            },
+            [typeof(GenerateFuturesMacdSignalCommand)] = cmd =>
+            {
+                var e = (GenerateFuturesMacdSignalCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFuturesMacdSignalId(e.FuturesMacdSignalId)
+                    .ValidateFuturesMacdConfiguration(e.EntityId.Configuration)
+                    .ValidateClosedObservation(e.Observation, e.EntityId.ContractId,
+                        e.EntityId.ValueDate, e.EntityId.TimePeriod, e.CommandName, allowPriorValueDate: e.IsHistoricalSeed);
+            },
+            [typeof(GenerateFuturesMacdDailySignalCommand)] = cmd =>
+            {
+                var e = (GenerateFuturesMacdDailySignalCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFuturesMacdSignalId(e.FuturesMacdSignalId)
+                    .ValidateFuturesMacdConfiguration(e.EntityId.Configuration);
+            }
+        };
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.

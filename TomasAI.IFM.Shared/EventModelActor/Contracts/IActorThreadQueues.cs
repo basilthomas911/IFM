@@ -21,7 +21,7 @@ public interface IActorThreadQueues
         CancellationToken cancellationToken = default);
     IActorThreadQueue GetThreadQueue(ActorThreadId threadId);
     bool TryGetThreadQueue(ActorThreadId threadId, out IActorThreadQueue? queue);
-    void ReleaseThreadQueue(ActorThreadId threadId);    
+    void ReleaseThreadQueue(ActorThreadId threadId);
     int Count { get; }
     bool IsAccepting => true;
     void PauseAdmission() { }

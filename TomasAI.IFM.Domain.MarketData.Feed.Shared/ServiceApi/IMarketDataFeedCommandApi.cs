@@ -13,7 +13,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 public interface IMarketDataFeedCommandApi
 {
     Task<ServiceResult<Guid>> DeleteStreamingRequestIdAsync(FeedId streamId);
-   Task<ServiceResult<Guid>> StartMarketDataFeedAsync(ICollection<FuturesContractV3ReadModel> futuresContracts, DateOnly valueDate);
+    Task<ServiceResult<Guid>> StartMarketDataFeedAsync(ICollection<FuturesContractV3ReadModel> futuresContracts, DateOnly valueDate);
     Task<ServiceResult<Guid>> StopMarketDataFeedAsync(DateOnly valueDate);
     Task<ServiceResult<Guid>> ResetMarketDataFeedAsync(ICollection<FuturesContractV3ReadModel> futuresContracts, DateOnly valueDate);
 
@@ -26,12 +26,12 @@ public interface IMarketDataFeedCommandApi
 
     Task<ServiceResult<Guid>> InsertFuturesTickDataAsync(FuturesContractV3ReadModel futuresContract, FuturesTickDataV2ReadModel futuresTickData);
     Task<ServiceResult<Guid>> InsertFuturesOptionTickDataAsync(FuturesContractV3ReadModel futuresContract, FuturesOptionTickDataV2ReadModel futuresOptionTickData);
-    Task<ServiceResult<Guid>> InsertFuturesEodDataAsync(DateOnly valueDate, 
-        FuturesTickDataV2ReadModel futuresTickData, 
+    Task<ServiceResult<Guid>> InsertFuturesEodDataAsync(DateOnly valueDate,
+        FuturesTickDataV2ReadModel futuresTickData,
         FuturesContractV3ReadModel contract,
-        FuturesEodDataV2ReadModel eodDataToday, 
-        ICollection<FuturesEodDataV2ReadModel> eodDataRange, 
-        NormalCurveTableReadModel normCurveData, 
+        FuturesEodDataV2ReadModel eodDataToday,
+        ICollection<FuturesEodDataV2ReadModel> eodDataRange,
+        NormalCurveTableReadModel normCurveData,
         int windowSize,
         ICollection<VixFuturesEodDataReadModel> vixEodData);
     Task<ServiceResult<Guid>> DeleteFuturesBarDataAsync(FuturesBarDataId id);

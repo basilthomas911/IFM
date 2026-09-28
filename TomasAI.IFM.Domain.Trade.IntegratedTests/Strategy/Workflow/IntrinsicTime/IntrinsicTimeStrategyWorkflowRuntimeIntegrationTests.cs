@@ -68,9 +68,9 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeCollection
 [Trait("Category", "Integration")]
 [Collection(IntrinsicTimeStrategyWorkflowRuntimeCollection.Name)]
 public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
-    WebApplicationFactory<Program> sourceFactory,
+    TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> sourceFactory,
     TradeDatabaseFixture database)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<TradeDatabaseFixture>
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<TradeDatabaseFixture>
 {
     static readonly TimeSpan ScenarioTimeout = TimeSpan.FromSeconds(30);
     static readonly StrategyWorkflowStage[] Stages =
@@ -92,7 +92,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
             $"ifm-market-condition-reference-{Guid.NewGuid():N}.csv");
         await using var factory = sourceFactory.WithWebHostBuilder(builder => builder
             .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
-            .UseSetting("IFM_TEST_NATS_URL", "nats://127.0.0.1:14222"));
+            .UseSetting("IFM_TEST_NATS_URL", DomainActorIntegrationInfrastructureFixture.NatsUrl));
         _ = factory.CreateClient();
         var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
         supervisor.IsReady.Should().BeTrue();
@@ -226,7 +226,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
     {
         await using var factory = sourceFactory.WithWebHostBuilder(builder => builder
             .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
-            .UseSetting("IFM_TEST_NATS_URL", "nats://127.0.0.1:14222")
+            .UseSetting("IFM_TEST_NATS_URL", DomainActorIntegrationInfrastructureFixture.NatsUrl)
             .ConfigureServices(services =>
             {
                 services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true });
@@ -313,7 +313,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
     {
         await using var factory = sourceFactory.WithWebHostBuilder(builder => builder
             .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
-            .UseSetting("IFM_TEST_NATS_URL", "nats://127.0.0.1:14222")
+            .UseSetting("IFM_TEST_NATS_URL", DomainActorIntegrationInfrastructureFixture.NatsUrl)
             .ConfigureServices(services =>
                 services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true })));
         _ = factory.CreateClient();
@@ -350,7 +350,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
     {
         await using var factory = sourceFactory.WithWebHostBuilder(builder => builder
             .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
-            .UseSetting("IFM_TEST_NATS_URL", "nats://127.0.0.1:14222")
+            .UseSetting("IFM_TEST_NATS_URL", DomainActorIntegrationInfrastructureFixture.NatsUrl)
             .ConfigureServices(services =>
                 services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true })));
         _ = factory.CreateClient();
@@ -427,7 +427,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
     {
         await using var factory = sourceFactory.WithWebHostBuilder(builder => builder
             .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
-            .UseSetting("IFM_TEST_NATS_URL", "nats://127.0.0.1:14222")
+            .UseSetting("IFM_TEST_NATS_URL", DomainActorIntegrationInfrastructureFixture.NatsUrl)
             .ConfigureServices(services => services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions
             {
                 Enabled = true,
@@ -469,7 +469,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
     {
         await using var factory = sourceFactory.WithWebHostBuilder(builder => builder
             .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
-            .UseSetting("IFM_TEST_NATS_URL", "nats://127.0.0.1:14222")
+            .UseSetting("IFM_TEST_NATS_URL", DomainActorIntegrationInfrastructureFixture.NatsUrl)
             .ConfigureServices(services =>
             {
                 services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions
@@ -1070,7 +1070,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
 
         public async ValueTask DisposeAsync()
         {
-            if(Interlocked.Exchange(ref _disposed,1)!=0)return;
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
             foreach (var actor in _actors.AsEnumerable().Reverse())
             {
                 await actor.StopAsync();

@@ -16,7 +16,7 @@ namespace IBApi
      */
     public class OrderComboLeg
     {
-        
+
         double price;
 
         /**

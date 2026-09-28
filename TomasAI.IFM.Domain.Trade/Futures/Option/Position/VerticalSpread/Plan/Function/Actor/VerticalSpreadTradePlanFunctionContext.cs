@@ -13,7 +13,8 @@ public interface IVerticalSpreadTradePlanFunctionContext : IFunctionActorContext
     TimeProvider TimeProvider { get; }
     ILogger<VerticalSpreadTradePlanFunctionActor> Logger { get; }
     IEventSourceFunctionStateRepository<VerticalSpreadTradePlanFunctionState,
-        UpdateVerticalSpreadTradePlanCommand> StateRepository { get; }
+        UpdateVerticalSpreadTradePlanCommand> StateRepository
+    { get; }
 }
 
 public sealed class VerticalSpreadTradePlanFunctionContext : FunctionActorContext,

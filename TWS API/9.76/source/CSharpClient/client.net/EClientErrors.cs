@@ -66,7 +66,7 @@ namespace IBApi
         public static readonly CodeMsgPair BAD_LENGTH = new CodeMsgPair(507, "Bad message length");
         public static readonly CodeMsgPair BAD_MESSAGE = new CodeMsgPair(508, "Bad message");
         public static readonly CodeMsgPair UNSUPPORTED_VERSION = new CodeMsgPair(506, "Unsupported version");
-    
+
         public static readonly CodeMsgPair FAIL_SEND_VERIFYANDAUTHREQUEST = new CodeMsgPair(551, "Verify And Auth Request Sending Error - ");
         public static readonly CodeMsgPair FAIL_SEND_VERIFYANDAUTHMESSAGE = new CodeMsgPair(552, "Verify And Auth Message Sending Error - ");
 
@@ -98,12 +98,12 @@ namespace IBApi
         public static readonly CodeMsgPair FAIL_SEND_REQCOMPLETEDORDERS = new CodeMsgPair(578, "Request Completed Orders Sending Error - ");
 
         public static readonly CodeMsgPair FAIL_GENERIC = new CodeMsgPair(-1, "Specific error message needs to be given for these requests! ");
-    
+
     }
 
-/**
-  * @brief associates error code and error message as a pair. 
-  */
+    /**
+      * @brief associates error code and error message as a pair. 
+      */
     public class CodeMsgPair
     {
         private int code;
@@ -117,7 +117,7 @@ namespace IBApi
 
         public int Code
         {
-            get { return code; } 
+            get { return code; }
         }
 
         public string Message

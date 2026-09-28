@@ -20,7 +20,7 @@ public record GetTradePlanSummaryParameter : IActorEntityId, IQueryParameter
     public GetTradePlanSummaryParameter() { }
 
     [SerializationConstructor]
-    public GetTradePlanSummaryParameter( int orderId, int tradeId, DateOnly valueDate)
+    public GetTradePlanSummaryParameter(int orderId, int tradeId, DateOnly valueDate)
     {
         OrderId = orderId;
         TradeId = tradeId;

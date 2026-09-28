@@ -26,21 +26,21 @@ public class DataReaderOptions : IDataReaderOptions
 
     public Uri Uri => _dataSourceUri;
 
-    public DataReaderType DataReaderType { get; set; }  = DataReaderType.Csv;
+    public DataReaderType DataReaderType { get; set; } = DataReaderType.Csv;
 
     public DataSourceType DataSourceType => _dataSourceType;
 
-    public string ApiKey => _apiKey; 
+    public string ApiKey => _apiKey;
 
-    static Dictionary<string,string> ReadOptions(string connectionString)
+    static Dictionary<string, string> ReadOptions(string connectionString)
     {
         Dictionary<string, string> optionsMap = [];
         if (!string.IsNullOrWhiteSpace(connectionString))
         {
-            var optionEntry = connectionString.Split([";" ], StringSplitOptions.RemoveEmptyEntries);
-            foreach(var optionItems in optionEntry)
+            var optionEntry = connectionString.Split([";"], StringSplitOptions.RemoveEmptyEntries);
+            foreach (var optionItems in optionEntry)
             {
-                var optionItem = optionItems.Split([ " = " ], StringSplitOptions.RemoveEmptyEntries);
+                var optionItem = optionItems.Split([" = "], StringSplitOptions.RemoveEmptyEntries);
                 if (optionItem.Length == 2)
                     optionsMap.Add(optionItem[0].Trim(), optionItem[1].Trim());
             }

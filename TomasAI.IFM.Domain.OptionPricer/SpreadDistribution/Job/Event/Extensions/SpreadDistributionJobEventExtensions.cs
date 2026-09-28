@@ -33,7 +33,7 @@ internal static class SpreadDistributionJobEventExtensions
     /// <param name="orderId">The order identifier.</param>
     /// <param name="tradeId">The trade identifier.</param>
     /// <returns>The <see cref="OptionTradeReadModel"/> when the query succeeds; otherwise <see langword="null"/>.</returns>
-    internal static async ValueTask<OptionTradeReadModel> GetOptionTradeAsync(this IEventActorContext context,int orderId, int tradeId)
+    internal static async ValueTask<OptionTradeReadModel> GetOptionTradeAsync(this IEventActorContext context, int orderId, int tradeId)
     {
         var optionTrade = default(OptionTradeReadModel);
         var entityId = new GetOptionTradeParameter(orderId, tradeId);

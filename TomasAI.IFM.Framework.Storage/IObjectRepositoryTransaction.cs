@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Framework.Storage
 {
     public interface IObjectRepositoryTransaction
     {
-         /// <summary>
+        /// <summary>
         /// commit database transaction
         /// </summary>
         void Commit();

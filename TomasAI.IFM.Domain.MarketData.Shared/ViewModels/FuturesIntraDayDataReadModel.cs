@@ -25,7 +25,7 @@ public record FuturesIntraDayDataReadModel
     public DateOnly ValueDate { get; init; }
 
     [Key(2)]
-    public long SequenceId { get; init; } 
+    public long SequenceId { get; init; }
 
     /// <summary>Symbol root (e.g. ES, NQ, CL, VX).</summary>
     [Key(3)]

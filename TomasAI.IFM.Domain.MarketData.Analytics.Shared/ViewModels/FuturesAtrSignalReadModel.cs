@@ -27,7 +27,7 @@ public record FuturesAtrSignalReadModel
     public TimeFrameType TimePeriod { get; init; }
 
     [Key(3)]
-    public int  PeriodLength { get; init; }
+    public int PeriodLength { get; init; }
 
     /// <summary>Intraday timestamp (time component) when the signal was generated.</summary>
     [Key(4)]

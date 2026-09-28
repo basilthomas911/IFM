@@ -3,8 +3,9 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
+
 [MessagePackObject(AllowPrivate = true)]
-public sealed record ListParameterVersionsQuery:IQuery<ParameterSetVersion[]>
+public sealed record ListParameterVersionsQuery : IQuery<ParameterSetVersion[]>
 {
 
     /// <summary>Creates an empty query for serialization.</summary>
@@ -35,17 +36,17 @@ public sealed record ListParameterVersionsQuery:IQuery<ParameterSetVersion[]>
         AfterSetId = afterSetId;
         AfterVersion = afterVersion;
     }
- public const string Actor="ParameterSetQuery"; public const string Verb="ListParameterVersions";
- [Key(0)] public ActorSubject Subject {get;init;}
- [Key(1)] public IActorEntityId EntityId {get;init;}=ActorEntityId.Default;
- [Key(2)] public Guid SetId {get;init;}
- [Key(3)] public string ComponentCode {get;init;}="strategy-workflow.regime-discovery";
- [Key(4)] public string PayloadJson {get;init;}="{}";
- [Key(5)] public int SchemaVersion {get;init;}=2;
- [Key(6)] public int Limit{get;init;}=100;
- [Key(7)] public string AfterName{get;init;}=string.Empty;
- [Key(8)] public Guid? AfterSetId{get;init;}
- [Key(9)] public int AfterVersion{get;init;}
- [IgnoreMember] public int ErrorCode {get;init;}=33101;
- [IgnoreMember] public string? QueryParams {get;init;}
+    public const string Actor = "ParameterSetQuery"; public const string Verb = "ListParameterVersions";
+    [Key(0)] public ActorSubject Subject { get; init; }
+    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
+    [Key(2)] public Guid SetId { get; init; }
+    [Key(3)] public string ComponentCode { get; init; } = "strategy-workflow.regime-discovery";
+    [Key(4)] public string PayloadJson { get; init; } = "{}";
+    [Key(5)] public int SchemaVersion { get; init; } = 2;
+    [Key(6)] public int Limit { get; init; } = 100;
+    [Key(7)] public string AfterName { get; init; } = string.Empty;
+    [Key(8)] public Guid? AfterSetId { get; init; }
+    [Key(9)] public int AfterVersion { get; init; }
+    [IgnoreMember] public int ErrorCode { get; init; } = 33101;
+    [IgnoreMember] public string? QueryParams { get; init; }
 }

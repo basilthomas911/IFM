@@ -23,25 +23,29 @@ using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.EventSourceDb;
 
-public sealed class MarkerProjectorFixture
+public sealed class MarkerProjectorFixture : IAsyncLifetime
 {
-    public string Direct { get; }
-    public string Provider { get; }
-    public EventSourceActorSnapshotRangeFixture Storage { get; }
-    public IBlackboardService Blackboard { get; }
-    public MarkerProjectorFixture()
+    readonly TomasAI.IFM.IntegrationTesting.IsolatedIntegrationInfrastructure infrastructure = new("eventlogbenchmarker");
+    readonly string? previousPostgres = Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION");
+    readonly string? previousNats = Environment.GetEnvironmentVariable("IFM_MARKER_TEST_NATS_URL");
+    public string Direct { get; private set; } = string.Empty;
+    public string Provider { get; private set; } = string.Empty;
+    public EventSourceActorSnapshotRangeFixture Storage { get; private set; } = default!;
+    public IBlackboardService Blackboard { get; private set; } = default!;
+    public async Task InitializeAsync()
     {
-        Direct = Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")
-            ?? throw new InvalidOperationException("An explicit disposable benchmark database is required.");
+        await infrastructure.StartAsync();
+        Direct = new NpgsqlConnectionStringBuilder(infrastructure.PostgresConnectionString)
+        {
+            Username = infrastructure.PostgresUser,
+            Password = infrastructure.PostgresPassword
+        }.ConnectionString;
+        Environment.SetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION", Direct);
+        Environment.SetEnvironmentVariable("IFM_MARKER_TEST_NATS_URL", infrastructure.NatsUrl);
         var builder = new NpgsqlConnectionStringBuilder(Direct);
-        if (builder.Host != "127.0.0.1" || builder.Port != 25432)
-            throw new InvalidOperationException("Projector qualification requires isolated loopback port 25432.");
         builder.Username = ""; builder.Password = "";
         Provider = builder.ConnectionString;
         _ = EventLogSqlLayout.ForBenchmark(Provider, batchProjectionMarkers: true); // Validate before schema creation.
-        var schema = Environment.GetEnvironmentVariable("IFM_PROJECTOR_SCHEMA_TEST");
-        if (schema is not (null or "three-index"))
-            throw new InvalidOperationException("Unknown isolated projector schema test mode.");
         Storage = new EventSourceActorSnapshotRangeFixture();
         var cache = Substitute.For<IRedisCache>();
         var values = new ConcurrentDictionary<string, string>();
@@ -56,26 +60,15 @@ public sealed class MarkerProjectorFixture
         Blackboard = new BlackboardService(cache, new SystemTextJsonSerializer());
         using var db = new NpgsqlConnection(Direct);
         db.Open();
-        if (schema == "three-index")
-        {
-            using var indexes = new NpgsqlCommand("""
-                ALTER TABLE event_log DROP CONSTRAINT event_log_pkey;
-                ALTER TABLE event_log ADD CONSTRAINT ux_event_log_stream_version_v3
-                    PRIMARY KEY USING INDEX ux_event_log_stream_version_v3;
-                """, db);
-            indexes.ExecuteNonQuery();
-        }
         using (var shape = new NpgsqlCommand("""
             SELECT pg_get_constraintdef(oid) FROM pg_constraint
             WHERE conrelid='event_log'::regclass AND contype='p'
             """, db))
-            Assert.Equal(schema == "three-index"
-                ? "PRIMARY KEY (eventstreamid, streamversion)"
-                : "PRIMARY KEY (eventstreamid, eventnameid, eventversion)", (string)shape.ExecuteScalar()!);
+            Assert.Equal("PRIMARY KEY (eventstreamid, streamversion)", (string)shape.ExecuteScalar()!);
         using (var count = new NpgsqlCommand("""
             SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND tablename='event_log'
             """, db))
-            Assert.Equal(schema == "three-index" ? 3L : 4L, (long)count.ExecuteScalar()!);
+            Assert.Equal(4L, (long)count.ExecuteScalar()!);
         using var ddl = new NpgsqlCommand("""
             CREATE TABLE marker_probe_receipt(projector text NOT NULL,eventid bigint NOT NULL,
                 messageid text NOT NULL,PRIMARY KEY(projector,eventid));
@@ -84,6 +77,13 @@ public sealed class MarkerProjectorFixture
             """, db);
         ddl.ExecuteNonQuery();
     }
+    public async Task DisposeAsync()
+    {
+        Environment.SetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION", previousPostgres);
+        Environment.SetEnvironmentVariable("IFM_MARKER_TEST_NATS_URL", previousNats);
+        await infrastructure.DisposeAsync();
+    }
+
     public async Task<object?> Sql(string sql, params object[] parameters)
     {
         await using var db = new NpgsqlConnection(Direct);
@@ -102,8 +102,11 @@ public sealed partial class MarkerProjectorPipelineTests(MarkerProjectorFixture 
 {
     static EventProjectorReliabilityOptions Options => new()
     {
-        FencedExecutionEnabled = true, BoundedRecoveryEnabled = true,
-        RecoveryBatchSize = 7, RecoveryStreamConcurrency = 4, InitialReplayDelay = TimeSpan.FromMilliseconds(1)
+        FencedExecutionEnabled = true,
+        BoundedRecoveryEnabled = true,
+        RecoveryBatchSize = 7,
+        RecoveryStreamConcurrency = 4,
+        InitialReplayDelay = TimeSpan.FromMilliseconds(1)
     };
 
     [Theory]
@@ -257,7 +260,7 @@ public sealed partial class MarkerProjectorPipelineTests(MarkerProjectorFixture 
         var id = await fixture.Storage.ActorEventDb.GetEventStreamIdAsync(streamName);
         var commandId = Guid.NewGuid();
         var events = Enumerable.Range(1, count).Select(value => new ProbeEvent
-            { AggregateId = streamName, CommandId = commandId, Value = value, Projector = projector }).ToArray();
+        { AggregateId = streamName, CommandId = commandId, Value = value, Projector = projector }).ToArray();
         var eventName = await fixture.Storage.ActorEventDb.GetEventNameIdFromDomainEventAsync(events[0]);
         var layout = EventLogSqlLayout.ForBenchmark(fixture.Provider, batched);
         await using var writer = new BinaryCopyEventLogAppender(fixture.Provider, true,

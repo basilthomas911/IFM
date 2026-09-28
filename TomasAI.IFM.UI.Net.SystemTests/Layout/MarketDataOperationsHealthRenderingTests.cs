@@ -46,7 +46,8 @@ public sealed class MarketDataOperationsHealthRenderingTests
                 completed.SetResult();
             }
             catch (Exception exception) { completed.SetException(exception); }
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         await completed.Task.WaitAsync(TimeSpan.FromSeconds(15));
@@ -58,7 +59,10 @@ public sealed class MarketDataOperationsHealthRenderingTests
         public Task<UiOperationResult<MarketDataOperationsHealthSnapshot>> GetAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(UiOperationResult<MarketDataOperationsHealthSnapshot>.Success(new()
             {
-                ObservedOnUtc = DateTime.UtcNow, OverallStatus = "Red", SessionState = "LiveTrading", ValueDate = new(2026, 9, 4),
+                ObservedOnUtc = DateTime.UtcNow,
+                OverallStatus = "Red",
+                SessionState = "LiveTrading",
+                ValueDate = new(2026, 9, 4),
                 Stages = [new() { Stage = "MarketOutlookComposition", Status = "Red", Pending = 12,
                     ReasonCode = "PendingWorkAged", Reason = "Injected processing stall; source data remains fresh." }],
                 Datasets = [new() { Dataset = "GLBX.MDP3", Status = "Green", ProcessId = 1234,

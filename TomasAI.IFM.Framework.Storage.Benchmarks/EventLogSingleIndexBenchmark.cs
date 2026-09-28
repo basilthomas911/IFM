@@ -131,16 +131,16 @@ internal static class EventLogSingleIndexBenchmark
         {
             var variants = new[] { Variant.CurrentLayout, Variant.ExactSingleIndex };
             for (var repeat = 0; repeat < options.Repeats; repeat++)
-            for (var order = 0; order < variants.Length; order++)
-            {
-                var variant = variants[(repeat + order) % variants.Length];
-                var database = $"ifm_eventlog_single_{runId}_{repeat + 1}_{(int)variant}";
-                Console.WriteLine($"Running {variant} / repeat {repeat + 1} / order {order + 1}");
-                var sample = await RunSample(admin, rawAdmin, database, variant, repeat + 1, order + 1, options);
-                samples.Add(sample);
-                await WriteResults(options.Output, samples);
-                Console.WriteLine($"  {sample.EventsPerSecond:F1} events/s; p99 {sample.P99AppendAcknowledgementMs:F2} ms; verification passed");
-            }
+                for (var order = 0; order < variants.Length; order++)
+                {
+                    var variant = variants[(repeat + order) % variants.Length];
+                    var database = $"ifm_eventlog_single_{runId}_{repeat + 1}_{(int)variant}";
+                    Console.WriteLine($"Running {variant} / repeat {repeat + 1} / order {order + 1}");
+                    var sample = await RunSample(admin, rawAdmin, database, variant, repeat + 1, order + 1, options);
+                    samples.Add(sample);
+                    await WriteResults(options.Output, samples);
+                    Console.WriteLine($"  {sample.EventsPerSecond:F1} events/s; p99 {sample.P99AppendAcknowledgementMs:F2} ms; verification passed");
+                }
         }
         finally
         {

@@ -23,8 +23,8 @@ namespace TomasAI.IFM.Domain.OptionPricer.IntegrationTests.SpreadDistribution.Jo
 /// </summary>
 /// <param name="factory">The web application factory used to create test HTTP clients for simulating API requests.</param>
 /// <param name="dbFixture">The database fixture that provides access to test database instances for option pricer data setup and cleanup.</param>
-public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program> factory, OptionPricerFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<OptionPricerFixture>
+public class SpreadDistributionJobCommandApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory, OptionPricerFixture dbFixture)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<OptionPricerFixture>
 {
     static readonly TimeSpan EventTimeout = TimeSpan.FromSeconds(10);
     readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();

@@ -58,9 +58,12 @@ public sealed class DatabaseBackupActorStateTests
             var template = (DatabaseBackupServiceEventContract)Activator.CreateInstance(type)!;
             var serviceEvent = (DatabaseBackupServiceEventContract)(template with
             {
-                Id = source.SourceEventId, EntityId = source.OperationId, CommandId = source.CorrelationId,
+                Id = source.SourceEventId,
+                EntityId = source.OperationId,
+                CommandId = source.CorrelationId,
                 Subject = new ActorSubject(ActorType.Event, DatabaseBackupEventActor.Actor, template.Verb, source.OperationId.Format()),
-                Source = source, ReceivedOn = source.ObservedUtc.UtcDateTime,
+                Source = source,
+                ReceivedOn = source.ObservedUtc.UtcDateTime,
                 Outcome = type.Name.Contains("Failed", StringComparison.Ordinal) ? DatabaseRecoveryOutcome.Failed : DatabaseRecoveryOutcome.None
             });
 
@@ -247,8 +250,12 @@ public sealed class DatabaseBackupActorStateTests
 
         state.Execute(new ApproveDatabaseRestoreCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = operationId, Request = Request(),
-            ApprovalIdentity = "approver-1", ApprovalReference = "approval-restore", ExpectedStateRevision = state.Operation.Revision
+            CommandId = Guid.NewGuid(),
+            EntityId = operationId,
+            Request = Request(),
+            ApprovalIdentity = "approver-1",
+            ApprovalReference = "approval-restore",
+            ExpectedStateRevision = state.Operation.Revision
         });
         state.Execute(Internal<RecordDatabaseOperationAdmissionCommand>(operationId, 1, DatabaseRecoveryPhase.Admitted, kind: DatabaseRecoveryOperationKind.Restore));
         state.Execute(Internal<RecordDatabaseOperationStartedCommand>(operationId, 2, DatabaseRecoveryPhase.Started, kind: DatabaseRecoveryOperationKind.Restore));
@@ -257,8 +264,13 @@ public sealed class DatabaseBackupActorStateTests
 
         var stale = new ApproveDatabaseCutoverCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = operationId, Request = Request(), ApprovalIdentity = "approver-2",
-            ApprovalReference = "approval-cutover", ValidationRevision = 11, ExpectedStateRevision = state.Operation.Revision
+            CommandId = Guid.NewGuid(),
+            EntityId = operationId,
+            Request = Request(),
+            ApprovalIdentity = "approver-2",
+            ApprovalReference = "approval-cutover",
+            ValidationRevision = 11,
+            ExpectedStateRevision = state.Operation.Revision
         };
         ((Action)(() => state.Execute(stale))).Should().Throw<InvalidOperationException>().WithMessage("*validation revision*");
 
@@ -275,7 +287,11 @@ public sealed class DatabaseBackupActorStateTests
 
         var staleCancel = new CancelDatabaseBackupCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = operationId, Request = Request(), SafeReason = "operator cancel", ExpectedStateRevision = 1
+            CommandId = Guid.NewGuid(),
+            EntityId = operationId,
+            Request = Request(),
+            SafeReason = "operator cancel",
+            ExpectedStateRevision = 1
         };
         ((Action)(() => state.Execute(staleCancel))).Should().Throw<InvalidOperationException>().WithMessage("*Expected revision*");
         ((Action)(() => state.Execute(Internal<RecordDatabaseOperationStartedCommand>(operationId, 1, DatabaseRecoveryPhase.Started))))
@@ -301,17 +317,28 @@ public sealed class DatabaseBackupActorStateTests
 
     static RequestDatabaseBackupCommand RequestBackup(DatabaseRecoveryOperationId operationId) => new()
     {
-        CommandId = Guid.NewGuid(), EntityId = operationId, Request = Request(), Source = BackupSource.LocalWorkstation,
-        ProtectionSetId = new DatabaseProtectionSetId("core"), ConsistencyMode = DatabaseConsistencyMode.CoordinatedProtectionSet,
-        RequiredDestinations = [new DatabaseLogicalDestination("vault", true)], ExpectedPolicyRevision = 2
+        CommandId = Guid.NewGuid(),
+        EntityId = operationId,
+        Request = Request(),
+        Source = BackupSource.LocalWorkstation,
+        ProtectionSetId = new DatabaseProtectionSetId("core"),
+        ConsistencyMode = DatabaseConsistencyMode.CoordinatedProtectionSet,
+        RequiredDestinations = [new DatabaseLogicalDestination("vault", true)],
+        ExpectedPolicyRevision = 2
     };
 
     static RequestDatabaseRestoreCommand RequestRestore(DatabaseRecoveryOperationId operationId) => new()
     {
-        CommandId = Guid.NewGuid(), EntityId = operationId, Request = Request(), Source = BackupSource.LocalWorkstation,
-        ProtectionSetId = new DatabaseProtectionSetId("core"), RestorePointId = new DatabaseRestorePointId("rp-001"),
-        FreshTarget = new DatabaseFreshTargetDescriptor("isolated", "restore-target"), RestoreClass = DatabaseRestoreClass.ProductionRecovery,
-        ExpectedPolicyRevision = 2, ExpectedManifestRevision = 1
+        CommandId = Guid.NewGuid(),
+        EntityId = operationId,
+        Request = Request(),
+        Source = BackupSource.LocalWorkstation,
+        ProtectionSetId = new DatabaseProtectionSetId("core"),
+        RestorePointId = new DatabaseRestorePointId("rp-001"),
+        FreshTarget = new DatabaseFreshTargetDescriptor("isolated", "restore-target"),
+        RestoreClass = DatabaseRestoreClass.ProductionRecovery,
+        ExpectedPolicyRevision = 2,
+        ExpectedManifestRevision = 1
     };
 
     static TCommand Internal<TCommand>(
@@ -326,9 +353,13 @@ public sealed class DatabaseBackupActorStateTests
         var template = new TCommand();
         return (TCommand)(template with
         {
-            CommandId = envelope.SourceEventId, EntityId = operationId, Source = envelope,
+            CommandId = envelope.SourceEventId,
+            EntityId = operationId,
+            Source = envelope,
             Subject = new ActorSubject(ActorType.Command, DatabaseBackupCommandRoute.Actor, template.Verb, operationId.Format()),
-            Outcome = outcome, ProgressPercent = progress, ValidationRevision = validationRevision,
+            Outcome = outcome,
+            ProgressPercent = progress,
+            ValidationRevision = validationRevision,
             BackupLineage = backupLineage
         });
     }
@@ -336,17 +367,30 @@ public sealed class DatabaseBackupActorStateTests
     static DatabaseSourceEnvelope ServiceSource(Guid operationValue, long sequence, DatabaseRecoveryPhase phase,
         Guid? eventId = null, string host = "host-1", BackupSource source = BackupSource.LocalWorkstation,
         DatabaseRecoveryOperationKind kind = DatabaseRecoveryOperationKind.Backup) => new()
-    {
-        SourceEventId = eventId ?? Guid.NewGuid(), OperationId = new DatabaseRecoveryOperationId(operationValue),
-        Source = source, ProtectionSetId = new DatabaseProtectionSetId("core"), PolicyRevision = 2,
-        OperationKind = kind, Phase = phase, ProducingHostId = new DatabaseBackupHostId(host),
-        SourceRevisionOrSequence = sequence, CorrelationId = Guid.NewGuid(), CausationId = Guid.NewGuid(), ObservedUtc = DateTimeOffset.UtcNow
-    };
+        {
+            SourceEventId = eventId ?? Guid.NewGuid(),
+            OperationId = new DatabaseRecoveryOperationId(operationValue),
+            Source = source,
+            ProtectionSetId = new DatabaseProtectionSetId("core"),
+            PolicyRevision = 2,
+            OperationKind = kind,
+            Phase = phase,
+            ProducingHostId = new DatabaseBackupHostId(host),
+            SourceRevisionOrSequence = sequence,
+            CorrelationId = Guid.NewGuid(),
+            CausationId = Guid.NewGuid(),
+            ObservedUtc = DateTimeOffset.UtcNow
+        };
 
     static DatabaseRequestEnvelope Request() => new()
     {
-        RequestId = Guid.NewGuid(), CallerIdentity = "operator", AuthorizationReference = "approval",
-        CallerRoles = ["DatabaseRecoveryOperator"], Origin = DatabaseRequestOrigin.Console,
-        CorrelationId = Guid.NewGuid(), EnvironmentIdentity = "paper-trading", CreatedUtc = DateTimeOffset.UtcNow
+        RequestId = Guid.NewGuid(),
+        CallerIdentity = "operator",
+        AuthorizationReference = "approval",
+        CallerRoles = ["DatabaseRecoveryOperator"],
+        Origin = DatabaseRequestOrigin.Console,
+        CorrelationId = Guid.NewGuid(),
+        EnvironmentIdentity = "paper-trading",
+        CreatedUtc = DateTimeOffset.UtcNow
     };
 }

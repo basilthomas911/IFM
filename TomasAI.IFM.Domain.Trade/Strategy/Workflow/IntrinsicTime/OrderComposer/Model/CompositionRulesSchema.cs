@@ -18,7 +18,7 @@ public static class CompositionRulesSchema
         var adjustment = Object(("Code", Text()), ("Priority", Number(true)), ("Predicate", Predicate(1)),
             ("Parameter", Number(true)), ("Operation", Number(true)), ("Operand", Number()));
         var variant = Object(("VariantKey", key), ("StructureKey", key), ("BaseParameters", new()
-            { Type = CatalogValueType.Object, Properties = parameters, Required = parameters.Keys.ToArray() }),
+        { Type = CatalogValueType.Object, Properties = parameters, Required = parameters.Keys.ToArray() }),
             ("HardBounds", Array(bounds, 64)), ("AdjustmentRules", Array(adjustment, 64)),
             ("AllowedWidths", Array(Number(), 64)), ("RequireSymmetricWings", Boolean()),
             ("DeltaUnits", Text()), ("RankingVersion", Text()));
@@ -29,7 +29,7 @@ public static class CompositionRulesSchema
     static CatalogParameterShape Predicate(int depth) => Object(("Comparison", Number(true)), ("Feature", Number(true)),
         ("Values", Array(Number(), 64)), ("Children", depth == 8 ? Array(Object(), 0) : Array(Predicate(depth + 1), 64)), ("Required", Boolean()));
     static CatalogParameterShape Object(params (string Name, CatalogParameterShape Shape)[] properties) => new()
-        { Type = CatalogValueType.Object, Properties = properties.ToDictionary(x => x.Name, x => x.Shape, StringComparer.Ordinal), Required = properties.Select(x => x.Name).ToArray() };
+    { Type = CatalogValueType.Object, Properties = properties.ToDictionary(x => x.Name, x => x.Shape, StringComparer.Ordinal), Required = properties.Select(x => x.Name).ToArray() };
     static CatalogParameterShape Array(CatalogParameterShape items, int maximum) => new() { Type = CatalogValueType.Array, Items = items, MaxLength = maximum };
     static CatalogParameterShape Number(bool integer = false) => new() { Type = integer ? CatalogValueType.Integer : CatalogValueType.Decimal };
     static CatalogParameterShape Text() => new() { Type = CatalogValueType.String, MaxLength = 128 };

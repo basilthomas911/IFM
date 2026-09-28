@@ -113,9 +113,14 @@ public sealed class LiveAwsJournalIntegrationTests(ITestOutputHelper output)
 
     static AwsCloudDatabaseBackupOptions LiveOptions() => new()
     {
-        Enabled = true, LiveAwsTestsEnabled = true, Environment = AwsBackupEnvironment.Development,
-        WorkloadAccountId = "107651266250", PrimaryVaultAccountId = "107651266250", RecoveryVaultAccountId = "107651266250",
-        PrimaryRegion = "ca-central-1", RecoveryRegion = "ca-west-1",
+        Enabled = true,
+        LiveAwsTestsEnabled = true,
+        Environment = AwsBackupEnvironment.Development,
+        WorkloadAccountId = "107651266250",
+        PrimaryVaultAccountId = "107651266250",
+        RecoveryVaultAccountId = "107651266250",
+        PrimaryRegion = "ca-central-1",
+        RecoveryRegion = "ca-west-1",
         PrimaryBucketName = "ifm-db-backup-development-primary-107651266250",
         RecoveryBucketName = "ifm-db-backup-development-recovery-107651266250",
         JournalTableName = "ifm-database-backup-journal-development",
@@ -134,15 +139,26 @@ public sealed class LiveAwsJournalIntegrationTests(ITestOutputHelper output)
         {
             ExecutionEvent = new DatabaseBackupExecutionRequestedEvent
             {
-                Id = eventId, EventId = 1, CommandId = Guid.NewGuid(), EntityId = operationId,
-                AggregateId = operationId.Format(), EventSource = "Gate5LiveQualification", ReceivedOn = DateTime.UtcNow,
+                Id = eventId,
+                EventId = 1,
+                CommandId = Guid.NewGuid(),
+                EntityId = operationId,
+                AggregateId = operationId.Format(),
+                EventSource = "Gate5LiveQualification",
+                ReceivedOn = DateTime.UtcNow,
                 RequiredDestinations = [new DatabaseLogicalDestination("aws-primary", true)],
                 Source = new DatabaseSourceEnvelope
                 {
-                    SourceEventId = eventId, OperationId = operationId, Source = BackupSource.AwsCloud,
-                    ProtectionSetId = new DatabaseProtectionSetId("postgresql-core"), PolicyRevision = 1,
-                    OperationKind = DatabaseRecoveryOperationKind.Backup, Phase = DatabaseRecoveryPhase.Requested,
-                    CorrelationId = Guid.NewGuid(), CausationId = Guid.NewGuid(), ObservedUtc = DateTimeOffset.UtcNow
+                    SourceEventId = eventId,
+                    OperationId = operationId,
+                    Source = BackupSource.AwsCloud,
+                    ProtectionSetId = new DatabaseProtectionSetId("postgresql-core"),
+                    PolicyRevision = 1,
+                    OperationKind = DatabaseRecoveryOperationKind.Backup,
+                    Phase = DatabaseRecoveryPhase.Requested,
+                    CorrelationId = Guid.NewGuid(),
+                    CausationId = Guid.NewGuid(),
+                    ObservedUtc = DateTimeOffset.UtcNow
                 }
             }
         };

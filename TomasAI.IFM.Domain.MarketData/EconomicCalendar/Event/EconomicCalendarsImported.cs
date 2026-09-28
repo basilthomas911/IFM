@@ -87,11 +87,18 @@ public static class EconomicCalendarsImported
 
         MarketDataDownloadOutcome Outcome(MarketDataDownloadStatus status, Exception? error) => new()
         {
-            Dataset = MarketDataDownloadDataset.EconomicCalendar, ValueDate = DateOnly.FromDateTime(@event.ImportedDate),
-            Scope = MarketDataDownloadOutcome.CanonicalScope(@event.CountryCodes), ImportCommandId = @event.CommandId, SourceTerminalEventId = terminalId,
-            RequestedAtUtc = MarketDataDownloadOutcome.MillisecondUtc(@event.RequestedOn), StartedAtUtc = started,
-            FinishedAtUtc = MarketDataDownloadOutcome.MillisecondUtc(DateTime.UtcNow), Status = status,
-            DownloadedRecordCount = downloaded, PersistedRecordCount = persisted, ElapsedMilliseconds = stopwatch.ElapsedMilliseconds,
+            Dataset = MarketDataDownloadDataset.EconomicCalendar,
+            ValueDate = DateOnly.FromDateTime(@event.ImportedDate),
+            Scope = MarketDataDownloadOutcome.CanonicalScope(@event.CountryCodes),
+            ImportCommandId = @event.CommandId,
+            SourceTerminalEventId = terminalId,
+            RequestedAtUtc = MarketDataDownloadOutcome.MillisecondUtc(@event.RequestedOn),
+            StartedAtUtc = started,
+            FinishedAtUtc = MarketDataDownloadOutcome.MillisecondUtc(DateTime.UtcNow),
+            Status = status,
+            DownloadedRecordCount = downloaded,
+            PersistedRecordCount = persisted,
+            ElapsedMilliseconds = stopwatch.ElapsedMilliseconds,
             ErrorCode = error is null ? null : "ImportProcessingFailed",
             ErrorMessage = error is null ? null : "Provider acquisition, response validation or data persistence failed. See the correlated import diagnostics."
         };

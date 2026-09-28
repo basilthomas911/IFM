@@ -39,13 +39,19 @@ public sealed class AwsImmutablePublicationTests
         var signedUtc = new DateTimeOffset(2026, 8, 22, 18, 0, 0, TimeSpan.Zero);
         var envelope = new AwsSignatureEnvelope
         {
-            KeyArn = arn, Algorithm = "ECDSA_SHA_256", DigestAlgorithm = "SHA-256",
-            DigestBase64 = Convert.ToBase64String(digest), SignatureBase64 = Convert.ToBase64String(signature), SignedUtc = signedUtc
+            KeyArn = arn,
+            Algorithm = "ECDSA_SHA_256",
+            DigestAlgorithm = "SHA-256",
+            DigestBase64 = Convert.ToBase64String(digest),
+            SignatureBase64 = Convert.ToBase64String(signature),
+            SignedUtc = signedUtc
         };
         var publicKey = key.ExportSubjectPublicKeyInfo();
         var bundle = new AwsRecoveryTrustBundle
         {
-            Environment = "development", Revision = 2, CreatedUtc = signedUtc,
+            Environment = "development",
+            Revision = 2,
+            CreatedUtc = signedUtc,
             Keys =
             [
                 new AwsRecoveryTrustedKey(arn, "ECC_NIST_P256", "SIGN_VERIFY", "ECDSA_SHA_256",
@@ -130,7 +136,8 @@ public sealed class AwsImmutablePublicationTests
         s3.GetObjectMetadataAsync(Arg.Any<GetObjectMetadataRequest>(), Arg.Any<CancellationToken>())
             .Returns(new GetObjectMetadataResponse
             {
-                ContentLength = content.Length, VersionId = expected.VersionId,
+                ContentLength = content.Length,
+                VersionId = expected.VersionId,
                 ServerSideEncryptionMethod = ServerSideEncryptionMethod.AWSKMS,
                 ServerSideEncryptionKeyManagementServiceKeyId = options.RecoveryEncryptionKeyArn,
                 ObjectLockMode = ObjectLockMode.Governance,
@@ -234,7 +241,8 @@ public sealed class AwsImmutablePublicationTests
         s3.GetObjectMetadataAsync(Arg.Any<GetObjectMetadataRequest>(), Arg.Any<CancellationToken>())
             .Returns(new GetObjectMetadataResponse
             {
-                ContentLength = content.LongLength, VersionId = versionId,
+                ContentLength = content.LongLength,
+                VersionId = versionId,
                 ServerSideEncryptionMethod = ServerSideEncryptionMethod.AWSKMS,
                 ServerSideEncryptionKeyManagementServiceKeyId = options.PrimaryEncryptionKeyArn,
                 ObjectLockMode = ObjectLockMode.Governance,
@@ -244,7 +252,8 @@ public sealed class AwsImmutablePublicationTests
         s3.GetObjectAsync(Arg.Any<GetObjectRequest>(), Arg.Any<CancellationToken>())
             .Returns(_ => new GetObjectResponse
             {
-                ResponseStream = new MemoryStream(content, writable: false), ContentLength = content.LongLength,
+                ResponseStream = new MemoryStream(content, writable: false),
+                ContentLength = content.LongLength,
                 VersionId = versionId
             });
     }
@@ -271,10 +280,15 @@ public sealed class AwsImmutablePublicationTests
 
     static AwsCloudDatabaseBackupOptions Options() => new()
     {
-        Enabled = true, Environment = AwsBackupEnvironment.Development,
-        WorkloadAccountId = "107651266250", PrimaryVaultAccountId = "107651266250", RecoveryVaultAccountId = "107651266250",
-        PrimaryRegion = "ca-central-1", RecoveryRegion = "ca-west-1",
-        PrimaryBucketName = "ifm-primary-development", RecoveryBucketName = "ifm-recovery-development",
+        Enabled = true,
+        Environment = AwsBackupEnvironment.Development,
+        WorkloadAccountId = "107651266250",
+        PrimaryVaultAccountId = "107651266250",
+        RecoveryVaultAccountId = "107651266250",
+        PrimaryRegion = "ca-central-1",
+        RecoveryRegion = "ca-west-1",
+        PrimaryBucketName = "ifm-primary-development",
+        RecoveryBucketName = "ifm-recovery-development",
         JournalTableName = "ifm-database-backup-journal-development",
         UploadRoleArn = "arn:aws:iam::107651266250:role/ifm-upload-development",
         RecoveryReadRoleArn = "arn:aws:iam::107651266250:role/ifm-recovery-development",

@@ -57,7 +57,7 @@ public class ApplicationCommandApi(IActorProducer actorProducer)
         ServiceResult<Guid> serviceResult;
         try
         {
-            var entityId  = new ApplicationEntityId(valueDate);
+            var entityId = new ApplicationEntityId(valueDate);
             ShutdownApplicationCommand cmd = new(valueDate)
             {
                 CommandId = cmdId,

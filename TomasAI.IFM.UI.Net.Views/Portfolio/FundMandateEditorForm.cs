@@ -93,15 +93,26 @@ public sealed class FundMandateEditorForm : DarkTradingForm
         var now = DateTime.UtcNow;
         var value = new FundMandateReadModel
         {
-            PortfolioId = _portfolioId, FundId = _fundId,
+            PortfolioId = _portfolioId,
+            FundId = _fundId,
             // Compatibility metadata only: never ask the operator to invent a second Fund identifier.
-            FundCode = _source?.FundCode ?? "FUND-" + _fundId.ToString(System.Globalization.CultureInfo.InvariantCulture), Name = _name.Text.Trim(),
-            FundMandateVersion = _source is null ? 1 : checked(_source.FundMandateVersion + 1), TradingYear = (int)_year.Value,
-            OperatingState = state, EffectiveFromUtc = now,
-            DecisionHorizon = PortfolioUiStyle.SelectedStrategyTimeFrameName(_horizon), Objective = _objective.Text.Trim(), UnderlyingUniverse = _underlyings.SelectedValues,
-            EligibleAssetTypes = _assets.SelectedValues, PermittedDirections = _directions.SelectedValues, PermittedConditions = _conditions.SelectedValues,
-            SchemaVersion = 3, PermittedTradeStrategyFamilies = choices.Select(x => x.Reference!).ToArray(),
-            PermittedTradeFamilies = choices.Select(x => x.SystemKey).Distinct(StringComparer.Ordinal).ToArray(), CreatedOnUtc = now, CreatedBy = Environment.UserName
+            FundCode = _source?.FundCode ?? "FUND-" + _fundId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            Name = _name.Text.Trim(),
+            FundMandateVersion = _source is null ? 1 : checked(_source.FundMandateVersion + 1),
+            TradingYear = (int)_year.Value,
+            OperatingState = state,
+            EffectiveFromUtc = now,
+            DecisionHorizon = PortfolioUiStyle.SelectedStrategyTimeFrameName(_horizon),
+            Objective = _objective.Text.Trim(),
+            UnderlyingUniverse = _underlyings.SelectedValues,
+            EligibleAssetTypes = _assets.SelectedValues,
+            PermittedDirections = _directions.SelectedValues,
+            PermittedConditions = _conditions.SelectedValues,
+            SchemaVersion = 3,
+            PermittedTradeStrategyFamilies = choices.Select(x => x.Reference!).ToArray(),
+            PermittedTradeFamilies = choices.Select(x => x.SystemKey).Distinct(StringComparer.Ordinal).ToArray(),
+            CreatedOnUtc = now,
+            CreatedBy = Environment.UserName
         };
         var errors = value.Validate(); if (errors.Count != 0) { _error.Text = string.Join("; ", errors); return; }
         Value = value; DialogResult = DialogResult.OK; Close();

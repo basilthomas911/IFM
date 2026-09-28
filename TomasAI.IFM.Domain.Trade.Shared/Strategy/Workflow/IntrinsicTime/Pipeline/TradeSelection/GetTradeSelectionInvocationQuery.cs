@@ -6,8 +6,9 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
+
 [MessagePackObject(AllowPrivate = true)]
-public sealed record GetTradeSelectionInvocationQuery:IQuery<TradeSelectionProjection>
+public sealed record GetTradeSelectionInvocationQuery : IQuery<TradeSelectionProjection>
 {
 
     /// <summary>Creates an empty query for serialization.</summary>
@@ -28,14 +29,14 @@ public sealed record GetTradeSelectionInvocationQuery:IQuery<TradeSelectionProje
         WorkflowId = workflowId;
         InvocationId = invocationId;
     }
-    [IgnoreMember] public const string Actor="TradeSelectionPipelineQuery";
-    [IgnoreMember] public const string Verb="GetTradeSelectionInvocation";
-    [IgnoreMember] public const int ErrorId=23210;
-    [Key(0)] public ActorSubject Subject {get;init;}
-    [Key(1)] public IActorEntityId EntityId {get;init;}=ActorEntityId.Default;
-    [Key(2)] public SelectionQueryAccess Access {get;init;}=new(string.Empty,[]);
-    [Key(3)] public StrategyWorkflowId WorkflowId {get;init;}
-    [Key(4)] public Guid InvocationId {get;init;}
-    [IgnoreMember] public int ErrorCode {get;init;}=ErrorId;
-    [IgnoreMember] public string? QueryParams {get;init;}
+    [IgnoreMember] public const string Actor = "TradeSelectionPipelineQuery";
+    [IgnoreMember] public const string Verb = "GetTradeSelectionInvocation";
+    [IgnoreMember] public const int ErrorId = 23210;
+    [Key(0)] public ActorSubject Subject { get; init; }
+    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
+    [Key(2)] public SelectionQueryAccess Access { get; init; } = new(string.Empty, []);
+    [Key(3)] public StrategyWorkflowId WorkflowId { get; init; }
+    [Key(4)] public Guid InvocationId { get; init; }
+    [IgnoreMember] public int ErrorCode { get; init; } = ErrorId;
+    [IgnoreMember] public string? QueryParams { get; init; }
 }

@@ -6,7 +6,7 @@ public interface IBoundedContext
     ValueTask ExecuteAsync(ICommand command);
 }
 
-public interface IBoundedContext<TBoundedContextState> 
+public interface IBoundedContext<TBoundedContextState>
     : IBoundedContext where TBoundedContextState : IBoundedContextState
 {
     IBoundedContextState<TBoundedContextState> State { get; }

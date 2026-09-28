@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Shared.EventSourcing;
 /// collection of such events. It includes functionality to replay events to reconstruct the state and to apply new
 /// events, optionally associating them with commands.</remarks>
 /// <typeparam name="TState">The type of the state, which must implement <see cref="IBoundedContextState{TState}"/>.</typeparam>
-public abstract class BaseBoundedContextState<TState> : IBoundedContextState<TState> 
+public abstract class BaseBoundedContextState<TState> : IBoundedContextState<TState>
     where TState : class, IBoundedContextState<TState>
 {
     DomainEventCollection _domainEvents = [];
@@ -30,7 +30,7 @@ public abstract class BaseBoundedContextState<TState> : IBoundedContextState<TSt
     /// event.</param>
     public void ReplayEvents(DomainEventCollection domainEvents)
     {
-        if (domainEvents is null || domainEvents.Count == 0) 
+        if (domainEvents is null || domainEvents.Count == 0)
             return;
         CreateState();
         domainEvents.ForEach(e => Apply(e, false));
@@ -48,8 +48,8 @@ public abstract class BaseBoundedContextState<TState> : IBoundedContextState<TSt
     /// <param name="domainEvents">A collection of <see cref="EventStreamReadModel"/> instances representing the domain events to replay. The
     /// collection must not be null or empty.</param>
     public void ReplayEvents(ICollection<EventStreamReadModel> domainEvents)
-    {   
-        if (domainEvents is null || domainEvents.Count == 0) 
+    {
+        if (domainEvents is null || domainEvents.Count == 0)
             return;
         CreateState();
         foreach (var e in domainEvents)
@@ -155,7 +155,7 @@ public abstract class BaseBoundedContextState<TState> : IBoundedContextState<TSt
     /// </summary>
     /// <remarks>This method uses reflection to locate and invoke a method named "Create" with no parameters 
     /// and non-public visibility on the current instance. If such a method is not found, no action is taken.</remarks>
-    void CreateState() 
+    void CreateState()
     {
         var entityType = GetType();
         var methodName = $"Create";
@@ -163,5 +163,5 @@ public abstract class BaseBoundedContextState<TState> : IBoundedContextState<TSt
         methodInfo?.Invoke(this, null);
     }
 
-   
+
 }

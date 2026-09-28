@@ -24,7 +24,7 @@ namespace TomasAI.IFM.TradePlan.EventHandlers
         public TradePlanUpdatedEventHandler(
             ITradePlanCommandApi tradePlanCommand,
             ITradePlanQueryApi tradePlanQuery,
-            IStatusConsoleWriter statusConsoleWriter):base(statusConsoleWriter)
+            IStatusConsoleWriter statusConsoleWriter) : base(statusConsoleWriter)
         {
             _tradePlanQuery = tradePlanQuery;
             _tradePlanCommand = tradePlanCommand;

@@ -90,24 +90,44 @@ public sealed class PortfolioCompositionIntegrationTests
         var profileId = Guid.NewGuid();
         var snapshot = new PortfolioFundStrategySnapshot
         {
-            WorkflowId = Guid.NewGuid(), WorkflowRevision = 1, CorrelationId = Guid.NewGuid(),
+            WorkflowId = Guid.NewGuid(),
+            WorkflowRevision = 1,
+            CorrelationId = Guid.NewGuid(),
             Portfolio = new() { PortfolioId = 101, PortfolioVersion = 2, Name = "Core", OperatingState = PortfolioOperatingState.Active, EffectiveFromUtc = Now.AddDays(-1), ActivePolicyId = 9001, ActivePolicyVersion = 1, CreatedOnUtc = Now.AddDays(-1), CreatedBy = "admin" },
             FinancialPolicy = new() { PortfolioId = 101, PolicyId = 9001, PolicyVersion = 1, Name = "Core limits", OperatingState = PortfolioFinancialPolicyState.Active, CapitalBase = 1_000_000m, MaximumDeployableCapital = 900_000m, MaximumRiskPerTrade = 10_000m, MaximumAggregateRisk = 100_000m, MaximumMargin = 500_000m, MaximumGrossNotional = 5_000_000m, MaximumOpenPositions = 100, MaximumDrawdownAmount = 200_000m, TradeFamilyLimits = [new() { TradeStrategyFamilyId = 3, DefinitionVersion = 1, Enabled = true, MaximumRiskPerTrade = 10_000m, MaximumAggregateRisk = 100_000m, MaximumMargin = 500_000m, MaximumGrossNotional = 5_000_000m, MaximumOpenPositions = 100 }], EffectiveFromUtc = Now.AddDays(-1), CreatedOnUtc = Now.AddDays(-1), CreatedBy = "admin" },
             Fund = new() { PortfolioId = 101, FundId = 203, FundMandateVersion = 3, FundCode = "MONTHLY", Name = "Monthly", TradingYear = 2026, OperatingState = FundOperatingState.Active, EffectiveFromUtc = Now.AddDays(-1), DecisionHorizon = "Monthly", Objective = "ES", UnderlyingUniverse = ["ES"], EligibleAssetTypes = ["FuturesOptions"], PermittedTradeFamilies = ["IronCondor"], CreatedOnUtc = Now.AddDays(-1), CreatedBy = "admin" },
             Allocation = new() { PortfolioId = 101, PortfolioVersion = 2, FundId = 203, FundMandateVersion = 3, AllocationVersion = 1, SourcePolicyId = 9001, SourcePolicyVersion = 1 },
             RiskEnvelope = new() { PortfolioId = 101, PortfolioVersion = 2, FundId = 203, FundMandateVersion = 3, EnvelopeId = Guid.NewGuid(), EnvelopeVersion = 1, CapacityState = FundCapacityState.Available, SourcePolicyId = 9001, SourcePolicyVersion = 1, EffectiveFromUtc = Now.AddHours(-1), ExpiresAtUtc = Now.AddHours(1) },
             Assignments = [new() { PortfolioId = 101, PortfolioVersion = 2, FundId = 203, FundMandateVersion = 3, AssignmentVersion = 1, TradeTemplateId = templateId, TradeTemplateVersion = 1, Enabled = true, DecisionHorizon = "Monthly", UnderlyingUniverse = ["ES"], AssetType = "FuturesOptions", TradeFamily = "IronCondor", EffectiveFromUtc = Now.AddHours(-1), TradeSelectionHintProfileId = Guid.NewGuid(), TradeSelectionHintProfileVersion = 1, OrderCompositionProfileId = profileId, OrderCompositionProfileVersion = 1, CreatedOnUtc = Now.AddHours(-1), CreatedBy = "admin" }],
-            ResolvedAtUtc = Now, ValidUntilUtc = Now.AddHours(1),
+            ResolvedAtUtc = Now,
+            ValidUntilUtc = Now.AddHours(1),
         };
         snapshot = snapshot with { PayloadSha256 = PortfolioCanonicalHash.Compute(snapshot) };
         var legs = Enumerable.Range(1, 4).Select(i => new TradeInstruction { TradeFamily = "IronCondor", TradeRole = i == 1 ? "Primary" : "Related", DirectionOrBias = "Neutral", TradeAction = i % 2 == 0 ? "Sell" : "Buy", IsPrimaryTrade = i == 1, UnderlyingRoot = "ES", RequestedTradeDate = DateOnly.FromDateTime(Now), Reference = $"leg-{i}", CreatedOnUtc = Now, CreatedBy = "integration" }).ToArray();
         return (new()
         {
-            WorkflowId = snapshot.WorkflowId, WorkflowRevision = 1, TradeSelectionInvocationId = Guid.NewGuid(), TradeSelectionResultId = Guid.NewGuid(), TradeSelectionResultSha256 = new string('a', 64),
-            PortfolioId = 101, PortfolioVersion = 2, FundId = 203, FundMandateVersion = 3, TradeTemplateId = templateId, TradeTemplateVersion = 1,
-            OrderCompositionProfileId = profileId, OrderCompositionProfileVersion = 1, UnderlyingRoot = "ES", DecisionHorizon = "Monthly",
-            RequestedTradeDate = DateOnly.FromDateTime(Now), TradeInstructions = legs, Origin = CompositionOrigin.StrategyWorkflow,
-            IdempotencyKey = Guid.NewGuid(), RequestedAtUtc = Now, ExpiresAtUtc = Now.AddMinutes(10), PortfolioFundStrategySnapshotSha256 = snapshot.PayloadSha256,
+            WorkflowId = snapshot.WorkflowId,
+            WorkflowRevision = 1,
+            TradeSelectionInvocationId = Guid.NewGuid(),
+            TradeSelectionResultId = Guid.NewGuid(),
+            TradeSelectionResultSha256 = new string('a', 64),
+            PortfolioId = 101,
+            PortfolioVersion = 2,
+            FundId = 203,
+            FundMandateVersion = 3,
+            TradeTemplateId = templateId,
+            TradeTemplateVersion = 1,
+            OrderCompositionProfileId = profileId,
+            OrderCompositionProfileVersion = 1,
+            UnderlyingRoot = "ES",
+            DecisionHorizon = "Monthly",
+            RequestedTradeDate = DateOnly.FromDateTime(Now),
+            TradeInstructions = legs,
+            Origin = CompositionOrigin.StrategyWorkflow,
+            IdempotencyKey = Guid.NewGuid(),
+            RequestedAtUtc = Now,
+            ExpiresAtUtc = Now.AddMinutes(10),
+            PortfolioFundStrategySnapshotSha256 = snapshot.PayloadSha256,
         }, snapshot);
     }
 

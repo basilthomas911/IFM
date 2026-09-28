@@ -998,7 +998,7 @@ namespace IBApi
             int tickType = ReadInt();
             double price = ReadDouble();
             int size = 0;
-            
+
             if (msgVersion >= 2)
                 size = ReadInt();
 
@@ -1762,7 +1762,7 @@ namespace IBApi
             }
 
             int itemCount = ReadInt();
-            
+
             for (int ctr = 0; ctr < itemCount; ctr++)
             {
                 string date = ReadString();
@@ -1775,11 +1775,12 @@ namespace IBApi
 
                 if (serverVersion < MinServerVer.SYNT_REALTIME_BARS)
                 {
-                    /*string hasGaps = */ReadString();
+                    /*string hasGaps = */
+                    ReadString();
                 }
 
                 int barCount = -1;
-                
+
                 if (msgVersion >= 3)
                 {
                     barCount = ReadInt();

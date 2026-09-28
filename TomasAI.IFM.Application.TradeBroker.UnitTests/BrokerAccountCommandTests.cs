@@ -39,22 +39,32 @@ public sealed class BrokerAccountCommandTests
         state.AcceptChanges();
         Assert.True(new SetManualTradingHoldCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = Id(), Subject = Subject(SetManualTradingHoldCommand.Verb),
-            Reason = "Operator investigation", EffectiveAtUtc = Now.AddMinutes(1)
+            CommandId = Guid.NewGuid(),
+            EntityId = Id(),
+            Subject = Subject(SetManualTradingHoldCommand.Verb),
+            Reason = "Operator investigation",
+            EffectiveAtUtc = Now.AddMinutes(1)
         }.Execute(state).Success);
         Assert.Equal(BrokerAccountOperationalGate.Closed, state.Current!.Gate);
         state.AcceptChanges();
         Assert.True(new ReleaseManualTradingHoldCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = Id(), Subject = Subject(ReleaseManualTradingHoldCommand.Verb),
-            Reason = "Investigation complete", EffectiveAtUtc = Now.AddMinutes(2)
+            CommandId = Guid.NewGuid(),
+            EntityId = Id(),
+            Subject = Subject(ReleaseManualTradingHoldCommand.Verb),
+            Reason = "Investigation complete",
+            EffectiveAtUtc = Now.AddMinutes(2)
         }.Execute(state).Success);
         Assert.Equal(BrokerAccountOperationalGate.Open, state.Current!.Gate);
         state.AcceptChanges();
         Assert.True(new RevokeAccountQualificationCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = Id(), Subject = Subject(RevokeAccountQualificationCommand.Verb),
-            Reason = "Scenario version changed", AuthorizedBy = "operator", RevokedAtUtc = Now.AddMinutes(3)
+            CommandId = Guid.NewGuid(),
+            EntityId = Id(),
+            Subject = Subject(RevokeAccountQualificationCommand.Verb),
+            Reason = "Scenario version changed",
+            AuthorizedBy = "operator",
+            RevokedAtUtc = Now.AddMinutes(3)
         }.Execute(state).Success);
         Assert.Equal(BrokerAccountOperationalGate.Closed, state.Current!.Gate);
         Assert.Equal(BrokerAccountQualificationStatus.Revoked, state.Current.QualificationStatus);
@@ -84,27 +94,42 @@ public sealed class BrokerAccountCommandTests
 
     private static RecordBrokerAccountSnapshotCommand Snapshot(long generation = 1) => new()
     {
-        CommandId = Guid.NewGuid(), EntityId = Id(), Subject = Subject(RecordBrokerAccountSnapshotCommand.Verb),
+        CommandId = Guid.NewGuid(),
+        EntityId = Id(),
+        Subject = Subject(RecordBrokerAccountSnapshotCommand.Verb),
         Environment = AppBrokerEnvironment.Emulator,
         Snapshot = new BrokerAccountSnapshotEvidence
         {
-            AccountAlias = "EMU", Currency = "USD", CashBalance = 100_000m,
-            AvailableFunds = 90_000m, Complete = true, NewRiskAllowed = true,
-            Generation = generation, AsOfUtc = Now
+            AccountAlias = "EMU",
+            Currency = "USD",
+            CashBalance = 100_000m,
+            AvailableFunds = 90_000m,
+            Complete = true,
+            NewRiskAllowed = true,
+            Generation = generation,
+            AsOfUtc = Now
         }
     };
 
     private static SubmitAccountQualificationEvidenceCommand Evidence() => new()
     {
-        CommandId = Guid.NewGuid(), EntityId = Id(), Subject = Subject(SubmitAccountQualificationEvidenceCommand.Verb),
-        ManifestHash = "manifest-v1", EvidenceReference = "artifact://emulator/v1", SubmittedAtUtc = Now
+        CommandId = Guid.NewGuid(),
+        EntityId = Id(),
+        Subject = Subject(SubmitAccountQualificationEvidenceCommand.Verb),
+        ManifestHash = "manifest-v1",
+        EvidenceReference = "artifact://emulator/v1",
+        SubmittedAtUtc = Now
     };
 
     private static AcceptAccountQualificationCommand Accept() => new()
     {
-        CommandId = Guid.NewGuid(), EntityId = Id(), Subject = Subject(AcceptAccountQualificationCommand.Verb),
+        CommandId = Guid.NewGuid(),
+        EntityId = Id(),
+        Subject = Subject(AcceptAccountQualificationCommand.Verb),
         ApprovalId = Guid.Parse("10000000-0000-0000-0000-000000000001"),
-        ManifestHash = "manifest-v1", AuthorizedBy = "operator", ReviewedAtUtc = Now.AddSeconds(1)
+        ManifestHash = "manifest-v1",
+        AuthorizedBy = "operator",
+        ReviewedAtUtc = Now.AddSeconds(1)
     };
 
     private static BrokerAccountId Id() => new("EMU");

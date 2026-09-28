@@ -5,7 +5,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Extensions
 {
     public static class TradePositionReadModelExtension
     {
-      
+
         public static TradePositionReadModel? Get(this TradePositionReadModel[] tradePosition, TradeType tradeType, TradeStatus tradeStatus)
            => GetLatest(tradePosition, tradeType, tradeStatus);
 
@@ -81,13 +81,13 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Extensions
         public static double GetFowardLossRatio(this TradePositionReadModel[] tradePosition, TradeType baseTradeType, TradeStatus tradeStatus, decimal limitPrice)
         {
             var forwardPrice = GetForwardPrice(tradePosition, baseTradeType, tradeStatus);
-            return (double) (forwardPrice == 0.0m ? 0.0m : forwardPrice / limitPrice);
+            return (double)(forwardPrice == 0.0m ? 0.0m : forwardPrice / limitPrice);
         }
 
         public static void Set(this TradePositionReadModel[] tradePosition, TradePositionReadModel? newTradePosition)
         {
             if (tradePosition is null || newTradePosition is null) return;
-            for (var index = tradePosition.Length-1; index >= 0; index--)
+            for (var index = tradePosition.Length - 1; index >= 0; index--)
             {
                 var e = tradePosition[index];
                 if (e.EntityId.Equals(newTradePosition.EntityId))
@@ -112,7 +112,8 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Extensions
             }
         }
         private static TradeType GetTradePositionTradeType(TradeType tradeType, OptionType optionType)
-            => tradeType switch {
+            => tradeType switch
+            {
                 TradeType.ShortIronCondor => optionType == OptionType.Put ? TradeType.PutCreditSpread : TradeType.CallCreditSpread,
                 TradeType.LongIronCondor => optionType == OptionType.Put ? TradeType.PutDebitSpread : TradeType.CallDebitSpread,
                 _ => throw new NotImplementedException()

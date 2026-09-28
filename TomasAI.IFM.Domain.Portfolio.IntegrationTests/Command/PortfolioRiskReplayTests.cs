@@ -19,20 +19,47 @@ public sealed class PortfolioRiskReplayTests
         var now = new DateTime(2026, 8, 29, 14, 0, 0, DateTimeKind.Utc);
         var allocation = new FundAllocationReadModel
         {
-            PortfolioId = 101, PortfolioVersion = 1, FundId = 205, FundMandateVersion = 1,
-            AllocationVersion = 1, TargetWeight = .5m, MinimumWeight = .25m, MaximumWeight = .75m,
-            AllocatedCapital = 100000, Currency = "USD", EffectiveFromUtc = now,
-            SourcePolicyId = 9001, SourcePolicyVersion = 1, CreatedOnUtc = now, CreatedBy = "admin"
+            PortfolioId = 101,
+            PortfolioVersion = 1,
+            FundId = 205,
+            FundMandateVersion = 1,
+            AllocationVersion = 1,
+            TargetWeight = .5m,
+            MinimumWeight = .25m,
+            MaximumWeight = .75m,
+            AllocatedCapital = 100000,
+            Currency = "USD",
+            EffectiveFromUtc = now,
+            SourcePolicyId = 9001,
+            SourcePolicyVersion = 1,
+            CreatedOnUtc = now,
+            CreatedBy = "admin"
         };
         var envelope = new FundRiskEnvelopeReadModel
         {
-            PortfolioId = 101, PortfolioVersion = 1, FundId = 205, FundMandateVersion = 1,
-            EnvelopeId = Guid.NewGuid(), EnvelopeVersion = 1, CapacityState = FundCapacityState.Available,
-            Currency = "USD", AllocatedCapital = 100000, AvailableCapital = 80000,
-            MaximumRiskPerTrade = 1000, MaximumAggregateRisk = 5000, MaximumMargin = 50000,
-            MaximumGrossNotional = 500000, MaximumContracts = 10, MaximumOpenPositions = 5,
-            RemainingLossBudget = 10000, EffectiveFromUtc = now, ExpiresAtUtc = now.AddDays(30),
-            SourcePolicyId = 9001, SourcePolicyVersion = 1, CreatedOnUtc = now, CreatedBy = "admin"
+            PortfolioId = 101,
+            PortfolioVersion = 1,
+            FundId = 205,
+            FundMandateVersion = 1,
+            EnvelopeId = Guid.NewGuid(),
+            EnvelopeVersion = 1,
+            CapacityState = FundCapacityState.Available,
+            Currency = "USD",
+            AllocatedCapital = 100000,
+            AvailableCapital = 80000,
+            MaximumRiskPerTrade = 1000,
+            MaximumAggregateRisk = 5000,
+            MaximumMargin = 50000,
+            MaximumGrossNotional = 500000,
+            MaximumContracts = 10,
+            MaximumOpenPositions = 5,
+            RemainingLossBudget = 10000,
+            EffectiveFromUtc = now,
+            ExpiresAtUtc = now.AddDays(30),
+            SourcePolicyId = 9001,
+            SourcePolicyVersion = 1,
+            CreatedOnUtc = now,
+            CreatedBy = "admin"
         };
         IPortfolioDomainEvent[] history =
         [

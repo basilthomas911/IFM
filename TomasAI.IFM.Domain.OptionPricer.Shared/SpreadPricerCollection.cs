@@ -31,7 +31,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
                     _spreadPricers.Enqueue(optionPricer);
         }
 
-    public ISpreadPricer? this[int optionPricerId] => _spreadPricers.Where(e => e.Id == optionPricerId).SingleOrDefault();
+        public ISpreadPricer? this[int optionPricerId] => _spreadPricers.Where(e => e.Id == optionPricerId).SingleOrDefault();
 
         public List<ISpreadPricer> ToList()
             => _spreadPricers.ToList();

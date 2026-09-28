@@ -41,7 +41,8 @@ public sealed record GetFinancialAdmissionSnapshotQuery : IFinancialQueryMessage
     [Key(5)] public Guid CorrelationId { get; init; }
     [Key(6)] public DateTime RequestedAtUtc { get; init; }
 
-    [IgnoreMember] public GetFinancialAdmissionSnapshotRequest Parameters
+    [IgnoreMember]
+    public GetFinancialAdmissionSnapshotRequest Parameters
     {
         get => new(DeploymentKey, UnderlyingId);
         init

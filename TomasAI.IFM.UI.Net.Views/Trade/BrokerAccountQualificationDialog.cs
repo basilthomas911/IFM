@@ -38,8 +38,12 @@ public sealed class BrokerAccountQualificationDialog : DarkTradingForm
 
         var layout = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, BackColor = Color.Black, Padding = new Padding(16),
-            ColumnCount = 2, RowCount = 0, AutoScroll = true
+            Dock = DockStyle.Fill,
+            BackColor = Color.Black,
+            Padding = new Padding(16),
+            ColumnCount = 2,
+            RowCount = 0,
+            AutoScroll = true
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -51,8 +55,11 @@ public sealed class BrokerAccountQualificationDialog : DarkTradingForm
 
         var actions = new FlowLayoutPanel
         {
-            Dock = DockStyle.Fill, AutoSize = true, BackColor = Color.Black,
-            FlowDirection = FlowDirection.LeftToRight, WrapContents = true
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            BackColor = Color.Black,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = true
         };
         actions.Controls.AddRange([_submit, _accept, _revoke, _hold, _release, _resynchronize]);
         Add(layout, "Durable actions", actions);
@@ -147,22 +154,33 @@ public sealed class BrokerAccountQualificationDialog : DarkTradingForm
 
     private static TextBox Input(string name, string value = "") => new()
     {
-        Name = name, Text = value, Dock = DockStyle.Fill,
-        BackColor = Color.FromArgb(30, 30, 30), ForeColor = Color.White,
+        Name = name,
+        Text = value,
+        Dock = DockStyle.Fill,
+        BackColor = Color.FromArgb(30, 30, 30),
+        ForeColor = Color.White,
         BorderStyle = BorderStyle.FixedSingle
     };
 
     private static Label ValueLabel(string text) => new()
     {
-        AutoSize = true, MaximumSize = new Size(560, 0), Text = text,
-        BackColor = Color.Black, ForeColor = Color.White, Padding = new Padding(4)
+        AutoSize = true,
+        MaximumSize = new Size(560, 0),
+        Text = text,
+        BackColor = Color.Black,
+        ForeColor = Color.White,
+        Padding = new Padding(4)
     };
 
     private static Button ActionButton(string name, string text) => new()
     {
-        Name = name, Text = text, AutoSize = true,
-        BackColor = Color.FromArgb(45, 45, 48), ForeColor = Color.White,
-        FlatStyle = FlatStyle.Flat, Margin = new Padding(4)
+        Name = name,
+        Text = text,
+        AutoSize = true,
+        BackColor = Color.FromArgb(45, 45, 48),
+        ForeColor = Color.White,
+        FlatStyle = FlatStyle.Flat,
+        Margin = new Padding(4)
     };
 
     private static void Add(TableLayoutPanel panel, string label, Control value)
@@ -171,8 +189,11 @@ public sealed class BrokerAccountQualificationDialog : DarkTradingForm
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.Controls.Add(new Label
         {
-            AutoSize = true, Text = label, BackColor = Color.Black,
-            ForeColor = Color.Silver, Padding = new Padding(4)
+            AutoSize = true,
+            Text = label,
+            BackColor = Color.Black,
+            ForeColor = Color.Silver,
+            Padding = new Padding(4)
         }, 0, row);
         panel.Controls.Add(value, 1, row);
     }

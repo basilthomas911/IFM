@@ -41,8 +41,12 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
         {
             var value = Volatile.Read(ref current);
             if (time.GetUtcNow().UtcDateTime - value.ObservedUtc <= TimeSpan.FromSeconds(90)) return value;
-            return value with { Status = "Unknown", Checks = value.Checks.Append(new LivePipelineCheck(
-                "Health monitor", "minute cycle", "Unknown", "Health observation is overdue.", time.GetUtcNow().UtcDateTime)).ToArray() };
+            return value with
+            {
+                Status = "Unknown",
+                Checks = value.Checks.Append(new LivePipelineCheck(
+                "Health monitor", "minute cycle", "Unknown", "Health observation is overdue.", time.GetUtcNow().UtcDateTime)).ToArray()
+            };
         }
     }
 

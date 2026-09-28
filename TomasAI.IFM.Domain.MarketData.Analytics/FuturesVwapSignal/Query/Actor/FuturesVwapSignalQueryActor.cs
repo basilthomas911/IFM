@@ -50,12 +50,12 @@ public sealed class FuturesVwapSignalQueryActor(
     static readonly IReadOnlyDictionary<Type, Func<IQueryActorContext<FuturesVwapSignalQueryActor>,
         IFuturesVwapSignalQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<FuturesVwapSignalQueryActor>,
         IFuturesVwapSignalQueryContext, IQuery, CancellationToken, ValueTask>>()
-    {
-        [typeof(GetLatestFuturesVwapSignalQuery)] = static (context, typedContext, query, cancellationToken) =>
-            ((GetLatestFuturesVwapSignalQuery)query).ExecuteAsync(context, typedContext, cancellationToken),
-        [typeof(GetFuturesVwapSignalHistoryQuery)] = static (context, typedContext, query, cancellationToken) =>
-            ((GetFuturesVwapSignalHistoryQuery)query).ExecuteAsync(context, typedContext, cancellationToken)
-    };
+        {
+            [typeof(GetLatestFuturesVwapSignalQuery)] = static (context, typedContext, query, cancellationToken) =>
+                ((GetLatestFuturesVwapSignalQuery)query).ExecuteAsync(context, typedContext, cancellationToken),
+            [typeof(GetFuturesVwapSignalHistoryQuery)] = static (context, typedContext, query, cancellationToken) =>
+                ((GetFuturesVwapSignalHistoryQuery)query).ExecuteAsync(context, typedContext, cancellationToken)
+        };
 
     /// <inheritdoc />
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =

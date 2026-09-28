@@ -31,7 +31,7 @@ public class TradeDiaryEntryReadModel
         ActionData = actionData;
     }
 
-    public TradeDiaryEntryReadModel(TradePositionEntityId id, TradePositionActionReadModel tpa):this(
+    public TradeDiaryEntryReadModel(TradePositionEntityId id, TradePositionActionReadModel tpa) : this(
         entryDate: DateTime.Now,
         orderId: id.OrderId,
         tradeId: id.TradeId,
@@ -41,11 +41,11 @@ public class TradeDiaryEntryReadModel
         actionType: tpa.ActionType,
         actionSubType: tpa.ActionSubType,
         actionState: tpa.ActionState,
-        actionReason: tpa.ActionReason )
+        actionReason: tpa.ActionReason)
     {
     }
 
-    public TradeDiaryEntryReadModel(ActionType actionType, TradeDiaryEntryReadModel e) :this(
+    public TradeDiaryEntryReadModel(ActionType actionType, TradeDiaryEntryReadModel e) : this(
         entryDate: e.EntryDate,
         orderId: e.OrderId,
         tradeId: e.TradeId,

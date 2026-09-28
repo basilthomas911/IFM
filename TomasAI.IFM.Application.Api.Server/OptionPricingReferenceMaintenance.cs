@@ -28,7 +28,8 @@ internal static class OptionPricingReferenceMaintenance
         await db.Use("OptionReference.Schema", OptionPricingConventionStore.CreateTable).ExecuteCommandAsync(token);
         await db.Use("OptionReference.BundleSchema", OptionPricingReferenceBundleStore.CreateTable).ExecuteCommandAsync(token);
         var query = new DatabentoFeedFactory().CreateMarketDataQueries(DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3")
-            with { DataSource = FeedDataSourceMode.DatabentoLive });
+            with
+        { DataSource = FeedDataSourceMode.DatabentoLive });
         var raw = query.GetContractDetails(root, TimeSpan.FromSeconds(45)).Where(x => x.MaturityDate == expiry).ToArray();
         if (raw.Length == 0 || raw.Select(x => x.Underlying).Distinct().Count() != 1) throw new InvalidDataException("Empty or ambiguous expiry scope.");
         var future = query.GetContractDetail(raw[0].Underlying, TimeSpan.FromSeconds(30)) ?? throw new InvalidDataException("Underlying unavailable.");
@@ -37,8 +38,11 @@ internal static class OptionPricingReferenceMaintenance
         foreach (var item in mapped) await store.InsertReviewedAsync(item.Convention, token);
         var bundle = new OptionPricingReferenceBundle(1, "", ReviewedEsOptionReference.Version, expiry, new()
         {
-            Dataset = future.Dataset, DomainContractId = mapped[0].Convention.UnderlyingContractId, ProviderContractName = future.RawSymbol,
-            RootSymbol = "ES", AssetTypeId = AssetTypeId.Futures
+            Dataset = future.Dataset,
+            DomainContractId = mapped[0].Convention.UnderlyingContractId,
+            ProviderContractName = future.RawSymbol,
+            RootSymbol = "ES",
+            AssetTypeId = AssetTypeId.Futures
         }, ReviewedEsOptionReference.Calendar, UsTreasuryPublicationCalendar.Default2026, UsTreasuryCurve.ConversionPolicy,
             mapped.Select(x => x.Candidate).ToImmutableArray()).Seal();
         await new OptionPricingReferenceBundleStore(db).PublishAsync(bundle, token);

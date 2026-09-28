@@ -11,7 +11,7 @@ public record StatusConsoleLogReadModel(
     int StatusCode,
     LogSourceType Source,
     string Message,
-    string DataType="",
-    string Data="")
+    string DataType = "",
+    string Data = "")
 {
 }

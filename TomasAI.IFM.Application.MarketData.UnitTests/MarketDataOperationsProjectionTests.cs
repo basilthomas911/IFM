@@ -68,14 +68,29 @@ public sealed class MarketDataOperationsProjectionTests
 
     static void Observe(MarketDataOperationsHealthService health, ProjectionTime time,
         int pending = 0, TimeSpan age = default, bool closed = false) => health.ObserveRuntime(
-        new MarketSessionReadModel { State = closed ? FuturesMarketState.Closed : FuturesMarketState.LiveTrading,
-            ActiveValueDate = closed ? null : new DateOnly(2026, 9, 4) },
-        new DatabentoLifecycleSnapshot { State = DatabentoLifecycleState.Healthy, StateRevision = 1,
-            ValueDate = new(2026, 9, 4), CorrelationId = Guid.Empty, NativeGeneration = Guid.Empty,
-            RecoveryAttempt = 0, Reason = "test", ChangedOnUtc = time.GetUtcNow().UtcDateTime }, [],
-        new MarketOutlookProcessorMetricsSnapshot { Updates = new Dictionary<MarketOutlookUpdateKind, MarketOutlookUpdateMetricSnapshot>(),
-            IsProcessorReady = true, PendingCount = pending,
-            OldestPendingUtc = pending > 0 ? time.GetUtcNow().UtcDateTime - age : null }, null, new());
+        new MarketSessionReadModel
+        {
+            State = closed ? FuturesMarketState.Closed : FuturesMarketState.LiveTrading,
+            ActiveValueDate = closed ? null : new DateOnly(2026, 9, 4)
+        },
+        new DatabentoLifecycleSnapshot
+        {
+            State = DatabentoLifecycleState.Healthy,
+            StateRevision = 1,
+            ValueDate = new(2026, 9, 4),
+            CorrelationId = Guid.Empty,
+            NativeGeneration = Guid.Empty,
+            RecoveryAttempt = 0,
+            Reason = "test",
+            ChangedOnUtc = time.GetUtcNow().UtcDateTime
+        }, [],
+        new MarketOutlookProcessorMetricsSnapshot
+        {
+            Updates = new Dictionary<MarketOutlookUpdateKind, MarketOutlookUpdateMetricSnapshot>(),
+            IsProcessorReady = true,
+            PendingCount = pending,
+            OldestPendingUtc = pending > 0 ? time.GetUtcNow().UtcDateTime - age : null
+        }, null, new());
 
     sealed class ProjectionTime : TimeProvider
     {

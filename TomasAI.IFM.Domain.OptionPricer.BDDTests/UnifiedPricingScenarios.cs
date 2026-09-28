@@ -50,7 +50,7 @@ public sealed class UnifiedPricingScenarios
     {
         var given = new OptionPricingRequest(UnderlyingKind.Equity, exercise, PremiumKind.PaidUpfront,
             OptionSide.Call, 100, 100, .5, .04, DividendKind.DiscreteCash)
-            { CashDividends = [new(.2, 2), new(.4, 2)] };
+        { CashDividends = [new(.2, 2), new(.4, 2)] };
         var calculator = new OptionCalculator(new() { Steps = 100, SpatialSteps = 200 });
         var requests = new[] { given, given with { Side = OptionSide.Put } };
         var batch = new PricingResult[2];

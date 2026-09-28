@@ -105,21 +105,21 @@ public static class BrokerExecutionAccountingModel
     private static LedgerPostingRequest Request(FinancialPostingConfiguration c, TradeOrderDefinition order,
         ExecutionFillEvidence fill, LedgerTransactionKind kind, decimal amount, LedgerPostingRule rule,
         LedgerSourceReference source, LedgerMovementEvidence movement, string description) => new()
-    {
-        BookId = c.BookId,
-        FundId = c.FundId,
-        TransactionKind = kind,
-        AccountingDate = DateOnly.FromDateTime(fill.FilledAtUtc),
-        ValueDate = order.ValueDate,
-        SettlementDate = DateOnly.FromDateTime(fill.FilledAtUtc),
-        Currency = "USD",
-        Amount = amount,
-        Description = description,
-        Source = source,
-        PostingRule = new() { RuleId = rule.RuleId, Version = rule.Version, ContentHash = rule.ContentHash },
-        Authority = c.Authority,
-        MovementEvidence = movement
-    };
+        {
+            BookId = c.BookId,
+            FundId = c.FundId,
+            TransactionKind = kind,
+            AccountingDate = DateOnly.FromDateTime(fill.FilledAtUtc),
+            ValueDate = order.ValueDate,
+            SettlementDate = DateOnly.FromDateTime(fill.FilledAtUtc),
+            Currency = "USD",
+            Amount = amount,
+            Description = description,
+            Source = source,
+            PostingRule = new() { RuleId = rule.RuleId, Version = rule.Version, ContentHash = rule.ContentHash },
+            Authority = c.Authority,
+            MovementEvidence = movement
+        };
 
     private static LedgerSourceReference Source(TradeOrderDefinition order, ExecutionFillEvidence fill, DateTime confirmedAtUtc) => new()
     {

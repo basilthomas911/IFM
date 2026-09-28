@@ -1194,25 +1194,25 @@ namespace IBApi
             set { cashQty = value; }
         }
 
-		/**
+        /**
          * @brief Identifies a person as the responsible party for investment decisions within the firm. Orders covered by MiFID 2 (Markets in Financial Instruments Directive 2) must include either Mifid2DecisionMaker or Mifid2DecisionAlgo field (but not both). Requires TWS 969+.
          */
-		public string Mifid2DecisionMaker { get; set; }
-		
-		/**
+        public string Mifid2DecisionMaker { get; set; }
+
+        /**
          * @brief Identifies the algorithm responsible for investment decisions within the firm. Orders covered under MiFID 2 must include either Mifid2DecisionMaker or Mifid2DecisionAlgo, but cannot have both. Requires TWS 969+.
          */
-		public string Mifid2DecisionAlgo { get; set; }
-		
-		/**
+        public string Mifid2DecisionAlgo { get; set; }
+
+        /**
          * @brief For MiFID 2 reporting; identifies a person as the responsible party for the execution of a transaction within the firm. Requires TWS 969+.
          */
-		public string Mifid2ExecutionTrader { get; set; }
-				 
-		/**
+        public string Mifid2ExecutionTrader { get; set; }
+
+        /**
          * @brief For MiFID 2 reporting; identifies the algorithm responsible for the execution of a transaction within the firm. Requires TWS 969+.
          */
-		public string Mifid2ExecutionAlgo { get; set; }
+        public string Mifid2ExecutionAlgo { get; set; }
 
         /**
          * @brief Don't use auto price for hedge
@@ -1223,49 +1223,49 @@ namespace IBApi
             set { dontUseAutoPriceForHedge = value; }
         }
 
-        public string AutoCancelDate 
+        public string AutoCancelDate
         {
             get { return autoCancelDate; }
-            set { autoCancelDate = value; } 
+            set { autoCancelDate = value; }
         }
 
-        public double FilledQuantity 
+        public double FilledQuantity
         {
             get { return filledQuantity; }
             set { filledQuantity = value; }
         }
 
-        public int RefFuturesConId 
+        public int RefFuturesConId
         {
             get { return refFuturesConId; }
             set { refFuturesConId = value; }
         }
 
-        public bool AutoCancelParent 
+        public bool AutoCancelParent
         {
             get { return autoCancelParent; }
             set { autoCancelParent = value; }
         }
 
-        public string Shareholder 
+        public string Shareholder
         {
             get { return shareholder; }
             set { shareholder = value; }
         }
 
-        public bool ImbalanceOnly 
+        public bool ImbalanceOnly
         {
             get { return imbalanceOnly; }
             set { imbalanceOnly = value; }
         }
 
-        public bool RouteMarketableToBbo 
+        public bool RouteMarketableToBbo
         {
             get { return routeMarketableToBbo; }
             set { routeMarketableToBbo = value; }
         }
 
-        public long ParentPermId 
+        public long ParentPermId
         {
             get { return parentPermId; }
             set { parentPermId = value; }
@@ -1348,7 +1348,7 @@ namespace IBApi
             UsePriceMgmtAlgo = null;
         }
 
-		// Note: Two orders can be 'equivalent' even if all fields do not match. This function is not intended to be used with Order objects returned from TWS.
+        // Note: Two orders can be 'equivalent' even if all fields do not match. This function is not intended to be used with Order objects returned from TWS.
         public override bool Equals(Object p_other)
         {
 
@@ -1529,7 +1529,7 @@ namespace IBApi
         * @brief Pegged-to-benchmark orders: the exchange against which we want to observe the reference contract.
         */
         public string ReferenceExchange { get; set; }
-        
+
         /**
         * @brief Adjusted Stop orders: the parent order will be adjusted to the given type when the adjusted trigger price is penetrated.
         */
@@ -1584,7 +1584,7 @@ namespace IBApi
         */
         public SoftDollarTier Tier { get; set; }
 
-		/**
+        /**
 		* @brief Set to true to create tickets from API orders when TWS is used as an OMS 
 		*/
         public bool IsOmsContainer { get; set; }

@@ -17,7 +17,8 @@ public sealed record MarketConditionCalendarDownloadEvidence
     [Key(6)] public bool CoverageConfirmed { get; init; }
     [Key(7)] public string Reason { get; init; } = string.Empty;
     [Key(8)] public DateTime? ValidUntilUtc { get; init; }
-    [Key(9)] public MarketDataDownloadLogReadModel[] Attempts
+    [Key(9)]
+    public MarketDataDownloadLogReadModel[] Attempts
     {
         get => [.. _attempts];
         init => _attempts = value is null ? [] : [.. value];

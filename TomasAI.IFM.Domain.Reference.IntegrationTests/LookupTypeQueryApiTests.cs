@@ -13,10 +13,10 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Reference.IntegrationTests;
 
-public class LookupTypeQueryApiTests(WebApplicationFactory<Program> factory, ReferenceFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<ReferenceFixture>
+[Collection(ReferenceIntegrationInfrastructureCollection.Name)]
+public class LookupTypeQueryApiTests(ReferenceIntegrationInfrastructureFixture infrastructure)
 {
-    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
+    readonly IActorProducer _actorProducer = infrastructure.ActorProducer;
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     [Fact]
@@ -24,8 +24,8 @@ public class LookupTypeQueryApiTests(WebApplicationFactory<Program> factory, Ref
     {
         // arrange...
         var lookupType = SampleData.LookupType1;
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(lookupType.Id);
-        await dbFixture.ReferenceDb.InsertLookupTypeAsync(lookupType);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(lookupType.Id);
+        await infrastructure.ReferenceDb.InsertLookupTypeAsync(lookupType);
 
         // act...
         var referenceApi = new ReferenceQueryApi(_actorProducer);
@@ -48,10 +48,10 @@ public class LookupTypeQueryApiTests(WebApplicationFactory<Program> factory, Ref
         // arrange...
         var lookupType1 = SampleData.LookupType1;
         var lookupType2 = SampleData.LookupType2;
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(lookupType1.Id);
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(lookupType2.Id);
-        await dbFixture.ReferenceDb.InsertLookupTypeAsync(lookupType1);
-        await dbFixture.ReferenceDb.InsertLookupTypeAsync(lookupType2);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(lookupType1.Id);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(lookupType2.Id);
+        await infrastructure.ReferenceDb.InsertLookupTypeAsync(lookupType1);
+        await infrastructure.ReferenceDb.InsertLookupTypeAsync(lookupType2);
 
         // act...
         var referenceApi = new ReferenceQueryApi(_actorProducer);
@@ -76,10 +76,10 @@ public class LookupTypeQueryApiTests(WebApplicationFactory<Program> factory, Ref
         // arrange...
         var lookupType1 = SampleData.LookupType1;
         var lookupType3 = SampleData.LookupType3;
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(lookupType1.Id);
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(lookupType3.Id);
-        await dbFixture.ReferenceDb.InsertLookupTypeAsync(lookupType1);
-        await dbFixture.ReferenceDb.InsertLookupTypeAsync(lookupType3);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(lookupType1.Id);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(lookupType3.Id);
+        await infrastructure.ReferenceDb.InsertLookupTypeAsync(lookupType1);
+        await infrastructure.ReferenceDb.InsertLookupTypeAsync(lookupType3);
 
         // act...
         var referenceApi = new ReferenceQueryApi(_actorProducer);
@@ -100,10 +100,10 @@ public class LookupTypeQueryApiTests(WebApplicationFactory<Program> factory, Ref
         // arrange...
         var lookupType1 = SampleData.LookupType1;
         var lookupType2 = SampleData.LookupType2;
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(lookupType1.Id);
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(lookupType2.Id);
-        await dbFixture.ReferenceDb.InsertLookupTypeAsync(lookupType1);
-        await dbFixture.ReferenceDb.InsertLookupTypeAsync(lookupType2);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(lookupType1.Id);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(lookupType2.Id);
+        await infrastructure.ReferenceDb.InsertLookupTypeAsync(lookupType1);
+        await infrastructure.ReferenceDb.InsertLookupTypeAsync(lookupType2);
 
         // act...
         var referenceApi = new ReferenceQueryApi(_actorProducer);
@@ -123,8 +123,8 @@ public class LookupTypeQueryApiTests(WebApplicationFactory<Program> factory, Ref
     {
         // arrange...
         var lookupType = SampleData.LookupType1;
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(lookupType.Id);
-        await dbFixture.ReferenceDb.InsertLookupTypeAsync(lookupType);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(lookupType.Id);
+        await infrastructure.ReferenceDb.InsertLookupTypeAsync(lookupType);
 
         // act...
         var referenceApi = new ReferenceQueryApi(_actorProducer);
@@ -142,8 +142,8 @@ public class LookupTypeQueryApiTests(WebApplicationFactory<Program> factory, Ref
     {
         // arrange...
         var lookupType = SampleData.LookupType1;
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(lookupType.Id);
-        await dbFixture.ReferenceDb.InsertLookupTypeAsync(lookupType);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(lookupType.Id);
+        await infrastructure.ReferenceDb.InsertLookupTypeAsync(lookupType);
 
         // act...
         var referenceApi = new ReferenceQueryApi(_actorProducer);

@@ -78,9 +78,14 @@ public sealed class PortfolioWorkflowTests
         var key = Guid.NewGuid();
         var request = new CreateManualFundOrderRequest
         {
-            PortfolioId = 101, PortfolioVersion = 4, FundId = 202, FundMandateVersion = 3,
+            PortfolioId = 101,
+            PortfolioVersion = 4,
+            FundId = 202,
+            FundMandateVersion = 3,
             Reference = "operator draft",
-            IdempotencyKey = key, RequestedAtUtc = Now, ExpiresAtUtc = Now.AddDays(1),
+            IdempotencyKey = key,
+            RequestedAtUtc = Now,
+            ExpiresAtUtc = Now.AddDays(1),
         };
         var aggregate = new PortfolioFundCompositionAggregate();
 
@@ -241,14 +246,21 @@ public sealed class PortfolioWorkflowTests
 
         var pending = aggregate.RecordComposed(7001, composing.AggregateVersion, new OrderCompositionResultReference
         {
-            ResultId = Guid.NewGuid(), ResultSha256 = candidateHash, InvocationId = Guid.NewGuid(),
-            EvaluatedAtUtc = Now.AddSeconds(1), ExpiresAtUtc = Now.AddMinutes(5),
+            ResultId = Guid.NewGuid(),
+            ResultSha256 = candidateHash,
+            InvocationId = Guid.NewGuid(),
+            EvaluatedAtUtc = Now.AddSeconds(1),
+            ExpiresAtUtc = Now.AddMinutes(5),
         }, Now.AddSeconds(2));
         var approved = aggregate.RecordRiskOutcome(7001, pending.AggregateVersion, new RiskManagementResultReference
         {
-            ResultId = Guid.NewGuid(), ResultSha256 = riskHash, Decision = RiskDecision.Approved,
-            EvaluatedAtUtc = Now.AddSeconds(3), ExpiresAtUtc = Now.AddMinutes(5),
-            EnvelopeId = snapshot.RiskEnvelope.EnvelopeId, EnvelopeVersion = snapshot.RiskEnvelope.EnvelopeVersion,
+            ResultId = Guid.NewGuid(),
+            ResultSha256 = riskHash,
+            Decision = RiskDecision.Approved,
+            EvaluatedAtUtc = Now.AddSeconds(3),
+            ExpiresAtUtc = Now.AddMinutes(5),
+            EnvelopeId = snapshot.RiskEnvelope.EnvelopeId,
+            EnvelopeVersion = snapshot.RiskEnvelope.EnvelopeVersion,
             CandidateSha256 = candidateHash,
         }, Now.AddSeconds(4));
 
@@ -272,8 +284,11 @@ public sealed class PortfolioWorkflowTests
         var composing = aggregate.MarkComposing(7001, reserved.AggregateVersion);
         var expired = new OrderCompositionResultReference
         {
-            ResultId = Guid.NewGuid(), ResultSha256 = new string('a', 64), InvocationId = Guid.NewGuid(),
-            EvaluatedAtUtc = Now, ExpiresAtUtc = Now.AddSeconds(1),
+            ResultId = Guid.NewGuid(),
+            ResultSha256 = new string('a', 64),
+            InvocationId = Guid.NewGuid(),
+            EvaluatedAtUtc = Now,
+            ExpiresAtUtc = Now.AddSeconds(1),
         };
         var stale = () => aggregate.RecordComposed(7001, composing.AggregateVersion, expired, Now.AddSeconds(1));
         stale.Should().Throw<InvalidOperationException>();
@@ -282,9 +297,14 @@ public sealed class PortfolioWorkflowTests
         var pending = aggregate.RecordComposed(7001, composing.AggregateVersion, valid, Now.AddSeconds(1));
         var mismatch = () => aggregate.RecordRiskOutcome(7001, pending.AggregateVersion, new RiskManagementResultReference
         {
-            ResultId = Guid.NewGuid(), ResultSha256 = new string('b', 64), Decision = RiskDecision.Rejected,
-            EvaluatedAtUtc = Now, ExpiresAtUtc = Now.AddMinutes(5), EnvelopeId = snapshot.RiskEnvelope.EnvelopeId,
-            EnvelopeVersion = 1, CandidateSha256 = new string('c', 64),
+            ResultId = Guid.NewGuid(),
+            ResultSha256 = new string('b', 64),
+            Decision = RiskDecision.Rejected,
+            EvaluatedAtUtc = Now,
+            ExpiresAtUtc = Now.AddMinutes(5),
+            EnvelopeId = snapshot.RiskEnvelope.EnvelopeId,
+            EnvelopeVersion = 1,
+            CandidateSha256 = new string('c', 64),
         }, Now.AddSeconds(2));
         mismatch.Should().Throw<InvalidOperationException>().WithMessage("*candidate hash*");
     }
@@ -306,16 +326,23 @@ public sealed class PortfolioWorkflowTests
         var candidateHash = new string('a', 64);
         var composed = aggregate.RecordCompositionResult(Guid.NewGuid(), 3, 7001, 2, new OrderCompositionResultReference
         {
-            ResultId = Guid.NewGuid(), ResultSha256 = candidateHash, InvocationId = Guid.NewGuid(),
-            EvaluatedAtUtc = Now.AddSeconds(1), ExpiresAtUtc = Now.AddMinutes(5),
+            ResultId = Guid.NewGuid(),
+            ResultSha256 = candidateHash,
+            InvocationId = Guid.NewGuid(),
+            EvaluatedAtUtc = Now.AddSeconds(1),
+            ExpiresAtUtc = Now.AddMinutes(5),
         }, Now.AddSeconds(2), "operator");
         var riskId = Guid.NewGuid();
         var riskHash = new string('b', 64);
         var risk = aggregate.RecordRiskResult(Guid.NewGuid(), 4, 7001, 3, new RiskManagementResultReference
         {
-            ResultId = riskId, ResultSha256 = riskHash, Decision = RiskDecision.Approved,
-            EvaluatedAtUtc = Now.AddSeconds(2), ExpiresAtUtc = Now.AddMinutes(5),
-            EnvelopeId = snapshot.RiskEnvelope.EnvelopeId, EnvelopeVersion = snapshot.RiskEnvelope.EnvelopeVersion,
+            ResultId = riskId,
+            ResultSha256 = riskHash,
+            Decision = RiskDecision.Approved,
+            EvaluatedAtUtc = Now.AddSeconds(2),
+            ExpiresAtUtc = Now.AddMinutes(5),
+            EnvelopeId = snapshot.RiskEnvelope.EnvelopeId,
+            EnvelopeVersion = snapshot.RiskEnvelope.EnvelopeVersion,
             CandidateSha256 = candidateHash,
         }, Now.AddSeconds(3), "operator");
 
@@ -338,23 +365,43 @@ public sealed class PortfolioWorkflowTests
         var snapshot = new PortfolioFundStrategyResolver().Resolve(x.WorkflowId, 1, Guid.NewGuid(), x.Portfolio, x.Policy, [x.Fund], [x.Allocation], [x.Envelope], [x.Assignment], 2026, x.Fund.DecisionHorizon, "ES", x.Assignment.AssetType, Now);
         var instructions = Enumerable.Range(1, count).Select(i => new TradeInstruction
         {
-            TradeFamily = family, TradeRole = i == 1 ? "Primary" : "Related", DirectionOrBias = "Bullish",
-            TradeAction = i % 2 == 0 ? "Sell" : "Buy", IsPrimaryTrade = i == 1, UnderlyingRoot = "ES",
-            RequestedTradeDate = DateOnly.FromDateTime(Now), RequestedMaturityDate = DateOnly.FromDateTime(Now.AddDays(30)),
-            Reference = $"leg-{i}", CreatedOnUtc = Now, CreatedBy = "test",
+            TradeFamily = family,
+            TradeRole = i == 1 ? "Primary" : "Related",
+            DirectionOrBias = "Bullish",
+            TradeAction = i % 2 == 0 ? "Sell" : "Buy",
+            IsPrimaryTrade = i == 1,
+            UnderlyingRoot = "ES",
+            RequestedTradeDate = DateOnly.FromDateTime(Now),
+            RequestedMaturityDate = DateOnly.FromDateTime(Now.AddDays(30)),
+            Reference = $"leg-{i}",
+            CreatedOnUtc = Now,
+            CreatedBy = "test",
         }).ToArray();
         return (new PortfolioFundCompositionAggregate(), new ReserveFundOrderCompositionRequest
         {
-            WorkflowId = x.WorkflowId, WorkflowRevision = 1, TradeSelectionInvocationId = Guid.NewGuid(),
-            TradeSelectionResultId = Guid.NewGuid(), TradeSelectionResultSha256 = new string('1', 64),
-            PortfolioId = x.Portfolio.PortfolioId, PortfolioVersion = x.Portfolio.PortfolioVersion,
-            FundId = x.Fund.FundId, FundMandateVersion = x.Fund.FundMandateVersion,
-            TradeTemplateId = x.Assignment.TradeTemplateId, TradeTemplateVersion = x.Assignment.TradeTemplateVersion,
-            OrderCompositionProfileId = x.Assignment.OrderCompositionProfileId, OrderCompositionProfileVersion = x.Assignment.OrderCompositionProfileVersion,
-            UnderlyingRoot = "ES", DecisionHorizon = x.Fund.DecisionHorizon,
-            RequestedTradeDate = DateOnly.FromDateTime(Now), RequestedMaturityDate = DateOnly.FromDateTime(Now.AddDays(30)),
-            TradeInstructions = instructions, Origin = CompositionOrigin.StrategyWorkflow, IdempotencyKey = Guid.NewGuid(),
-            RequestedAtUtc = Now, ExpiresAtUtc = Now.AddMinutes(10), PortfolioFundStrategySnapshotSha256 = snapshot.PayloadSha256,
+            WorkflowId = x.WorkflowId,
+            WorkflowRevision = 1,
+            TradeSelectionInvocationId = Guid.NewGuid(),
+            TradeSelectionResultId = Guid.NewGuid(),
+            TradeSelectionResultSha256 = new string('1', 64),
+            PortfolioId = x.Portfolio.PortfolioId,
+            PortfolioVersion = x.Portfolio.PortfolioVersion,
+            FundId = x.Fund.FundId,
+            FundMandateVersion = x.Fund.FundMandateVersion,
+            TradeTemplateId = x.Assignment.TradeTemplateId,
+            TradeTemplateVersion = x.Assignment.TradeTemplateVersion,
+            OrderCompositionProfileId = x.Assignment.OrderCompositionProfileId,
+            OrderCompositionProfileVersion = x.Assignment.OrderCompositionProfileVersion,
+            UnderlyingRoot = "ES",
+            DecisionHorizon = x.Fund.DecisionHorizon,
+            RequestedTradeDate = DateOnly.FromDateTime(Now),
+            RequestedMaturityDate = DateOnly.FromDateTime(Now.AddDays(30)),
+            TradeInstructions = instructions,
+            Origin = CompositionOrigin.StrategyWorkflow,
+            IdempotencyKey = Guid.NewGuid(),
+            RequestedAtUtc = Now,
+            ExpiresAtUtc = Now.AddMinutes(10),
+            PortfolioFundStrategySnapshotSha256 = snapshot.PayloadSha256,
         }, snapshot);
     }
 
@@ -362,49 +409,121 @@ public sealed class PortfolioWorkflowTests
     {
         var portfolio = new PortfolioReadModel
         {
-            PortfolioId = 101, Name = "Core", PortfolioVersion = 2, BaseCurrency = "USD",
-            OperatingState = PortfolioOperatingState.Active, EffectiveFromUtc = Now.AddDays(-10), ActivePolicyId = 9001,
-            ActivePolicyVersion = 4, CreatedOnUtc = Now.AddDays(-10), CreatedBy = "admin",
+            PortfolioId = 101,
+            Name = "Core",
+            PortfolioVersion = 2,
+            BaseCurrency = "USD",
+            OperatingState = PortfolioOperatingState.Active,
+            EffectiveFromUtc = Now.AddDays(-10),
+            ActivePolicyId = 9001,
+            ActivePolicyVersion = 4,
+            CreatedOnUtc = Now.AddDays(-10),
+            CreatedBy = "admin",
         };
         var policy = new PortfolioFinancialPolicyReadModel
         {
-            PortfolioId = 101, PolicyId = 9001, PolicyVersion = 4, Name = "Core limits", OperatingState = PortfolioFinancialPolicyState.Active,
-            BaseCurrency = "USD", CapitalBase = 1_000_000m, MaximumDeployableCapital = 900_000m, MaximumRiskPerTrade = 10_000m,
-            MaximumAggregateRisk = 100_000m, MaximumMargin = 500_000m, MaximumGrossNotional = 5_000_000m, MaximumOpenPositions = 100,
-            MaximumDrawdownAmount = 200_000m, TradeFamilyLimits = [new() { TradeStrategyFamilyId = 1, DefinitionVersion = 1, Enabled = true, MaximumRiskPerTrade = 10_000m, MaximumAggregateRisk = 100_000m, MaximumMargin = 500_000m, MaximumGrossNotional = 5_000_000m, MaximumOpenPositions = 100 }],
-            EffectiveFromUtc = Now.AddDays(-10), CreatedOnUtc = Now.AddDays(-10), CreatedBy = "admin",
+            PortfolioId = 101,
+            PolicyId = 9001,
+            PolicyVersion = 4,
+            Name = "Core limits",
+            OperatingState = PortfolioFinancialPolicyState.Active,
+            BaseCurrency = "USD",
+            CapitalBase = 1_000_000m,
+            MaximumDeployableCapital = 900_000m,
+            MaximumRiskPerTrade = 10_000m,
+            MaximumAggregateRisk = 100_000m,
+            MaximumMargin = 500_000m,
+            MaximumGrossNotional = 5_000_000m,
+            MaximumOpenPositions = 100,
+            MaximumDrawdownAmount = 200_000m,
+            TradeFamilyLimits = [new() { TradeStrategyFamilyId = 1, DefinitionVersion = 1, Enabled = true, MaximumRiskPerTrade = 10_000m, MaximumAggregateRisk = 100_000m, MaximumMargin = 500_000m, MaximumGrossNotional = 5_000_000m, MaximumOpenPositions = 100 }],
+            EffectiveFromUtc = Now.AddDays(-10),
+            CreatedOnUtc = Now.AddDays(-10),
+            CreatedBy = "admin",
         };
         var fund = new FundMandateReadModel
         {
-            PortfolioId = 101, FundId = fundId, FundCode = $"{horizon}-ES", Name = horizon, FundMandateVersion = 3,
-            TradingYear = 2026, OperatingState = FundOperatingState.Active, EffectiveFromUtc = Now.AddDays(-5),
-            DecisionHorizon = horizon, Objective = "ES", UnderlyingUniverse = ["ES"], EligibleAssetTypes = [asset],
-            PermittedTradeFamilies = [family], CreatedOnUtc = Now.AddDays(-5), CreatedBy = "admin",
+            PortfolioId = 101,
+            FundId = fundId,
+            FundCode = $"{horizon}-ES",
+            Name = horizon,
+            FundMandateVersion = 3,
+            TradingYear = 2026,
+            OperatingState = FundOperatingState.Active,
+            EffectiveFromUtc = Now.AddDays(-5),
+            DecisionHorizon = horizon,
+            Objective = "ES",
+            UnderlyingUniverse = ["ES"],
+            EligibleAssetTypes = [asset],
+            PermittedTradeFamilies = [family],
+            CreatedOnUtc = Now.AddDays(-5),
+            CreatedBy = "admin",
         };
         var allocation = new FundAllocationReadModel
         {
-            PortfolioId = 101, PortfolioVersion = 2, FundId = fundId, FundMandateVersion = 3, AllocationVersion = 1,
-            TargetWeight = .3m, MaximumWeight = .5m, AllocatedCapital = 100000m, Currency = "USD",
-            EffectiveFromUtc = Now.AddDays(-2), SourcePolicyId = 9001, SourcePolicyVersion = 4, CreatedOnUtc = Now.AddDays(-2), CreatedBy = "admin",
+            PortfolioId = 101,
+            PortfolioVersion = 2,
+            FundId = fundId,
+            FundMandateVersion = 3,
+            AllocationVersion = 1,
+            TargetWeight = .3m,
+            MaximumWeight = .5m,
+            AllocatedCapital = 100000m,
+            Currency = "USD",
+            EffectiveFromUtc = Now.AddDays(-2),
+            SourcePolicyId = 9001,
+            SourcePolicyVersion = 4,
+            CreatedOnUtc = Now.AddDays(-2),
+            CreatedBy = "admin",
         };
         var envelope = new FundRiskEnvelopeReadModel
         {
-            PortfolioId = 101, PortfolioVersion = 2, FundId = fundId, FundMandateVersion = 3,
-            EnvelopeId = Guid.Parse("22222222-2222-2222-2222-222222222222"), EnvelopeVersion = 1,
-            CapacityState = FundCapacityState.Available, Currency = "USD", AllocatedCapital = 100000m, AvailableCapital = 80000m,
-            MaximumRiskPerTrade = 1000m, MaximumAggregateRisk = 5000m, MaximumMargin = 20000m, MaximumGrossNotional = 200000m,
-            MaximumContracts = 10, MaximumOpenPositions = 5, RemainingLossBudget = 10000m,
-            EffectiveFromUtc = Now.AddDays(-1), ExpiresAtUtc = Now.AddDays(1), SourcePolicyId = portfolio.ActivePolicyId,
-            SourcePolicyVersion = 4, CreatedOnUtc = Now.AddDays(-1), CreatedBy = "admin",
+            PortfolioId = 101,
+            PortfolioVersion = 2,
+            FundId = fundId,
+            FundMandateVersion = 3,
+            EnvelopeId = Guid.Parse("22222222-2222-2222-2222-222222222222"),
+            EnvelopeVersion = 1,
+            CapacityState = FundCapacityState.Available,
+            Currency = "USD",
+            AllocatedCapital = 100000m,
+            AvailableCapital = 80000m,
+            MaximumRiskPerTrade = 1000m,
+            MaximumAggregateRisk = 5000m,
+            MaximumMargin = 20000m,
+            MaximumGrossNotional = 200000m,
+            MaximumContracts = 10,
+            MaximumOpenPositions = 5,
+            RemainingLossBudget = 10000m,
+            EffectiveFromUtc = Now.AddDays(-1),
+            ExpiresAtUtc = Now.AddDays(1),
+            SourcePolicyId = portfolio.ActivePolicyId,
+            SourcePolicyVersion = 4,
+            CreatedOnUtc = Now.AddDays(-1),
+            CreatedBy = "admin",
         };
         var assignment = new FundTradeTemplateAssignmentReadModel
         {
-            PortfolioId = 101, PortfolioVersion = 2, FundId = fundId, FundMandateVersion = 3, AssignmentVersion = 1,
-            TradeTemplateId = Guid.NewGuid(), TradeTemplateVersion = 2, Enabled = true, DecisionHorizon = horizon,
-            UnderlyingUniverse = ["ES"], AssetType = asset, TradeFamily = family, Priority = 1, EffectiveFromUtc = Now.AddDays(-1),
-            TradeSelectionHintProfileId = Guid.NewGuid(), TradeSelectionHintProfileVersion = 1,
-            OrderCompositionProfileId = Guid.NewGuid(), OrderCompositionProfileVersion = 1,
-            CreatedOnUtc = Now.AddDays(-1), CreatedBy = "admin",
+            PortfolioId = 101,
+            PortfolioVersion = 2,
+            FundId = fundId,
+            FundMandateVersion = 3,
+            AssignmentVersion = 1,
+            TradeTemplateId = Guid.NewGuid(),
+            TradeTemplateVersion = 2,
+            Enabled = true,
+            DecisionHorizon = horizon,
+            UnderlyingUniverse = ["ES"],
+            AssetType = asset,
+            TradeFamily = family,
+            Priority = 1,
+            EffectiveFromUtc = Now.AddDays(-1),
+            TradeSelectionHintProfileId = Guid.NewGuid(),
+            TradeSelectionHintProfileVersion = 1,
+            OrderCompositionProfileId = Guid.NewGuid(),
+            OrderCompositionProfileVersion = 1,
+            CreatedOnUtc = Now.AddDays(-1),
+            CreatedBy = "admin",
         };
         return new(Guid.NewGuid(), portfolio, policy, fund, allocation, envelope, assignment);
     }

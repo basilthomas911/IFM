@@ -46,8 +46,20 @@ public static partial class Black76PricingModel
         var result = new Unified.OptionCalculator().ImpliedVolatility(request, mark);
         if (!result.Success) return Fail("GreeksCalculationFailed", result.Failure.ToString());
         var greeks = result.Value!.Value;
-        var digest = PricingSemanticHash.Compute(new { Version = 2, context, underlying, option, strike, isCall, at, t,
-            result.EngineVersion, result.NumericalPolicy, result.PolicyVersion });
+        var digest = PricingSemanticHash.Compute(new
+        {
+            Version = 2,
+            context,
+            underlying,
+            option,
+            strike,
+            isCall,
+            at,
+            t,
+            result.EngineVersion,
+            result.NumericalPolicy,
+            result.PolicyVersion
+        });
         return new(new(greeks.Volatility, greeks.Delta, greeks.Gamma, greeks.Theta,
             greeks.Vega, greeks.Rho, greeks.Price, t, digest), null);
     }

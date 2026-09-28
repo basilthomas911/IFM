@@ -38,7 +38,8 @@ public sealed record GetPostingReceiptQuery : IFinancialQueryMessage<GetPostingR
     [Key(4)] public Guid CorrelationId { get; init; }
     [Key(5)] public DateTime RequestedAtUtc { get; init; }
 
-    [IgnoreMember] public GetPostingReceiptRequest Parameters
+    [IgnoreMember]
+    public GetPostingReceiptRequest Parameters
     {
         get => new(OperationId);
         init

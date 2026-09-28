@@ -39,13 +39,13 @@ public sealed record FinancialFundAuthority
     [Key(4)] public long PortfolioStreamVersion { get; init; }
     [Key(5)] public long FundStreamVersion { get; init; }
     [Key(6)] public long PolicyStreamVersion { get; init; }
-    [Key(7)] public FinancialDeploymentAuthority[] Deployments { get; init; }=[];
+    [Key(7)] public FinancialDeploymentAuthority[] Deployments { get; init; } = [];
 }
 
 /// <summary>One exact permitted deployment; shared Portfolio/Fund limits remain on the Fund authority.</summary>
 [MessagePackObject]
-public sealed record FinancialDeploymentAuthority([property:Key(0)] FinancialAuthorityReference Reference,
-    [property:Key(1)] CapacityLimit[] Limits,[property:Key(2)] decimal MaximumRiskPerTrade=0);
+public sealed record FinancialDeploymentAuthority([property: Key(0)] FinancialAuthorityReference Reference,
+    [property: Key(1)] CapacityLimit[] Limits, [property: Key(2)] decimal MaximumRiskPerTrade = 0);
 
 [MessagePackObject]
 public sealed record FinancialBookConfiguration
@@ -75,8 +75,8 @@ public sealed record LedgerFinancialSnapshot(FinancialBookConfiguration Book, lo
 
 /// <summary>Authoritative lifecycle snapshot, including transitions committed by either capacity Function.</summary>
 [MessagePackObject]
-public sealed record ReservationSnapshot([property:Key(0)] Guid ReservationId, [property:Key(1)] long Version, [property:Key(2)] ReservationStatus Status,
-    [property:Key(3)] int StrategyUnits, [property:Key(4)] int FilledUnits, [property:Key(5)] int CancelledUnits, [property:Key(6)] int RemainingUnits,
-    [property:Key(7)] string RequirementsHash, [property:Key(8)] DateTime ValidUntilUtc, [property:Key(9)] Guid? ExecutionId, [property:Key(10)] long ExecutionRevision, [property:Key(11)] int ClosedUnits = 0);
+public sealed record ReservationSnapshot([property: Key(0)] Guid ReservationId, [property: Key(1)] long Version, [property: Key(2)] ReservationStatus Status,
+    [property: Key(3)] int StrategyUnits, [property: Key(4)] int FilledUnits, [property: Key(5)] int CancelledUnits, [property: Key(6)] int RemainingUnits,
+    [property: Key(7)] string RequirementsHash, [property: Key(8)] DateTime ValidUntilUtc, [property: Key(9)] Guid? ExecutionId, [property: Key(10)] long ExecutionRevision, [property: Key(11)] int ClosedUnits = 0);
 public sealed record CapacityTransition(ReservationStatus Status, int FilledUnits, int CancelledUnits,
     int RemainingUnits, decimal HeldFraction, decimal WorkingFraction, decimal PositionFraction, int ClosedUnits = 0);

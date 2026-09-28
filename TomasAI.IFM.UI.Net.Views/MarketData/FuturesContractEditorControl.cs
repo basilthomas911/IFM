@@ -25,29 +25,29 @@ public partial class FuturesContractEditorControl
     bool _canChangeRemove;
     Action _refreshAction;
 
-   /// <summary>
-   /// Initializes a new instance of the <see cref="FuturesContractEditorControl"/> class with the specified view model
-   /// and refresh action.
-   /// </summary>
-   /// <remarks>The <paramref name="viewModel"/> parameter must not be <c>null</c>. The <paramref
-   /// name="refreshAction"/> parameter is expected to encapsulate logic for refreshing the control, such as updating
-   /// the UI or reloading data.</remarks>
-   /// <param name="viewModel">The view model that provides data and logic for the futures contract editor.</param>
-   /// <param name="refreshAction">An action to refresh the control's state or data when invoked.</param>
-   public FuturesContractEditorControl(FuturesContractEditorViewModel viewModel, Action refreshAction)
-   {
-       InitializeComponent();
-       MarketDataTypography.Apply(this);
-       MarketDataInputPalette.Apply(this);
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FuturesContractEditorControl"/> class with the specified view model
+    /// and refresh action.
+    /// </summary>
+    /// <remarks>The <paramref name="viewModel"/> parameter must not be <c>null</c>. The <paramref
+    /// name="refreshAction"/> parameter is expected to encapsulate logic for refreshing the control, such as updating
+    /// the UI or reloading data.</remarks>
+    /// <param name="viewModel">The view model that provides data and logic for the futures contract editor.</param>
+    /// <param name="refreshAction">An action to refresh the control's state or data when invoked.</param>
+    public FuturesContractEditorControl(FuturesContractEditorViewModel viewModel, Action refreshAction)
+    {
+        InitializeComponent();
+        MarketDataTypography.Apply(this);
+        MarketDataInputPalette.Apply(this);
         _viewModel = viewModel;
         _refreshAction = refreshAction;
         InitializeProviderSelection();
-   }
+    }
 
     /// <summary>
     /// Gets a value indicating whether the removal operation can be changed.
     /// </summary>
-   public bool CanChangeRemove => _canChangeRemove;
+    public bool CanChangeRemove => _canChangeRemove;
 
     /// <summary>
     /// Gets a value indicating whether the control can import data.
@@ -71,7 +71,7 @@ public partial class FuturesContractEditorControl
         _dataLoaded = dataLoaded;
         _ = LoadEditorAsync();
     }
-    
+
     /// <summary>
     /// unload futures contract editor
     /// </summary>
@@ -362,7 +362,7 @@ public partial class FuturesContractEditorControl
     void LoadFuturesContractIds(string contractId, FuturesContractV3ReadModel[] futuresContracts)
     {
         lstFuturesContractIds.Items.Clear();
-        if (futuresContracts is null || futuresContracts.Length  == 0)
+        if (futuresContracts is null || futuresContracts.Length == 0)
             return;
         foreach (var fc in futuresContracts!)
             lstFuturesContractIds.Items.Add(fc.ContractId);
@@ -385,11 +385,11 @@ public partial class FuturesContractEditorControl
     /// <param name="lookupTypes"></param>
     /// <param name="shortCode"></param>
     /// <returns></returns>
-   static int GetSelectedIndex(IEnumerable<LookupTypeUiModel> lookupTypes, string shortCode)
-        => lookupTypes
-            .Where(e => e.ShortCode.Equals(shortCode, StringComparison.CurrentCultureIgnoreCase))
-            .Select(e => e.OrderId)
-            .FirstOrDefault();
+    static int GetSelectedIndex(IEnumerable<LookupTypeUiModel> lookupTypes, string shortCode)
+         => lookupTypes
+             .Where(e => e.ShortCode.Equals(shortCode, StringComparison.CurrentCultureIgnoreCase))
+             .Select(e => e.OrderId)
+             .FirstOrDefault();
 
     /// <summary>
     /// show futures contract details
@@ -404,7 +404,7 @@ public partial class FuturesContractEditorControl
         txtLocalSymbol.Enabled = false;
         txtLocalSymbol.BackColor = Color.Black;
         var fc = imported ?? _viewModel.GetFuturesContract(selectedIndex);
-        if (fc is null) 
+        if (fc is null)
             return;
         dtmLastTradeDate.Value = fc.LastTradeDate.ToDateTime(TimeOnly.MinValue);
         dtmLastTradeDate.Enabled = false;
@@ -480,7 +480,7 @@ public partial class FuturesContractEditorControl
     }
 
     void ddlExchange_SelectedIndexChanged(object sender, EventArgs e) => SetDescription();
-    
+
     void lstFuturesContractIds_SelectedIndexChanged(object sender, EventArgs e)
     {
         ShowSelectedFuturesContract(lstFuturesContractIds.SelectedIndex);
@@ -490,6 +490,6 @@ public partial class FuturesContractEditorControl
     {
         throw new NotImplementedException();
     }
-    
+
 }
 

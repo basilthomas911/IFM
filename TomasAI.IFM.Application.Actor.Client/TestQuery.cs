@@ -22,7 +22,7 @@ public class TestQuery : IQuery<string>
     [Key(0)] public ActorSubject Subject { get; set; } = default!;
     [Key(1)] public IActorEntityId EntityId { get; set; } = default!;
     [IgnoreMember] public int ErrorCode { get; set; }
-    [IgnoreMember] public string? QueryParams { get; set; } 
+    [IgnoreMember] public string? QueryParams { get; set; }
 
     [Key(2)]
     public string MsgString { get; init; } = string.Empty;

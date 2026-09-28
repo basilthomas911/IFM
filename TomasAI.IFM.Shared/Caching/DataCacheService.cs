@@ -28,7 +28,7 @@ public class DataCacheService : IDataCacheService
     public DataCacheService()
     {
         _root ??= new object();
-        _dataCacheMap = new ();
+        _dataCacheMap = new();
     }
 
     /// <summary>
@@ -55,7 +55,7 @@ public class DataCacheService : IDataCacheService
         lock (_root!)
         {
             if (!_dataCacheMap.ContainsKey(cacheName))
-                _dataCacheMap.TryAdd(cacheName,[ ]);
+                _dataCacheMap.TryAdd(cacheName, []);
             var dataCache = _dataCacheMap[cacheName];
             if (dataCache.ContainsKey($"{cacheKey}"))
                 throw new ArgumentNullException($"{cacheName}", string.Format(ERR_Add_CacheKeyExists, $"{cacheKey}"));

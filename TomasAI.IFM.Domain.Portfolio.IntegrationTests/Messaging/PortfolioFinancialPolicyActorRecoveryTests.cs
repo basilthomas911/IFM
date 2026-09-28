@@ -111,30 +111,48 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
 
     static ActivateAndAssignPortfolioFinancialPolicyCommand Activation(
         PortfolioFinancialPolicyId id, Guid commandId, long expectedPolicyRevision, long expectedPortfolioRevision) => new()
-    {
-        CommandId = commandId,
-        EntityId = id,
-        ErrorCode = 34020,
-        Subject = new(ActorType.Command, PortfolioFinancialPolicyCommandActor.ActorName, "ActivateAndAssignPortfolioFinancialPolicy", id.Format()),
-        PolicyVersion = 1, ExpectedPolicyRevision = expectedPolicyRevision, ExpectedPortfolioRevision = expectedPortfolioRevision,
-        Access = PortfolioAccessContext.Administrator("integration-admin"),
-    };
+        {
+            CommandId = commandId,
+            EntityId = id,
+            ErrorCode = 34020,
+            Subject = new(ActorType.Command, PortfolioFinancialPolicyCommandActor.ActorName, "ActivateAndAssignPortfolioFinancialPolicy", id.Format()),
+            PolicyVersion = 1,
+            ExpectedPolicyRevision = expectedPolicyRevision,
+            ExpectedPortfolioRevision = expectedPortfolioRevision,
+            Access = PortfolioAccessContext.Administrator("integration-admin"),
+        };
 
     static PortfolioReadModel Portfolio(int id) => new()
     {
-        PortfolioId = id, PortfolioVersion = 1, Name = $"Portfolio {id}", OperatingState = PortfolioOperatingState.Draft,
-        EffectiveFromUtc = DateTime.UtcNow.AddMinutes(-1), CreatedOnUtc = DateTime.UtcNow, CreatedBy = "integration"
+        PortfolioId = id,
+        PortfolioVersion = 1,
+        Name = $"Portfolio {id}",
+        OperatingState = PortfolioOperatingState.Draft,
+        EffectiveFromUtc = DateTime.UtcNow.AddMinutes(-1),
+        CreatedOnUtc = DateTime.UtcNow,
+        CreatedBy = "integration"
     };
 
     static PortfolioFinancialPolicyReadModel Policy(int portfolioId, int policyId) => new()
     {
-        PortfolioId = portfolioId, PolicyId = policyId, PolicyVersion = 1, Name = $"Policy {policyId}",
-        OperatingState = PortfolioFinancialPolicyState.Draft, BaseCurrency = "USD", CapitalBase = 1_000_000,
-        MaximumDeployableCapital = 900_000, MaximumRiskPerTrade = 10_000, MaximumAggregateRisk = 100_000,
-        MaximumMargin = 500_000, MaximumGrossNotional = 5_000_000, MaximumOpenPositions = 100,
+        PortfolioId = portfolioId,
+        PolicyId = policyId,
+        PolicyVersion = 1,
+        Name = $"Policy {policyId}",
+        OperatingState = PortfolioFinancialPolicyState.Draft,
+        BaseCurrency = "USD",
+        CapitalBase = 1_000_000,
+        MaximumDeployableCapital = 900_000,
+        MaximumRiskPerTrade = 10_000,
+        MaximumAggregateRisk = 100_000,
+        MaximumMargin = 500_000,
+        MaximumGrossNotional = 5_000_000,
+        MaximumOpenPositions = 100,
         MaximumDrawdownAmount = 200_000,
         TradeFamilyLimits = [new() { TradeStrategyFamilyId = 1, DefinitionVersion = 1, Enabled = true, MaximumRiskPerTrade = 5_000, MaximumAggregateRisk = 50_000, MaximumMargin = 250_000, MaximumGrossNotional = 2_500_000, MaximumOpenPositions = 50 }],
-        EffectiveFromUtc = DateTime.UtcNow.AddMinutes(-1), CreatedOnUtc = DateTime.UtcNow, CreatedBy = "integration"
+        EffectiveFromUtc = DateTime.UtcNow.AddMinutes(-1),
+        CreatedOnUtc = DateTime.UtcNow,
+        CreatedBy = "integration"
     };
 
     sealed class InMemoryPolicyStore : IPortfolioEventStore

@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.CommandParameters;
 /// </summary>
 /// <param name="Contracts">The array of futures option contracts to be added. Cannot be null.</param>
 /// <param name="ErrorCode">The error code associated with the add futures option contracts operation.</param>
-public record AddFuturesOptionContractsParameter(int Year,FuturesOptionContractReadModel[] Contracts, int ErrorCode)
+public record AddFuturesOptionContractsParameter(int Year, FuturesOptionContractReadModel[] Contracts, int ErrorCode)
     : ICommandParameter
 {
 }

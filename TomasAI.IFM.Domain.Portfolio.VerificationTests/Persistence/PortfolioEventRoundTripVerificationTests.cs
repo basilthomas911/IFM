@@ -39,12 +39,23 @@ public sealed class PortfolioEventRoundTripVerificationTests
         ];
         var policy = new PortfolioFinancialPolicyReadModel
         {
-            PortfolioId = 101, PolicyId = 9001, PolicyVersion = 1, Name = "Limits", OperatingState = PortfolioFinancialPolicyState.Draft,
-            CapitalBase = 1_000_000, MaximumDeployableCapital = 900_000, MaximumRiskPerTrade = 10_000,
-            MaximumAggregateRisk = 100_000, MaximumMargin = 500_000, MaximumGrossNotional = 5_000_000,
-            MaximumOpenPositions = 100, MaximumDrawdownAmount = 200_000,
+            PortfolioId = 101,
+            PolicyId = 9001,
+            PolicyVersion = 1,
+            Name = "Limits",
+            OperatingState = PortfolioFinancialPolicyState.Draft,
+            CapitalBase = 1_000_000,
+            MaximumDeployableCapital = 900_000,
+            MaximumRiskPerTrade = 10_000,
+            MaximumAggregateRisk = 100_000,
+            MaximumMargin = 500_000,
+            MaximumGrossNotional = 5_000_000,
+            MaximumOpenPositions = 100,
+            MaximumDrawdownAmount = 200_000,
             TradeFamilyLimits = [new() { TradeStrategyFamilyId = 1, DefinitionVersion = 1, Enabled = true, MaximumRiskPerTrade = 5_000, MaximumAggregateRisk = 50_000, MaximumMargin = 250_000, MaximumGrossNotional = 2_500_000, MaximumOpenPositions = 50 }],
-            EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "verify"
+            EffectiveFromUtc = now,
+            CreatedOnUtc = now,
+            CreatedBy = "verify"
         };
         IPortfolioFinancialPolicyDomainEvent[] policyEvents =
         [
@@ -76,8 +87,13 @@ public sealed class PortfolioEventRoundTripVerificationTests
         var source = new PortfolioAggregate();
         var first = source.Create(Guid.NewGuid(), new PortfolioReadModel
         {
-            PortfolioId = 303, Name = "Hash", PortfolioVersion = 1,
-            OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "verify"
+            PortfolioId = 303,
+            Name = "Hash",
+            PortfolioVersion = 1,
+            OperatingState = PortfolioOperatingState.Draft,
+            EffectiveFromUtc = now,
+            CreatedOnUtc = now,
+            CreatedBy = "verify"
         }, now, "verify");
         var snapshot = source.CaptureSnapshot();
         var second = source.ChangeState(Guid.NewGuid(), 1, PortfolioOperatingState.Disabled, "pause", now.AddSeconds(1), "verify");

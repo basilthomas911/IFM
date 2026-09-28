@@ -35,7 +35,7 @@ namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTi
 
 [Collection(IntrinsicTimeStrategyWorkflowRuntimeCollection.Name)]
 [Trait("Category", "Integration")]
-public sealed partial class TradeSelectionRuntimeTests(WebApplicationFactory<Program> sourceFactory, TradeDatabaseFixture database, Xunit.Abstractions.ITestOutputHelper output) : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<TradeDatabaseFixture>
+public sealed partial class TradeSelectionRuntimeTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> sourceFactory, TradeDatabaseFixture database, Xunit.Abstractions.ITestOutputHelper output) : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<TradeDatabaseFixture>
 {
     [Fact, Trait("Gate", "TS-05"), Trait("Gate", "TS-07")]
     public async Task Production_Function_over_NATS_projects_Scylla_and_appends_Postgres_with_idempotent_replay()
@@ -194,8 +194,8 @@ public sealed partial class TradeSelectionRuntimeTests(WebApplicationFactory<Pro
         public ValueTask SaveCompletedStateAsync(IFunctionActorContext context, TradeSelectionFunctionState state, ExecuteTradeSelectionPipelineCommand c, CancellationToken t = default)
             => Fail ? ValueTask.FromException(new InvalidOperationException("Injected completed append failure")) : Resolve().SaveCompletedStateAsync(context, state, c, t);
     }
-    WebApplicationFactory<Program> Host(Action<IServiceCollection>? configure = null, string? brokerUrl = null, bool actualPortfolio = false) => sourceFactory.WithWebHostBuilder(builder => EventLogEngineQualification.Configure(builder).UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics" + (actualPortfolio ? ",TomasAI.IFM.Domain.Portfolio" : ""))
-        .UseSetting("IFM_TEST_NATS_URL", brokerUrl ?? "nats://127.0.0.1:14222").ConfigureServices(services =>
+    TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> Host(Action<IServiceCollection>? configure = null, string? brokerUrl = null, bool actualPortfolio = false) => sourceFactory.WithWebHostBuilder(builder => EventLogEngineQualification.Configure(builder).UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics" + (actualPortfolio ? ",TomasAI.IFM.Domain.Portfolio" : ""))
+        .UseSetting("IFM_TEST_NATS_URL", brokerUrl ?? DomainActorIntegrationInfrastructureFixture.NatsUrl).ConfigureServices(services =>
         {
             services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = false });
             var validators = TradeSelectionCatalogCapabilities.Create().Concat(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CompositionCatalogCapabilities.Create())

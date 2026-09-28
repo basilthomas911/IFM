@@ -33,6 +33,6 @@ namespace TomasAI.IFM.UI.Net.Services.MarketData
         /// stop listening for  option trade spread bar data inserted complete events
         /// </summary>
         public async Task StopOptionTradeSpreadBarDataListenerAsync() => await _spreadBarDataEventConsumer.StopAsync();
-        
+
     }
 }

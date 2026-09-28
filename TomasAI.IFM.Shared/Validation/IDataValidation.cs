@@ -2,7 +2,7 @@
 
 namespace TomasAI.IFM.Shared.Validation;
 
-public interface IDataValidation 
+public interface IDataValidation
 {
 }
 

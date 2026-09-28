@@ -41,8 +41,8 @@ public record FuturesOptionTickBidAskEvent : IEvent<FuturesOptionTickEntityId>
 
     public FuturesOptionTickBidAskEvent() { }
 
-    public FuturesOptionTickBidAskEvent(int requestId, FuturesOptionTickBidAskReadModel tickPriceData) 
-    { 
+    public FuturesOptionTickBidAskEvent(int requestId, FuturesOptionTickBidAskReadModel tickPriceData)
+    {
         RequestId = requestId;
         TickBidAskData = tickPriceData;
     }

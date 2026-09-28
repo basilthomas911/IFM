@@ -66,11 +66,11 @@ public sealed class CommittedCompositionSubscriptionProjector(ICommittedBusiness
                     await ApplyAsync(value, row.StreamVersion > 0 ? row.StreamVersion : row.EventVersion,
                         row.EventStreamId, row.EventVersion, cancellationToken).ConfigureAwait(false);
                 }
-                catch(InvalidDataException error)
+                catch (InvalidDataException error)
                 {
-                    await journal.RejectAsync(row.EventVersion,"InvalidCommittedSource",error.Message,cancellationToken).ConfigureAwait(false);
+                    await journal.RejectAsync(row.EventVersion, "InvalidCommittedSource", error.Message, cancellationToken).ConfigureAwait(false);
                     logger.LogError("Committed business source was quarantined. EventId={EventId} EventName={EventName} Reason={Reason}",
-                        row.EventVersion,row.EventName,error.Message);
+                        row.EventVersion, row.EventName, error.Message);
                     continue;
                 }
                 await journal.AcknowledgeAsync(row.EventVersion, cancellationToken).ConfigureAwait(false);

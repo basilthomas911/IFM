@@ -111,21 +111,21 @@ public sealed class DatabentoContractRegistrationRegistryTests
 
     private static DatabentoMarketDataRuntimeOptions Options(
         IReadOnlyList<DatabentoContractRegistration> registrations) => new()
-    {
-        FeedOptions = DatabentoFeedOptions.ForProfile(
+        {
+            FeedOptions = DatabentoFeedOptions.ForProfile(
             FeedDeploymentProfile.SyntheticCi, "GLBX.MDP3"),
-        Contracts = registrations
-    };
+            Contracts = registrations
+        };
 
     private static DatabentoContractRegistration Registration(
         string domainId,
         string providerId,
         AssetTypeId assetTypeId) => new()
-    {
-        DomainContractId = domainId,
-        ProviderContractName = providerId,
-        AssetTypeId = assetTypeId
-    };
+        {
+            DomainContractId = domainId,
+            ProviderContractName = providerId,
+            AssetTypeId = assetTypeId
+        };
 
     private static FuturesContractV3ReadModel Contract(
         string symbol,

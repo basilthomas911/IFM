@@ -30,10 +30,13 @@ public static class RiskExplanationModel
         }
         var explanation = new RiskExplanation
         {
-            ResultHash = RiskContracts.Hash(result), MaximumUnits = Math.Min(input.Policy.MaximumUnits, Math.Max(0, candidate.LiquidityCapacityUnits)),
+            ResultHash = RiskContracts.Hash(result),
+            MaximumUnits = Math.Min(input.Policy.MaximumUnits, Math.Max(0, candidate.LiquidityCapacityUnits)),
             AvailableCash = input.SizingAuthority.AvailableCash,
             EffectiveLossBudget = Math.Min(input.SizingAuthority.PerTradeLossBudget, input.SizingAuthority.RiskCapital * input.Policy.PerTradeRiskFraction) * multiplier,
-            MarketMultiplier = multiplier, Limits = input.SizingAuthority.Limits, Quantities = quantities.ToImmutable(),
+            MarketMultiplier = multiplier,
+            Limits = input.SizingAuthority.Limits,
+            Quantities = quantities.ToImmutable(),
             Conditions = [.. result.Reasons,
                 FormattableString.Invariant($"Candidate age: {latency.CandidateAgeMilliseconds:F1} ms"),
                 latency.OldestQuoteAgeMilliseconds is { } quoteAge ? FormattableString.Invariant($"Oldest quote age: {quoteAge:F1} ms") : "Oldest quote age: unavailable",

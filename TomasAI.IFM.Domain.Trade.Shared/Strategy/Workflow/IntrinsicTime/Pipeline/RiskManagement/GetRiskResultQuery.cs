@@ -6,8 +6,9 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
+
 [MessagePackObject(AllowPrivate = true)]
-public sealed record GetRiskResultQuery:IQuery<RiskAssessmentResult>
+public sealed record GetRiskResultQuery : IQuery<RiskAssessmentResult>
 {
 
     /// <summary>Creates an empty query for serialization.</summary>
@@ -30,15 +31,15 @@ public sealed record GetRiskResultQuery:IQuery<RiskAssessmentResult>
         InvocationId = invocationId;
         ResultId = resultId;
     }
-    [IgnoreMember] public const string Actor="RiskManagementQuery";
-    [IgnoreMember] public const string Verb="GetRiskResult";
-    [IgnoreMember] public const int ErrorId=23341;
-    [Key(0)] public ActorSubject Subject {get;init;}
-    [Key(1)] public IActorEntityId EntityId {get;init;}=ActorEntityId.Default;
-    [Key(2)] public CompositionQueryAccess Access {get;init;}=new(string.Empty,[]);
-    [Key(3)] public StrategyWorkflowId WorkflowId {get;init;}
-    [Key(4)] public Guid InvocationId {get;init;}
-    [Key(5)] public Guid ResultId {get;init;}
-    [IgnoreMember] public int ErrorCode {get;init;}=ErrorId;
-    [IgnoreMember] public string? QueryParams {get;init;}
+    [IgnoreMember] public const string Actor = "RiskManagementQuery";
+    [IgnoreMember] public const string Verb = "GetRiskResult";
+    [IgnoreMember] public const int ErrorId = 23341;
+    [Key(0)] public ActorSubject Subject { get; init; }
+    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
+    [Key(2)] public CompositionQueryAccess Access { get; init; } = new(string.Empty, []);
+    [Key(3)] public StrategyWorkflowId WorkflowId { get; init; }
+    [Key(4)] public Guid InvocationId { get; init; }
+    [Key(5)] public Guid ResultId { get; init; }
+    [IgnoreMember] public int ErrorCode { get; init; } = ErrorId;
+    [IgnoreMember] public string? QueryParams { get; init; }
 }

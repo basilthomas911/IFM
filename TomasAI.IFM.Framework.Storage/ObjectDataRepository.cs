@@ -22,7 +22,7 @@ public abstract class ObjectDataRepository<TRepo> : IObjectRepository<TRepo> whe
         _transaction = null;
         _logger = logger;
         _provider = new ObjectDataDbProvider(this, logger);
-        if (connectionSetting == null) 
+        if (connectionSetting == null)
             return;
         ConnectionSetting = connectionSetting;
         ConnectionString = connectionSetting.ConnectionString;
@@ -44,7 +44,7 @@ public abstract class ObjectDataRepository<TRepo> : IObjectRepository<TRepo> whe
     public CommandType CommandType { get; private set; } = CommandType.Text;
     public CommandType QueuedCommandType => default;
 
-        /// <summary>
+    /// <summary>
     /// create db connection using create provider
     /// </summary>
     /// <returns></returns>
@@ -125,15 +125,15 @@ public abstract class ObjectDataRepository<TRepo> : IObjectRepository<TRepo> whe
             .CreateQueuedCommandsContext(queuedCommands)
             .ExecuteQueuedCommandsAsync(queuedCommands, useTransaction);
     }
-    
+
     /// <summary>
     /// start database transaction that will span over multiple object repo execution/query calls
     /// </summary>
     /// <returns></returns>
-    public IObjectRepositoryTransaction? BeginTransaction() 
+    public IObjectRepositoryTransaction? BeginTransaction()
     {
         _transaction = _provider?.CreateTransaction<TRepo>()?.BeginTransaction(this);
-        return _transaction;    
+        return _transaction;
     }
     internal void SetTransactionCompleted() => _transaction = null;
     public object? InTransaction() => _transaction?.CreateCommand();

@@ -53,7 +53,7 @@ public record InsertVixFuturesEodDataCommand : ICommand<FuturesEodDataId>
     /// <param name="vixFuturesTickData">The VIX futures tick data input (cannot be null).</param>
     public InsertVixFuturesEodDataCommand(FuturesTickDataV2ReadModel vixFuturesTickData)
     {
-        VixFuturesTickData = IsArgumentNull.Set( vixFuturesTickData);
+        VixFuturesTickData = IsArgumentNull.Set(vixFuturesTickData);
 
         EntityId = new FuturesEodDataId(VixFuturesTickData.ContractId, VixFuturesTickData.ValueDate);
         ErrorCode = 5005;

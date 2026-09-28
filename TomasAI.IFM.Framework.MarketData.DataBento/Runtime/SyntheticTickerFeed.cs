@@ -770,16 +770,16 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
             var mapping = mappings[index];
             var key = new InstrumentKey(mapping.PublisherId, mapping.InstrumentId);
             var state = sharedState ?? new ChannelState
-                {
-                    Instrument = key,
-                    Channel = new BoundedBatchChannel(
+            {
+                Instrument = key,
+                Channel = new BoundedBatchChannel(
                         channelSlots,
                         _options.ManagedBatchRecordCapacity,
                         SignalMultiplexedReader),
-                    RequiresBaseline = (_subscriptions![mapping.SubscriptionIndex].DataKinds
+                RequiresBaseline = (_subscriptions![mapping.SubscriptionIndex].DataKinds
                                         & (MarketDataKinds.Quote
                                            | MarketDataKinds.MboOrderUpdate)) != 0
-                };
+            };
             if (channelsByInstrumentId.TryGetValue(key.InstrumentId, out var existingState))
             {
                 if (!ReferenceEquals(existingState, state))

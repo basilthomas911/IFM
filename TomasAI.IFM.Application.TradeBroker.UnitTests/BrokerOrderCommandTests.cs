@@ -32,10 +32,14 @@ public sealed class BrokerOrderCommandTests
         Assert.True(ExecuteCreate(create, state).Success);
         var receipt = new RecordBrokerDispatchCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = create.EntityId,
+            CommandId = Guid.NewGuid(),
+            EntityId = create.EntityId,
             Subject = new(ActorType.Command, BrokerOrderActorNames.Command, RecordBrokerDispatchCommand.Verb, create.EntityId.Format()),
-            OperationId = create.OperationId, Outcome = BrokerDispatchResult.AcceptedForDispatch,
-            Category = "EM.DISPATCHED", Detail = "accepted", RecordedAtUtc = create.EffectiveAtUtc.AddMilliseconds(1)
+            OperationId = create.OperationId,
+            Outcome = BrokerDispatchResult.AcceptedForDispatch,
+            Category = "EM.DISPATCHED",
+            Detail = "accepted",
+            RecordedAtUtc = create.EffectiveAtUtc.AddMilliseconds(1)
         };
         Assert.True(receipt.Execute(state).Success);
         Assert.Equal(BrokerOrderStatus.Dispatched, state.Current!.Status);
@@ -54,12 +58,14 @@ public sealed class BrokerOrderCommandTests
         Assert.True(ExecuteCreate(create, state).Success);
         var dispatch = new RecordBrokerDispatchCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = create.EntityId,
+            CommandId = Guid.NewGuid(),
+            EntityId = create.EntityId,
             Subject = new(ActorType.Command, BrokerOrderActorNames.Command,
                 RecordBrokerDispatchCommand.Verb, create.EntityId.Format()),
             OperationId = create.OperationId,
             Outcome = BrokerDispatchResult.AcceptedForDispatch,
-            Category = "EM.DISPATCHED", Detail = "accepted",
+            Category = "EM.DISPATCHED",
+            Detail = "accepted",
             RecordedAtUtc = create.EffectiveAtUtc.AddMilliseconds(1)
         };
         Assert.True(dispatch.Execute(state).Success);
@@ -78,7 +84,9 @@ public sealed class BrokerOrderCommandTests
         };
         var observed = new RecordBrokerOrderObservationCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = create.EntityId, Observation = evidence,
+            CommandId = Guid.NewGuid(),
+            EntityId = create.EntityId,
+            Observation = evidence,
             Subject = new(ActorType.Command, BrokerOrderActorNames.Command,
                 RecordBrokerOrderObservationCommand.Verb, create.EntityId.Format())
         };
@@ -103,26 +111,36 @@ public sealed class BrokerOrderCommandTests
         Assert.True(ExecuteCreate(create, state).Success);
         var evidence = new BrokerOrderObservationEvidence
         {
-            ObservationId = Guid.NewGuid(), Kind = BrokerOrderObservationKind.Acknowledged,
-            AccountAlias = "EMU", OperationId = create.OperationId,
-            ComponentId = create.EntityId.ComponentId, OrderRevision = 1,
-            SourceEpoch = 1, SourceSequence = 1,
-            OccurredAtUtc = create.EffectiveAtUtc.AddMilliseconds(1), ContentHash = "ACK"
+            ObservationId = Guid.NewGuid(),
+            Kind = BrokerOrderObservationKind.Acknowledged,
+            AccountAlias = "EMU",
+            OperationId = create.OperationId,
+            ComponentId = create.EntityId.ComponentId,
+            OrderRevision = 1,
+            SourceEpoch = 1,
+            SourceSequence = 1,
+            OccurredAtUtc = create.EffectiveAtUtc.AddMilliseconds(1),
+            ContentHash = "ACK"
         };
         var observed = new RecordBrokerOrderObservationCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = create.EntityId, Observation = evidence,
+            CommandId = Guid.NewGuid(),
+            EntityId = create.EntityId,
+            Observation = evidence,
             Subject = new(ActorType.Command, BrokerOrderActorNames.Command,
                 RecordBrokerOrderObservationCommand.Verb, create.EntityId.Format())
         };
         Assert.True(observed.Execute(state).Success);
         var receipt = new RecordBrokerDispatchCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = create.EntityId,
+            CommandId = Guid.NewGuid(),
+            EntityId = create.EntityId,
             Subject = new(ActorType.Command, BrokerOrderActorNames.Command,
                 RecordBrokerDispatchCommand.Verb, create.EntityId.Format()),
-            OperationId = create.OperationId, Outcome = BrokerDispatchResult.AcceptedForDispatch,
-            Category = "EM.DISPATCHED", Detail = "accepted",
+            OperationId = create.OperationId,
+            Outcome = BrokerDispatchResult.AcceptedForDispatch,
+            Category = "EM.DISPATCHED",
+            Detail = "accepted",
             RecordedAtUtc = create.EffectiveAtUtc.AddMilliseconds(2)
         };
         Assert.True(receipt.Execute(state).Success);
@@ -138,10 +156,12 @@ public sealed class BrokerOrderCommandTests
         state.AcceptChanges();
         var update = new RequestBrokerOrderLimitUpdateCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = create.EntityId,
+            CommandId = Guid.NewGuid(),
+            EntityId = create.EntityId,
             Subject = new(ActorType.Command, BrokerOrderActorNames.Command,
                 RequestBrokerOrderLimitUpdateCommand.Verb, create.EntityId.Format()),
-            OperationId = Guid.NewGuid(), NewSignedNetDebitLimit = 99.5m,
+            OperationId = Guid.NewGuid(),
+            NewSignedNetDebitLimit = 99.5m,
             EffectiveAtUtc = create.EffectiveAtUtc.AddSeconds(1)
         };
 
@@ -152,11 +172,14 @@ public sealed class BrokerOrderCommandTests
         state.AcceptChanges();
         var updateReceipt = new RecordBrokerDispatchCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = create.EntityId,
+            CommandId = Guid.NewGuid(),
+            EntityId = create.EntityId,
             Subject = new(ActorType.Command, BrokerOrderActorNames.Command,
                 RecordBrokerDispatchCommand.Verb, create.EntityId.Format()),
-            OperationId = update.OperationId, Outcome = BrokerDispatchResult.AcceptedForDispatch,
-            Category = "EM.MODIFIED", Detail = "changed",
+            OperationId = update.OperationId,
+            Outcome = BrokerDispatchResult.AcceptedForDispatch,
+            Category = "EM.MODIFIED",
+            Detail = "changed",
             RecordedAtUtc = create.EffectiveAtUtc.AddSeconds(2)
         };
         Assert.True(updateReceipt.Execute(state).Success);
@@ -164,10 +187,12 @@ public sealed class BrokerOrderCommandTests
         state.AcceptChanges();
         var cancel = new RequestBrokerOrderCancelCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = create.EntityId,
+            CommandId = Guid.NewGuid(),
+            EntityId = create.EntityId,
             Subject = new(ActorType.Command, BrokerOrderActorNames.Command,
                 RequestBrokerOrderCancelCommand.Verb, create.EntityId.Format()),
-            OperationId = Guid.NewGuid(), EffectiveAtUtc = create.EffectiveAtUtc.AddSeconds(3)
+            OperationId = Guid.NewGuid(),
+            EffectiveAtUtc = create.EffectiveAtUtc.AddSeconds(3)
         };
         Assert.True(cancel.Execute(state).Success);
         Assert.Equal(BrokerOrderStatus.CancelPending, state.Current!.Status);
@@ -181,18 +206,27 @@ public sealed class BrokerOrderCommandTests
         var state = CreateWorkingState(create);
         var partial = new RecordBrokerOrderObservationCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = create.EntityId,
+            CommandId = Guid.NewGuid(),
+            EntityId = create.EntityId,
             Subject = new(ActorType.Command, BrokerOrderActorNames.Command,
                 RecordBrokerOrderObservationCommand.Verb, create.EntityId.Format()),
             Observation = new BrokerOrderObservationEvidence
             {
-                ObservationId = Guid.NewGuid(), Kind = BrokerOrderObservationKind.Execution,
-                AccountAlias = "EMU", OperationId = create.OperationId,
-                ComponentId = create.EntityId.ComponentId, LegId = Guid.NewGuid(),
-                ContractId = "ES", ExternalExecutionId = "EM-PARTIAL-1",
-                SignedQuantity = 1, Price = 100m, OrderRevision = 1,
-                SourceEpoch = 1, SourceSequence = 2,
-                OccurredAtUtc = create.EffectiveAtUtc.AddSeconds(1), ContentHash = "PARTIAL"
+                ObservationId = Guid.NewGuid(),
+                Kind = BrokerOrderObservationKind.Execution,
+                AccountAlias = "EMU",
+                OperationId = create.OperationId,
+                ComponentId = create.EntityId.ComponentId,
+                LegId = Guid.NewGuid(),
+                ContractId = "ES",
+                ExternalExecutionId = "EM-PARTIAL-1",
+                SignedQuantity = 1,
+                Price = 100m,
+                OrderRevision = 1,
+                SourceEpoch = 1,
+                SourceSequence = 2,
+                OccurredAtUtc = create.EffectiveAtUtc.AddSeconds(1),
+                ContentHash = "PARTIAL"
             }
         };
         Assert.True(partial.Execute(state).Success);
@@ -200,58 +234,75 @@ public sealed class BrokerOrderCommandTests
 
         var update = new RequestBrokerOrderLimitUpdateCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = create.EntityId,
+            CommandId = Guid.NewGuid(),
+            EntityId = create.EntityId,
             Subject = new(ActorType.Command, BrokerOrderActorNames.Command,
                 RequestBrokerOrderLimitUpdateCommand.Verb, create.EntityId.Format()),
-            OperationId = Guid.NewGuid(), NewSignedNetDebitLimit = 99.5m,
+            OperationId = Guid.NewGuid(),
+            NewSignedNetDebitLimit = 99.5m,
             EffectiveAtUtc = create.EffectiveAtUtc.AddSeconds(2)
         };
         Assert.True(update.Execute(state).Success);
         Assert.Equal(BrokerOrderStatus.UpdatePending, state.Current!.Status);
         Assert.True(new RecordBrokerDispatchCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = create.EntityId,
+            CommandId = Guid.NewGuid(),
+            EntityId = create.EntityId,
             Subject = new(ActorType.Command, BrokerOrderActorNames.Command,
                 RecordBrokerDispatchCommand.Verb, create.EntityId.Format()),
-            OperationId = update.OperationId, Outcome = BrokerDispatchResult.AcceptedForDispatch,
-            Category = "EM.MODIFIED", Detail = "remaining quantity updated",
+            OperationId = update.OperationId,
+            Outcome = BrokerDispatchResult.AcceptedForDispatch,
+            Category = "EM.MODIFIED",
+            Detail = "remaining quantity updated",
             RecordedAtUtc = create.EffectiveAtUtc.AddSeconds(3)
         }.Execute(state).Success);
         Assert.Equal(BrokerOrderStatus.PartiallyFilled, state.Current!.Status);
 
         var cancel = new RequestBrokerOrderCancelCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = create.EntityId,
+            CommandId = Guid.NewGuid(),
+            EntityId = create.EntityId,
             Subject = new(ActorType.Command, BrokerOrderActorNames.Command,
                 RequestBrokerOrderCancelCommand.Verb, create.EntityId.Format()),
-            OperationId = Guid.NewGuid(), EffectiveAtUtc = create.EffectiveAtUtc.AddSeconds(4)
+            OperationId = Guid.NewGuid(),
+            EffectiveAtUtc = create.EffectiveAtUtc.AddSeconds(4)
         };
         Assert.True(cancel.Execute(state).Success);
         Assert.True(new RecordBrokerOrderObservationCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = create.EntityId,
+            CommandId = Guid.NewGuid(),
+            EntityId = create.EntityId,
             Subject = new(ActorType.Command, BrokerOrderActorNames.Command,
                 RecordBrokerOrderObservationCommand.Verb, create.EntityId.Format()),
             Observation = partial.Observation with
             {
-                ObservationId = Guid.NewGuid(), Kind = BrokerOrderObservationKind.Cancelled,
-                OperationId = cancel.OperationId, ExternalExecutionId = null,
-                SignedQuantity = 0, Price = 0, SourceSequence = 3,
-                OccurredAtUtc = create.EffectiveAtUtc.AddSeconds(5), ContentHash = "CANCELLED"
+                ObservationId = Guid.NewGuid(),
+                Kind = BrokerOrderObservationKind.Cancelled,
+                OperationId = cancel.OperationId,
+                ExternalExecutionId = null,
+                SignedQuantity = 0,
+                Price = 0,
+                SourceSequence = 3,
+                OccurredAtUtc = create.EffectiveAtUtc.AddSeconds(5),
+                ContentHash = "CANCELLED"
             }
         }.Execute(state).Success);
         Assert.Equal(BrokerOrderStatus.Cancelled, state.Current!.Status);
 
         Assert.True(new RecordBrokerOrderObservationCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = create.EntityId,
+            CommandId = Guid.NewGuid(),
+            EntityId = create.EntityId,
             Subject = new(ActorType.Command, BrokerOrderActorNames.Command,
                 RecordBrokerOrderObservationCommand.Verb, create.EntityId.Format()),
             Observation = partial.Observation with
             {
-                ObservationId = Guid.NewGuid(), OperationId = update.OperationId,
-                ExternalExecutionId = "EM-LATE-1", SourceSequence = 4,
-                OccurredAtUtc = create.EffectiveAtUtc.AddSeconds(6), ContentHash = "LATE-FILL"
+                ObservationId = Guid.NewGuid(),
+                OperationId = update.OperationId,
+                ExternalExecutionId = "EM-LATE-1",
+                SourceSequence = 4,
+                OccurredAtUtc = create.EffectiveAtUtc.AddSeconds(6),
+                ContentHash = "LATE-FILL"
             }
         }.Execute(state).Success);
         Assert.Equal(BrokerOrderStatus.PartiallyFilled, state.Current!.Status);
@@ -273,8 +324,11 @@ public sealed class BrokerOrderCommandTests
             Environment = TomasAI.IFM.Application.TradeBroker.Contracts.BrokerEnvironment.Emulator,
             Snapshot = new BrokerAccountSnapshotEvidence
             {
-                AccountAlias = "EMU", Currency = "USD", Complete = true,
-                NewRiskAllowed = true, Generation = 1,
+                AccountAlias = "EMU",
+                Currency = "USD",
+                Complete = true,
+                NewRiskAllowed = true,
+                Generation = 1,
                 AsOfUtc = create.EffectiveAtUtc
             },
             QualificationStatus = BrokerAccountQualificationStatus.ReviewPending,
@@ -338,16 +392,22 @@ public sealed class BrokerOrderCommandTests
         Assert.True(ExecuteCreate(create, state).Success);
         Assert.True(new RecordBrokerOrderObservationCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = create.EntityId,
+            CommandId = Guid.NewGuid(),
+            EntityId = create.EntityId,
             Subject = new(ActorType.Command, BrokerOrderActorNames.Command,
                 RecordBrokerOrderObservationCommand.Verb, create.EntityId.Format()),
             Observation = new BrokerOrderObservationEvidence
             {
-                ObservationId = Guid.NewGuid(), Kind = BrokerOrderObservationKind.Acknowledged,
-                AccountAlias = "EMU", OperationId = create.OperationId,
-                ComponentId = create.EntityId.ComponentId, OrderRevision = 1,
-                SourceEpoch = 1, SourceSequence = 1,
-                OccurredAtUtc = create.EffectiveAtUtc.AddMilliseconds(1), ContentHash = "ACK"
+                ObservationId = Guid.NewGuid(),
+                Kind = BrokerOrderObservationKind.Acknowledged,
+                AccountAlias = "EMU",
+                OperationId = create.OperationId,
+                ComponentId = create.EntityId.ComponentId,
+                OrderRevision = 1,
+                SourceEpoch = 1,
+                SourceSequence = 1,
+                OccurredAtUtc = create.EffectiveAtUtc.AddMilliseconds(1),
+                ContentHash = "ACK"
             }
         }.Execute(state).Success);
         return state;
@@ -360,12 +420,18 @@ public sealed class BrokerOrderCommandTests
         var approvalId = Guid.NewGuid();
         var order = new TradeOrderDefinition
         {
-            Id = new(1, 2, 3), Revision = 1, Status = TradeOrderStatus.Approved,
-            PositionType = TradeOrderPositionType.Opening, PortfolioApprovalId = Guid.NewGuid(),
-            BrokerAccountAlias = "EMU", BrokerEnvironment = BrokerEnvironment.Emulator,
+            Id = new(1, 2, 3),
+            Revision = 1,
+            Status = TradeOrderStatus.Approved,
+            PositionType = TradeOrderPositionType.Opening,
+            PortfolioApprovalId = Guid.NewGuid(),
+            BrokerAccountAlias = "EMU",
+            BrokerEnvironment = BrokerEnvironment.Emulator,
             AccountPromotionApprovalReference = approvalId.ToString("N"),
-            DefinitionHash = "definition", MicroExecutionProfileHash = "profile",
-            RequiredCapital = 1_000m, MaximumLoss = 1_000m,
+            DefinitionHash = "definition",
+            MicroExecutionProfileHash = "profile",
+            RequiredCapital = 1_000m,
+            MaximumLoss = 1_000m,
             ValidUntilUtc = new DateTime(2026, 9, 16, 14, 5, 0, DateTimeKind.Utc),
             Components = [new TradeOrderComponentDefinition
             {
@@ -378,7 +444,10 @@ public sealed class BrokerOrderCommandTests
         var id = new BrokerOrderId(new(order.Id, attempt), component);
         return new CreateBrokerOrderCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = id, OperationId = Guid.NewGuid(), Order = order,
+            CommandId = Guid.NewGuid(),
+            EntityId = id,
+            OperationId = Guid.NewGuid(),
+            Order = order,
             EffectiveAtUtc = new DateTime(2026, 9, 16, 14, 0, 0, DateTimeKind.Utc),
             Subject = new(ActorType.Command, BrokerOrderActorNames.Command, CreateBrokerOrderCommand.Verb, id.Format())
         };
@@ -397,8 +466,11 @@ public sealed class BrokerOrderCommandTests
             Snapshot = new BrokerAccountSnapshotEvidence
             {
                 AccountAlias = command.Order.BrokerAccountAlias,
-                Currency = "USD", Complete = true, NewRiskAllowed = true,
-                Generation = 1, AsOfUtc = command.EffectiveAtUtc
+                Currency = "USD",
+                Complete = true,
+                NewRiskAllowed = true,
+                Generation = 1,
+                AsOfUtc = command.EffectiveAtUtc
             },
             QualificationStatus = BrokerAccountQualificationStatus.Accepted,
             Gate = BrokerAccountOperationalGate.Open,

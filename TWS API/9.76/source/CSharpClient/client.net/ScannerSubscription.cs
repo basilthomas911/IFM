@@ -20,7 +20,7 @@ namespace IBApi
         private string locationCode;
         private string scanCode;
         private double abovePrice = Double.MaxValue;
-        private double belowPrice = Double.MaxValue;        
+        private double belowPrice = Double.MaxValue;
         private int aboveVolume = Int32.MaxValue;
         private int averageOptionVolumeAbove = Int32.MaxValue;
         private double marketCapAbove = Double.MaxValue;

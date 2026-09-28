@@ -19,7 +19,7 @@ namespace IBApi
         private String listingExch;
         private String serviceDataType;
         private int aggGroup;
-        
+
         /**
          * @brief The exchange name
          */

@@ -30,15 +30,18 @@ public sealed partial class MarkerProjectorPipelineTests
     [Xunit.InlineData(true, true, false)]
     public async Task Command_actor_routes_atomic_appends_and_recovers_after_runtime_recreation(bool batched, bool omitFirstHandoff, bool ownedPayloads)
     {
-        const string url = "nats://127.0.0.1:24223";
-        Xunit.Assert.Equal(url, Environment.GetEnvironmentVariable("IFM_MARKER_TEST_NATS_URL"));
+        var url = Environment.GetEnvironmentVariable("IFM_MARKER_TEST_NATS_URL")
+            ?? throw new InvalidOperationException("The isolated NATS fixture is unavailable.");
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         var name = "MarkerActor_" + Guid.NewGuid().ToString("N");
         var actorId = new ActorMailboxId(ActorType.Command, name);
         var commands = Enumerable.Range(0, 4).Select(i => new RuntimeCommand
         {
-            CommandId = Guid.NewGuid(), Subject = new(ActorType.Command, name, "Append", "s" + i),
-            StreamId = name + ".s" + i, Projector = name, Count = 8
+            CommandId = Guid.NewGuid(),
+            Subject = new(ActorType.Command, name, "Append", "s" + i),
+            StreamId = name + ".s" + i,
+            Projector = name,
+            Count = 8
         }).ToArray();
         await using var client = new NatsClient(url);
         async Task<ServiceResult<GuidResult>> Send(RuntimeCommand command)
@@ -189,7 +192,9 @@ public sealed partial class MarkerProjectorPipelineTests
             var request = (RuntimeCommand)command;
             var events = new DomainEventCollection(Enumerable.Range(1, request.Count).Select(i => (IEvent)new ProbeEvent
             {
-                AggregateId = command.StreamId, CommandId = command.CommandId, Projector = request.Projector,
+                AggregateId = command.StreamId,
+                CommandId = command.CommandId,
+                Projector = request.Projector,
                 Value = request.ExpectedVersion + i
             }));
             var saved = await db.SaveCommandEventsAtomicallyAsync(command, events, request.ExpectedVersion);

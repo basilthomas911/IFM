@@ -90,7 +90,7 @@ namespace IBApi
             if (other == null)
                 return false;
 
-            return base.Equals(obj) 
+            return base.Equals(obj)
                 && this.Exchange.Equals(other.Exchange)
                 && this.SecType.Equals(other.SecType)
                 && this.Symbol.Equals(other.Symbol);

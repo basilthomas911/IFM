@@ -18,13 +18,29 @@ public sealed class OrderCompositionPricingPrerequisiteTests
         [new(TreasuryTenor.OneMonth, 5m), new(TreasuryTenor.TwoMonth, 5.1m), new(TreasuryTenor.ThreeMonth, 5.2m)], At, "FinancialModelingPrep");
     internal static OptionPricingConvention Contract() => new()
     {
-        ContractId = "ES-option-call", Dataset = "GLBX.MDP3", PublisherId = 1, InstrumentId = 10,
-        RawSymbol = "fixture-call", Root = "ES", Exchange = "XCME", Currency = "USD", UnderlyingContractId = "ES-future",
-        ExerciseStyle = OptionExerciseStyle.European, SettlementStyle = OptionSettlementStyle.DeliveryOfFuture,
-        ExpirationUtc = At.AddDays(24), LastTradingUtc = At.AddDays(24), DayCount = PricingDayCount.Actual365Fixed,
-        CalendarVersion = "fixture-calendar/v1", Multiplier = 50, TickSize = 0.25m, TickRuleVersion = "fixture-tick/v1",
-        DefinitionDigest = new('a', 64), MappingVersion = "fixture-mapping/v1", EvidenceId = "synthetic-series",
-        EffectiveFromUtc = At.AddDays(-10), EffectiveUntilUtc = At.AddDays(40)
+        ContractId = "ES-option-call",
+        Dataset = "GLBX.MDP3",
+        PublisherId = 1,
+        InstrumentId = 10,
+        RawSymbol = "fixture-call",
+        Root = "ES",
+        Exchange = "XCME",
+        Currency = "USD",
+        UnderlyingContractId = "ES-future",
+        ExerciseStyle = OptionExerciseStyle.European,
+        SettlementStyle = OptionSettlementStyle.DeliveryOfFuture,
+        ExpirationUtc = At.AddDays(24),
+        LastTradingUtc = At.AddDays(24),
+        DayCount = PricingDayCount.Actual365Fixed,
+        CalendarVersion = "fixture-calendar/v1",
+        Multiplier = 50,
+        TickSize = 0.25m,
+        TickRuleVersion = "fixture-tick/v1",
+        DefinitionDigest = new('a', 64),
+        MappingVersion = "fixture-mapping/v1",
+        EvidenceId = "synthetic-series",
+        EffectiveFromUtc = At.AddDays(-10),
+        EffectiveUntilUtc = At.AddDays(40)
     };
     internal static OptionPricingCalendar Calendar() => new("fixture-calendar/v1", "America/New_York",
         new(2026, 1, 1), new(2026, 12, 31), new(18, 0), Enumerable.Range(0, 365).Select(i => new DateOnly(2026, 1, 1).AddDays(i))
@@ -50,8 +66,14 @@ public sealed class OrderCompositionPricingPrerequisiteTests
     }
 
     [Theory]
-    [InlineData(-1, 0)] [InlineData(0, 1)] [InlineData(29, 1)] [InlineData(30, 2)]
-    [InlineData(59, 2)] [InlineData(60, 3)] [InlineData(89, 3)] [InlineData(90, 0)]
+    [InlineData(-1, 0)]
+    [InlineData(0, 1)]
+    [InlineData(29, 1)]
+    [InlineData(30, 2)]
+    [InlineData(59, 2)]
+    [InlineData(60, 3)]
+    [InlineData(89, 3)]
+    [InlineData(90, 0)]
     public void Trading_day_buckets_have_exact_boundaries(int days, int expected) =>
         Assert.Equal(expected, (int?)TreasuryRateConversion.SelectTenor(days) ?? 0);
 
@@ -67,7 +89,9 @@ public sealed class OrderCompositionPricingPrerequisiteTests
     }
 
     [Theory]
-    [InlineData(0)] [InlineData(-1)] [InlineData(5)]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(5)]
     public void Published_zero_and_negative_rates_are_not_clamped(int percent)
     {
         var curve = Curve() with { Rates = [new(TreasuryTenor.OneMonth, percent)] };
@@ -117,7 +141,7 @@ public sealed class OrderCompositionPricingPrerequisiteTests
         var calculator = new Unified.OptionCalculator();
         var a = calculator.ImpliedVolatility(request, 100);
         var b = calculator.ImpliedVolatility(request with
-            { TimeToExpiry = (new DateOnly(2026, 10, 2).DayNumber - new DateOnly(2026, 9, 8).DayNumber) / 365d }, 100);
+        { TimeToExpiry = (new DateOnly(2026, 10, 2).DayNumber - new DateOnly(2026, 9, 8).DayNumber) / 365d }, 100);
         Assert.Equal(a, b);
         Assert.Equal(Unified.PricingFailure.ImpliedVolatilityNotIdentifiable,
             calculator.ImpliedVolatility(request with { TimeToExpiry = 0 }, 100).Failure);

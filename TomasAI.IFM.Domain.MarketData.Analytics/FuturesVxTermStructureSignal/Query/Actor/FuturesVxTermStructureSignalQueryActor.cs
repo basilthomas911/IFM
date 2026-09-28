@@ -41,10 +41,10 @@ public sealed class FuturesVxTermStructureSignalQueryActor(
     static readonly IReadOnlyDictionary<Type, Func<IQueryActorContext<FuturesVxTermStructureSignalQueryActor>,
         IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<FuturesVxTermStructureSignalQueryActor>,
         IQuery, CancellationToken, ValueTask>>()
-    {
-        [typeof(GetLatestFuturesVxTermStructureSignalQuery)] = static (context, query, cancellationToken) =>
-            ((GetLatestFuturesVxTermStructureSignalQuery)query).ExecuteAsync(context, cancellationToken)
-    };
+        {
+            [typeof(GetLatestFuturesVxTermStructureSignalQuery)] = static (context, query, cancellationToken) =>
+                ((GetLatestFuturesVxTermStructureSignalQuery)query).ExecuteAsync(context, cancellationToken)
+        };
     /// <inheritdoc />
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
         CreateQueryExceptionMap(_receiveMap.Keys);

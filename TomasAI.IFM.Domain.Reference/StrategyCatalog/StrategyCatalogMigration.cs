@@ -29,7 +29,8 @@ public sealed class StrategyCatalogMigration(IDbContextFactory factory, IMarketD
             var structureKeys = examples.Where(x => x.Key.Kind == StrategyCatalogKind.Structure && structures.Contains(x.Code)).Select(x => x.Key).ToArray();
             var definition = StrategyCatalogExamples.New(StrategyCatalogKind.Deployment, code, row.Description[..Math.Min(row.Description.Length, 200)]) with
             {
-                Parent = examples.Single(x => x.Key.Kind == StrategyCatalogKind.Strategy && x.Structures.Any(structureKeys.Contains)).Key, Horizon = row.TimeFrame,
+                Parent = examples.Single(x => x.Key.Kind == StrategyCatalogKind.Strategy && x.Structures.Any(structureKeys.Contains)).Key,
+                Horizon = row.TimeFrame,
                 Variants = examples.Where(x => x.Key.Kind == StrategyCatalogKind.Variant && x.Parent is not null && structureKeys.Contains(x.Parent)).Select(x => x.Key).ToArray(),
                 Products = product is null ? [] : [new(product.Id, product.Symbol, product.Exchange, product.Currency)],
                 LegacyFamilies = [new(row.TradeStrategyFamilyId, row.DefinitionVersion)],

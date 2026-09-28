@@ -48,7 +48,7 @@ public sealed class NatsActorMessage : IActorMessage
         => _dataSerializer.Deserialize<TEvent>(NatsMessage.Data!);
 
     public TQuery? AsQuery<TQuery, TResult>()
-        where TQuery : class,IQuery<TResult>
+        where TQuery : class, IQuery<TResult>
         where TResult : class
         => _dataSerializer.Deserialize<TQuery>(NatsMessage.Data!);
 
@@ -83,5 +83,5 @@ public sealed class NatsActorMessage : IActorMessage
     static ActorSubject ToSubject(string subject)
         => subject.ToSubject();
 
-   
+
 }

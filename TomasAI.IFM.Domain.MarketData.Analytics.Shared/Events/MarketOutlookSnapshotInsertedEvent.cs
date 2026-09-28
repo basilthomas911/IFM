@@ -59,7 +59,8 @@ public sealed record MarketOutlookSnapshotInsertedEvent : IEvent<MarketOutlookEn
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(MarketOutlookSnapshotInsertedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;
-    [IgnoreMember] public bool IsValid
+    [IgnoreMember]
+    public bool IsValid
     {
         get
         {

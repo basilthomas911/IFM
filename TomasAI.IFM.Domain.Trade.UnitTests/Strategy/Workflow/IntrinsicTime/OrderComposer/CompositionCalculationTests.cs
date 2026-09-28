@@ -10,7 +10,8 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Ord
 public sealed class CompositionCalculationTests
 {
     public static IEnumerable<object[]> Matrix => from variant in CompositionFixture.Variants
-        from horizon in new[] { TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly } select new object[] { variant, horizon };
+                                                  from horizon in new[] { TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly }
+                                                  select new object[] { variant, horizon };
 
     [Theory, MemberData(nameof(Matrix)), Trait("Gate", "OC-04")]
     public async Task Every_selected_variant_constructs_one_unit_on_each_triggering_horizon(string variant, TimeFrameType horizon)
@@ -30,7 +31,8 @@ public sealed class CompositionCalculationTests
         Assert.Equal(CompositionHash.Candidate(candidate), candidate.CandidateHash);
     }
     [Theory]
-    [InlineData(2, 1, 105, 395)] [InlineData(-2, -1, 405, 95)]
+    [InlineData(2, 1, 105, 395)]
+    [InlineData(-2, -1, 405, 95)]
     public void Piecewise_payoff_matches_vertical_closed_forms(decimal premium, int side, decimal loss, decimal profit)
     {
         var result = Composer.Payoff([(100m, true, side), (110m, true, -side)], premium, 50, 5);

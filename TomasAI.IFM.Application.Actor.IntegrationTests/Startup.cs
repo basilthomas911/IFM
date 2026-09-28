@@ -17,7 +17,7 @@ using SimpleInjector.Lifestyles;
 using StackExchange.Redis;
 using System.Reflection;
 using System.Text.Json.Serialization;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Application.Actor.Client;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Databento;
@@ -61,7 +61,6 @@ using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Framework.Messaging.Nats;
-using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.MarketData.TickAggregation;
@@ -352,8 +351,6 @@ public static class Startup
         void RegisterCommandApiServices()
         {
             logger.LogInformationEvent("ApiServer", "registering command api services...");
-            services.AddSingleton<ICommandServiceApiOptions>(_ => new CommandServiceApiOptions(config.GetValue<string>("AppSettings:CommandServerBaseUri")!));
-            services.AddSingleton<ICommandServiceApi, CommandServiceApiClient>();
             services.AddSingleton<IApplicationCommandApi, ApplicationCommandApi>();
             services.AddSingleton<IMarketDataCommandApi, MarketDataCommandApi>();
             services.AddSingleton<IMarketDataFeedCommandApi, MarketDataFeedCommandApi>();
@@ -372,8 +369,6 @@ public static class Startup
         void RegisterQueryApiServices()
         {
             logger.LogInformationEvent("ApiServer", "register query API services...");
-            services.AddSingleton<IQueryServiceApiOptions>(_ => new QueryServiceApiOptions(config.GetValue<string>("AppSettings:QueryServerBaseUri")!));
-            services.AddSingleton<IQueryServiceApi, QueryServiceApiClient>();
             services.AddSingleton<IMarketDataAnalyticsQueryApi, MarketDataAnalyticsQueryApi>();
             services.AddSingleton<IMarketDataFeedQueryApi, MarketDataFeedQueryApi>();
             services.AddSingleton<IMarketDataQueryApi, MarketDataQueryApi>();
@@ -894,7 +889,8 @@ public static class Startup
     }
 }
 
-sealed class IntegrationMarketDataLifecycleRequests : IMarketDataLifecycleRequests
+sealed class IntegrationMarketDataLifecycleRequests(DatabentoMarketDataApi marketDataApi)
+    : IMarketDataLifecycleRequests
 {
     public DatabentoLifecycleSnapshot Current { get; private set; } = new()
     {
@@ -908,11 +904,13 @@ sealed class IntegrationMarketDataLifecycleRequests : IMarketDataLifecycleReques
         ChangedOnUtc = DateTime.UtcNow
     };
 
-    public Task StartAsync(
+    public async Task StartAsync(
         DateOnly valueDate,
         Func<Guid, int, string, Task>? errorMessageHandler = null,
         CancellationToken cancellationToken = default)
     {
+        await marketDataApi.StartAsync(valueDate, errorMessageHandler, cancellationToken)
+            .ConfigureAwait(false);
         Current = Current with
         {
             State = DatabentoLifecycleState.Healthy,
@@ -922,11 +920,11 @@ sealed class IntegrationMarketDataLifecycleRequests : IMarketDataLifecycleReques
             Reason = "Integration host lifecycle started.",
             ChangedOnUtc = DateTime.UtcNow
         };
-        return Task.CompletedTask;
     }
 
-    public Task StopAsync(DateOnly valueDate, CancellationToken cancellationToken = default)
+    public async Task StopAsync(DateOnly valueDate, CancellationToken cancellationToken = default)
     {
+        await marketDataApi.StopAsync(valueDate).ConfigureAwait(false);
         Current = Current with
         {
             State = DatabentoLifecycleState.ScheduledStopped,
@@ -935,7 +933,6 @@ sealed class IntegrationMarketDataLifecycleRequests : IMarketDataLifecycleReques
             Reason = "Integration host lifecycle stopped.",
             ChangedOnUtc = DateTime.UtcNow
         };
-        return Task.CompletedTask;
     }
 
     public Task ResetAsync(

@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 /// </summary>
 /// <remarks>This class provides settings for configuring the behavior of a NATS producer,  including
 /// the connection URL and JSON serialization options.</remarks>
-public class NatsProducerOptions: INatsProducerOptions
+public class NatsProducerOptions : INatsProducerOptions
 {
 
     /// <summary>

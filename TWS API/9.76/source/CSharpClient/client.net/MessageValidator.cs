@@ -15,7 +15,7 @@ namespace IBApi
 
         public int ServerVersion
         {
-            get { return serverVersion;  }
+            get { return serverVersion; }
             set { serverVersion = value; }
         }
 

@@ -62,7 +62,7 @@ public class StreamingRequestIdCacheModel(IRedisCache redisCache, IJsonSerialize
     {
         var key = $"{CacheName}:{requestId.OptionContract.ContractId}";
         var value = _jsonSerializer.Serialize(requestId);
-        var expiry = TimeSpan.FromDays(1); 
+        var expiry = TimeSpan.FromDays(1);
         _redisCache.Set(key, value, expiry);
         key = $"{CacheName}:{requestId.RequestId}";
         value = _jsonSerializer.Serialize(requestId);

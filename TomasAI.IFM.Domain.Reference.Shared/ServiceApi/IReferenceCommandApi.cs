@@ -3,7 +3,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 
-    public interface IReferenceCommandApi
+public interface IReferenceCommandApi
 {
     Task<ServiceResult<Guid>> ExecuteStrategyCatalogAsync(StrategyCatalog.CatalogCommandRequest request, CancellationToken cancellationToken = default)
         => throw new NotSupportedException("ConfigurationDb strategy catalog commands are unavailable.");

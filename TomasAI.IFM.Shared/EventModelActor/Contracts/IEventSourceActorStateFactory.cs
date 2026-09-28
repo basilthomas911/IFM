@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 /// <remarks>This factory interface is designed to construct actor state objects that implement the <see
 /// cref="IActorState{TState}"/> interface. The created state objects can be initialized using domain events, event
 /// stream data, or with default values.</remarks>
-public interface IEventSourceActorStateFactory 
+public interface IEventSourceActorStateFactory
 {
     IEventSourceActorState<TState> CreateState<TState>(DomainEventCollection domainEvents)
         where TState : IEventSourceActorState<TState>;

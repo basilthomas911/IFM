@@ -28,7 +28,7 @@ public record TradeLiveFeedHaltedEvent : IEvent<MarketDataFeedId>
     // payload (keys 8..)
     [Key(8)] public int OrderId { get; init; }
     [Key(9)] public int TradeId { get; init; }
-    [Key(10)] public TradeLiveFeedStateType TradeLiveFeedState { get; init; } 
+    [Key(10)] public TradeLiveFeedStateType TradeLiveFeedState { get; init; }
     [Key(11)] public DateTime RemovedOn { get; init; }
     [Key(12)] public string RemovedBy { get; init; }
 

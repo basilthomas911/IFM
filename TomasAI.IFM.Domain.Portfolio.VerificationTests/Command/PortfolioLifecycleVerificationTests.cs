@@ -17,9 +17,13 @@ public sealed class PortfolioLifecycleVerificationTests
         var aggregate = new PortfolioAggregate();
         aggregate.Create(Guid.NewGuid(), new PortfolioReadModel
         {
-            PortfolioId = 101, Name = "Core", PortfolioVersion = 1,
-            OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
-            CreatedOnUtc = now, CreatedBy = "verification",
+            PortfolioId = 101,
+            Name = "Core",
+            PortfolioVersion = 1,
+            OperatingState = PortfolioOperatingState.Draft,
+            EffectiveFromUtc = now,
+            CreatedOnUtc = now,
+            CreatedBy = "verification",
         }, now, "verification");
         aggregate.AddFund(Guid.NewGuid(), 1, new PortfolioFundId(101, 205), now.AddMinutes(1), "verification");
         aggregate.Retire(Guid.NewGuid(), 2, "completed", now.AddMinutes(2), "verification");
@@ -43,8 +47,13 @@ public sealed class PortfolioLifecycleVerificationTests
         var aggregate = new PortfolioAggregate();
         aggregate.Create(Guid.NewGuid(), new PortfolioReadModel
         {
-            PortfolioId = 101, Name = "Core", PortfolioVersion = 1,
-            OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "verification",
+            PortfolioId = 101,
+            Name = "Core",
+            PortfolioVersion = 1,
+            OperatingState = PortfolioOperatingState.Draft,
+            EffectiveFromUtc = now,
+            CreatedOnUtc = now,
+            CreatedBy = "verification",
         }, now, "verification");
         if (state != PortfolioOperatingState.Draft)
         {

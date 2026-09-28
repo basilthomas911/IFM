@@ -59,7 +59,7 @@ public class YieldCurveRateStateRepository(
             _ = domainEvent switch
             {
                 YieldCurveRateAddedEvent e => await UpdateReadModelAsync<YieldCurveRateAddedEvent, YieldCurveRateAddedCompleteEvent, YieldCurveRateAddedFailEvent, YieldCurveRateEntityId>(
-                    context, e, () =>InsertYieldCurveRateAsync(db, e.YieldCurveRate)),
+                    context, e, () => InsertYieldCurveRateAsync(db, e.YieldCurveRate)),
                 YieldCurveRateChangedEvent e => await UpdateReadModelAsync<YieldCurveRateChangedEvent, YieldCurveRateChangedCompleteEvent, YieldCurveRateChangedFailEvent, YieldCurveRateEntityId>(
                     context, e, () => InsertYieldCurveRateAsync(db, e.YieldCurveRate)),
                 YieldCurveRateRemovedEvent e => await UpdateReadModelAsync<YieldCurveRateRemovedEvent, YieldCurveRateRemovedCompleteEvent, YieldCurveRateRemovedFailEvent, YieldCurveRateEntityId>(

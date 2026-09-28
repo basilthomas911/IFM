@@ -37,6 +37,7 @@ public sealed record GetDatabentoOptionChainQuery : IQuery<FuturesOptionContract
     [Key(3)] public string ProviderRoot { get; set; } = string.Empty;
     [Key(4)] public DateOnly MaturityDate { get; set; }
     [IgnoreMember] public int ErrorCode => ErrorId;
-    [IgnoreMember] public string QueryParams =>
+    [IgnoreMember]
+    public string QueryParams =>
         $"underlyingSymbol={Uri.EscapeDataString(UnderlyingSymbol)}&providerRoot={Uri.EscapeDataString(ProviderRoot)}&maturityDate={MaturityDate:yyyy-MM-dd}";
 }

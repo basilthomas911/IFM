@@ -16,21 +16,21 @@ public sealed class TradeFlowSerializationAndRecoveryTests
     [Fact]
     public void Fill_aware_close_commands_round_trip_and_historical_time_only_payloads_remain_readable()
     {
-        var leg=CreateOrder(Guid.NewGuid()).Components[0].Legs[0];
-        var fill=Fill(leg,Guid.NewGuid(),Guid.NewGuid(),-1,"close-wire");
-        Check(new Shared.Futures.Position.CloseFuturesPositionCommand { ClosingFills=[fill] },x=>x.ClosingFills);
-        Check(new Shared.Futures.Option.Position.CloseIronCondorPositionCommand { ClosingFills=[fill] },x=>x.ClosingFills);
-        Check(new Shared.Futures.Option.Position.CloseVerticalSpreadPositionCommand { ClosingFills=[fill] },x=>x.ClosingFills);
-        static void Check<T>(T value,Func<T,ExecutionFillEvidence[]> evidence)
+        var leg = CreateOrder(Guid.NewGuid()).Components[0].Legs[0];
+        var fill = Fill(leg, Guid.NewGuid(), Guid.NewGuid(), -1, "close-wire");
+        Check(new Shared.Futures.Position.CloseFuturesPositionCommand { ClosingFills = [fill] }, x => x.ClosingFills);
+        Check(new Shared.Futures.Option.Position.CloseIronCondorPositionCommand { ClosingFills = [fill] }, x => x.ClosingFills);
+        Check(new Shared.Futures.Option.Position.CloseVerticalSpreadPositionCommand { ClosingFills = [fill] }, x => x.ClosingFills);
+        static void Check<T>(T value, Func<T, ExecutionFillEvidence[]> evidence)
         {
-            var bytes=MessagePackSerializer.Serialize(value);
+            var bytes = MessagePackSerializer.Serialize(value);
             evidence(MessagePackSerializer.Deserialize<T>(bytes)).Should().BeEquivalentTo(evidence(value));
-            var reader=new MessagePackReader(bytes);
+            var reader = new MessagePackReader(bytes);
             reader.ReadArrayHeader().Should().Be(6);
-            var buffer=new System.Buffers.ArrayBufferWriter<byte>();
-            var writer=new MessagePackWriter(buffer);
+            var buffer = new System.Buffers.ArrayBufferWriter<byte>();
+            var writer = new MessagePackWriter(buffer);
             writer.WriteArrayHeader(5);
-            for(var i=0;i<5;i++) writer.WriteRaw(reader.ReadRaw());
+            for (var i = 0; i < 5; i++) writer.WriteRaw(reader.ReadRaw());
             writer.Flush();
             evidence(MessagePackSerializer.Deserialize<T>(buffer.WrittenMemory)).Should().BeEmpty();
         }
@@ -39,28 +39,34 @@ public sealed class TradeFlowSerializationAndRecoveryTests
     [Fact]
     public void Serialized_partial_position_recovers_closing_fill_deduplication_and_can_finish()
     {
-        var leg=CreateOrder(Guid.NewGuid()).Components[0].Legs[0] with { SignedQuantity=2 };
-        var opening=Fill(leg,Guid.NewGuid(),Guid.NewGuid(),2,"open-position-wire");
-        var trade=new EstablishedTradeDefinition { Id=new(1,2,3,4),StrategyKind=TradeStrategyKind.FuturesOutright,
-            Status=EstablishedTradeStatus.Open,Legs=[leg],OriginalFills=[opening] };
-        var model=new TomasAI.IFM.Domain.Trade.Futures.Position.Model.StrategyPositionActorStateMachine();
-        model.Open(trade,Guid.NewGuid(),opening.FilledAtUtc).Accepted.Should().BeTrue();
-        var historicalReader=new MessagePackReader(MessagePackSerializer.Serialize(model.Current!));
+        var leg = CreateOrder(Guid.NewGuid()).Components[0].Legs[0] with { SignedQuantity = 2 };
+        var opening = Fill(leg, Guid.NewGuid(), Guid.NewGuid(), 2, "open-position-wire");
+        var trade = new EstablishedTradeDefinition
+        {
+            Id = new(1, 2, 3, 4),
+            StrategyKind = TradeStrategyKind.FuturesOutright,
+            Status = EstablishedTradeStatus.Open,
+            Legs = [leg],
+            OriginalFills = [opening]
+        };
+        var model = new TomasAI.IFM.Domain.Trade.Futures.Position.Model.StrategyPositionActorStateMachine();
+        model.Open(trade, Guid.NewGuid(), opening.FilledAtUtc).Accepted.Should().BeTrue();
+        var historicalReader = new MessagePackReader(MessagePackSerializer.Serialize(model.Current!));
         historicalReader.ReadArrayHeader().Should().Be(13);
-        var historicalBuffer=new System.Buffers.ArrayBufferWriter<byte>();
-        var historicalWriter=new MessagePackWriter(historicalBuffer);
+        var historicalBuffer = new System.Buffers.ArrayBufferWriter<byte>();
+        var historicalWriter = new MessagePackWriter(historicalBuffer);
         historicalWriter.WriteArrayHeader(12);
-        for(var i=0;i<12;i++) historicalWriter.WriteRaw(historicalReader.ReadRaw());
+        for (var i = 0; i < 12; i++) historicalWriter.WriteRaw(historicalReader.ReadRaw());
         historicalWriter.Flush();
         MessagePackSerializer.Deserialize<StrategyPositionSnapshot>(historicalBuffer.WrittenMemory).ClosingFills.Should().BeEmpty();
-        var fill=Fill(leg,opening.ComponentId,Guid.NewGuid(),-1,"close-position-wire") with { Price=110m };
-        var partial=model.Close([fill],opening.FilledAtUtc.AddMinutes(1)).Value!;
-        var bytes=MessagePackSerializer.Serialize(partial);
-        var recovered=new TomasAI.IFM.Domain.Trade.Futures.Position.Model.StrategyPositionActorStateMachine();
+        var fill = Fill(leg, opening.ComponentId, Guid.NewGuid(), -1, "close-position-wire") with { Price = 110m };
+        var partial = model.Close([fill], opening.FilledAtUtc.AddMinutes(1)).Value!;
+        var bytes = MessagePackSerializer.Serialize(partial);
+        var recovered = new TomasAI.IFM.Domain.Trade.Futures.Position.Model.StrategyPositionActorStateMachine();
         recovered.Replay(MessagePackSerializer.Deserialize<StrategyPositionSnapshot>(bytes));
-        recovered.Close([fill],opening.FilledAtUtc.AddMinutes(2)).Value.Should().BeEquivalentTo(partial);
-        var final=fill with { ExecutionFillId=Guid.NewGuid(),ExecutionAttemptId=Guid.NewGuid(),ExternalExecutionId="final-position-wire" };
-        recovered.Close([final],opening.FilledAtUtc.AddMinutes(2)).Value!.IsOpen.Should().BeFalse();
+        recovered.Close([fill], opening.FilledAtUtc.AddMinutes(2)).Value.Should().BeEquivalentTo(partial);
+        var final = fill with { ExecutionFillId = Guid.NewGuid(), ExecutionAttemptId = Guid.NewGuid(), ExternalExecutionId = "final-position-wire" };
+        recovered.Close([final], opening.FilledAtUtc.AddMinutes(2)).Value!.IsOpen.Should().BeFalse();
         recovered.Current!.RealizedPnl.Should().Be(20m);
     }
 
@@ -143,7 +149,9 @@ public sealed class TradeFlowSerializationAndRecoveryTests
         var order = CreateOrder(Guid.NewGuid());
         var command = new CreateTradeOrderCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = order.Id, Order = order,
+            CommandId = Guid.NewGuid(),
+            EntityId = order.Id,
+            Order = order,
             Subject = new ActorSubject(ActorType.Command, TradeOrderActorNames.Command,
                 CreateTradeOrderCommand.Verb, order.Id.Format())
         };
@@ -151,7 +159,8 @@ public sealed class TradeFlowSerializationAndRecoveryTests
             MessagePackSerializer.Serialize(command));
         var changed = new TradeOrderChangedEvent
         {
-            EntityId = order.Id, State = order
+            EntityId = order.Id,
+            State = order
         };
         var eventCopy = MessagePackSerializer.Deserialize<TradeOrderChangedEvent>(
             MessagePackSerializer.Serialize(changed));
@@ -288,17 +297,17 @@ public sealed class TradeFlowSerializationAndRecoveryTests
 
     static ExecutionFillEvidence Fill(TradeLegDefinition leg, Guid componentId, Guid attempt,
         int quantity, string externalId) => new()
-    {
-        ExecutionFillId = Guid.NewGuid(),
-        ExecutionAttemptId = attempt,
-        ComponentId = componentId,
-        TradeLegId = leg.TradeLegId,
-        ContractId = leg.ContractId,
-        SignedQuantity = quantity,
-        Price = 100m,
-        FilledAtUtc = new DateTime(2026, 9, 13, 14, 0, 0, DateTimeKind.Utc),
-        ExternalExecutionId = externalId
-    };
+        {
+            ExecutionFillId = Guid.NewGuid(),
+            ExecutionAttemptId = attempt,
+            ComponentId = componentId,
+            TradeLegId = leg.TradeLegId,
+            ContractId = leg.ContractId,
+            SignedQuantity = quantity,
+            Price = 100m,
+            FilledAtUtc = new DateTime(2026, 9, 13, 14, 0, 0, DateTimeKind.Utc),
+            ExternalExecutionId = externalId
+        };
 
     static TradeOrderDefinition CreateOrder(Guid legId) => new()
     {

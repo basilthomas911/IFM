@@ -34,11 +34,11 @@ public sealed class FuturesVxTermStructureSignalRealtimeActor(
         FuturesTermStructureContracts, ILogger, ValueTask<bool>>> _receiveMap =
         new Dictionary<Type, Func<IEvent, IFuturesVxTermStructureSignalRealtimeContext,
             FuturesTermStructureContracts, ILogger, ValueTask<bool>>>
-    {
-        [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = async (@event, context, contracts, eventLogger) =>
-            await ((FuturesMarketPriceUpdatedRealtimeEvent)@event)
-                .ExecuteAsync(context, contracts, eventLogger).ConfigureAwait(false)
-    };
+        {
+            [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = async (@event, context, contracts, eventLogger) =>
+                await ((FuturesMarketPriceUpdatedRealtimeEvent)@event)
+                    .ExecuteAsync(context, contracts, eventLogger).ConfigureAwait(false)
+        };
 
     /// <inheritdoc />
     protected override async ValueTask OnStartup(

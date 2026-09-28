@@ -175,10 +175,10 @@ public class OptionTradeQueryApi(IActorProducer actorProducer)
     /// <summary>
     /// Return trade plan summary
     /// </summary>
-    public async Task<ServiceResult<TradePlanActionReadModel[]>> GetTradePlanSummaryAsync( int orderId, int tradeId, DateOnly valueDate)
+    public async Task<ServiceResult<TradePlanActionReadModel[]>> GetTradePlanSummaryAsync(int orderId, int tradeId, DateOnly valueDate)
     {
         var entityId = new GetTradePlanSummaryParameter(orderId, tradeId, valueDate);
-        GetTradePlanActionQuery query = new( orderId, tradeId, valueDate)
+        GetTradePlanActionQuery query = new(orderId, tradeId, valueDate)
         {
             Subject = new ActorSubject(ActorType.Query, GetTradePlanActionQuery.Actor, GetTradePlanActionQuery.Verb, entityId.Format()),
         };

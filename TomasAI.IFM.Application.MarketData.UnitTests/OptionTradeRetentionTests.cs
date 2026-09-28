@@ -68,9 +68,14 @@ public sealed class OptionTradeRetentionTests
             Substitute.For<IMarketDataOperationsRecorder>(), optionTrades: store);
         Assert.False(await ingress.AcceptAsync(new()
         {
-            Dataset = "GLBX.MDP3", ValueDate = new(2026, 9, 8), WorkerInstanceId = Guid.NewGuid(),
-            GenerationId = Generation, ManifestRevision = 1, PublicationSequence = 1,
-            Kind = DatasetPublicationKind.OptionTradeEvidence, Payload = MessagePackSerializer.Serialize(Evidence())
+            Dataset = "GLBX.MDP3",
+            ValueDate = new(2026, 9, 8),
+            WorkerInstanceId = Guid.NewGuid(),
+            GenerationId = Generation,
+            ManifestRevision = 1,
+            PublicationSequence = 1,
+            Kind = DatasetPublicationKind.OptionTradeEvidence,
+            Payload = MessagePackSerializer.Serialize(Evidence())
         }));
         Assert.Null(store.Value);
     }

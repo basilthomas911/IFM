@@ -33,7 +33,7 @@ public class OptionTradeSpreadBarDataUIEventConsumer(INatsEventListenerOptions o
             {
                 await (eventVerb switch
                 {
-                    _ when eventVerb == OptionTradeSpreadBarDataInsertedCompleteEvent.Verb 
+                    _ when eventVerb == OptionTradeSpreadBarDataInsertedCompleteEvent.Verb
                         => HandleEvent(eventMsg.AsEvent<OptionTradeSpreadBarDataInsertedCompleteEvent>()!, eventAction),
                     _ => ValueTask.CompletedTask
                 });

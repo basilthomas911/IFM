@@ -7,7 +7,7 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels
 {
-    public record FuturesTrendIndexReadModel (
+    public record FuturesTrendIndexReadModel(
             MarketDirectionType MarketDirection,
             MarketVolatilityType MarketVolatility,
             PriceDirectionType PriceDirection,

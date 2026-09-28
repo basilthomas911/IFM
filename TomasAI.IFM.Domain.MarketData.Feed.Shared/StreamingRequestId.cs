@@ -27,7 +27,7 @@ public record StreamingRequestId
     /// </summary>
     [SerializationConstructor]
     public StreamingRequestId(
-        int requestId, 
+        int requestId,
         FuturesOptionContractReadModel optionContract,
         FuturesContractV3ReadModel underlyingContract,
         DateOnly valueDate,

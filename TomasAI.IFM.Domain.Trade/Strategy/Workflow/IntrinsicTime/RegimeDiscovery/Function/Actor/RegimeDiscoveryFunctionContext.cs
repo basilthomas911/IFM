@@ -14,7 +14,8 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscove
 public interface IRegimeDiscoveryFunctionContext : IFunctionActorContext<RegimeDiscoveryFunctionActor>
 {
     IEventSourceFunctionStateRepository<RegimeDiscoveryFunctionState, ExecuteRegimeDiscoveryPipelineCommand>
-        StateRepository { get; }
+        StateRepository
+    { get; }
     IFunctionProjector<RegimeDiscoveryPipelineCompletedEvent> FunctionProjector { get; }
     IRegimeDiscoveryMarketSignalSnapshotProvider SnapshotProvider { get; }
     IRegimeDiscoveryCalculationModel CalculationModel { get; }

@@ -40,8 +40,16 @@ public sealed class DatasetWorkerProcessSupervisorTests
             admissions.TryGet(current.Dataset, out var admitted).Should().BeTrue();
             admitted.GenerationId.Should().Be(current.GenerationId);
             using var child = System.Diagnostics.Process.GetProcessById(current.ProcessId);
-            rows.Add(new { Cycle = cycle, ProcessReplaced = cycle % 10 == 0, Milliseconds = timer.Elapsed.TotalMilliseconds,
-                current.ProcessId, current.GenerationId, Rss = child.WorkingSet64, current.Diagnostics });
+            rows.Add(new
+            {
+                Cycle = cycle,
+                ProcessReplaced = cycle % 10 == 0,
+                Milliseconds = timer.Elapsed.TotalMilliseconds,
+                current.ProcessId,
+                current.GenerationId,
+                Rss = child.WorkingSet64,
+                current.Diagnostics
+            });
             File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(rows, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
         }
         await workers.StopAllAsync(deadline.Token);
@@ -248,7 +256,9 @@ public sealed class DatasetWorkerProcessSupervisorTests
                 WorkerAssemblyPath = typeof(DatasetWorkerAssemblyMarker).Assembly.Location,
                 Synthetic = new TomasAI.IFM.Framework.MarketData.DataBento.SyntheticFeedOptions
                 {
-                    RecordCount = 1_000_000, RecordsPerSecond = 100, StartSequence = 1
+                    RecordCount = 1_000_000,
+                    RecordsPerSecond = 100,
+                    StartSequence = 1
                 }
             }, TimeProvider.System,
             Substitute.For<TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher>());

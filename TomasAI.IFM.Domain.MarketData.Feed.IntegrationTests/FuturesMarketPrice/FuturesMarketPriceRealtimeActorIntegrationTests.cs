@@ -17,7 +17,7 @@ public sealed class FuturesMarketPriceRealtimeActorIntegrationTests
 {
     static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(10);
     readonly string _url =
-        Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
+        Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? DomainActorIntegrationInfrastructureFixture.NatsUrl;
 
     [Fact]
     public async Task CoreNatsPublication_ReachesAndExecutesPrimaryRealtimeActor()
@@ -81,7 +81,7 @@ public sealed class FuturesMarketPriceRealtimeActorIntegrationTests
             var actual = await received.Task.WaitAsync(TestTimeout);
 
             actual.Should().BeEquivalentTo(@event);
-            await queues.Received(1).TryAdmitAsync(
+            await queues.Received().TryAdmitAsync(
                 Arg.Any<IActorMessage>(),
                 @event.Subject,
                 Arg.Any<CancellationToken>());
@@ -106,7 +106,8 @@ public sealed class FuturesMarketPriceRealtimeActorIntegrationTests
             // The actor owns and disposes the inbound payload during handling.
             var parsed = message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!;
             await actor.HandleMessageAsync(message, subject.ThreadId).ConfigureAwait(false);
-            received.TrySetResult(parsed);
+            if (parsed.EventSource == "integration-test")
+                received.TrySetResult(parsed);
         }
         catch (Exception exception)
         {

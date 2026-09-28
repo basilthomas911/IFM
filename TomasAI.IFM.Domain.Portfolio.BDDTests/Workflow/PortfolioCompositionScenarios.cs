@@ -53,9 +53,14 @@ public sealed class PortfolioCompositionScenarios
     {
         var request = new CreateManualFundOrderRequest
         {
-            PortfolioId = 101, PortfolioVersion = 2, FundId = 202, FundMandateVersion = 3,
+            PortfolioId = 101,
+            PortfolioVersion = 2,
+            FundId = 202,
+            FundMandateVersion = 3,
             Reference = "manual review",
-            IdempotencyKey = Guid.NewGuid(), RequestedAtUtc = Now, ExpiresAtUtc = Now.AddDays(1),
+            IdempotencyKey = Guid.NewGuid(),
+            RequestedAtUtc = Now,
+            ExpiresAtUtc = Now.AddDays(1),
         };
 
         var result = new PortfolioFundCompositionAggregate().CreateManualDraft(request, 9001, Now, "operator");
@@ -80,13 +85,22 @@ public sealed class PortfolioCompositionScenarios
         var candidate = new string('c', 64);
         var pending = aggregate.RecordComposed(9001, composing.AggregateVersion, new()
         {
-            ResultId = Guid.NewGuid(), ResultSha256 = candidate, InvocationId = Guid.NewGuid(), EvaluatedAtUtc = Now, ExpiresAtUtc = Now.AddMinutes(5),
+            ResultId = Guid.NewGuid(),
+            ResultSha256 = candidate,
+            InvocationId = Guid.NewGuid(),
+            EvaluatedAtUtc = Now,
+            ExpiresAtUtc = Now.AddMinutes(5),
         }, Now.AddSeconds(1));
         var final = aggregate.RecordRiskOutcome(9001, pending.AggregateVersion, new()
         {
-            ResultId = Guid.NewGuid(), ResultSha256 = new string('r', 64), Decision = decision, EvaluatedAtUtc = Now,
-            ExpiresAtUtc = Now.AddMinutes(5), EnvelopeId = snapshot.RiskEnvelope.EnvelopeId,
-            EnvelopeVersion = snapshot.RiskEnvelope.EnvelopeVersion, CandidateSha256 = candidate,
+            ResultId = Guid.NewGuid(),
+            ResultSha256 = new string('r', 64),
+            Decision = decision,
+            EvaluatedAtUtc = Now,
+            ExpiresAtUtc = Now.AddMinutes(5),
+            EnvelopeId = snapshot.RiskEnvelope.EnvelopeId,
+            EnvelopeVersion = snapshot.RiskEnvelope.EnvelopeVersion,
+            CandidateSha256 = candidate,
         }, Now.AddSeconds(2));
 
         final.Status.Should().Be(expected.ToString());
@@ -99,20 +113,44 @@ public sealed class PortfolioCompositionScenarios
         var snapshot = new PortfolioFundStrategyResolver().Resolve(Guid.NewGuid(), 1, Guid.NewGuid(), x.Portfolio, x.Policy, [x.Fund], [x.Allocation], [x.Envelope], [x.Assignment], 2026, "Weekly", "ES", "FuturesOptions", Now);
         var request = new ReserveFundOrderCompositionRequest
         {
-            WorkflowId = snapshot.WorkflowId, WorkflowRevision = 1, TradeSelectionInvocationId = Guid.NewGuid(), TradeSelectionResultId = Guid.NewGuid(),
-            TradeSelectionResultSha256 = new string('s', 64), PortfolioId = 101, PortfolioVersion = 2, FundId = 202, FundMandateVersion = 3,
-            TradeTemplateId = x.Assignment.TradeTemplateId, TradeTemplateVersion = 1, OrderCompositionProfileId = x.Assignment.OrderCompositionProfileId,
-            OrderCompositionProfileVersion = 1, UnderlyingRoot = "ES", DecisionHorizon = "Weekly", RequestedTradeDate = DateOnly.FromDateTime(Now),
-            TradeInstructions = [Instruction(1, true), Instruction(2, false)], Origin = CompositionOrigin.StrategyWorkflow,
-            IdempotencyKey = Guid.NewGuid(), RequestedAtUtc = Now, ExpiresAtUtc = Now.AddMinutes(5), PortfolioFundStrategySnapshotSha256 = snapshot.PayloadSha256,
+            WorkflowId = snapshot.WorkflowId,
+            WorkflowRevision = 1,
+            TradeSelectionInvocationId = Guid.NewGuid(),
+            TradeSelectionResultId = Guid.NewGuid(),
+            TradeSelectionResultSha256 = new string('s', 64),
+            PortfolioId = 101,
+            PortfolioVersion = 2,
+            FundId = 202,
+            FundMandateVersion = 3,
+            TradeTemplateId = x.Assignment.TradeTemplateId,
+            TradeTemplateVersion = 1,
+            OrderCompositionProfileId = x.Assignment.OrderCompositionProfileId,
+            OrderCompositionProfileVersion = 1,
+            UnderlyingRoot = "ES",
+            DecisionHorizon = "Weekly",
+            RequestedTradeDate = DateOnly.FromDateTime(Now),
+            TradeInstructions = [Instruction(1, true), Instruction(2, false)],
+            Origin = CompositionOrigin.StrategyWorkflow,
+            IdempotencyKey = Guid.NewGuid(),
+            RequestedAtUtc = Now,
+            ExpiresAtUtc = Now.AddMinutes(5),
+            PortfolioFundStrategySnapshotSha256 = snapshot.PayloadSha256,
         };
         return (new(), request, snapshot);
     }
 
     static TradeInstruction Instruction(int ordinal, bool primary) => new()
     {
-        TradeFamily = "VerticalSpread", TradeRole = primary ? "Primary" : "Related", DirectionOrBias = "Bullish", TradeAction = ordinal == 1 ? "Buy" : "Sell",
-        IsPrimaryTrade = primary, UnderlyingRoot = "ES", RequestedTradeDate = DateOnly.FromDateTime(Now), Reference = $"leg-{ordinal}", CreatedOnUtc = Now, CreatedBy = "workflow",
+        TradeFamily = "VerticalSpread",
+        TradeRole = primary ? "Primary" : "Related",
+        DirectionOrBias = "Bullish",
+        TradeAction = ordinal == 1 ? "Buy" : "Sell",
+        IsPrimaryTrade = primary,
+        UnderlyingRoot = "ES",
+        RequestedTradeDate = DateOnly.FromDateTime(Now),
+        Reference = $"leg-{ordinal}",
+        CreatedOnUtc = Now,
+        CreatedBy = "workflow",
     };
 
     static CatalogData Catalog(string horizon, string asset, string family, int fundId)

@@ -51,8 +51,8 @@ public record FuturesAdxSignalEntityId : IActorEntityId
     /// <summary>
     /// Factory method for explicit creation.
     /// </summary>
-    public static FuturesAdxSignalEntityId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) 
-        => new(contractId, valueDate, timePeriod, periodLength   );
+    public static FuturesAdxSignalEntityId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
+        => new(contractId, valueDate, timePeriod, periodLength);
 
     /// <summary>
     /// Formats the identifier into a stable string key: ContractId.yyyyMMdd

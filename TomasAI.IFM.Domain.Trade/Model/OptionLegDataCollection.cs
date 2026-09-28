@@ -77,7 +77,7 @@ public class OptionLegDataCollection(
         var shortOptionData = this[OptionLegAction.Short];
         var longOptionData = this[OptionLegAction.Long];
         return (shortOptionData == null || longOptionData == null)
-            ? 0: ((shortOptionData.BidPrice + shortOptionData.AskPrice) / 2)
+            ? 0 : ((shortOptionData.BidPrice + shortOptionData.AskPrice) / 2)
                 - ((longOptionData.BidPrice + longOptionData.AskPrice) / 2);
     }
 
@@ -85,8 +85,8 @@ public class OptionLegDataCollection(
     {
         var netSpread = GetNetSpread();
         var shortOptionData = this[OptionLegAction.Short];
-        var tradeValue =  (shortOptionData == null) 
-            ? 0: netSpread * shortOptionData.Quantity * 50;
+        var tradeValue = (shortOptionData == null)
+            ? 0 : netSpread * shortOptionData.Quantity * 50;
         return tradeValue;
     }
 
@@ -101,5 +101,5 @@ public class OptionLegDataCollection(
         }
         return otmProbability;
     }
-   
+
 }

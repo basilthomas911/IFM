@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.ViewModels
     [MessagePackObject(true)]
     public partial class TradePositionActionReadModel
     {
- 
+
         [JsonConstructor]
         public TradePositionActionReadModel(
             ActionSource actionSource,

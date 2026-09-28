@@ -34,8 +34,11 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
 
         var shell = new TableLayoutPanel
         {
-            Name = "brokerOrderFillsPreviewLayout", Dock = DockStyle.Fill,
-            ColumnCount = 1, RowCount = 2, BackColor = Color.Black,
+            Name = "brokerOrderFillsPreviewLayout",
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            BackColor = Color.Black,
             Padding = new Padding(5, 4, 5, 4)
         };
         shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -51,10 +54,14 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
 
         var vertical = new SplitContainer
         {
-            Name = "brokerOrderFillsVerticalSplit", Dock = DockStyle.Fill,
+            Name = "brokerOrderFillsVerticalSplit",
+            Dock = DockStyle.Fill,
             Size = new Size(900, 400),
-            Orientation = Orientation.Horizontal, BackColor = Color.FromArgb(90, 95, 105),
-            SplitterWidth = 5, Panel1MinSize = 140, Panel2MinSize = 105
+            Orientation = Orientation.Horizontal,
+            BackColor = Color.FromArgb(90, 95, 105),
+            SplitterWidth = 5,
+            Panel1MinSize = 140,
+            Panel2MinSize = 105
         };
         vertical.HandleCreated += (_, _) =>
         {
@@ -71,8 +78,12 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
         vertical.Panel1.Controls.Add(orderPanel);
         var orderContent = new TableLayoutPanel
         {
-            Name = "brokerPreviewOrderContent", Dock = DockStyle.Top, AutoSize = true,
-            ColumnCount = 1, BackColor = Color.Black, Padding = new Padding(4)
+            Name = "brokerPreviewOrderContent",
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 1,
+            BackColor = Color.Black,
+            Padding = new Padding(4)
         };
         orderContent.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         orderPanel.Controls.Add(orderContent);
@@ -126,10 +137,14 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
 
         var fills = new SplitContainer
         {
-            Name = "brokerPreviewOrderTreeSplit", Dock = DockStyle.Fill,
+            Name = "brokerPreviewOrderTreeSplit",
+            Dock = DockStyle.Fill,
             Size = new Size(900, 170),
-            Orientation = Orientation.Vertical, BackColor = Color.FromArgb(90, 95, 105),
-            SplitterWidth = 5, Panel1MinSize = 170, Panel2MinSize = 190
+            Orientation = Orientation.Vertical,
+            BackColor = Color.FromArgb(90, 95, 105),
+            SplitterWidth = 5,
+            Panel1MinSize = 170,
+            Panel2MinSize = 190
         };
         fills.HandleCreated += (_, _) =>
         {
@@ -147,9 +162,15 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
             $"ORDERS / FILLS  ·  sample value date {trade.RequestedTradeDate:dd MMM yyyy}"), 0, 0);
         _orderTree = new TreeView
         {
-            Name = "brokerPreviewOrderTree", Dock = DockStyle.Fill,
-            BackColor = Surface, ForeColor = Color.White, BorderStyle = BorderStyle.None,
-            Font = Font, HideSelection = false, FullRowSelect = true, DrawMode = TreeViewDrawMode.OwnerDrawText
+            Name = "brokerPreviewOrderTree",
+            Dock = DockStyle.Fill,
+            BackColor = Surface,
+            ForeColor = Color.White,
+            BorderStyle = BorderStyle.None,
+            Font = Font,
+            HideSelection = false,
+            FullRowSelect = true,
+            DrawMode = TreeViewDrawMode.OwnerDrawText
         };
         _orderTree.DrawNode += DrawTreeNode;
         _orderTree.AfterSelect += (_, args) => ShowDetail(args.Node);
@@ -178,8 +199,13 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
 
     private static Label Label(string name, string text, Color color) => new()
     {
-        Name = name, Text = text, ForeColor = color, BackColor = Color.Black,
-        Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft
+        Name = name,
+        Text = text,
+        ForeColor = color,
+        BackColor = Color.Black,
+        Dock = DockStyle.Fill,
+        AutoEllipsis = true,
+        TextAlign = ContentAlignment.MiddleLeft
     };
 
     private static Label Section(string text)
@@ -194,8 +220,12 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
     {
         var row = new FlowLayoutPanel
         {
-            Name = name, Dock = DockStyle.Fill, WrapContents = false, AutoScroll = true,
-            BackColor = Surface, Padding = new Padding(3, 3, 3, 0)
+            Name = name,
+            Dock = DockStyle.Fill,
+            WrapContents = false,
+            AutoScroll = true,
+            BackColor = Surface,
+            Padding = new Padding(3, 3, 3, 0)
         };
         row.Controls.AddRange(controls);
         foreach (Control control in controls)
@@ -216,7 +246,10 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
         var panel = new TableLayoutPanel
         {
             Name = "brokerPreview" + caption.Replace(" ", ""),
-            Width = width, Height = 32, RowCount = 2, Margin = new Padding(4, 0, 4, 0),
+            Width = width,
+            Height = 32,
+            RowCount = 2,
+            Margin = new Padding(4, 0, 4, 0),
             BackColor = Surface
         };
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 14));
@@ -232,7 +265,10 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
         var panel = new TableLayoutPanel
         {
             Name = "brokerPreview" + caption.Replace(" ", ""),
-            Width = width, Height = 42, RowCount = 2, Margin = new Padding(4, 0, 4, 0),
+            Width = width,
+            Height = 42,
+            RowCount = 2,
+            Margin = new Padding(4, 0, 4, 0),
             BackColor = Surface
         };
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 14));
@@ -240,9 +276,13 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
         panel.Controls.Add(Label("", caption, Color.Silver), 0, 0);
         selector = new ComboBox
         {
-            Name = panel.Name + "Selector", Dock = DockStyle.Fill,
-            DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat,
-            BackColor = Color.Black, ForeColor = Color.White, Font = panel.Font
+            Name = panel.Name + "Selector",
+            Dock = DockStyle.Fill,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Color.Black,
+            ForeColor = Color.White,
+            Font = panel.Font
         };
         selector.Items.AddRange(options);
         selector.SelectedIndex = 0;
@@ -254,18 +294,28 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
     {
         var panel = new TableLayoutPanel
         {
-            Name = "brokerPreviewNetLimit", Width = 126, Height = 42,
-            RowCount = 2, Margin = new Padding(4, 0, 4, 0), BackColor = Surface
+            Name = "brokerPreviewNetLimit",
+            Width = 126,
+            Height = 42,
+            RowCount = 2,
+            Margin = new Padding(4, 0, 4, 0),
+            BackColor = Surface
         };
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 14));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         panel.Controls.Add(Label("", "Net limit", Color.Silver), 0, 0);
         panel.Controls.Add(new NumericUpDown
         {
-            Name = "brokerPreviewNetLimitTicks", Dock = DockStyle.Fill,
-            DecimalPlaces = 2, Increment = 0.25m, Minimum = -1000,
-            Maximum = 1000, Value = 16m, BackColor = Color.Black,
-            ForeColor = Color.White, BorderStyle = BorderStyle.None
+            Name = "brokerPreviewNetLimitTicks",
+            Dock = DockStyle.Fill,
+            DecimalPlaces = 2,
+            Increment = 0.25m,
+            Minimum = -1000,
+            Maximum = 1000,
+            Value = 16m,
+            BackColor = Color.Black,
+            ForeColor = Color.White,
+            BorderStyle = BorderStyle.None
         }, 0, 1);
         return panel;
     }
@@ -273,8 +323,12 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
     private static Button PreviewButton(string text) => new()
     {
         Name = "brokerPreview" + text.Replace(" ", ""),
-        Text = text, Width = 130, Height = 29, Enabled = false,
-        BackColor = Color.FromArgb(56, 59, 65), ForeColor = Color.Silver,
+        Text = text,
+        Width = 130,
+        Height = 29,
+        Enabled = false,
+        BackColor = Color.FromArgb(56, 59, 65),
+        ForeColor = Color.Silver,
         Margin = new Padding(5, 2, 5, 0)
     };
 
@@ -282,13 +336,20 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
     {
         var grid = new DataGridView
         {
-            Name = "brokerPreviewLegGrid", Dock = DockStyle.Fill, ReadOnly = true,
-            AllowUserToAddRows = false, AllowUserToDeleteRows = false,
-            AllowUserToResizeRows = false, RowHeadersVisible = false,
+            Name = "brokerPreviewLegGrid",
+            Dock = DockStyle.Fill,
+            ReadOnly = true,
+            AllowUserToAddRows = false,
+            AllowUserToDeleteRows = false,
+            AllowUserToResizeRows = false,
+            RowHeadersVisible = false,
             AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
             SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-            BackgroundColor = Color.Black, GridColor = Color.FromArgb(64, 68, 75),
-            BorderStyle = BorderStyle.None, ColumnHeadersHeight = 25, RowTemplate = { Height = 27 },
+            BackgroundColor = Color.Black,
+            GridColor = Color.FromArgb(64, 68, 75),
+            BorderStyle = BorderStyle.None,
+            ColumnHeadersHeight = 25,
+            RowTemplate = { Height = 27 },
             EnableHeadersVisualStyles = false
         };
         grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(45, 48, 54);
@@ -370,7 +431,9 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
         if (args.Node.Parent is not null) return;
         var color = args.Node.Tag?.ToString() switch
         {
-            "Filled" => Green, "Cancelled" => Red, _ => Yellow
+            "Filled" => Green,
+            "Cancelled" => Red,
+            _ => Yellow
         };
         var size = TextRenderer.MeasureText(text, _orderTree.Font);
         using var dot = new SolidBrush(color);

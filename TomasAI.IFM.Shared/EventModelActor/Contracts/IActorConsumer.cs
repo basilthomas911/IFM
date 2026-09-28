@@ -32,7 +32,7 @@ public interface IActorConsumer
 /// <summary>
 /// Defines the contract for a JavaScript actor consumer that extends the base actor consumer functionality.
 /// </summary>
-public interface IJSActorConsumer: IActorConsumer
+public interface IJSActorConsumer : IActorConsumer
 {
     /// <summary>
     /// Routes an event to a specific actor subject asynchronously.

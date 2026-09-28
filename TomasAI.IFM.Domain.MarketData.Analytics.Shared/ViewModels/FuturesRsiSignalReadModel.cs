@@ -104,14 +104,14 @@ public record FuturesRsiSignalReadModel
     /// </summary>
     [JsonIgnore]
     [IgnoreMember]
-    public FuturesRsiSignalEntityId EntityId => new(ContractId , ValueDate, TimePeriod, PeriodLength);
+    public FuturesRsiSignalEntityId EntityId => new(ContractId, ValueDate, TimePeriod, PeriodLength);
 
     /// <summary>
     /// Full signal identifier including timestamp (not serialized).
     /// </summary>
     [JsonIgnore]
     [IgnoreMember]
-    public FuturesRsiSignalId Id => new(ContractId , ValueDate, TimePeriod,  PeriodLength, Timestamp);
+    public FuturesRsiSignalId Id => new(ContractId, ValueDate, TimePeriod, PeriodLength, Timestamp);
 
     /// <summary>
     /// Parameterless constructor required for MessagePack and some serializers.

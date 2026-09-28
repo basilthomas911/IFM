@@ -3,7 +3,7 @@ using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Trade.Model;
 
-public interface IOptionTrade 
+public interface IOptionTrade
 {
     OptionTradeEntityId Id { get; }
     int TradeId { get; }

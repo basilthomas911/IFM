@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// <remarks>This class provides a collection of actor types that are registered for use.  It is typically used to
 /// manage and access the types of actors available in the system.</remarks>
 /// <param name="actorTypes"></param>
-public class ActorRegistry(Type[] actorTypes) 
+public class ActorRegistry(Type[] actorTypes)
     : IActorRegistry
 {
     public Type[] ActorTypes { get; } = actorTypes;

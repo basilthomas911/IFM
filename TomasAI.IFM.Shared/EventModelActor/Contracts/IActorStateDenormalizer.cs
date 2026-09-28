@@ -8,7 +8,7 @@ public interface IActorStateDenormalizer
     Task DenormalizeEventsAsync(DomainEventCollection domainEvents);
 }
 
-public interface IActorStateDenormalizer<TState> 
+public interface IActorStateDenormalizer<TState>
     : IActorStateDenormalizer where TState : IActorState<TState>
 {
 }

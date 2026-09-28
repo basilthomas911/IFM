@@ -77,11 +77,17 @@ internal static class TickAggregationEventFactory
         return result with
         {
             Subject = new ActorSubject(ActorType.Realtime, TickAggregationCompleteEvent.Actor, verb, source.EntityId.Format()),
-            EntityId = source.EntityId, Id = source.Id, EventId = source.EventId,
-            CommandId = source.CommandId, AggregateId = source.AggregateId,
-            EventSource = source.EventSource, ReceivedOn = source.ReceivedOn,
-            SchemaVersion = tick.SchemaVersion, TickDataId = tick.TickDataId,
-            AssetTypeId = tick.AssetTypeId, PersistedRecordCount = count
+            EntityId = source.EntityId,
+            Id = source.Id,
+            EventId = source.EventId,
+            CommandId = source.CommandId,
+            AggregateId = source.AggregateId,
+            EventSource = source.EventSource,
+            ReceivedOn = source.ReceivedOn,
+            SchemaVersion = tick.SchemaVersion,
+            TickDataId = tick.TickDataId,
+            AssetTypeId = tick.AssetTypeId,
+            PersistedRecordCount = count
         };
     }
 
@@ -99,12 +105,22 @@ internal static class TickAggregationEventFactory
         return result with
         {
             Subject = new ActorSubject(ActorType.Realtime, TickAggregationFailEvent.Actor, verb, source.EntityId.Format()),
-            EntityId = source.EntityId, Id = source.Id, ErrorDate = DateTime.UtcNow,
-            EventId = source.EventId, CommandId = source.CommandId, EventSource = source.EventSource,
-            ErrorMessage = ex.Message, ErrorCode = errorCode, ErrorType = ErrorType.EventService,
-            ErrorData = ex.GetType().Name, ReceivedOn = source.ReceivedOn, AggregateId = source.AggregateId,
-            SchemaVersion = tick.SchemaVersion, TickDataId = tick.TickDataId,
-            AssetTypeId = tick.AssetTypeId, AttemptedRecordCount = count
+            EntityId = source.EntityId,
+            Id = source.Id,
+            ErrorDate = DateTime.UtcNow,
+            EventId = source.EventId,
+            CommandId = source.CommandId,
+            EventSource = source.EventSource,
+            ErrorMessage = ex.Message,
+            ErrorCode = errorCode,
+            ErrorType = ErrorType.EventService,
+            ErrorData = ex.GetType().Name,
+            ReceivedOn = source.ReceivedOn,
+            AggregateId = source.AggregateId,
+            SchemaVersion = tick.SchemaVersion,
+            TickDataId = tick.TickDataId,
+            AssetTypeId = tick.AssetTypeId,
+            AttemptedRecordCount = count
         };
     }
 }

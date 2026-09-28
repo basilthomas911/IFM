@@ -17,27 +17,32 @@ public static class FinancialCanonicalHash
         Exposures = value.Exposures.OrderBy(x => x.ScopeKind).ThenBy(x => x.ScopeKey, StringComparer.Ordinal)
             .ThenBy(x => x.Measure).ThenBy(x => x.Unit).ToArray()
     });
-    static readonly JsonSerializerOptions Options=new() { Converters={ new CanonicalUtcDateTimeConverter() } };
+    static readonly JsonSerializerOptions Options = new() { Converters = { new CanonicalUtcDateTimeConverter() } };
     public static string Request<T>(IFinancialRequest<T> request) => Compute(new
     {
-        request.PortfolioId, request.OperationId, request.ExpectedFinancialRevision, request.RequestedAtUtc,
-        request.ExpiresAtUtc, request.Body, Principal = request.Access.Principal
+        request.PortfolioId,
+        request.OperationId,
+        request.ExpectedFinancialRevision,
+        request.RequestedAtUtc,
+        request.ExpiresAtUtc,
+        request.Body,
+        Principal = request.Access.Principal
     });
 
     public static string Compute<T>(T value)
     {
-        var element = JsonSerializer.SerializeToElement(value,Options);
+        var element = JsonSerializer.SerializeToElement(value, Options);
         var text = new StringBuilder(); Write(element, text);
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString())));
     }
 
     // MessagePack timestamps deserialize as UTC, including optional/default DateTime values.
     // Semantic identity must not depend on the DateTime.Kind of an otherwise identical instant.
-    sealed class CanonicalUtcDateTimeConverter:JsonConverter<DateTime>
+    sealed class CanonicalUtcDateTimeConverter : JsonConverter<DateTime>
     {
-        public override DateTime Read(ref Utf8JsonReader reader,Type type,JsonSerializerOptions options)=>reader.GetDateTime();
-        public override void Write(Utf8JsonWriter writer,DateTime value,JsonSerializerOptions options)
-            =>writer.WriteStringValue(value.Kind==DateTimeKind.Local?value.ToUniversalTime():DateTime.SpecifyKind(value,DateTimeKind.Utc));
+        public override DateTime Read(ref Utf8JsonReader reader, Type type, JsonSerializerOptions options) => reader.GetDateTime();
+        public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options)
+            => writer.WriteStringValue(value.Kind == DateTimeKind.Local ? value.ToUniversalTime() : DateTime.SpecifyKind(value, DateTimeKind.Utc));
     }
 
     static void Write(JsonElement value, StringBuilder output)

@@ -14,7 +14,8 @@ internal static class CommandAuditPostgres
         CancellationToken cancellationToken)
     {
         await using var command = new NpgsqlCommand(
-            EventSourceDbSql.InsertCommandLogMessagePackWindow, connection, transaction) { CommandTimeout = 3 };
+            EventSourceDbSql.InsertCommandLogMessagePackWindow, connection, transaction)
+        { CommandTimeout = 3 };
         Add(command, envelopes.Select(static item => item.CommandId).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Uuid);
         Add(command, envelopes.Select(static item => item.StreamId).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text);
         Add(command, envelopes.Select(static item => item.ActorName).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text);

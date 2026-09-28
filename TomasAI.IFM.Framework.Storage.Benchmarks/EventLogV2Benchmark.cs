@@ -99,7 +99,10 @@ public static class EventLogV2Benchmark
         var version = (string)(await Scalar(admin, "SELECT version()"))!;
         var metadata = new
         {
-            RunId = runId, StartedUtc = DateTime.UtcNow, PostgreSql = version, Durability = durable,
+            RunId = runId,
+            StartedUtc = DateTime.UtcNow,
+            PostgreSql = version,
+            Durability = durable,
             SchemaBatchedExperiment = schemaBatched,
             SchemaComparison = schemaBatched ? "Both variants batch markers on event_log; four-index control vs three-index stream primary key. All other protections retained." : null,
             Experiment = retained && schemaBatched ? "Retained-history timed index consolidation; both writers batch markers"
@@ -107,12 +110,21 @@ public static class EventLogV2Benchmark
             MarkerPattern = schemaBatched && !retained ? "schema-none64: none; schema-mixed8: every eighth version; schema-all64: every event"
                 : timed ? "Every eighth stream version; eight events per command; one marker per command"
                 : mixedMarkers ? "Per-stream version modulo N; 0%, 1/64, 1/8, 1/2, 100%; single-event commands burst every eighth version" : "All or no events",
-            Runtime = RuntimeInformation.FrameworkDescription, OS = RuntimeInformation.OSDescription,
-            CpuCount = Environment.ProcessorCount, ServerGC = GCSettings.IsServerGC,
-            Repetitions = repeats, RoundsPerStream = timed ? (int?)null : _rounds, SeedRoundsPerStream = _seedRounds,
+            Runtime = RuntimeInformation.FrameworkDescription,
+            OS = RuntimeInformation.OSDescription,
+            CpuCount = Environment.ProcessorCount,
+            ServerGC = GCSettings.IsServerGC,
+            Repetitions = repeats,
+            RoundsPerStream = timed ? (int?)null : _rounds,
+            SeedRoundsPerStream = _seedRounds,
             SoakSeconds = timed ? soakSeconds : 0,
-            PayloadCharacters = Payload.Length, PayloadSha256 = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Payload))),
-            Compression = true, QueueCapacity = pressure ? 8 : 8192, BatchEvents = _batchEvents, BatchBytes = 1048576, BatchDelayMs = 1,
+            PayloadCharacters = Payload.Length,
+            PayloadSha256 = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Payload))),
+            Compression = true,
+            QueueCapacity = pressure ? 8 : 8192,
+            BatchEvents = _batchEvents,
+            BatchBytes = 1048576,
+            BatchDelayMs = 1,
             Limitations = retained && schemaBatched
                 ? "Same event_log table name and marker batching in both variants; only index layout differs. Retained synthetic history; 64 bounded producers; observer overhead included. Unequal measured work and final table size in timed windows. Not production migration, crash or full-day leak qualification."
                 : retained
@@ -169,22 +181,22 @@ public static class EventLogV2Benchmark
         try
         {
             foreach (var scenario in scenarios)
-            for (var repeat = 0; repeat < repeats; repeat++)
-            {
-                // Rotate paired order to avoid always giving the warmed host to the candidate.
-                for (var order = 0; order < variants.Length; order++)
+                for (var repeat = 0; repeat < repeats; repeat++)
                 {
-                    var variant = variants[(order + repeat) % variants.Length];
-                    var suffix = $"{scenario.Name.Replace('-', '_')}_{repeat}_{(int)variant}";
-                    var database = $"ifm_eventlog_bench_{runId}_{suffix}";
-                    if (database.Length > 63) throw new InvalidOperationException("Database identifier exceeds PostgreSQL limit.");
-                    Console.WriteLine($"Running {scenario.Name} / {variant} / repeat {repeat + 1}");
-                    var sample = await RunSample(admin, database, scenario, variant, repeat + 1, order + 1);
-                    Results.Add(sample);
-                    await WriteResults();
-                    Console.WriteLine($"  {sample.CommandsPerSecond:F1} commands/s; p99 {sample.P99Ms:F2} ms; verification passed");
+                    // Rotate paired order to avoid always giving the warmed host to the candidate.
+                    for (var order = 0; order < variants.Length; order++)
+                    {
+                        var variant = variants[(order + repeat) % variants.Length];
+                        var suffix = $"{scenario.Name.Replace('-', '_')}_{repeat}_{(int)variant}";
+                        var database = $"ifm_eventlog_bench_{runId}_{suffix}";
+                        if (database.Length > 63) throw new InvalidOperationException("Database identifier exceeds PostgreSQL limit.");
+                        Console.WriteLine($"Running {scenario.Name} / {variant} / repeat {repeat + 1}");
+                        var sample = await RunSample(admin, database, scenario, variant, repeat + 1, order + 1);
+                        Results.Add(sample);
+                        await WriteResults();
+                        Console.WriteLine($"  {sample.CommandsPerSecond:F1} commands/s; p99 {sample.P99Ms:F2} ms; verification passed");
+                    }
                 }
-            }
         }
         finally { await WriteResults(); }
         Console.WriteLine($"Results: {_output}");
@@ -314,9 +326,13 @@ public static class EventLogV2Benchmark
 
     static IEventLogAppender CreateAppender(string connection, Scenario scenario, EventLogSqlLayout layout)
     {
-        var options = new EventLogPersistenceOptions { WriteMode = scenario.Mode, UseLz4Compression = true,
+        var options = new EventLogPersistenceOptions
+        {
+            WriteMode = scenario.Mode,
+            UseLz4Compression = true,
             MaximumEventsPerBatch = _batchEvents,
-            QueueCommandCapacity = scenario.QueueCapacity };
+            QueueCommandCapacity = scenario.QueueCapacity
+        };
         return scenario.Mode == EventLogWriteMode.Sequential
             ? new SequentialEventLogAppender(connection, true, options, layout)
             : new BinaryCopyEventLogAppender(connection, true, options, layout);
@@ -403,8 +419,14 @@ public static class EventLogV2Benchmark
         var id = commandId ?? Guid.NewGuid();
         var command = new BenchmarkCommand { CommandId = id, StreamId = stream.Name, Value = expected, Payload = Payload };
         var entries = Enumerable.Range(0, scenario.Events).Select(i => new EventLogAppendEntry(eventNameId,
-            new BenchmarkEvent { CommandId = id, AggregateId = stream.Name, Value = expected + i + 1,
-                Payload = Payload, RequiresDurableProjection = scenario.Markers && (expected + i + 1) % scenario.MarkerEvery == 0 })).ToArray();
+            new BenchmarkEvent
+            {
+                CommandId = id,
+                AggregateId = stream.Name,
+                Value = expected + i + 1,
+                Payload = Payload,
+                RequiresDurableProjection = scenario.Markers && (expected + i + 1) % scenario.MarkerEvery == 0
+            })).ToArray();
         return new EventLogAppendRequest(stream.Name, stream.Id, id, entries, expected, FixtureTime,
             scenario.Audit ? CommandAuditEnvelope.Create(command, AuditCodec) : null);
     }
@@ -489,8 +511,11 @@ public static class EventLogV2Benchmark
             var committed = await Snapshot(connection, table);
             await MustFail(() => appender.AppendAsync(request).AsTask(), e => e is CommandAuditDuplicateException);
             if (committed != await Snapshot(connection, table)) throw new InvalidOperationException("Duplicate appended twice.");
-            var conflicting = request with { CommandAudit = CommandAuditEnvelope.Create(
-                new BenchmarkCommand { CommandId = command, StreamId = stream.Name, Value = -100, Payload = Payload }, AuditCodec) };
+            var conflicting = request with
+            {
+                CommandAudit = CommandAuditEnvelope.Create(
+                new BenchmarkCommand { CommandId = command, StreamId = stream.Name, Value = -100, Payload = Payload }, AuditCodec)
+            };
             // Current atomic COPY writer reports both hash conflicts and exact duplicates as DuplicateException.
             // The benchmark checks rejection and unchanged durable state, not a diagnostic distinction it lacks.
             await MustFail(() => appender.AppendAsync(conflicting).AsTask(),
@@ -499,7 +524,7 @@ public static class EventLogV2Benchmark
             version += scenario.Events;
             // A second appender has no in-memory duplicate cache.
             var restartConnection = new NpgsqlConnectionStringBuilder(connection.ConnectionString)
-                { Username = string.Empty, Password = string.Empty };
+            { Username = string.Empty, Password = string.Empty };
             await using var restarted = CreateAppender(restartConnection.ConnectionString, scenario, layout);
             await MustFail(() => restarted.AppendAsync(request).AsTask(), e => e is CommandAuditDuplicateException);
         }

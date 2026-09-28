@@ -50,7 +50,7 @@ public static class ReadOnlySpanExtension
     /// Returns the parsed boolean, or false if parsing fails.
     /// </summary>
     public static bool GetBool(this ReadOnlySpan<char> charBuffer, ref int start)
-        =>  bool.TryParse(charBuffer.ParseSpan(ref start), out var value) && value;
+        => bool.TryParse(charBuffer.ParseSpan(ref start), out var value) && value;
 
 
     /// <summary>

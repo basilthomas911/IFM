@@ -16,7 +16,7 @@ namespace IBApi
      */
     public class ExecutionFilter
     {
-        
+
         private int clientId;
         private string acctCode;
         private string time;

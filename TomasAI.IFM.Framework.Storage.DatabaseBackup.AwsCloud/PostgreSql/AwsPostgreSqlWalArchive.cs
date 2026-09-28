@@ -72,9 +72,11 @@ public sealed class AwsPostgreSqlWalArchive(
 
         var context = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["application"] = "IFM", ["component"] = "DatabaseBackup",
+            ["application"] = "IFM",
+            ["component"] = "DatabaseBackup",
             ["protectionSetId"] = request.ProtectionSetId.Value,
-            ["timeline"] = request.Timeline, ["walSegment"] = request.SegmentName
+            ["timeline"] = request.Timeline,
+            ["walSegment"] = request.SegmentName
         };
         var retention = timeProvider.GetUtcNow().AddDays(options.DefaultRetentionDays);
         var version = await objects.UploadAsync(
@@ -84,9 +86,12 @@ public sealed class AwsPostgreSqlWalArchive(
             throw new InvalidDataException("The archived PostgreSQL WAL digest differs from the declared source digest.");
         var record = new PostgreSqlWalArchiveRecord
         {
-            ProtectionSetId = request.ProtectionSetId, Timeline = request.Timeline,
-            SegmentName = request.SegmentName, Object = version,
-            SourceCompletedUtc = request.SourceCompletedUtc.ToUniversalTime(), ArchivedUtc = timeProvider.GetUtcNow()
+            ProtectionSetId = request.ProtectionSetId,
+            Timeline = request.Timeline,
+            SegmentName = request.SegmentName,
+            Object = version,
+            SourceCompletedUtc = request.SourceCompletedUtc.ToUniversalTime(),
+            ArchivedUtc = timeProvider.GetUtcNow()
         };
         var bytes = DatabaseBackupCanonicalJson.Serialize(record);
         var signature = await signatures.SignAsync(bytes, cancellationToken).ConfigureAwait(false);
@@ -130,14 +135,18 @@ public sealed class AwsPostgreSqlWalArchive(
         {
             var response = await s3.ListObjectsV2Async(new ListObjectsV2Request
             {
-                BucketName = _bucketName, Prefix = prefix, ContinuationToken = marker
+                BucketName = _bucketName,
+                Prefix = prefix,
+                ContinuationToken = marker
             }, cancellationToken).ConfigureAwait(false);
             foreach (var item in response.S3Objects ?? [])
             {
                 if (item.Key?.EndsWith("/record-v1.json", StringComparison.Ordinal) != true) continue;
                 var versions = await s3.ListVersionsAsync(new ListVersionsRequest
                 {
-                    BucketName = _bucketName, Prefix = item.Key, MaxKeys = 2
+                    BucketName = _bucketName,
+                    Prefix = item.Key,
+                    MaxKeys = 2
                 }, cancellationToken).ConfigureAwait(false);
                 var exact = (versions.Versions ?? []).Where(version => version.IsDeleteMarker != true
                     && StringComparer.Ordinal.Equals(version.Key, item.Key)).ToArray();
@@ -155,7 +164,9 @@ public sealed class AwsPostgreSqlWalArchive(
         var key = _keys.WalRecord(request.ProtectionSetId, request.Timeline, request.SegmentName).Value;
         var response = await s3.ListVersionsAsync(new ListVersionsRequest
         {
-            BucketName = _bucketName, Prefix = key, MaxKeys = 2
+            BucketName = _bucketName,
+            Prefix = key,
+            MaxKeys = 2
         }, cancellationToken).ConfigureAwait(false);
         var exact = (response.Versions ?? []).Where(version => version.IsDeleteMarker != true
             && StringComparer.Ordinal.Equals(version.Key, key)).ToArray();
@@ -169,7 +180,9 @@ public sealed class AwsPostgreSqlWalArchive(
     {
         using var response = await s3.GetObjectAsync(new GetObjectRequest
         {
-            BucketName = _bucketName, Key = key, VersionId = versionId
+            BucketName = _bucketName,
+            Key = key,
+            VersionId = versionId
         }, cancellationToken).ConfigureAwait(false);
         if (response.ContentLength > options.MaximumSignedDocumentBytes)
             throw new InvalidDataException("A PostgreSQL WAL record exceeds its document bound.");
@@ -178,14 +191,18 @@ public sealed class AwsPostgreSqlWalArchive(
         var signatureKey = key.Replace("record-v1.json", "record-v1.signature.json", StringComparison.Ordinal);
         var signaturesResponse = await s3.ListVersionsAsync(new ListVersionsRequest
         {
-            BucketName = _bucketName, Prefix = signatureKey, MaxKeys = 2
+            BucketName = _bucketName,
+            Prefix = signatureKey,
+            MaxKeys = 2
         }, cancellationToken).ConfigureAwait(false);
         var exact = (signaturesResponse.Versions ?? []).Where(version => version.IsDeleteMarker != true
             && StringComparer.Ordinal.Equals(version.Key, signatureKey)).ToArray();
         if (exact.Length != 1) throw new InvalidDataException("A PostgreSQL WAL signature is missing or version-ambiguous.");
         using var signatureResponse = await s3.GetObjectAsync(new GetObjectRequest
         {
-            BucketName = _bucketName, Key = signatureKey, VersionId = exact[0].VersionId
+            BucketName = _bucketName,
+            Key = signatureKey,
+            VersionId = exact[0].VersionId
         }, cancellationToken).ConfigureAwait(false);
         using var signatureContent = new MemoryStream();
         await signatureResponse.ResponseStream.CopyToAsync(signatureContent, cancellationToken).ConfigureAwait(false);
@@ -196,7 +213,9 @@ public sealed class AwsPostgreSqlWalArchive(
         {
             Object = record.Object with
             {
-                BucketName = _bucketName, Region = _region, EncryptionKeyArn = _encryptionKeyArn
+                BucketName = _bucketName,
+                Region = _region,
+                EncryptionKeyArn = _encryptionKeyArn
             }
         };
     }

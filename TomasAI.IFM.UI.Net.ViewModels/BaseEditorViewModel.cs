@@ -40,7 +40,7 @@ public class BaseEditorViewModel : ObservableObject
     {
         var eventSource = $"{eventTopic}";
         if (!@events.Any(o => o is CommandExceptionEvent))
-            @events.Add(new CommandExceptionEvent {}.SetEventSource(eventSource));
+            @events.Add(new CommandExceptionEvent { }.SetEventSource(eventSource));
     }
 
 
@@ -48,10 +48,11 @@ public class BaseEditorViewModel : ObservableObject
     /// write status console
     /// </summary>
     public Task WriteStatusConsole(LogSourceType logSourceType, string statusMsg)
-        => _appRoot.Services.StatusConsole.ExecuteAsync(async model => {
+        => _appRoot.Services.StatusConsole.ExecuteAsync(async model =>
+        {
             model.OnError((errorCode, errorMsg) => this.OnError?.Invoke(errorCode, errorMsg));
             await model.WriteConsoleAsync(logSourceType, statusMsg);
-         });
+        });
 
 
     /// <summary>
@@ -59,7 +60,7 @@ public class BaseEditorViewModel : ObservableObject
     /// </summary>
     /// <param name="errorCode"></param>
     /// <param name="errorMsg"></param>
-    public Task WriteStatusConsole(LogSourceType logSourceType,int errorCode, string errorMsg)
+    public Task WriteStatusConsole(LogSourceType logSourceType, int errorCode, string errorMsg)
         => _appRoot.Services.StatusConsole.ExecuteAsync(async model =>
         {
             model.OnError((errCode, errMsg) => this.OnError?.Invoke(errCode, errMsg));

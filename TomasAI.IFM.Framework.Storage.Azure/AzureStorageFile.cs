@@ -6,7 +6,7 @@ namespace TomasAI.IFM.Framework.Storage.Azure
 {
     public class AzureStorageFile : IAzureStorageFile
     {
-        public string Name {get;set;} = string.Empty;
+        public string Name { get; set; } = string.Empty;
 
         public string Container { get; set; } = string.Empty;
 

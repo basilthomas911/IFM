@@ -25,7 +25,8 @@ public static class TradePositionCollectionExtension
     /// <returns></returns>
     /// <exception cref="NotImplementedException"></exception>
     public static TradePositionAddedEvent GetTradePositionAddedEvent(this ITradePositionCollection tradePositions, TradePositionEntityId key, TradeType tradeType, decimal assetPrice, double riskFreeRate, DateTime updatedOn, string updatedBy)
-        => tradeType switch {
+        => tradeType switch
+        {
             TradeType.PutCreditSpread or TradeType.CallCreditSpread or
             TradeType.PutDebitSpread or TradeType.CallDebitSpread
                 => CreateIronCondorTradePositionAddedEvent(tradePositions, key, assetPrice, riskFreeRate, updatedOn, updatedBy),
@@ -42,7 +43,7 @@ public static class TradePositionCollectionExtension
     /// <param name="updatedOn"></param>
     /// <param name="updatedBy"></param>
     /// <returns></returns>
-    public static TradePositionUpdatedEvent GetTradePositionUpdatedEvent(this ITradePositionCollection tradePositions, TradePositionEntityId key, TradeType baseTradeType,  string optionLegId, DateTime updatedOn, string updatedBy)
+    public static TradePositionUpdatedEvent GetTradePositionUpdatedEvent(this ITradePositionCollection tradePositions, TradePositionEntityId key, TradeType baseTradeType, string optionLegId, DateTime updatedOn, string updatedBy)
         => new()
         {
             OptionLegId = optionLegId,
@@ -65,14 +66,14 @@ public static class TradePositionCollectionExtension
     /// <param name="updatedBy"></param>
     /// <returns></returns>
     /// <exception cref="NotImplementedException"></exception>
-    static TradePositionAddedEvent CreateIronCondorTradePositionAddedEvent(  ITradePositionCollection tradePositions, TradePositionEntityId key, decimal assetPrice, double riskFreeRate, DateTime updatedOn, string updatedBy)
+    static TradePositionAddedEvent CreateIronCondorTradePositionAddedEvent(ITradePositionCollection tradePositions, TradePositionEntityId key, decimal assetPrice, double riskFreeRate, DateTime updatedOn, string updatedBy)
     {
         var tradePosition = key.TradeType switch
         {
             TradeType.PutCreditSpread or
             TradeType.CallCreditSpread or
             TradeType.PutDebitSpread or
-            TradeType.CallDebitSpread  => GetIronCondorTradePosition(key.TradeType),
+            TradeType.CallDebitSpread => GetIronCondorTradePosition(key.TradeType),
             _ => throw new NotImplementedException()
         };
         return new TradePositionAddedEvent

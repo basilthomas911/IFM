@@ -51,7 +51,7 @@ namespace TomasAI.IFM.UI.Net
     public class Startup : IAppRoot
     {
         static Container? _container;
-        static IConfiguration ?_config;
+        static IConfiguration? _config;
         static int _shutdownStarted;
 
         /// <summary>

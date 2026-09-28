@@ -15,7 +15,8 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 public sealed partial class OrderCompositionWorkerTests
 {
     [Theory]
-    [InlineData(2)] [InlineData(4)]
+    [InlineData(2)]
+    [InlineData(4)]
     public async Task Selected_business_legs_remain_priced_after_discovery_expiry_and_context_refresh(int count)
     {
         using var prices = Prices(); using var feed = new ChainFeed(); var factory = Factory(feed);
@@ -33,9 +34,13 @@ public sealed partial class OrderCompositionWorkerTests
         Assert.True((await runtime.ReleaseAsync(new(original.ScopeId, original.LeaseId, Generation), default)).Active);
         clock.Now = At.AddMinutes(3);
         prices.TryUpdateQuote(new("ES-future", Date, 4999.75m, 10, 1, 5000.25m, 10, 1, 2, clock.Now, clock.Now));
-        var refreshed = original with { LeaseId = owners[0].LeaseId, LeaseExpiresAtUtc = clock.Now.AddSeconds(60),
+        var refreshed = original with
+        {
+            LeaseId = owners[0].LeaseId,
+            LeaseExpiresAtUtc = clock.Now.AddSeconds(60),
             ExpectedContextDigest = acquired.ContextDigest,
-            Options = definitions.Select(x => x with { Pricing = x.Pricing with { PublicationPolicyVersion = "fixture-refreshed/v2" } }).ToImmutableArray() };
+            Options = definitions.Select(x => x with { Pricing = x.Pricing with { PublicationPolicyVersion = "fixture-refreshed/v2" } }).ToImmutableArray()
+        };
         Assert.True((await runtime.AcquireAsync(refreshed, default)).Active);
         for (var index = 0; index < count; index++) feed.Push(QuoteRecord(3, (uint)(10 + index), clock.Now));
         await Until(() => definitions.All(x => prices.GetFuturesOptionReader(x.Pricing.Contract.ContractId, Date).TryGetLastQuoteWithGreeks(out _)));
@@ -76,7 +81,8 @@ public sealed partial class OrderCompositionWorkerTests
         var request = Request();
         Assert.True((await runtime.AcquireAsync(request, default)).Active);
         var capture = new CompositionSnapshotRequest(Guid.NewGuid(), request.ScopeId, "Daily", Generation,
-            At, At.AddSeconds(2), true) { AllowMissingOptionQuotes = true };
+            At, At.AddSeconds(2), true)
+        { AllowMissingOptionQuotes = true };
         var result = await new MarketCompositionSnapshotProvider(runtime, new Clock(At)).CaptureAsync(capture, default);
         Assert.Null(result.Failure);
         Assert.Null(Assert.Single(result.Snapshot!.Instruments).Instrument.Quote);
@@ -124,7 +130,10 @@ public sealed partial class OrderCompositionWorkerTests
     }
 
     [Theory]
-    [InlineData("rate")] [InlineData("generation")] [InlineData("expiry")] [InlineData("calendar")]
+    [InlineData("rate")]
+    [InlineData("generation")]
+    [InlineData("expiry")]
+    [InlineData("calendar")]
     public async Task Invalid_prerequisites_allocate_no_native_feed(string failure)
     {
         using var prices = Prices(); using var feed = new ChainFeed(); var factory = Factory(feed);
@@ -237,9 +246,15 @@ public sealed partial class OrderCompositionWorkerTests
     {
         var frame = new DatasetWorkerControlFrame
         {
-            Kind = DatasetWorkerMessageKind.AcquireOptionChain, WorkerInstanceId = Guid.NewGuid(), Dataset = "GLBX.MDP3",
-            ValueDate = Date, GenerationId = Generation, CorrelationId = Guid.NewGuid(), Sequence = 1,
-            BootstrapToken = new('a', 64), OptionChain = Request()
+            Kind = DatasetWorkerMessageKind.AcquireOptionChain,
+            WorkerInstanceId = Guid.NewGuid(),
+            Dataset = "GLBX.MDP3",
+            ValueDate = Date,
+            GenerationId = Generation,
+            CorrelationId = Guid.NewGuid(),
+            Sequence = 1,
+            BootstrapToken = new('a', 64),
+            OptionChain = Request()
         };
         using var stream = new MemoryStream();
         await DatasetWorkerFrameCodec.WriteAsync(stream, frame, 1024 * 1024, default); stream.Position = 0;
@@ -256,8 +271,14 @@ public sealed partial class OrderCompositionWorkerTests
         var request = Request();
         var frame = new DatasetWorkerControlFrame
         {
-            Kind = DatasetWorkerMessageKind.ApplyOptionChainOwnership, WorkerInstanceId = Guid.NewGuid(), Dataset = "GLBX.MDP3",
-            ValueDate = Date, GenerationId = Generation, CorrelationId = Guid.NewGuid(), Sequence = 1, BootstrapToken = new('a', 64),
+            Kind = DatasetWorkerMessageKind.ApplyOptionChainOwnership,
+            WorkerInstanceId = Guid.NewGuid(),
+            Dataset = "GLBX.MDP3",
+            ValueDate = Date,
+            GenerationId = Generation,
+            CorrelationId = Guid.NewGuid(),
+            Sequence = 1,
+            BootstrapToken = new('a', 64),
             OptionChainRelease = new(request.ScopeId, Guid.Empty, Generation,
                 new(1, "IFM", [new(Guid.NewGuid(), ["ES-option-call"])], WorkerOptionChainRuntime.PhysicalDigest(request.Options)))
         };

@@ -8,7 +8,7 @@ public class OptionTradeSpreadBarUIViewModel
     readonly OptionTradeSpreadBarsDataModel _optionTradeSpreadBarData;
     readonly IronCondorMDILimitDataModel _ironCondorMDILimit;
 
-    public OptionTradeSpreadBarUIViewModel(OptionTradeSpreadBarsDataModel optionTradeSpreadBarData, IronCondorMDILimitDataModel ironCondorMDILimit) 
+    public OptionTradeSpreadBarUIViewModel(OptionTradeSpreadBarsDataModel optionTradeSpreadBarData, IronCondorMDILimitDataModel ironCondorMDILimit)
     {
         _optionTradeSpreadBarData = optionTradeSpreadBarData;
         _ironCondorMDILimit = ironCondorMDILimit;

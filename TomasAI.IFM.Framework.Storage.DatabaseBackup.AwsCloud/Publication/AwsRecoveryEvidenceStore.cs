@@ -30,7 +30,9 @@ public sealed class AwsRecoveryEvidenceStore(
         var version = await OnlyVersionAsync(key, cancellationToken).ConfigureAwait(false);
         using var response = await s3.GetObjectAsync(new GetObjectRequest
         {
-            BucketName = options.PrimaryBucketName, Key = key.Value, VersionId = version
+            BucketName = options.PrimaryBucketName,
+            Key = key.Value,
+            VersionId = version
         }, cancellationToken).ConfigureAwait(false);
         using var stream = new MemoryStream();
         await response.ResponseStream.CopyToAsync(stream, cancellationToken).ConfigureAwait(false);
@@ -39,7 +41,9 @@ public sealed class AwsRecoveryEvidenceStore(
         var signatureVersion = await OnlyVersionAsync(signatureKey, cancellationToken).ConfigureAwait(false);
         using var signatureResponse = await s3.GetObjectAsync(new GetObjectRequest
         {
-            BucketName = options.PrimaryBucketName, Key = signatureKey.Value, VersionId = signatureVersion
+            BucketName = options.PrimaryBucketName,
+            Key = signatureKey.Value,
+            VersionId = signatureVersion
         }, cancellationToken).ConfigureAwait(false);
         using var signatureStream = new MemoryStream();
         await signatureResponse.ResponseStream.CopyToAsync(signatureStream, cancellationToken).ConfigureAwait(false);
@@ -58,8 +62,10 @@ public sealed class AwsRecoveryEvidenceStore(
         var retention = timeProvider.GetUtcNow().AddDays(options.DefaultRetentionDays);
         var context = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["application"] = "IFM", ["component"] = "DatabaseBackup",
-            ["operationId"] = operationId.Format(), ["document"] = documentName
+            ["application"] = "IFM",
+            ["component"] = "DatabaseBackup",
+            ["operationId"] = operationId.Format(),
+            ["document"] = documentName
         };
         var key = _keys.Evidence(operationId, documentName);
         var version = await objects.UploadAsync(key,
@@ -76,7 +82,9 @@ public sealed class AwsRecoveryEvidenceStore(
     {
         var response = await s3.ListVersionsAsync(new ListVersionsRequest
         {
-            BucketName = options.PrimaryBucketName, Prefix = key.Value, MaxKeys = 2
+            BucketName = options.PrimaryBucketName,
+            Prefix = key.Value,
+            MaxKeys = 2
         }, cancellationToken).ConfigureAwait(false);
         var versions = (response.Versions ?? []).Where(value => value.IsDeleteMarker != true
             && StringComparer.Ordinal.Equals(value.Key, key.Value)).ToArray();

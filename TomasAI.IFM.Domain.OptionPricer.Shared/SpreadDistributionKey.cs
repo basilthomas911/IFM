@@ -22,7 +22,7 @@ public record SpreadDistributionKey : IActorEntityId
     /// <summary>
     /// Parameterless constructor required by some serializers; initializes to defaults.
     /// </summary>
-    public SpreadDistributionKey()  { }
+    public SpreadDistributionKey() { }
 
     public SpreadDistributionKey(
         int tradeId,

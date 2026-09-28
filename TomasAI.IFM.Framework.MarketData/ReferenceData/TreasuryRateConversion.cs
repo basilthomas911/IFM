@@ -53,11 +53,15 @@ public static class TreasuryRateConversion
     {
         var canonical = JsonSerializer.Serialize(new
         {
-            Version = 1, snapshot.Source, snapshot.CountryCode, snapshot.CurrencyCode,
+            Version = 1,
+            snapshot.Source,
+            snapshot.CountryCode,
+            snapshot.CurrencyCode,
             ValueDate = snapshot.ValueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             Rates = snapshot.Rates.OrderBy(x => x.Tenor).Select(x => new
             {
-                Tenor = (int)x.Tenor, Rate = x.RatePercent.ToString("G29", CultureInfo.InvariantCulture)
+                Tenor = (int)x.Tenor,
+                Rate = x.RatePercent.ToString("G29", CultureInfo.InvariantCulture)
             })
         });
         return ConvertDigest(canonical);

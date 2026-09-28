@@ -82,7 +82,8 @@ public sealed class LookupTypeDetailLayoutTests
                 done.TrySetResult();
             }
             catch (Exception ex) { done.TrySetException(ex); }
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         try { await done.Task.WaitAsync(TimeSpan.FromSeconds(20)); }

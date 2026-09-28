@@ -42,7 +42,8 @@ public class MarketDataFeedEventActorTests : IClassFixture<MarketDataFeedTestFix
             ILogger<MarketDataFeedEventActor> logger)
             : this(TypedActorContextFactory.Event(
                 supervisor, marketDataApi, optionTradeLiveFeedMap,
-                blackboardService, statusConsoleWriter, logger)) { }
+                blackboardService, statusConsoleWriter, logger))
+        { }
 
         TestableMarketDataFeedEventActor(IMarketDataFeedEventContext context)
             : base(context) => Context = context;

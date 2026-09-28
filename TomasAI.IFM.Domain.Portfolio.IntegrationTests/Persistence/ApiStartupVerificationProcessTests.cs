@@ -20,8 +20,11 @@ public sealed class ApiStartupVerificationProcessTests
         File.Exists(serverAssembly).Should().BeTrue("the real API host must be built");
         var start = new ProcessStartInfo("dotnet")
         {
-            WorkingDirectory = serverDirectory, UseShellExecute = false,
-            RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true
+            WorkingDirectory = serverDirectory,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
         };
         start.ArgumentList.Add(serverAssembly);
         start.ArgumentList.Add("--verify-startup-only");
@@ -30,8 +33,12 @@ public sealed class ApiStartupVerificationProcessTests
         start.Environment["DOTNET_ENVIRONMENT"] = environment;
         start.Environment["ASPNETCORE_ENVIRONMENT"] = environment;
         // Production must explicitly configure a valid feed source; verification must
+        start.Environment.Remove("AppSettings__Databento__DeploymentProfile");
         // not disable the existing synthetic-persistence isolation guard.
-        if (dataSource is not null) start.Environment["AppSettings__Databento__DataSource"] = dataSource;
+        if (dataSource is null)
+            start.Environment.Remove("AppSettings__Databento__DataSource");
+        else
+            start.Environment["AppSettings__Databento__DataSource"] = dataSource;
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Unable to start API verifier.");
         var stdout = process.StandardOutput.ReadToEndAsync();

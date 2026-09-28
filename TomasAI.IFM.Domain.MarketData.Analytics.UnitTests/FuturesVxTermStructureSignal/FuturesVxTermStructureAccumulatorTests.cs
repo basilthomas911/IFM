@@ -104,15 +104,15 @@ public sealed class FuturesVxTermStructureAccumulatorTests
 
     static UpdateFuturesVxTermStructureSignalCommand UpdateCommand(
         FuturesVxTermStructureLegObservation observation) => new()
-    {
-        CommandId = Guid.NewGuid(),
-        Subject = new ActorSubject(ActorType.Command,
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new ActorSubject(ActorType.Command,
             UpdateFuturesVxTermStructureSignalCommand.Actor,
             UpdateFuturesVxTermStructureSignalCommand.Verb, EntityId.Format()),
-        EntityId = EntityId,
-        Observation = observation,
-        Configuration = Configuration
-    };
+            EntityId = EntityId,
+            Observation = observation,
+            Configuration = Configuration
+        };
 
     [Fact]
     public void NewStreamEpochMayRestartSourceSequence()
@@ -195,7 +195,7 @@ public sealed class FuturesVxTermStructureAccumulatorTests
         var message = Substitute.For<IActorMessage>();
         message.Subject.Returns(subject);
         message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>().Returns(new FuturesMarketPriceUpdatedRealtimeEvent
-            { Subject = subject, UpdateSource = FuturesMarketPriceUpdateSource.Quote });
+        { Subject = subject, UpdateSource = FuturesMarketPriceUpdateSource.Quote });
         await actor.HandleMessageAsync(message);
         await actor.HandleMessageAsync(message);
 

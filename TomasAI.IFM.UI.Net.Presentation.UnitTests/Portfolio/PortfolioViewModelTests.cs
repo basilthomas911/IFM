@@ -192,8 +192,12 @@ public sealed class PortfolioViewModelTests
 
     static PortfolioReadModel ValidPortfolio() => new()
     {
-        PortfolioId = 101, Name = "Core", PortfolioVersion = 1,
-        OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = new DateTime(2026, 8, 30, 0, 0, 0, DateTimeKind.Utc),
-        CreatedOnUtc = new DateTime(2026, 8, 30, 0, 0, 0, DateTimeKind.Utc), CreatedBy = "admin",
+        PortfolioId = 101,
+        Name = "Core",
+        PortfolioVersion = 1,
+        OperatingState = PortfolioOperatingState.Draft,
+        EffectiveFromUtc = new DateTime(2026, 8, 30, 0, 0, 0, DateTimeKind.Utc),
+        CreatedOnUtc = new DateTime(2026, 8, 30, 0, 0, 0, DateTimeKind.Utc),
+        CreatedBy = "admin",
     };
 }

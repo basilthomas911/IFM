@@ -82,13 +82,13 @@ public abstract class BaseEventSourceActorRepository
     /// <returns>The state instance for the actor.</returns>
     /// <exception cref="StorageException">Thrown when loading the state fails.</exception>
     protected async Task<TState> LoadStateAsync<TState>(ICommand command, CancellationToken cancellationToken = default)
-       where TState :  IEventSourceActorState<TState>
+       where TState : IEventSourceActorState<TState>
     {
         try
         {
             // load event stream from event storage filtered by stream id...
             var streamId = await GetStreamId(command.StreamId, cancellationToken).ConfigureAwait(false);
-            var state = (TState) _stateFactory.CreateState<TState>();
+            var state = (TState)_stateFactory.CreateState<TState>();
             if (cancellationToken.CanBeCanceled)
             {
                 await _dbEventSource.MapReduceActorEventStreamAsync<TState>(
@@ -110,7 +110,7 @@ public abstract class BaseEventSourceActorRepository
         }
         catch (Exception ex)
         {
-            _logger.LogErrorEvent(_serviceId, ex, "LoadStateAsync failed for {StateName}",  typeof(TState).Name);
+            _logger.LogErrorEvent(_serviceId, ex, "LoadStateAsync failed for {StateName}", typeof(TState).Name);
             var errorMsg = $"{_serviceId}.LoadStateAsync failed for {typeof(TState).Name}";
             throw new StorageException(errorMsg, ex);
         }
@@ -125,7 +125,7 @@ public abstract class BaseEventSourceActorRepository
     /// <param name="lastNRange">The number of most recent events to replay.</param>
     /// <returns>The state instance reconstructed from the last N events.</returns>
     /// <exception cref="StorageException">Thrown when loading the state fails.</exception>
-    protected async Task<TState> LoadStateAsync< TState, TEvent>(
+    protected async Task<TState> LoadStateAsync<TState, TEvent>(
         ICommand command,
         int lastNRange,
         CancellationToken cancellationToken = default)
@@ -416,7 +416,7 @@ public abstract class BaseEventSourceActorRepository
     /// <param name="domainEvents">A collection of domain events to denormalize and apply to the actor state.</param>
     /// <returns>A ValueTask that represents the asynchronous denormalization operation.</returns>
     protected abstract ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents);
-    
+
     /// <summary>
     /// Processes a denormalization event and updates the read model by executing the specified denormalizer action.
     /// Optionally posts the event and emits completion or failure events based on the outcome.
@@ -480,13 +480,13 @@ public abstract class BaseEventSourceActorRepository
         where TEntityId : IActorEntityId
     {
         e.CheckForEmptyCommandId();
-        EventInitHelper.SetProperty(e, nameof(IEvent.Subject), new ActorSubject(ActorType.Event, 
-            e.Subject.Name.Replace("Denormalizer", "Event"), 
-            e.Subject.Verb, 
+        EventInitHelper.SetProperty(e, nameof(IEvent.Subject), new ActorSubject(ActorType.Event,
+            e.Subject.Name.Replace("Denormalizer", "Event"),
+            e.Subject.Verb,
             e.EntityId.Format()));
         await context.SendAsync<TEvent, TEntityId>(e);
         return true;
     }
 
-   
+
 }

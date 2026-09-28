@@ -83,6 +83,6 @@ public class EconomicCalendarCommandActorTests : IClassFixture<EconomicCalendarT
             => await OnExceptionAsync(context, threadId, cmd, ex);
     }
 
-    
+
 }
 

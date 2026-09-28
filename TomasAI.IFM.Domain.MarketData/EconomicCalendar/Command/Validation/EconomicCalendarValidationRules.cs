@@ -31,7 +31,7 @@ public class EconomicCalendarValidationRules : BaseValidationRules, IValidationR
             {
                 ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
             }
-            catch 
+            catch
             {
                 var validationResult = new ValidationResult();
                 validationResult.Errors.Add(new ValidationFailure("EconomicCalendar", InstanceErrorMessage));

@@ -37,10 +37,10 @@ public sealed class FuturesTradeSessionBarSignalCommandActor(
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
-    {
-        [PublishFuturesTradeSessionBarCommand.Verb] = static message =>
-            message.AsCommand<PublishFuturesTradeSessionBarCommand>()!
-    };
+        {
+            [PublishFuturesTradeSessionBarCommand.Verb] = static message =>
+                message.AsCommand<PublishFuturesTradeSessionBarCommand>()!
+        };
 
     /// <inheritdoc />
     protected override ValueTask OnValidateAsync(
@@ -54,17 +54,17 @@ public sealed class FuturesTradeSessionBarSignalCommandActor(
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
-    {
-        [typeof(PublishFuturesTradeSessionBarCommand)] = static command =>
         {
-            var publish = (PublishFuturesTradeSessionBarCommand)command;
-            var errors = new List<ValidationError>()
-                .ValidateCommandId(publish.CommandId, publish.CommandName)
-                .ValidateEntityId(publish.EntityId, publish.CommandName)
-                .ValidatePublishBar(publish);
-            return errors;
-        }
-    };
+            [typeof(PublishFuturesTradeSessionBarCommand)] = static command =>
+            {
+                var publish = (PublishFuturesTradeSessionBarCommand)command;
+                var errors = new List<ValidationError>()
+                    .ValidateCommandId(publish.CommandId, publish.CommandName)
+                    .ValidateEntityId(publish.EntityId, publish.CommandName)
+                    .ValidatePublishBar(publish);
+                return errors;
+            }
+        };
 
     /// <inheritdoc />
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
@@ -88,10 +88,10 @@ public sealed class FuturesTradeSessionBarSignalCommandActor(
         new Dictionary<Type, Func<ICommand,
             ICommandActorContext<FuturesTradeSessionBarSignalCommandActor>,
             FuturesTradeSessionBarSignalCommandState, ServiceResult<GuidResult>>>
-    {
-        [typeof(PublishFuturesTradeSessionBarCommand)] = static (command, _, state) =>
-            ((PublishFuturesTradeSessionBarCommand)command).Execute(state)
-    };
+        {
+            [typeof(PublishFuturesTradeSessionBarCommand)] = static (command, _, state) =>
+                ((PublishFuturesTradeSessionBarCommand)command).Execute(state)
+        };
 
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(

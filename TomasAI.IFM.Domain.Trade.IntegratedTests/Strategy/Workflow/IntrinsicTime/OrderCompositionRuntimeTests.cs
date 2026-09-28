@@ -67,36 +67,36 @@ public sealed partial class TradeSelectionRuntimeTests
         }
         finally { await supervisor.ShutdownAsync(); await producer.StopAsync(); }
     }
-    [Fact,Trait("Gate","OC-05"),Trait("Gate","OC-08")]
+    [Fact, Trait("Gate", "OC-05"), Trait("Gate", "OC-08")]
     public async Task OrderComposer_real_Scylla_orphan_after_append_failure_is_recovered_by_the_identical_Function_request()
     {
-        var recorder=new CompositionFailingRepository();
-        await using var factory=Host(services=>
+        var recorder = new CompositionFailingRepository();
+        await using var factory = Host(services =>
         {
-            var container=(SimpleInjector.Container)services.Single(x=>x.ServiceType==typeof(SimpleInjector.Container)).ImplementationInstance!;
-            container.Register<OrderCompositionFunctionStateRepository>();recorder.Resolve=()=>container.GetInstance<OrderCompositionFunctionStateRepository>();
-            container.RegisterInstance<IEventSourceFunctionStateRepository<OrderCompositionFunctionState,ExecuteOrderCompositionPipelineCommand>>(recorder);
-        });_=factory.CreateClient();var supervisor=factory.Services.GetRequiredService<IActorSupervisor>();
-        var producer=factory.Services.GetRequiredService<IActorProducer>();await producer.StartAsync(new(ActorType.Realtime,"SelectionCrashVerification"));
+            var container = (SimpleInjector.Container)services.Single(x => x.ServiceType == typeof(SimpleInjector.Container)).ImplementationInstance!;
+            container.Register<OrderCompositionFunctionStateRepository>(); recorder.Resolve = () => container.GetInstance<OrderCompositionFunctionStateRepository>();
+            container.RegisterInstance<IEventSourceFunctionStateRepository<OrderCompositionFunctionState, ExecuteOrderCompositionPipelineCommand>>(recorder);
+        }); _ = factory.CreateClient(); var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
+        var producer = factory.Services.GetRequiredService<IActorProducer>(); await producer.StartAsync(new(ActorType.Realtime, "SelectionCrashVerification"));
         try
         {
             await factory.Services.GetRequiredService<TradeSchemaDb>().CreateAllAsync();
-            var c=await CompositionFixture.Command(atUtc:DateTime.UtcNow,integrationTiming:true);
-            var first=await producer.RequestFunctionAsync<ExecuteOrderCompositionPipelineCommand,OrderCompositionExecutionId,FunctionResult<OrderCompositionFunctionCompletedEvent,OrderCompositionFunctionFailedEvent>>(c.Subject,c,c.EntityId);
-            first.Value!.IsFailed.Should().BeTrue();first.Value.Failed!.ReasonCode.Should().Be("OC.PERSISTENCE.FAILED");
-            (await database.TradeDb.GetOrderCompositionInvocationAsync(c.WorkflowId,c.CommandId)).Should().NotBeNull("projection precedes completed append");
+            var c = await CompositionFixture.Command(atUtc: DateTime.UtcNow, integrationTiming: true);
+            var first = await producer.RequestFunctionAsync<ExecuteOrderCompositionPipelineCommand, OrderCompositionExecutionId, FunctionResult<OrderCompositionFunctionCompletedEvent, OrderCompositionFunctionFailedEvent>>(c.Subject, c, c.EntityId);
+            first.Value!.IsFailed.Should().BeTrue(); first.Value.Failed!.ReasonCode.Should().Be("OC.PERSISTENCE.FAILED");
+            (await database.TradeDb.GetOrderCompositionInvocationAsync(c.WorkflowId, c.CommandId)).Should().NotBeNull("projection precedes completed append");
             (await recorder.Resolve().LoadStateAsync(c)).IsCompleted.Should().BeFalse();
-            recorder.Fail=false;
-            var retry=await producer.RequestFunctionAsync<ExecuteOrderCompositionPipelineCommand,OrderCompositionExecutionId,FunctionResult<OrderCompositionFunctionCompletedEvent,OrderCompositionFunctionFailedEvent>>(c.Subject,c,c.EntityId);
-            retry.Value!.IsCompleted.Should().BeTrue(retry.Value.Failed?.ErrorMessage);(await recorder.Resolve().LoadStateAsync(c)).IsCompleted.Should().BeTrue();
+            recorder.Fail = false;
+            var retry = await producer.RequestFunctionAsync<ExecuteOrderCompositionPipelineCommand, OrderCompositionExecutionId, FunctionResult<OrderCompositionFunctionCompletedEvent, OrderCompositionFunctionFailedEvent>>(c.Subject, c, c.EntityId);
+            retry.Value!.IsCompleted.Should().BeTrue(retry.Value.Failed?.ErrorMessage); (await recorder.Resolve().LoadStateAsync(c)).IsCompleted.Should().BeTrue();
         }
-        finally{await supervisor.ShutdownAsync();await producer.StopAsync();}
+        finally { await supervisor.ShutdownAsync(); await producer.StopAsync(); }
     }
-    sealed class CompositionFailingRepository:IEventSourceFunctionStateRepository<OrderCompositionFunctionState,ExecuteOrderCompositionPipelineCommand>
+    sealed class CompositionFailingRepository : IEventSourceFunctionStateRepository<OrderCompositionFunctionState, ExecuteOrderCompositionPipelineCommand>
     {
-        public bool Fail=true;public Func<OrderCompositionFunctionStateRepository> Resolve=null!;
-        public ValueTask<OrderCompositionFunctionState> LoadStateAsync(ExecuteOrderCompositionPipelineCommand c,CancellationToken t=default)=>Resolve().LoadStateAsync(c,t);
-        public ValueTask SaveCompletedStateAsync(IFunctionActorContext context,OrderCompositionFunctionState state,ExecuteOrderCompositionPipelineCommand c,CancellationToken t=default)
-            =>Fail?ValueTask.FromException(new InvalidOperationException("Injected completed append failure")):Resolve().SaveCompletedStateAsync(context,state,c,t);
+        public bool Fail = true; public Func<OrderCompositionFunctionStateRepository> Resolve = null!;
+        public ValueTask<OrderCompositionFunctionState> LoadStateAsync(ExecuteOrderCompositionPipelineCommand c, CancellationToken t = default) => Resolve().LoadStateAsync(c, t);
+        public ValueTask SaveCompletedStateAsync(IFunctionActorContext context, OrderCompositionFunctionState state, ExecuteOrderCompositionPipelineCommand c, CancellationToken t = default)
+            => Fail ? ValueTask.FromException(new InvalidOperationException("Injected completed append failure")) : Resolve().SaveCompletedStateAsync(context, state, c, t);
     }
 }

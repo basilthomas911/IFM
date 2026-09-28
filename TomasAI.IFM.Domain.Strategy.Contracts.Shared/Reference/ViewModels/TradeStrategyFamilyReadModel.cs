@@ -79,9 +79,18 @@ public sealed record TradeStrategyFamilySeedDefinition(
     public string SystemKey => TradeStrategyFamilyReadModel.ComposeSystemKey(Family, Strategy);
     public TradeStrategyFamilyReadModel Create(int id, DateTime createdOnUtc, string createdBy, long version = 1) => new()
     {
-        TradeStrategyFamilyId = id, DefinitionVersion = version, SystemKey = SystemKey,
-        Family = Family, Strategy = Strategy, TimeFrame = TimeFrame, Symbol = Symbol, Currency = Currency,
-        Description = Description, State = TradeStrategyFamilyState.Active, CreatedOnUtc = createdOnUtc, CreatedBy = createdBy,
+        TradeStrategyFamilyId = id,
+        DefinitionVersion = version,
+        SystemKey = SystemKey,
+        Family = Family,
+        Strategy = Strategy,
+        TimeFrame = TimeFrame,
+        Symbol = Symbol,
+        Currency = Currency,
+        Description = Description,
+        State = TradeStrategyFamilyState.Active,
+        CreatedOnUtc = createdOnUtc,
+        CreatedBy = createdBy,
     };
 }
 

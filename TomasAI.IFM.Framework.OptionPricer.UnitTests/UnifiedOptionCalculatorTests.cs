@@ -60,7 +60,8 @@ public class UnifiedOptionCalculatorTests
     {
         // Longstaff-Schwartz (2001), standard S=36,K=40,r=.06,sigma=.2,T=1 benchmark.
         var request = Request(style: ExerciseKind.American, side: OptionSide.Put)
-            with { UnderlyingPrice = 36, Strike = 40, Rate = .06 };
+            with
+        { UnderlyingPrice = 36, Strike = 40, Rate = .06 };
         var a = new Calculator(new() { Steps = 801 }).Price(request, .2);
         var b = new Calculator(new() { Steps = 1601 }).Price(request, .2);
         Assert.True(a.Success);
@@ -83,7 +84,8 @@ public class UnifiedOptionCalculatorTests
     {
         var calculator = new Calculator();
         var request = Request(UnderlyingKind.Futures, ExerciseKind.American)
-            with { Premium = PremiumKind.FuturesStyle };
+            with
+        { Premium = PremiumKind.FuturesStyle };
         var a = calculator.Price(request, .2);
         var b = calculator.Price(request with { Rate = -.05 }, .2);
         Assert.Equal(a.Value, b.Value);

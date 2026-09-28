@@ -37,17 +37,33 @@ public static class FailRiskManagementPipeline
     }
 
     /// <summary>Constructs failure metadata for valid or malformed ingress.</summary>
-    static RiskManagementFunctionFailedEvent CreateFailedEvent(ExecuteRiskManagementPipelineCommand? c,string reason,TimeProvider clock)
+    static RiskManagementFunctionFailedEvent CreateFailedEvent(ExecuteRiskManagementPipelineCommand? c, string reason, TimeProvider clock)
     {
-        var now=clock.GetUtcNow().UtcDateTime;
+        var now = clock.GetUtcNow().UtcDateTime;
         return new()
         {
-            Subject=new(ActorType.Function,ExecuteRiskManagementPipelineCommand.Actor,RiskManagementFunctionFailedEvent.Verb,c?.EntityId.Format()??string.Empty),
-            Id=Guid.NewGuid(),EntityId=c?.WorkflowEntityId??default,WorkflowId=c?.WorkflowId??default,CommandId=c?.CommandId??Guid.Empty,InputWorkflowRevision=c?.InputWorkflowRevision??0,
-            ErrorDate=now,ReceivedOn=now,ErrorCode=RiskManagementFunctionFailedEvent.ErrorId,ErrorType=ErrorType.Command,ErrorData=reason,ErrorMessage="Risk assessment failed: "+reason,
-            EventSource=c?.EventSource??ExecuteRiskManagementPipelineCommand.Actor,AggregateId=c?.EntityId.Format()??string.Empty,CommandName=nameof(ExecuteRiskManagementPipelineCommand),RouteTo=c?.RouteTo.ToString()??string.Empty,
-            CorrelationId=c?.CorrelationId??Guid.Empty,CausationId=c?.CausationId??Guid.Empty,PipelineStage=StrategyWorkflowStage.RiskManagement,ExpiresAtUtc=c?.ExpiresAtUtc??default,
-            ReasonCode=reason,InputPayloadSha256=c?.InputSha256??string.Empty
+            Subject = new(ActorType.Function, ExecuteRiskManagementPipelineCommand.Actor, RiskManagementFunctionFailedEvent.Verb, c?.EntityId.Format() ?? string.Empty),
+            Id = Guid.NewGuid(),
+            EntityId = c?.WorkflowEntityId ?? default,
+            WorkflowId = c?.WorkflowId ?? default,
+            CommandId = c?.CommandId ?? Guid.Empty,
+            InputWorkflowRevision = c?.InputWorkflowRevision ?? 0,
+            ErrorDate = now,
+            ReceivedOn = now,
+            ErrorCode = RiskManagementFunctionFailedEvent.ErrorId,
+            ErrorType = ErrorType.Command,
+            ErrorData = reason,
+            ErrorMessage = "Risk assessment failed: " + reason,
+            EventSource = c?.EventSource ?? ExecuteRiskManagementPipelineCommand.Actor,
+            AggregateId = c?.EntityId.Format() ?? string.Empty,
+            CommandName = nameof(ExecuteRiskManagementPipelineCommand),
+            RouteTo = c?.RouteTo.ToString() ?? string.Empty,
+            CorrelationId = c?.CorrelationId ?? Guid.Empty,
+            CausationId = c?.CausationId ?? Guid.Empty,
+            PipelineStage = StrategyWorkflowStage.RiskManagement,
+            ExpiresAtUtc = c?.ExpiresAtUtc ?? default,
+            ReasonCode = reason,
+            InputPayloadSha256 = c?.InputSha256 ?? string.Empty
         };
     }
 }

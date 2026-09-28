@@ -30,7 +30,7 @@ public record TradePlanReadModel
     [Key(8)] public ActionType ActionType { get; init; }
     [Key(9)] public ActionSubType ActionSubType { get; init; }
     [Key(10)] public ActionState ActionState { get; init; }
-    [Key(11)] public string ActionReason { get; init; } 
+    [Key(11)] public string ActionReason { get; init; }
     [Key(12)] public decimal TradePnl { get; init; }
     [Key(13)] public double ForwardLossRatio { get; init; }
     [Key(14)] public double LossProbability { get; init; }

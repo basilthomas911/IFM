@@ -6,9 +6,9 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Model;
 
 internal static class FuturesTickDataModel
 {
- 
 
-   
 
-   
+
+
+
 }

@@ -29,12 +29,12 @@ public class FuturesTdiSignalRealtimeActor(
         FuturesRsiSignalsGeneratedEvent.Verb);
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
-    {
-        [FuturesRsiSignalsGeneratedEvent.Verb] = message => message.AsEvent<FuturesRsiSignalsGeneratedEvent>()!,
-        [FuturesTdiSignalGeneratedEvent.Verb] = message => message.AsEvent<FuturesTdiSignalGeneratedEvent>()!,
-        [FuturesTdiSignalGeneratedCompleteEvent.Verb] = message => message.AsEvent<FuturesTdiSignalGeneratedCompleteEvent>()!,
-        [FuturesTdiSignalGeneratedFailEvent.Verb] = message => message.AsEvent<FuturesTdiSignalGeneratedFailEvent>()!
-    };
+        {
+            [FuturesRsiSignalsGeneratedEvent.Verb] = message => message.AsEvent<FuturesRsiSignalsGeneratedEvent>()!,
+            [FuturesTdiSignalGeneratedEvent.Verb] = message => message.AsEvent<FuturesTdiSignalGeneratedEvent>()!,
+            [FuturesTdiSignalGeneratedCompleteEvent.Verb] = message => message.AsEvent<FuturesTdiSignalGeneratedCompleteEvent>()!,
+            [FuturesTdiSignalGeneratedFailEvent.Verb] = message => message.AsEvent<FuturesTdiSignalGeneratedFailEvent>()!
+        };
 
     static readonly IReadOnlyDictionary<Type, Func<IEvent,
         IEventActorContext<FuturesTdiSignalRealtimeActor>,

@@ -39,7 +39,7 @@ public sealed class EventLogQualificationTests
     {
         var profile = Profile();
         var config = new ConfigurationBuilder().AddInMemoryCollection(profile.Settings)
-            .AddInMemoryCollection(new Dictionary<string,string?> { [key] = value }).Build();
+            .AddInMemoryCollection(new Dictionary<string, string?> { [key] = value }).Build();
         Assert.Throws<InvalidOperationException>(() => profile.Validate(config));
     }
 }

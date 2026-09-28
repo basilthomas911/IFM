@@ -149,8 +149,11 @@ public sealed class SystemAdminDbContext(
         GetDatabaseRecoveryObjectiveComplianceQuery query, CancellationToken cancellationToken)
         => GetProtectionSetsAsync(new GetDatabaseProtectionSetsQuery
         {
-            EntityId = query.EntityId, Request = query.Request, Source = query.Source,
-            Subject = query.Subject, PageSize = query.PageSize
+            EntityId = query.EntityId,
+            Request = query.Request,
+            Source = query.Source,
+            Subject = query.Subject,
+            PageSize = query.PageSize
         }, cancellationToken);
 
     /// <inheritdoc />
@@ -211,13 +214,16 @@ public sealed class SystemAdminDbContext(
     {
         ProtectionSetId = new DatabaseProtectionSetId(row.GetString(0)),
         Source = row.GetShort(1).ToEnum<BackupSource>(),
-        Engines = [], Enabled = true, PolicyRevision = row.GetLong(2)
+        Engines = [],
+        Enabled = true,
+        PolicyRevision = row.GetLong(2)
     };
 
     internal static DatabaseBackupPolicyReadModel MapToPolicy(IObjectDataRecord row) => new()
     {
         PolicyId = new DatabaseBackupPolicyId(row.GetString(0)),
-        EnvironmentIdentity = row.GetString(1), Revision = row.GetLong(2),
+        EnvironmentIdentity = row.GetString(1),
+        Revision = row.GetLong(2),
         Definition = JsonSerializer.Deserialize<DatabaseBackupPolicyDefinition>(row.GetString(3), JsonOptions)
             ?? throw new InvalidOperationException("Stored database backup policy JSON is invalid."),
         Enforced = row.GetBool(4)
@@ -232,10 +238,14 @@ public sealed class SystemAdminDbContext(
             OperationId = new DatabaseRecoveryOperationId(row.GetGuid(0)),
             BackupSetId = row.IsNull(1) ? null : new DatabaseBackupSetId(row.GetGuid(1)),
             ProtectionSetId = new DatabaseProtectionSetId(row.GetString(2)),
-            Source = row.GetShort(3).ToEnum<BackupSource>(), Kind = row.GetShort(4).ToEnum<DatabaseRecoveryOperationKind>(),
-            Phase = row.GetShort(5).ToEnum<DatabaseRecoveryPhase>(), Outcome = row.GetShort(6).ToEnum<DatabaseRecoveryOutcome>(),
-            ProgressPercent = row.GetInt(7), StateRevision = row.GetLong(8),
-            CreatedUtc = row.GetDateTime(9).ToUtcOffset(), CompletedUtc = row.IsNull(10) ? null : row.GetDateTime(10).ToUtcOffset(),
+            Source = row.GetShort(3).ToEnum<BackupSource>(),
+            Kind = row.GetShort(4).ToEnum<DatabaseRecoveryOperationKind>(),
+            Phase = row.GetShort(5).ToEnum<DatabaseRecoveryPhase>(),
+            Outcome = row.GetShort(6).ToEnum<DatabaseRecoveryOutcome>(),
+            ProgressPercent = row.GetInt(7),
+            StateRevision = row.GetLong(8),
+            CreatedUtc = row.GetDateTime(9).ToUtcOffset(),
+            CompletedUtc = row.IsNull(10) ? null : row.GetDateTime(10).ToUtcOffset(),
             SafeDiagnosticReference = row.GetString(11),
             BackupLineage = row.IsNull(17) || string.IsNullOrWhiteSpace(row.GetString(17))
                 ? null
@@ -248,11 +258,15 @@ public sealed class SystemAdminDbContext(
     {
         RestorePointId = new DatabaseRestorePointId(row.GetString(0)),
         BackupSetId = row.IsNull(1) ? null : new DatabaseBackupSetId(row.GetGuid(1)),
-        ProtectionSetId = new DatabaseProtectionSetId(row.GetString(2)), Source = row.GetShort(3).ToEnum<BackupSource>(),
-        RecoveryPointUtc = row.GetDateTime(4).ToUtcOffset(), VerificationLevel = row.GetShort(5).ToEnum<DatabaseVerificationLevel>(),
+        ProtectionSetId = new DatabaseProtectionSetId(row.GetString(2)),
+        Source = row.GetShort(3).ToEnum<BackupSource>(),
+        RecoveryPointUtc = row.GetDateTime(4).ToUtcOffset(),
+        VerificationLevel = row.GetShort(5).ToEnum<DatabaseVerificationLevel>(),
         VerifiedUtc = row.IsNull(6) ? null : row.GetDateTime(6).ToUtcOffset(),
         RestoreTestedUtc = row.IsNull(7) ? null : row.GetDateTime(7).ToUtcOffset(),
-        Eligible = row.GetBool(8), LegalHold = row.GetBool(9), ManifestRevision = row.GetLong(10),
+        Eligible = row.GetBool(8),
+        LegalHold = row.GetBool(9),
+        ManifestRevision = row.GetLong(10),
         BackupLineage = row.IsNull(11) || string.IsNullOrWhiteSpace(row.GetString(11))
             ? null
                 : row.GetString(11).DeserializeLineage()
@@ -260,34 +274,44 @@ public sealed class SystemAdminDbContext(
 
     internal static DatabaseRetentionReadModel MapToRetention(IObjectDataRecord row) => new()
     {
-        PlanId = new DatabaseRetentionPlanId(row.GetGuid(0)), Source = row.GetShort(1).ToEnum<BackupSource>(),
-        PlanRevision = row.GetLong(2), EvaluationBoundaryUtc = row.GetDateTime(3).ToUtcOffset(),
+        PlanId = new DatabaseRetentionPlanId(row.GetGuid(0)),
+        Source = row.GetShort(1).ToEnum<BackupSource>(),
+        PlanRevision = row.GetLong(2),
+        EvaluationBoundaryUtc = row.GetDateTime(3).ToUtcOffset(),
         Retain = JsonSerializer.Deserialize<DatabaseRestorePointId[]>(row.GetString(4), JsonOptions) ?? [],
         Delete = JsonSerializer.Deserialize<DatabaseRestorePointId[]>(row.GetString(5), JsonOptions) ?? [],
-        Approved = row.GetBool(6), Outcome = row.GetShort(7).ToEnum<DatabaseRecoveryOutcome>()
+        Approved = row.GetBool(6),
+        Outcome = row.GetShort(7).ToEnum<DatabaseRecoveryOutcome>()
     };
 
     internal static DatabaseBackupHealthReadModel MapToHealth(IObjectDataRecord row) => new()
     {
-        Source = row.GetShort(0).ToEnum<BackupSource>(), HostId = new DatabaseBackupHostId(row.GetString(1)),
-        CapabilityState = row.GetShort(2).ToEnum<DatabaseServiceCapabilityState>(), Ready = row.GetBool(3),
-        LastServiceSequence = row.GetLong(4), ObservedUtc = row.GetDateTime(5).ToUtcOffset(),
+        Source = row.GetShort(0).ToEnum<BackupSource>(),
+        HostId = new DatabaseBackupHostId(row.GetString(1)),
+        CapabilityState = row.GetShort(2).ToEnum<DatabaseServiceCapabilityState>(),
+        Ready = row.GetBool(3),
+        LastServiceSequence = row.GetLong(4),
+        ObservedUtc = row.GetDateTime(5).ToUtcOffset(),
         SafeDiagnosticReference = row.GetString(6)
     };
 
     internal static StatisticsProjectionRow MapToStatisticsProjectionRow(IObjectDataRecord row)
         => new(row.GetShort(0).ToEnum<BackupSource>(), row.GetLong(1), new DatabaseRecoveryRunStatistics
         {
-            Engine = row.GetShort(2).ToEnum<DatabaseEngine>(), Phase = row.GetShort(3).ToEnum<DatabaseRecoveryPhase>(),
+            Engine = row.GetShort(2).ToEnum<DatabaseEngine>(),
+            Phase = row.GetShort(3).ToEnum<DatabaseRecoveryPhase>(),
             StartedUtc = row.IsNull(4) ? null : row.GetDateTime(4).ToUtcOffset(),
             CompletedUtc = row.IsNull(5) ? null : row.GetDateTime(5).ToUtcOffset(),
             Elapsed = row.IsNull(6) ? null : TimeSpan.FromTicks(row.GetLong(6)),
-            SourceBytes = row.IsNull(7) ? null : row.GetLong(7), StoredBytes = row.IsNull(8) ? null : row.GetLong(8),
-            TransferredBytes = row.IsNull(9) ? null : row.GetLong(9), RestoredBytes = row.IsNull(10) ? null : row.GetLong(10),
+            SourceBytes = row.IsNull(7) ? null : row.GetLong(7),
+            StoredBytes = row.IsNull(8) ? null : row.GetLong(8),
+            TransferredBytes = row.IsNull(9) ? null : row.GetLong(9),
+            RestoredBytes = row.IsNull(10) ? null : row.GetLong(10),
             ArtifactCount = row.IsNull(11) ? null : row.GetInt(11),
             AverageThroughputBytesPerSecond = row.IsNull(12) ? null : row.GetDouble(12),
             PeakThroughputBytesPerSecond = row.IsNull(13) ? null : row.GetDouble(13),
-            RetryCount = row.IsNull(14) ? null : row.GetInt(14), WarningCount = row.IsNull(15) ? null : row.GetInt(15),
+            RetryCount = row.IsNull(14) ? null : row.GetInt(14),
+            WarningCount = row.IsNull(15) ? null : row.GetInt(15),
             AchievedRpo = row.IsNull(16) ? null : TimeSpan.FromTicks(row.GetLong(16)),
             AchievedRto = row.IsNull(17) ? null : TimeSpan.FromTicks(row.GetLong(17))
         });

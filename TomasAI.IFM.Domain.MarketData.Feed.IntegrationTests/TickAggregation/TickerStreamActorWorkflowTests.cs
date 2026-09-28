@@ -631,51 +631,51 @@ public sealed class TickerStreamActorWorkflowTests
         string contractId,
         InstrumentKey instrument,
         AssetTypeId assetTypeId) => new()
-    {
-        ContractId = contractId,
-        InstrumentId = instrument.InstrumentId,
-        PublisherId = instrument.PublisherId,
-        AssetTypeId = assetTypeId,
-        Dataset = "GLBX.MDP3",
-        DefinitionDate = ValueDate,
-        ProviderContractId = contractId,
-        Ticker = assetTypeId == AssetTypeId.Futures ? "VX" : "ES",
-        LocalSymbol = contractId,
-        SecurityType = assetTypeId == AssetTypeId.Futures ? "FUT" : "FOP",
-        Currency = "USD",
-        Exchange = "CME",
-        ContractMultiplier = 50m,
-        MaturityDate = new DateOnly(2026, 9, 18),
-        IsOnTheRun = true,
-        StrikePrice = assetTypeId == AssetTypeId.FuturesOption ? 6500m : null,
-        OptionType = assetTypeId == AssetTypeId.FuturesOption ? "Call" : null,
-        UnderlyingContractId = assetTypeId == AssetTypeId.FuturesOption ? "ES20260918" : null
-    };
+        {
+            ContractId = contractId,
+            InstrumentId = instrument.InstrumentId,
+            PublisherId = instrument.PublisherId,
+            AssetTypeId = assetTypeId,
+            Dataset = "GLBX.MDP3",
+            DefinitionDate = ValueDate,
+            ProviderContractId = contractId,
+            Ticker = assetTypeId == AssetTypeId.Futures ? "VX" : "ES",
+            LocalSymbol = contractId,
+            SecurityType = assetTypeId == AssetTypeId.Futures ? "FUT" : "FOP",
+            Currency = "USD",
+            Exchange = "CME",
+            ContractMultiplier = 50m,
+            MaturityDate = new DateOnly(2026, 9, 18),
+            IsOnTheRun = true,
+            StrikePrice = assetTypeId == AssetTypeId.FuturesOption ? 6500m : null,
+            OptionType = assetTypeId == AssetTypeId.FuturesOption ? "Call" : null,
+            UnderlyingContractId = assetTypeId == AssetTypeId.FuturesOption ? "ES20260918" : null
+        };
 
     private static FuturesTickTradeDataInsertedEvent ToInserted(
         FuturesTickTradeDataChangedEvent source) => new()
-    {
-        Subject = new ActorSubject(
+        {
+            Subject = new ActorSubject(
             ActorType.Realtime,
             FuturesTickTradeDataInsertedEvent.Actor,
             FuturesTickTradeDataInsertedEvent.Verb,
             source.EntityId.Format()),
-        Id = source.Id,
-        EntityId = source.EntityId,
-        EventId = source.EventId,
-        CommandId = source.CommandId,
-        AggregateId = source.AggregateId,
-        EventSource = source.EventSource,
-        ReceivedOn = source.ReceivedOn,
-        SchemaVersion = source.SchemaVersion,
-        TickDataId = source.TickDataId,
-        AssetTypeId = source.AssetTypeId,
-        Dataset = source.Dataset,
-        DefinitionDate = source.DefinitionDate,
-        PublisherId = source.PublisherId,
-        InstrumentId = source.InstrumentId,
-        TradeData = source.TradeData
-    };
+            Id = source.Id,
+            EntityId = source.EntityId,
+            EventId = source.EventId,
+            CommandId = source.CommandId,
+            AggregateId = source.AggregateId,
+            EventSource = source.EventSource,
+            ReceivedOn = source.ReceivedOn,
+            SchemaVersion = source.SchemaVersion,
+            TickDataId = source.TickDataId,
+            AssetTypeId = source.AssetTypeId,
+            Dataset = source.Dataset,
+            DefinitionDate = source.DefinitionDate,
+            PublisherId = source.PublisherId,
+            InstrumentId = source.InstrumentId,
+            TradeData = source.TradeData
+        };
 
     private static FuturesTickTradeDataInsertedEvent CreateInsertedTrade(
         string contractId,

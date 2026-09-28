@@ -16,11 +16,11 @@ public sealed class PortfolioFinancialSchema(IPostgresEventTransaction transacti
         await db.ExecuteAsync(Ddl, [], token).ConfigureAwait(false);
         var version = await db.ScalarAsync(PortfolioDbSql.Financial.PortfolioFinancialSchema.Select01, [], token).ConfigureAwait(false);
         if (version is not int value || value != 2) throw new InvalidOperationException("Unsupported Portfolio financial schema version; expected version 2.");
-        foreach(var type in new[] { typeof(LedgerPostingCompletedEvent),typeof(LedgerPostingBatchCompletedEvent),
+        foreach (var type in new[] { typeof(LedgerPostingCompletedEvent),typeof(LedgerPostingBatchCompletedEvent),
             typeof(CapacityReservationCompletedEvent),typeof(CapacityConsumptionCompletedEvent),typeof(CapacityLifecycleCompletedEvent),typeof(LedgerConfigurationCompletedEvent),typeof(EmulatorOrderSubmittedEvent),
             typeof(TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.PortfolioOrderCompositionCompletedEvent),
             typeof(TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.PortfolioCloseOrderCompositionCompletedEvent) })
-            await db.ScalarAsync(EventSourceDbSql.InsertEventNameId,[type.Name,type.AssemblyQualifiedName!],token).ConfigureAwait(false);
+            await db.ScalarAsync(EventSourceDbSql.InsertEventNameId, [type.Name, type.AssemblyQualifiedName!], token).ConfigureAwait(false);
         return true;
     }, cancellationToken);
 

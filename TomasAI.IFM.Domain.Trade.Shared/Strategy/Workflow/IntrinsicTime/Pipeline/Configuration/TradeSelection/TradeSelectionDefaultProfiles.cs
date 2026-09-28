@@ -11,12 +11,12 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeli
 public static class TradeSelectionDefaultProfiles
 {
     // Saved engineering authoring identities. Calling this factory does not insert or publish configuration.
-    public static readonly Guid DailyProfileId=Guid.Parse("ec56ea27-d625-4bb2-a6a1-f4ac3c2ef701");
-    public static readonly Guid WeeklyProfileId=Guid.Parse("ec56ea27-d625-4bb2-a6a1-f4ac3c2ef702");
-    public static readonly Guid MonthlyProfileId=Guid.Parse("ec56ea27-d625-4bb2-a6a1-f4ac3c2ef703");
-    public static TradeSelectionParameterSet[] EngineeringDefaults()=>[Create(DailyProfileId,TimeFrameType.Daily),Create(WeeklyProfileId,TimeFrameType.Weekly),Create(MonthlyProfileId,TimeFrameType.Monthly)];
+    public static readonly Guid DailyProfileId = Guid.Parse("ec56ea27-d625-4bb2-a6a1-f4ac3c2ef701");
+    public static readonly Guid WeeklyProfileId = Guid.Parse("ec56ea27-d625-4bb2-a6a1-f4ac3c2ef702");
+    public static readonly Guid MonthlyProfileId = Guid.Parse("ec56ea27-d625-4bb2-a6a1-f4ac3c2ef703");
+    public static TradeSelectionParameterSet[] EngineeringDefaults() => [Create(DailyProfileId, TimeFrameType.Daily), Create(WeeklyProfileId, TimeFrameType.Weekly), Create(MonthlyProfileId, TimeFrameType.Monthly)];
 
-    public static TradeSelectionParameterSet Create(Guid id, TimeFrameType horizon, int version=1)
+    public static TradeSelectionParameterSet Create(Guid id, TimeFrameType horizon, int version = 1)
     {
         var result = new TradeSelectionParameterSet
         {
@@ -65,42 +65,47 @@ public static class TradeSelectionDefaultProfiles
 
     static SelectionVariantRule[] Rules()
     {
-        List<SelectionVariantRule> rules=[];
-        foreach(var bias in new[]{"Bullish","Bearish"})
-            rules.Add(Rule("Future", bias=="Bullish"?"Long":"Short", bias, "None",10));
-        rules.Add(Rule("CallVertical","Long","Bullish","Debit",20));
-        rules.Add(Rule("PutVertical","Long","Bearish","Debit",20));
-        rules.Add(Rule("PutVertical","Short","Bullish","Credit",30));
-        rules.Add(Rule("CallVertical","Short","Bearish","Credit",30));
-        foreach(var side in new[]{"Short","Long"})
-            foreach(var bias in new[]{"Balanced","Bullish","Bearish"})
-                rules.Add(Rule("IronCondor",side,bias,side=="Short"?"Credit":"Debit",side=="Short"?40:50));
-        return [..rules];
+        List<SelectionVariantRule> rules = [];
+        foreach (var bias in new[] { "Bullish", "Bearish" })
+            rules.Add(Rule("Future", bias == "Bullish" ? "Long" : "Short", bias, "None", 10));
+        rules.Add(Rule("CallVertical", "Long", "Bullish", "Debit", 20));
+        rules.Add(Rule("PutVertical", "Long", "Bearish", "Debit", 20));
+        rules.Add(Rule("PutVertical", "Short", "Bullish", "Credit", 30));
+        rules.Add(Rule("CallVertical", "Short", "Bearish", "Credit", 30));
+        foreach (var side in new[] { "Short", "Long" })
+            foreach (var bias in new[] { "Balanced", "Bullish", "Bearish" })
+                rules.Add(Rule("IronCondor", side, bias, side == "Short" ? "Credit" : "Debit", side == "Short" ? 40 : 50));
+        return [.. rules];
     }
 
-    static SelectionVariantRule Rule(string builder,string side,string bias,string premium,int preference)
+    static SelectionVariantRule Rule(string builder, string side, string bias, string premium, int preference)
     {
-        var condor=builder=="IronCondor"; var balanced=bias=="Balanced"; var credit=premium=="Credit";
+        var condor = builder == "IronCondor"; var balanced = bias == "Balanced"; var credit = premium == "Credit";
         return new()
         {
-            BuilderCapabilityCode=builder,BuilderCapabilityVersion=1,Side=side,Bias=bias,PremiumMode=premium,Preference=preference,
-            AllowedRegimeDirections=[balanced?RegimeDirection.Neutral:bias=="Bullish"?RegimeDirection.Up:RegimeDirection.Down],
-            AllowedTrendPhases=balanced
-                ?credit?[TrendRegimePhase.RangeBound,TrendRegimePhase.Established]:[TrendRegimePhase.RangeBound,TrendRegimePhase.Emerging,TrendRegimePhase.Established]
-                :[TrendRegimePhase.Emerging,TrendRegimePhase.Established],
-            AllowedTrendStrengths=balanced&&credit?[TrendRegimeStrength.None,TrendRegimeStrength.Weak,TrendRegimeStrength.Moderate]
-                :condor?credit?[TrendRegimeStrength.Weak,TrendRegimeStrength.Moderate,TrendRegimeStrength.Strong]
-                :balanced?[TrendRegimeStrength.None,TrendRegimeStrength.Weak,TrendRegimeStrength.Moderate]:[TrendRegimeStrength.Weak,TrendRegimeStrength.Moderate,TrendRegimeStrength.Strong,TrendRegimeStrength.Extreme]
-                :[TrendRegimeStrength.Moderate,TrendRegimeStrength.Strong,TrendRegimeStrength.Extreme],
-            AllowedStructureClassifications=balanced?credit?[MarketStructureClassification.Ranging,MarketStructureClassification.Compressing]
-                :[MarketStructureClassification.Ranging,MarketStructureClassification.Expanding,MarketStructureClassification.BreakingOut]
-                :credit?[MarketStructureClassification.Trending,MarketStructureClassification.Ranging,MarketStructureClassification.Compressing]
-                :[MarketStructureClassification.Trending,MarketStructureClassification.Expanding,MarketStructureClassification.BreakingOut],
-            AllowedAssessmentConditions=balanced?credit?[AssessmentCondition.RangeBound,AssessmentCondition.VolatilityContraction]:[AssessmentCondition.VolatilityExpansion]
-                :credit?[AssessmentCondition.Directional,AssessmentCondition.VolatilityContraction]:[AssessmentCondition.Directional,AssessmentCondition.VolatilityExpansion],
-            AllowedVolatilityBehavior=condor&&!credit?[AssessmentVolatility.Expanding]
-                :credit?[AssessmentVolatility.Stable,AssessmentVolatility.Contracting]
-                :builder=="Future"?[AssessmentVolatility.Stable,AssessmentVolatility.Expanding,AssessmentVolatility.Contracting]:[AssessmentVolatility.Stable,AssessmentVolatility.Expanding]
+            BuilderCapabilityCode = builder,
+            BuilderCapabilityVersion = 1,
+            Side = side,
+            Bias = bias,
+            PremiumMode = premium,
+            Preference = preference,
+            AllowedRegimeDirections = [balanced ? RegimeDirection.Neutral : bias == "Bullish" ? RegimeDirection.Up : RegimeDirection.Down],
+            AllowedTrendPhases = balanced
+                ? credit ? [TrendRegimePhase.RangeBound, TrendRegimePhase.Established] : [TrendRegimePhase.RangeBound, TrendRegimePhase.Emerging, TrendRegimePhase.Established]
+                : [TrendRegimePhase.Emerging, TrendRegimePhase.Established],
+            AllowedTrendStrengths = balanced && credit ? [TrendRegimeStrength.None, TrendRegimeStrength.Weak, TrendRegimeStrength.Moderate]
+                : condor ? credit ? [TrendRegimeStrength.Weak, TrendRegimeStrength.Moderate, TrendRegimeStrength.Strong]
+                : balanced ? [TrendRegimeStrength.None, TrendRegimeStrength.Weak, TrendRegimeStrength.Moderate] : [TrendRegimeStrength.Weak, TrendRegimeStrength.Moderate, TrendRegimeStrength.Strong, TrendRegimeStrength.Extreme]
+                : [TrendRegimeStrength.Moderate, TrendRegimeStrength.Strong, TrendRegimeStrength.Extreme],
+            AllowedStructureClassifications = balanced ? credit ? [MarketStructureClassification.Ranging, MarketStructureClassification.Compressing]
+                : [MarketStructureClassification.Ranging, MarketStructureClassification.Expanding, MarketStructureClassification.BreakingOut]
+                : credit ? [MarketStructureClassification.Trending, MarketStructureClassification.Ranging, MarketStructureClassification.Compressing]
+                : [MarketStructureClassification.Trending, MarketStructureClassification.Expanding, MarketStructureClassification.BreakingOut],
+            AllowedAssessmentConditions = balanced ? credit ? [AssessmentCondition.RangeBound, AssessmentCondition.VolatilityContraction] : [AssessmentCondition.VolatilityExpansion]
+                : credit ? [AssessmentCondition.Directional, AssessmentCondition.VolatilityContraction] : [AssessmentCondition.Directional, AssessmentCondition.VolatilityExpansion],
+            AllowedVolatilityBehavior = condor && !credit ? [AssessmentVolatility.Expanding]
+                : credit ? [AssessmentVolatility.Stable, AssessmentVolatility.Contracting]
+                : builder == "Future" ? [AssessmentVolatility.Stable, AssessmentVolatility.Expanding, AssessmentVolatility.Contracting] : [AssessmentVolatility.Stable, AssessmentVolatility.Expanding]
         };
     }
 }

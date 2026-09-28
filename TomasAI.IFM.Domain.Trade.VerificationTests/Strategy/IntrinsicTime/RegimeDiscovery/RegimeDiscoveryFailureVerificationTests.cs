@@ -17,8 +17,8 @@ namespace TomasAI.IFM.Domain.Trade.VerificationTests.Strategy.IntrinsicTime.Regi
 
 [Trait("Category", "Verification")]
 [Collection(RegimeDiscoveryVerificationCollection.Name)]
-public sealed class RegimeDiscoveryFailureVerificationTests(WebApplicationFactory<Program> sourceFactory)
-    : IClassFixture<WebApplicationFactory<Program>>
+public sealed class RegimeDiscoveryFailureVerificationTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> sourceFactory)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>
 {
     [Fact]
     public void Incomplete_specialist_makes_fusion_explicitly_incomplete()

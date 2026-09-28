@@ -7,7 +7,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.M
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.TradeSelection;
 
-public enum UnknownEvidencePolicy : byte { NoTrade=1 }
+public enum UnknownEvidencePolicy : byte { NoTrade = 1 }
 [MessagePackObject]
 public sealed record TradeSelectionParameterSet
 {

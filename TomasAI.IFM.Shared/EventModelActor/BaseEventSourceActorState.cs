@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// collection of such events. It includes functionality to replay events to reconstruct the state and to apply new
 /// events, optionally associating them with commands.</remarks>
 /// <typeparam name="TState">The type of the state, which must implement <see cref="IBoundedContextState{TState}"/>.</typeparam>
-public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState<TState> 
+public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState<TState>
     where TState : class, IEventSourceActorState<TState>
 {
     DomainEventCollection _domainEvents = [];
@@ -50,7 +50,7 @@ public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState
     /// event.</param>
     public void ReplayEvents(DomainEventCollection domainEvents)
     {
-        if (domainEvents is null || domainEvents.Count == 0) 
+        if (domainEvents is null || domainEvents.Count == 0)
             return;
         domainEvents.ForEach(e => Apply(e, false));
         domainEvents.Clear();
@@ -67,8 +67,8 @@ public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState
     /// <param name="domainEvents">A collection of <see cref="EventStreamReadModel"/> instances representing the domain events to replay. The
     /// collection must not be null or empty.</param>
     public void ReplayEvents(ICollection<EventStreamReadModel> domainEvents)
-    {   
-        if (domainEvents is null || domainEvents.Count == 0) 
+    {
+        if (domainEvents is null || domainEvents.Count == 0)
             return;
         foreach (var e in domainEvents)
         {

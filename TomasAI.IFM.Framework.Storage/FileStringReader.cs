@@ -50,5 +50,5 @@ public class FileStringReader : IStringReader
 
     public async Task<string> ReadToEndAsync(CancellationToken cancellationToken)
         => await File.ReadAllTextAsync(_dataSourceUri.LocalPath, cancellationToken).ConfigureAwait(false);
-    
+
 }

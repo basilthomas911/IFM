@@ -31,9 +31,9 @@ namespace IBApi
         }
     }
 
-/** 
- *  @brief Used with conditional orders to cancel or submit order based on price of an instrument. 
- */
+    /** 
+     *  @brief Used with conditional orders to cancel or submit order based on price of an instrument. 
+     */
 
     public class PriceCondition : ContractCondition
     {

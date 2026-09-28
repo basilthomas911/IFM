@@ -27,9 +27,9 @@ public static class CompositionSnapshotAdapter
     public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingValue From(TomasAI.IFM.Application.MarketData.Pricing.OptionPricingValue x) => new(x.ImpliedVolatility, x.Delta, x.Gamma, x.Theta, x.Vega, x.Rho, x.TheoreticalPrice, x.TimeToExpiry, x.ContextDigest);
     public static TomasAI.IFM.Application.MarketData.Pricing.OptionPricingValue To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingValue x) => new(x.ImpliedVolatility, x.Delta, x.Gamma, x.Theta, x.Vega, x.Rho, x.TheoreticalPrice, x.TimeToExpiry, x.ContextDigest);
     public static DomainPricing.CompositionMarketInstrument From(AppPricing.CompositionMarketInstrument x) => new(x.ContractId, From(x.Quote), x.Pricing is null ? null : From(x.Pricing), x.Strike, x.IsCall, x.Underlying is null ? null : From(x.Underlying), x.FutureDefinition is null ? null : From(x.FutureDefinition))
-        { Selection = x.Selection is null ? null : From(x.Selection) };
+    { Selection = x.Selection is null ? null : From(x.Selection) };
     public static AppPricing.CompositionMarketInstrument To(DomainPricing.CompositionMarketInstrument x) => new(x.ContractId, To(x.Quote), x.Pricing is null ? null : To(x.Pricing), x.Strike, x.IsCall, x.Underlying is null ? null : To(x.Underlying), x.FutureDefinition is null ? null : To(x.FutureDefinition))
-        { Selection = x.Selection is null ? null : To(x.Selection) };
+    { Selection = x.Selection is null ? null : To(x.Selection) };
     public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.CompositionInstrumentSnapshot From(TomasAI.IFM.Application.MarketData.Pricing.CompositionInstrumentSnapshot x) => new(From(x.Instrument), x.Valuation is null ? null : From(x.Valuation));
     public static TomasAI.IFM.Application.MarketData.Pricing.CompositionInstrumentSnapshot To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.CompositionInstrumentSnapshot x) => new(To(x.Instrument), x.Valuation is null ? null : To(x.Valuation));
     /// <summary>Converts an application snapshot and seals the digest for its domain pricing representation.</summary>

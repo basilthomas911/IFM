@@ -90,7 +90,10 @@ public sealed class PortfolioRealProjectionIntegrationTests(
         {
             Order = new() { PortfolioId = value, FundId = value + 1, OrderId = value + 2, WorkflowId = workflowId, IdempotencyKey = idempotency, Status = FundCompositionState.TemplateSelected.ToString(), CreatedOnUtc = now, CreatedBy = "rebuild", AggregateVersion = 3, CanonicalRequestHash = new string('a', 64) },
             Trades = [new() { PortfolioId = value, FundId = value + 1, OrderId = value + 2, TradeId = value + 3, TradeFamily = "Futures", InstructionReference = "ES", LegOrdinal = 1, AggregateVersion = 3 }],
-            AggregateVersion = 3, CommittedOnUtc = now, Disposition = ReservationDisposition.Committed, CanonicalRequestSha256 = new string('a', 64),
+            AggregateVersion = 3,
+            CommittedOnUtc = now,
+            Disposition = ReservationDisposition.Committed,
+            CanonicalRequestSha256 = new string('a', 64),
         };
         var store = new PortfolioEventStore(eventSource.EventSourceDb);
         IPortfolioDomainEvent[] portfolioHistory =

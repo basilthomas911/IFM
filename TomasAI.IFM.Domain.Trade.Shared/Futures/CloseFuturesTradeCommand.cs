@@ -5,6 +5,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Futures;
+
 [MessagePackObject]
 public sealed record CloseFuturesTradeCommand : EstablishedTradeCommand
 {

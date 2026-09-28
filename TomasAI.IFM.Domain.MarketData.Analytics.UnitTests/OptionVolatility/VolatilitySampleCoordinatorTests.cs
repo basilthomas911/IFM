@@ -12,8 +12,12 @@ public sealed class VolatilitySampleCoordinatorTests
         var coordinator = new VolatilitySampleCoordinator(TimeSpan.FromMinutes(5), 2);
         var original = OptionVolatilityTestData.Observation("original");
         var duplicate = original with { ObservationId = "duplicate" };
-        var correction = original with { ObservationId = "correction", Revision = 2,
-            SupersedesObservationId = original.ObservationId };
+        var correction = original with
+        {
+            ObservationId = "correction",
+            Revision = 2,
+            SupersedesObservationId = original.ObservationId
+        };
 
         coordinator.Admit(original, VolatilitySampleKind.DailyFinal).Accepted.Should().BeTrue();
         coordinator.Admit(duplicate, VolatilitySampleKind.DailyFinal).Accepted.Should().BeFalse();
@@ -28,8 +32,13 @@ public sealed class VolatilitySampleCoordinatorTests
         var coordinator = new VolatilitySampleCoordinator(TimeSpan.FromMinutes(5), 2);
         var first = OptionVolatilityTestData.Observation("first") with
         { ObservedAtUtc = OptionVolatilityTestData.Now.AddMinutes(-4) };
-        var corrected = first with { ObservationId = "corrected", Revision = 2,
-            SupersedesObservationId = first.ObservationId, ObservedAtUtc = first.ObservedAtUtc.AddMinutes(1) };
+        var corrected = first with
+        {
+            ObservationId = "corrected",
+            Revision = 2,
+            SupersedesObservationId = first.ObservationId,
+            ObservedAtUtc = first.ObservedAtUtc.AddMinutes(1)
+        };
 
         coordinator.Admit(first, VolatilitySampleKind.IntradayCheckpoint).Accepted.Should().BeTrue();
         var result = coordinator.Admit(corrected, VolatilitySampleKind.IntradayCheckpoint);

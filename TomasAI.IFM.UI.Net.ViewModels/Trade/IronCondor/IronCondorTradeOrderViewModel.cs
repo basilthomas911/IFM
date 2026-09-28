@@ -124,7 +124,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         decimal historicalFundBalance = 0m,
         int portfolioId = 0)
     {
-        switch(fundOrderTrade.TradeType)
+        switch (fundOrderTrade.TradeType)
         {
             case TradeType.ShortIronCondor:
             case TradeType.LongIronCondor:
@@ -732,10 +732,13 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             if (tradeOrder.TradeFillType == TradeFillType.Manual)
             {
                 _ironCondorTrade = _ironCondorTrade
-                    .AddTradeFills( GetManualTradeFills(tradeOrder.FundId, tradeOrder.OrderQuantity) )
-                    with { TradeState = tradeOrder.OrderActionType == OrderActionType.Open
+                    .AddTradeFills(GetManualTradeFills(tradeOrder.FundId, tradeOrder.OrderQuantity))
+                    with
+                {
+                    TradeState = tradeOrder.OrderActionType == OrderActionType.Open
                         ? TradeState.TradeToOpen
-                        : TradeState.TradeToClose };
+                        : TradeState.TradeToClose
+                };
             }
         }
 
@@ -890,7 +893,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
 
     async Task StartLiveFeedCoreAsync(CancellationToken cancellationToken)
     {
-        if (_liveFeedQuoteId  != Guid.Empty) return;
+        if (_liveFeedQuoteId != Guid.Empty) return;
 
         // save futures option contracts...
         _liveFeedQuoteId = Guid.NewGuid();
@@ -951,22 +954,22 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             }
         }
 
-         async Task SetLiveFeedTickData(FuturesOptionTickDataV2ReadModel futuresOptionTickData)
-         {
-             try
-             {
-                 await _appRoot.Services.FeedQueries.ExecuteObservableAsync(
-                     model => model.GetFuturesEodDataAsync(
-                         _baseContract.ContractId,
-                         _valueDate,
-                         futuresEodData => SetLiveFeedTickDataValues(futuresEodData, futuresOptionTickData)));
-             }
-             catch (UiServiceOperationException exception)
-             {
-                 PublishError(exception, "Set Live Feed Tick Data Error");
-                 throw;
-             }
-         }
+        async Task SetLiveFeedTickData(FuturesOptionTickDataV2ReadModel futuresOptionTickData)
+        {
+            try
+            {
+                await _appRoot.Services.FeedQueries.ExecuteObservableAsync(
+                    model => model.GetFuturesEodDataAsync(
+                        _baseContract.ContractId,
+                        _valueDate,
+                        futuresEodData => SetLiveFeedTickDataValues(futuresEodData, futuresOptionTickData)));
+            }
+            catch (UiServiceOperationException exception)
+            {
+                PublishError(exception, "Set Live Feed Tick Data Error");
+                throw;
+            }
+        }
     }
 
     void SetLiveFeedTickDataValues(
@@ -1136,7 +1139,8 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     {
         // update put spread trade values...
         var pcs = GetTradePosition(PutSpreadTradeType, TradeStatus);
-        pcs = pcs! with {
+        pcs = pcs! with
+        {
             Commission = Commission(pcs),
             TradePnl = Commission(pcs) * -1,
             RiskFreeRate = _riskFreeRate
@@ -1187,13 +1191,15 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
                 _riskFreeRate);
             if (!og.Success)
                 continue;
-            ccs.OptionLegData.Set(e.OptionLegId, e with {
+            ccs.OptionLegData.Set(e.OptionLegId, e with
+            {
                 ImpliedVolatility = og.ImpliedVolatility,
                 Delta = og.Delta,
                 Gamma = og.Gamma,
                 Theta = og.Theta,
                 Vega = og.Vega,
-                Rho = og.Rho });
+                Rho = og.Rho
+            });
         }
         optionLegData = GetOptionLegData(CallSpreadTradeType, TradeStatus, ShortOptionLegAction, OptionType.Call);
         if ((optionLegData?.Delta ?? 0.0) != 0.0)
@@ -1287,9 +1293,9 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         _ironCondorTrade.SetTradeLimit(
             riskMargin: _ironCondorTrade?.TradeLimit?.RiskMargin ?? 0m,
             maxProfit: pcs.TradeValue + ccs.TradeValue,
-            maxLoss: FundBalance * 0.02m  * -1m,
+            maxLoss: FundBalance * 0.02m * -1m,
             maxReturn: (_ironCondorTrade?.TradeLimit?.RiskMargin ?? 0m) == 0m ? 0.0m : (pcs.TradeValue + ccs.TradeValue) / (_ironCondorTrade?.TradeLimit?.RiskMargin ?? 1m),
-            maxLossLimit: (_ironCondorTrade?.TradeTypeLimits?.Get(PutSpreadTradeType)?.MaxLossLimit  ?? 0m) + (_ironCondorTrade?.TradeTypeLimits?.Get(CallSpreadTradeType)?.MaxLossLimit ?? 0m),
+            maxLossLimit: (_ironCondorTrade?.TradeTypeLimits?.Get(PutSpreadTradeType)?.MaxLossLimit ?? 0m) + (_ironCondorTrade?.TradeTypeLimits?.Get(CallSpreadTradeType)?.MaxLossLimit ?? 0m),
             minProfitLimit: (_ironCondorTrade?.TradeTypeLimits?.Get(PutSpreadTradeType)?.MinProfitLimit ?? 0m) + (_ironCondorTrade?.TradeTypeLimits?.Get(CallSpreadTradeType)?.MinProfitLimit ?? 0m),
             maxProfitLimit: (_ironCondorTrade?.TradeTypeLimits?.Get(PutSpreadTradeType)?.MaxProfitLimit ?? 0m) + (_ironCondorTrade?.TradeTypeLimits?.Get(CallSpreadTradeType)?.MaxProfitLimit ?? 0m),
             minProfitTarget: (0.50m * _ironCondorTrade?.TradeLimit?.MaxProfit ?? 0m) + (2 * TradeCommission),
@@ -1534,7 +1540,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         var maturityDate = _fundOrderTrade.RequestedMaturityDate ?? _fundOrderTrade.RequestedTradeDate;
         var daysToExpiry = maturityDate.DayNumber - _fundOrderTrade.RequestedTradeDate.DayNumber;
         var optionLegs = GetOptionLegs();
-        var ironCondorTrade = new OptionTradeReadModel (
+        var ironCondorTrade = new OptionTradeReadModel(
             orderId: _fundOrderTrade.OrderId,
             tradeId: _fundOrderTrade.TradeId,
             tradeStrategy: string.Empty,
@@ -1608,7 +1614,8 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         }
 
         OptionType GetOptionType(TradeType tradeType)
-            => tradeType switch {
+            => tradeType switch
+            {
                 TradeType.CallCreditSpread => OptionType.Call,
                 TradeType.CallDebitSpread => OptionType.Call,
                 TradeType.PutCreditSpread => OptionType.Put,
@@ -1677,7 +1684,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         if (putPriceTokens.Length != 2) return;
 
         // parse call leg prices..
-        var callPriceTokens = tokens[2].Substring(1).Split([ ":"], StringSplitOptions.RemoveEmptyEntries);
+        var callPriceTokens = tokens[2].Substring(1).Split([":"], StringSplitOptions.RemoveEmptyEntries);
         if (callPriceTokens.Length != 2) return;
 
         // map trade strike prices...

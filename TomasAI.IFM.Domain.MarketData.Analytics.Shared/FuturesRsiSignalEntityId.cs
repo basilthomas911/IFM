@@ -29,7 +29,7 @@ public record FuturesRsiSignalEntityId : IActorEntityId
     public TimeFrameType TimePeriod { get; init; }
 
     [Key(3)]
-    public int PeriodLength { get; init; }  
+    public int PeriodLength { get; init; }
 
     /// <summary>
     /// Parameterless constructor required for MessagePack and some serializers.
@@ -92,7 +92,7 @@ public class FuturesRsiSignalEntityIdValidationRules : BaseValidationRules, IVal
         {
             RuleFor(x => x.ContractId).NotEmpty().WithMessage(ContractIdErrorMessage);
             RuleFor(x => x.ValueDate).LessThan(DateOnly.MaxValue).WithMessage(ValueDateMaxErrorMessage);
-            RuleFor(x => x.ValueDate).GreaterThan(DateOnly.MinValue).WithMessage(ValueDateMinErrorMessage);    
+            RuleFor(x => x.ValueDate).GreaterThan(DateOnly.MinValue).WithMessage(ValueDateMinErrorMessage);
             RuleFor(x => x.PeriodLength).GreaterThan(0).WithMessage("FuturesRsiSignalEntityId: PeriodLength must be a positive integer");
             RuleFor(x => x.TimePeriod).IsInEnum().NotEqual(TimeFrameType.None).WithMessage(TimePeriodErrorMessage);
         }

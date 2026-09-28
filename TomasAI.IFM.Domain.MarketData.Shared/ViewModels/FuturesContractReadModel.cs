@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 public partial record FuturesContractV3ReadModel
 {
     [Key(0)]
-    public string ContractId { get; init; } 
+    public string ContractId { get; init; }
     [Key(1)]
     public string Description { get; init; }
     [Key(2)]
@@ -41,7 +41,7 @@ public partial record FuturesContractV3ReadModel
 
     [JsonIgnore]
     [IgnoreMember]
-    public FuturesContractId Id =>  new (ContractId, Symbol, LastTradeDate);
+    public FuturesContractId Id => new(ContractId, Symbol, LastTradeDate);
 
     public FuturesContractV3ReadModel()
     {
@@ -198,7 +198,7 @@ public class FuturesContractValidationRules : BaseValidationRules, IValidationRu
             {
                 ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
             }
-            catch 
+            catch
             {
                 var validationResult = new ValidationResult();
                 validationResult.Errors.Add(new ValidationFailure("FuturesContract", "FuturesContract instance is null"));

@@ -26,7 +26,7 @@ public class AddFuturesContractException : ApplicationException, IErrorEventConv
     {
     }
 
-    public IErrorEvent ToErrorEvent(ICommand command, Exception? ex = null) 
+    public IErrorEvent ToErrorEvent(ICommand command, Exception? ex = null)
         => new FuturesContractAddedFailEvent
         {
             Subject = command.Subject,
@@ -41,5 +41,5 @@ public class AddFuturesContractException : ApplicationException, IErrorEventConv
             CommandData = JsonConvert.SerializeObject(command, Formatting.Indented)
         };
 
-    
+
 };

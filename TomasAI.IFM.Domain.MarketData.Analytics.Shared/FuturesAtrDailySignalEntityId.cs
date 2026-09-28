@@ -21,10 +21,10 @@ public record FuturesAtrDailySignalEntityId : IActorEntityId
     /// <summary>Value (trading) date for the ATR signal.</summary>
 
     [Key(1)]
-    public TimeFrameType TimePeriod {  get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     [Key(2)]
-    public int  PeriodLength { get; init; }
+    public int PeriodLength { get; init; }
 
     /// <summary>
     /// Parameterless constructor required for MessagePack and some serializers.
@@ -37,7 +37,7 @@ public record FuturesAtrDailySignalEntityId : IActorEntityId
     /// <param name="contractId">Futures contract identifier.</param>
     /// <param name="timePeriod">Time period type.</param>
     /// <param name="periodLength">ATR signal source type.</param>
-    public FuturesAtrDailySignalEntityId(string contractId, TimeFrameType timePeriod, int periodLength)            
+    public FuturesAtrDailySignalEntityId(string contractId, TimeFrameType timePeriod, int periodLength)
     {
         ContractId = contractId;
         TimePeriod = timePeriod;
@@ -47,7 +47,7 @@ public record FuturesAtrDailySignalEntityId : IActorEntityId
     /// <summary>
     /// Factory method for explicit creation.
     /// </summary>
-    public static FuturesAtrDailySignalEntityId Create(string contractId,  TimeFrameType timePeriod, int periodLength) 
+    public static FuturesAtrDailySignalEntityId Create(string contractId, TimeFrameType timePeriod, int periodLength)
         => new(contractId, timePeriod, periodLength);
 
     /// <summary>

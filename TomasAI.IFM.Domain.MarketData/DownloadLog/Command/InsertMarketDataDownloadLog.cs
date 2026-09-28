@@ -12,10 +12,12 @@ public static class InsertMarketDataDownloadLog
         if (state.VerifyDuplicate(command)) return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
         return command.UpdateResult(() => state.Update(new MarketDataDownloadLogInsertedEvent
         {
-            CommandId = command.CommandId, EntityId = command.EntityId,
+            CommandId = command.CommandId,
+            EntityId = command.EntityId,
             Subject = new ActorSubject(ActorType.Event, MarketDataDownloadLogInsertedEvent.Actor,
                 MarketDataDownloadLogInsertedEvent.Verb, command.EntityId.Format()),
-            Outcome = command.Outcome, PayloadSha256 = command.PayloadSha256
+            Outcome = command.Outcome,
+            PayloadSha256 = command.PayloadSha256
         }, command));
     }
 }

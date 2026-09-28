@@ -57,15 +57,17 @@ namespace TomasAI.IFM.Domain.Trade.Shared.TradePlan.ViewModels
     {
 
         public static TradeRiskType FromMScore(double mScore, bool isCriticalRisk = false, TradeType tradeType = TradeType.ShortIronCondor)
-        { 
-            if (tradeType == TradeType.ShortIronCondor) 
-                return mScore switch {
-                   >= 0.8 => isCriticalRisk ? TradeRiskType.Critical : TradeRiskType.High,
-                   >= 0.7 => isCriticalRisk ? TradeRiskType.Critical : TradeRiskType.Medium,
-                   _ => TradeRiskType.Low
-               };
+        {
+            if (tradeType == TradeType.ShortIronCondor)
+                return mScore switch
+                {
+                    >= 0.8 => isCriticalRisk ? TradeRiskType.Critical : TradeRiskType.High,
+                    >= 0.7 => isCriticalRisk ? TradeRiskType.Critical : TradeRiskType.Medium,
+                    _ => TradeRiskType.Low
+                };
             else
-                return mScore switch {
+                return mScore switch
+                {
                     >= 0.8 => TradeRiskType.Low,
                     >= 0.7 => isCriticalRisk ? TradeRiskType.Critical : TradeRiskType.Medium,
                     _ => isCriticalRisk ? TradeRiskType.Critical : TradeRiskType.High

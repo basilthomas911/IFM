@@ -1,7 +1,7 @@
 namespace TomasAI.IFM.Shared.EventSourcing.ViewModels
 {
     public record CommandLogReadModel(
-        Guid CommandId, 
+        Guid CommandId,
         string StreamId,
         BoundedContextName AggregateName,
         string CommandName,

@@ -57,7 +57,8 @@ public sealed class TradeStrategyCatalogTransportTests
         api.GetTradeStrategySymbolsAsync(TradeStrategyFamilyType.Futures, Arg.Any<CancellationToken>()).Returns(expected);
         var query = MessagePackSerializer.Deserialize<GetTradeStrategySymbolsQuery>(MessagePackSerializer.Serialize(new GetTradeStrategySymbolsQuery
         {
-            Subject = new ActorSubject(ActorType.Query, GetTradeStrategySymbolsQuery.Actor, GetTradeStrategySymbolsQuery.Verb, "0"), Family = TradeStrategyFamilyType.Futures
+            Subject = new ActorSubject(ActorType.Query, GetTradeStrategySymbolsQuery.Actor, GetTradeStrategySymbolsQuery.Verb, "0"),
+            Family = TradeStrategyFamilyType.Futures
         }));
         var message = Substitute.For<IActorMessage>(); message.Subject.Returns(query.Subject);
         message.AsQuery<GetTradeStrategySymbolsQuery, TradeStrategySymbolReadModel[]>().Returns(query);
@@ -74,7 +75,8 @@ public sealed class TradeStrategyCatalogTransportTests
         var request = new CreateTradeStrategyFamilyRequest { OperationId = Guid.NewGuid(), Family = TradeStrategyFamilyType.Futures, Strategy = TradeStrategyType.Futures, TimeFrame = TimeFrameType.Daily, TradeStrategySymbolId = 10, Description = "Daily ES" };
         var command = MessagePackSerializer.Deserialize<CreateTradeStrategyFamilyCommand>(MessagePackSerializer.Serialize(new CreateTradeStrategyFamilyCommand
         {
-            CommandId = request.OperationId, Request = request,
+            CommandId = request.OperationId,
+            Request = request,
             Subject = new ActorSubject(ActorType.Command, CreateTradeStrategyFamilyCommand.Actor, CreateTradeStrategyFamilyCommand.Verb, "0")
         }));
         command.Request.Should().Be(request);
@@ -98,8 +100,15 @@ public sealed class TradeStrategyCatalogTransportTests
     public async Task Legacy_change_and_remove_remain_deserializable_but_cannot_write(bool remove)
     {
         var operation = Guid.NewGuid(); var target = new TradeStrategyFamilyReference(20, 3);
-        var definition = new CreateTradeStrategyFamilyRequest { OperationId = operation, Family = TradeStrategyFamilyType.Futures,
-            Strategy = TradeStrategyType.Futures, TimeFrame = TimeFrameType.Weekly, TradeStrategySymbolId = 10, Description = "Changed weekly ES" };
+        var definition = new CreateTradeStrategyFamilyRequest
+        {
+            OperationId = operation,
+            Family = TradeStrategyFamilyType.Futures,
+            Strategy = TradeStrategyType.Futures,
+            TimeFrame = TimeFrameType.Weekly,
+            TradeStrategySymbolId = 10,
+            Description = "Changed weekly ES"
+        };
         var changeRequest = new ChangeTradeStrategyFamilyRequest { OperationId = operation, Target = target, Definition = definition };
         var removeRequest = new RemoveTradeStrategyFamilyRequest { OperationId = operation, Target = target };
         var message = Substitute.For<IActorMessage>();
@@ -108,7 +117,8 @@ public sealed class TradeStrategyCatalogTransportTests
         {
             var typed = MessagePackSerializer.Deserialize<RemoveTradeStrategyFamilyCommand>(MessagePackSerializer.Serialize(new RemoveTradeStrategyFamilyCommand
             {
-                CommandId = operation, Request = removeRequest,
+                CommandId = operation,
+                Request = removeRequest,
                 Subject = new ActorSubject(ActorType.Command, RemoveTradeStrategyFamilyCommand.Actor, RemoveTradeStrategyFamilyCommand.Verb, "0")
             }));
             typed.Request.Should().Be(removeRequest); command = typed;
@@ -118,7 +128,8 @@ public sealed class TradeStrategyCatalogTransportTests
         {
             var typed = MessagePackSerializer.Deserialize<ChangeTradeStrategyFamilyCommand>(MessagePackSerializer.Serialize(new ChangeTradeStrategyFamilyCommand
             {
-                CommandId = operation, Request = changeRequest,
+                CommandId = operation,
+                Request = changeRequest,
                 Subject = new ActorSubject(ActorType.Command, ChangeTradeStrategyFamilyCommand.Actor, ChangeTradeStrategyFamilyCommand.Verb, "0")
             }));
             typed.Request.Should().Be(changeRequest); command = typed;

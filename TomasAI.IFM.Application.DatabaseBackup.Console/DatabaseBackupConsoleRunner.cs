@@ -35,26 +35,31 @@ internal sealed class DatabaseBackupConsoleRunner(
                 await _queryApi.GetServiceHealthAsync(
                     new GetDatabaseBackupServiceHealthQuery
                     {
-                        Request = CreateRequest(options), Source = options.Source
+                        Request = CreateRequest(options),
+                        Source = options.Source
                     },
                     cancellationToken).ConfigureAwait(false)),
             "list-operations" => await WriteQueryAsync(
                 await _queryApi.ListBackupOperationsAsync(new ListDatabaseBackupOperationsQuery
                 {
-                    Request = CreateRequest(options), Source = options.Source, PageSize = options.PageSize
+                    Request = CreateRequest(options),
+                    Source = options.Source,
+                    PageSize = options.PageSize
                 }, cancellationToken).ConfigureAwait(false)),
             "show-operation" => await ShowOperationAsync(options, cancellationToken).ConfigureAwait(false),
             "list-restore-points" => await WriteQueryAsync(
                 await _queryApi.ListRestorePointsAsync(new ListDatabaseRestorePointsQuery
                 {
-                    Request = CreateRequest(options), Source = options.Source,
+                    Request = CreateRequest(options),
+                    Source = options.Source,
                     ProtectionSetId = new DatabaseProtectionSetId(options.Require("protection-set")),
                     PageSize = options.PageSize
                 }, cancellationToken).ConfigureAwait(false)),
             "verify" => await WriteQueryAsync(
                 await _queryApi.GetLatestVerifiedBackupAsync(new GetLatestVerifiedDatabaseBackupQuery
                 {
-                    Request = CreateRequest(options), Source = options.Source,
+                    Request = CreateRequest(options),
+                    Source = options.Source,
                     ProtectionSetId = new DatabaseProtectionSetId(options.Require("protection-set"))
                 }, cancellationToken).ConfigureAwait(false)),
             "reconcile" => await ReconcileAsync(options, cancellationToken).ConfigureAwait(false),
@@ -79,7 +84,8 @@ internal sealed class DatabaseBackupConsoleRunner(
             "retention-evaluate" => await SendAsync(
                 _commandApi.RequestRetentionEvaluationAsync(new RequestBackupRetentionEvaluationCommand
                 {
-                    Request = CreateRequest(options), Source = options.Source,
+                    Request = CreateRequest(options),
+                    Source = options.Source,
                     EvaluationBoundaryUtc = GetUtcNow()
                 }, cancellationToken)).ConfigureAwait(false),
             "retention-execute" => await SendAsync(
@@ -97,7 +103,9 @@ internal sealed class DatabaseBackupConsoleRunner(
         return await WriteQueryAsync(await _queryApi.GetBackupOperationAsync(
             new GetDatabaseBackupOperationQuery
             {
-                Request = CreateRequest(options), Source = options.Source, OperationId = operationId
+                Request = CreateRequest(options),
+                Source = options.Source,
+                OperationId = operationId
             }, cancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
     }
 
@@ -126,7 +134,9 @@ internal sealed class DatabaseBackupConsoleRunner(
         {
             var result = await _queryApi.GetBackupOperationAsync(new GetDatabaseBackupOperationQuery
             {
-                Request = CreateRequest(options), Source = options.Source, OperationId = operationId
+                Request = CreateRequest(options),
+                Source = options.Source,
+                OperationId = operationId
             }, cancellationToken).ConfigureAwait(false);
             var exitCode = await WriteQueryAsync(result).ConfigureAwait(false);
             if (exitCode != DatabaseBackupConsoleExitCodes.Success)
@@ -144,7 +154,8 @@ internal sealed class DatabaseBackupConsoleRunner(
     RequestDatabaseBackupCommand CreateBackupCommand(DatabaseBackupConsoleOptions options)
         => new()
         {
-            Request = CreateRequest(options), Source = options.Source,
+            Request = CreateRequest(options),
+            Source = options.Source,
             ProtectionSetId = new DatabaseProtectionSetId(options.Require("protection-set")),
             RequestedBackupMode = ParseBackupMode(options.GetOptional("mode")),
             ConsistencyMode = ParseConsistency(options.GetOptional("consistency")),
@@ -159,7 +170,8 @@ internal sealed class DatabaseBackupConsoleRunner(
         RequireConfirmation(options);
         return new()
         {
-            Request = CreateRequest(options), Source = options.Source,
+            Request = CreateRequest(options),
+            Source = options.Source,
             ProtectionSetId = new DatabaseProtectionSetId(options.Require("protection-set")),
             RestorePointId = new DatabaseRestorePointId(options.Require("restore-point")),
             FreshTarget = new DatabaseFreshTargetDescriptor(
@@ -172,7 +184,8 @@ internal sealed class DatabaseBackupConsoleRunner(
     RequestDatabaseRestoreDrillCommand CreateRestoreDrillCommand(DatabaseBackupConsoleOptions options)
         => new()
         {
-            Request = CreateRequest(options), Source = options.Source,
+            Request = CreateRequest(options),
+            Source = options.Source,
             ProtectionSetId = new DatabaseProtectionSetId(options.Require("protection-set")),
             RestorePointId = new DatabaseRestorePointId(options.Require("restore-point")),
             RestoreClass = DatabaseRestoreClass.Drill,
@@ -212,7 +225,8 @@ internal sealed class DatabaseBackupConsoleRunner(
         RequireConfirmation(options);
         return new()
         {
-            Request = CreateRequest(options), Source = options.Source,
+            Request = CreateRequest(options),
+            Source = options.Source,
             RetentionPlanId = new DatabaseRetentionPlanId(options.RequireGuid("plan-id")),
             RetentionPlanRevision = options.RequirePositiveInt64("plan-revision"),
             ApprovalReference = options.Require("approval-reference")

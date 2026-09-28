@@ -129,22 +129,39 @@ public sealed partial class TradeSelectionRuntimeTests
                 typeof(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.WorkflowTrace).Assembly,
                 typeof(TomasAI.IFM.Domain.Portfolio.Operations.PortfolioTelemetry).Assembly,
                 typeof(TomasAI.IFM.Application.Storage.IDbContextFactory).Assembly }
-                .Distinct().Select(assembly => new { Name = assembly.GetName().Name, Path = assembly.Location,
+                .Distinct().Select(assembly => new
+                {
+                    Name = assembly.GetName().Name,
+                    Path = assembly.Location,
                     Version = assembly.GetName().Version?.ToString(),
                     BuildConfiguration = assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()?.Configuration,
-                    Sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(assembly.Location))) }).ToArray();
-            Write(new { RecordType = "metadata", RunId, settings.Label,
+                    Sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(assembly.Location)))
+                }).ToArray();
+            Write(new
+            {
+                RecordType = "metadata",
+                RunId,
+                settings.Label,
                 Commit = Environment.GetEnvironmentVariable("IFM_WORKFLOW_BENCHMARK_COMMIT") ?? GitCommit(),
                 BuildConfiguration = typeof(TradeSelectionRuntimeTests).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()?.Configuration,
-                Machine = Environment.MachineName, Runtime = RuntimeInformation.FrameworkDescription,
-                OS = RuntimeInformation.OSDescription, Architecture = RuntimeInformation.ProcessArchitecture.ToString(),
-                ProcessorCount = Environment.ProcessorCount, ProcessId = Environment.ProcessId,
-                ServerGC = System.Runtime.GCSettings.IsServerGC, GCLatencyMode = System.Runtime.GCSettings.LatencyMode.ToString(),
-                StartedAtUtc = DateTime.UtcNow, settings.Warmups, settings.Samples,
-                Scenarios = settings.Scenarios.Select(x => x.ToString()), settings.CaptureTrace,
-                Assemblies = assemblies, QueryVisiblePollingMilliseconds = WorkflowMeasurement.VisibilityPollMilliseconds,
+                Machine = Environment.MachineName,
+                Runtime = RuntimeInformation.FrameworkDescription,
+                OS = RuntimeInformation.OSDescription,
+                Architecture = RuntimeInformation.ProcessArchitecture.ToString(),
+                ProcessorCount = Environment.ProcessorCount,
+                ProcessId = Environment.ProcessId,
+                ServerGC = System.Runtime.GCSettings.IsServerGC,
+                GCLatencyMode = System.Runtime.GCSettings.LatencyMode.ToString(),
+                StartedAtUtc = DateTime.UtcNow,
+                settings.Warmups,
+                settings.Samples,
+                Scenarios = settings.Scenarios.Select(x => x.ToString()),
+                settings.CaptureTrace,
+                Assemblies = assemblies,
+                QueryVisiblePollingMilliseconds = WorkflowMeasurement.VisibilityPollMilliseconds,
                 ColdDefinition = "First workflow in one host after startup, schema creation, numerical fixture setup, and funding; not process startup latency.",
-                Conditions = "Sequential workflows; one production Portfolio/Trade actor host; real local test stores and isolated NATS; unique equivalent fixture/funding before each timer; no global database reset; full projection forwarding; no latency qualification threshold." });
+                Conditions = "Sequential workflows; one production Portfolio/Trade actor host; real local test stores and isolated NATS; unique equivalent fixture/funding before each timer; no global database reset; full projection forwarding; no latency qualification threshold."
+            });
         }
 
         public void Write(object value) => writer.WriteLine(JsonSerializer.Serialize(value));
@@ -154,7 +171,7 @@ public sealed partial class TradeSelectionRuntimeTests
             try
             {
                 using var git = Process.Start(new ProcessStartInfo("git", "rev-parse HEAD")
-                    { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true });
+                { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true });
                 var result = git?.StandardOutput.ReadToEnd().Trim();
                 if (git is not null && git.WaitForExit(5000) && git.ExitCode == 0) return result;
             }
@@ -257,8 +274,10 @@ public sealed partial class TradeSelectionRuntimeTests
         }
         public WorkflowProcessMetrics Since(WorkflowProcessMetrics start) => this with
         {
-            AllocatedBytes = AllocatedBytes - start.AllocatedBytes, CpuMilliseconds = CpuMilliseconds - start.CpuMilliseconds,
-            Gen0Collections = Gen0Collections - start.Gen0Collections, Gen1Collections = Gen1Collections - start.Gen1Collections,
+            AllocatedBytes = AllocatedBytes - start.AllocatedBytes,
+            CpuMilliseconds = CpuMilliseconds - start.CpuMilliseconds,
+            Gen0Collections = Gen0Collections - start.Gen0Collections,
+            Gen1Collections = Gen1Collections - start.Gen1Collections,
             Gen2Collections = Gen2Collections - start.Gen2Collections
         };
     }

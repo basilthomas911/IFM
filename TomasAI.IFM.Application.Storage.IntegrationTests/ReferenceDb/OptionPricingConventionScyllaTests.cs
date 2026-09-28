@@ -41,13 +41,29 @@ public sealed class OptionPricingConventionScyllaTests
             var at = new DateTimeOffset(2026, 9, 8, 16, 0, 0, TimeSpan.Zero);
             var value = new OptionPricingConvention
             {
-                ContractId = "fixture-option", Dataset = "GLBX.MDP3", PublisherId = 1, InstrumentId = 123,
-                RawSymbol = "fixture-only", Root = "ES", Exchange = "XCME", Currency = "USD", UnderlyingContractId = "fixture-future",
-                ExerciseStyle = OptionExerciseStyle.European, SettlementStyle = OptionSettlementStyle.DeliveryOfFuture,
-                ExpirationUtc = at.AddDays(1), LastTradingUtc = at.AddDays(1), DayCount = PricingDayCount.Actual365Fixed,
-                CalendarVersion = "fixture/v1", Multiplier = 50, TickSize = .25m, TickRuleVersion = "fixture/v1",
-                DefinitionDigest = new string('a', 64), MappingVersion = "fixture/v1", EvidenceId = "synthetic-only",
-                EffectiveFromUtc = at.AddDays(-1), EffectiveUntilUtc = at.AddDays(2)
+                ContractId = "fixture-option",
+                Dataset = "GLBX.MDP3",
+                PublisherId = 1,
+                InstrumentId = 123,
+                RawSymbol = "fixture-only",
+                Root = "ES",
+                Exchange = "XCME",
+                Currency = "USD",
+                UnderlyingContractId = "fixture-future",
+                ExerciseStyle = OptionExerciseStyle.European,
+                SettlementStyle = OptionSettlementStyle.DeliveryOfFuture,
+                ExpirationUtc = at.AddDays(1),
+                LastTradingUtc = at.AddDays(1),
+                DayCount = PricingDayCount.Actual365Fixed,
+                CalendarVersion = "fixture/v1",
+                Multiplier = 50,
+                TickSize = .25m,
+                TickRuleVersion = "fixture/v1",
+                DefinitionDigest = new string('a', 64),
+                MappingVersion = "fixture/v1",
+                EvidenceId = "synthetic-only",
+                EffectiveFromUtc = at.AddDays(-1),
+                EffectiveUntilUtc = at.AddDays(2)
             };
             Assert.Null(await store.GetAsync(value.ContractId, value.MappingVersion, token));
             await store.InsertReviewedAsync(value, token);
@@ -60,8 +76,14 @@ public sealed class OptionPricingConventionScyllaTests
             var newVersion = value with { MappingVersion = "fixture/v2", Multiplier = 100 };
             await restarted.InsertReviewedAsync(newVersion, token);
             Assert.Equal(newVersion, await restarted.GetAsync(value.ContractId, newVersion.MappingVersion, token));
-            var banded = value with { SchemaVersion = 2, MappingVersion = "fixture/v3", TickSize = .05m,
-                PremiumTickRule = OptionPremiumTickRule.CmeEsGlobex358A, TickRuleVersion = OptionPremiumTicks.CmeEsGlobexVersion };
+            var banded = value with
+            {
+                SchemaVersion = 2,
+                MappingVersion = "fixture/v3",
+                TickSize = .05m,
+                PremiumTickRule = OptionPremiumTickRule.CmeEsGlobex358A,
+                TickRuleVersion = OptionPremiumTicks.CmeEsGlobexVersion
+            };
             await restarted.InsertReviewedAsync(banded, token);
             await restarted.InsertReviewedAsync(banded, token);
             var reloaded = await new OptionPricingConventionStore(new Repository(settings["test"], logger))
@@ -69,18 +91,32 @@ public sealed class OptionPricingConventionScyllaTests
             Assert.Equal(banded, reloaded);
             Assert.Equal(.10m, OptionPremiumTicks.GetIncrement(reloaded!, 15m));
             await Assert.ThrowsAsync<InvalidOperationException>(() => restarted.InsertReviewedAsync(banded with
-                { PremiumTickRule = OptionPremiumTickRule.Fixed }, token));
+            { PremiumTickRule = OptionPremiumTickRule.Fixed }, token));
             await db.Use("OcpTest.BundleSchema", OptionPricingReferenceBundleStore.CreateTable).ExecuteCommandAsync(token);
             var bundles = new OptionPricingReferenceBundleStore(db);
             var expiry = DateOnly.FromDateTime(value.ExpirationUtc.UtcDateTime);
             var candidate = new OptionDefinitionCandidate(value.ContractId, value.MappingVersion, value.DefinitionDigest,
-                new OptionContractDefinition { Dataset = value.Dataset, RawSymbol = value.RawSymbol, Ticker = "ES",
-                    Underlying = value.UnderlyingContractId, Instrument = new(value.PublisherId, value.InstrumentId),
-                    Right = OptionRightSelection.Call, StrikePrice = 5000, MaturityDate = expiry,
-                    ExpirationTimestampNanoseconds = checked((ulong)(value.ExpirationUtc - DateTimeOffset.UnixEpoch).Ticks * 100) });
+                new OptionContractDefinition
+                {
+                    Dataset = value.Dataset,
+                    RawSymbol = value.RawSymbol,
+                    Ticker = "ES",
+                    Underlying = value.UnderlyingContractId,
+                    Instrument = new(value.PublisherId, value.InstrumentId),
+                    Right = OptionRightSelection.Call,
+                    StrikePrice = 5000,
+                    MaturityDate = expiry,
+                    ExpirationTimestampNanoseconds = checked((ulong)(value.ExpirationUtc - DateTimeOffset.UnixEpoch).Ticks * 100)
+                });
             var bundle = new OptionPricingReferenceBundle(1, "", value.MappingVersion, expiry,
-                new() { Dataset = value.Dataset, DomainContractId = value.UnderlyingContractId, ProviderContractName = "fixture-future",
-                    RootSymbol = "ES", AssetTypeId = AssetTypeId.Futures },
+                new()
+                {
+                    Dataset = value.Dataset,
+                    DomainContractId = value.UnderlyingContractId,
+                    ProviderContractName = "fixture-future",
+                    RootSymbol = "ES",
+                    AssetTypeId = AssetTypeId.Futures
+                },
                 new(value.CalendarVersion, "America/New_York", expiry.AddDays(-1), expiry, new(18, 0), [expiry.AddDays(-1), expiry]),
                 UsTreasuryPublicationCalendar.Default2026, UsTreasuryCurve.ConversionPolicy, [candidate]).Seal();
             await bundles.PublishAsync(bundle, token);
@@ -90,7 +126,7 @@ public sealed class OptionPricingConventionScyllaTests
             Assert.Equal(candidate, Assert.Single(restoredBundle.Definitions));
             Assert.Single(restoredBundle.CreatePlan(4999, 5001).Options);
             await Assert.ThrowsAsync<InvalidDataException>(() => bundles.PublishAsync((bundle with
-                { Definitions = [candidate with { DefinitionDigest = new('b', 64) }] }).Seal(), token));
+            { Definitions = [candidate with { DefinitionDigest = new('b', 64) }] }).Seal(), token));
             await Assert.ThrowsAsync<InvalidDataException>(() => bundles.PublishAsync(bundle with { ProfileVersion = "tampered" }, token));
             Assert.Throws<InvalidDataException>(() => restoredBundle.CreatePlan(5001, 5010));
         }

@@ -26,16 +26,16 @@ public static class StartRegimeDiscoveryPipeline
                 return PipelineStartResult<ExecuteRegimeDiscoveryPipelineCommand>.Failed("RD.INIT.DEADLINE", "InitializationTimeout",
                     "Regime Discovery initialization reached the workflow deadline.");
 
-            if(context.ParameterRuntime is {Enabled:true,RunId:null})
-                return PipelineStartResult<ExecuteRegimeDiscoveryPipelineCommand>.Failed("RD.INIT.PARAMETER_STARTUP_PENDING","ConfigurationUnavailable","The parameter startup generation is not available. This workflow ends here; later triggers can retry.");
-            var selected=context.ParameterRuntime?.Resolve(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity.IntrinsicTimeStrategyWorkflowDefinition.Id,command.TargetHorizon);
-            if(selected is {IsDisabled:true})
-                return PipelineStartResult<ExecuteRegimeDiscoveryPipelineCommand>.Failed("RD.INIT.ASSIGNMENT_DISABLED","ConfigurationUnavailable","The workflow/horizon parameter assignment was disabled for this startup generation.");
-            var generic=selected?.Applied;
-            resolved=generic is null
-                ?await context.ConfigurationDb.GetEffectiveRegimeDiscoveryAsync(command.RequestedAtUtc,command.TargetHorizon).ConfigureAwait(false)
-                :new TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.ResolvedRegimeDiscoveryParameterSet(
-                    System.Text.Json.JsonSerializer.Deserialize<RegimeDiscoveryParameterSet>(generic.Version.PayloadJson)!,generic.Version.PayloadJson,generic.Version.Reference.PayloadSha256,generic.Version.PublishedAtUtc??generic.Version.CreatedAtUtc);
+            if (context.ParameterRuntime is { Enabled: true, RunId: null })
+                return PipelineStartResult<ExecuteRegimeDiscoveryPipelineCommand>.Failed("RD.INIT.PARAMETER_STARTUP_PENDING", "ConfigurationUnavailable", "The parameter startup generation is not available. This workflow ends here; later triggers can retry.");
+            var selected = context.ParameterRuntime?.Resolve(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity.IntrinsicTimeStrategyWorkflowDefinition.Id, command.TargetHorizon);
+            if (selected is { IsDisabled: true })
+                return PipelineStartResult<ExecuteRegimeDiscoveryPipelineCommand>.Failed("RD.INIT.ASSIGNMENT_DISABLED", "ConfigurationUnavailable", "The workflow/horizon parameter assignment was disabled for this startup generation.");
+            var generic = selected?.Applied;
+            resolved = generic is null
+                ? await context.ConfigurationDb.GetEffectiveRegimeDiscoveryAsync(command.RequestedAtUtc, command.TargetHorizon).ConfigureAwait(false)
+                : new TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.ResolvedRegimeDiscoveryParameterSet(
+                    System.Text.Json.JsonSerializer.Deserialize<RegimeDiscoveryParameterSet>(generic.Version.PayloadJson)!, generic.Version.PayloadJson, generic.Version.Reference.PayloadSha256, generic.Version.PublishedAtUtc ?? generic.Version.CreatedAtUtc);
             if (resolved is null)
                 return PipelineStartResult<ExecuteRegimeDiscoveryPipelineCommand>.Failed("RD.INIT.CONFIGURATION_MISSING", "ConfigurationUnavailable",
                     "No published Regime Discovery parameter set is effective for the workflow trigger.",
@@ -52,7 +52,7 @@ public static class StartRegimeDiscoveryPipeline
                     .WithParameterSet(resolved.ParameterSet.ParameterSetId, resolved.ParameterSet.Version,
                         resolved.PayloadSha256);
 
-            var expectedHash = generic is null?RegimeDiscoveryParameterPayload.ComputeSha256(resolved.ParameterSet):RegimeDiscoveryParameterPayload.ComputeSha256(resolved.PayloadJson);
+            var expectedHash = generic is null ? RegimeDiscoveryParameterPayload.ComputeSha256(resolved.ParameterSet) : RegimeDiscoveryParameterPayload.ComputeSha256(resolved.PayloadJson);
             if (!string.Equals(expectedHash, resolved.PayloadSha256, StringComparison.OrdinalIgnoreCase))
                 return PipelineStartResult<ExecuteRegimeDiscoveryPipelineCommand>.Failed(
                     "RD.INIT.CONFIGURATION_HASH", "ConfigurationInvalid",
@@ -86,11 +86,11 @@ public static class StartRegimeDiscoveryPipeline
                     new KeyValuePair<string, string>($"Issue.{index + 1:D3}",
                         $"Metric={value.Metric},TimeFrame={value.SignalKey.TimeFrame},Availability={value.Availability},SignalIdentity={value.SignalIdentity}"))
                     .ToDictionary();
-                if(generic is not null)
+                if (generic is not null)
                 {
-                    diagnostics["ParameterStartupRunId"]=generic.StartupRunId.ToString();
-                    diagnostics["ParameterAssignmentRevision"]=generic.Assignment.Revision.ToString();
-                    diagnostics["ParameterPayloadSha256"]=generic.Version.Reference.PayloadSha256;
+                    diagnostics["ParameterStartupRunId"] = generic.StartupRunId.ToString();
+                    diagnostics["ParameterAssignmentRevision"] = generic.Assignment.Revision.ToString();
+                    diagnostics["ParameterPayloadSha256"] = generic.Version.Reference.PayloadSha256;
                 }
                 return PipelineStartResult<ExecuteRegimeDiscoveryPipelineCommand>.Failed(
                     "RD.INIT.INPUTS_UNAVAILABLE", "InputDataUnavailable",
@@ -103,13 +103,13 @@ public static class StartRegimeDiscoveryPipeline
             {
                 ParameterSet = resolved.ParameterSet,
                 ParameterPayloadSha256 = resolved.PayloadSha256,
-                ParameterApplication = generic is null?null:new(generic.StartupRunId,generic.Assignment.AssignmentId,generic.Assignment.Revision),
+                ParameterApplication = generic is null ? null : new(generic.StartupRunId, generic.Assignment.AssignmentId, generic.Assignment.Revision),
                 Snapshot = captured.Snapshot,
                 WorkflowView = command.WorkflowView with
                 {
                     RegimeDiscoveryParameterSet = resolved.ParameterSet,
                     RegimeDiscoveryParameterPayloadSha256 = resolved.PayloadSha256,
-                    RegimeDiscoveryParameterApplication = generic is null?null:new(generic.StartupRunId,generic.Assignment.AssignmentId,generic.Assignment.Revision),
+                    RegimeDiscoveryParameterApplication = generic is null ? null : new(generic.StartupRunId, generic.Assignment.AssignmentId, generic.Assignment.Revision),
                     RegimeDiscovery = command.WorkflowView.RegimeDiscovery with
                     {
                         ParameterSetId = resolved.ParameterSet.ParameterSetId,

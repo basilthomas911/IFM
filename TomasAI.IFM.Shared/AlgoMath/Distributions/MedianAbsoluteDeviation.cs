@@ -5,17 +5,17 @@ using MathNet.Numerics.Distributions;
 
 namespace TomasAI.IFM.Shared.AlgoMath.Distributions
 {
-    public  class MedianAbsoluteDeviation
+    public class MedianAbsoluteDeviation
     {
         IEnumerable<double> _samples;
         double _median;
         double _medianAbsDev;
 
-        
+
         private MedianAbsoluteDeviation(IEnumerable<double> samples)
         {
             _samples = samples;
-            
+
             // get median...
             _median = _samples.OrderBy(e => e).ToArray()[(int)(_samples.Count() / 2)];
 

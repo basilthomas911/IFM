@@ -86,7 +86,7 @@ public static class GenerateFuturesRsiSignal
            CreatedOn = e.OriginatedOn
        };
 
-   
+
 
     /// <summary>
     /// Creates a <see cref="FuturesRsiSignalsGeneratedEvent"/> based on the provided command, the latest RSI signal, and a collection of valid RSI signals.

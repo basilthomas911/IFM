@@ -97,7 +97,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
         /// <param name="optionPricer"></param>
         public void Release(IOptionPricer optionPricer)
         {
-             _optionPricers.Enqueue(optionPricer);
+            _optionPricers.Enqueue(optionPricer);
             _resetEvent.Set();
         }
 
@@ -108,6 +108,6 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
 
         public IOptionPricerCollection GetByOptionType(OptionType optionType)
             => new OptionPricerCollection(_optionPricers.Where(e => e.OptionPricerId.OptionType == optionType).ToArray());
-        
+
     }
 }

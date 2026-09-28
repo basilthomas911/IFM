@@ -63,8 +63,10 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
         var ctx = Context(false);
         var d = Definition(StrategyCatalogKind.Structure) with
         {
-            Code = "JadeLizard-" + Guid.NewGuid().ToString("N"), Capabilities = BuilderCapabilities,
-            ExpiryGroups = [new("Front")], Legs = [new("Future", "Futures", "Buy", "None", 1, "Front")]
+            Code = "JadeLizard-" + Guid.NewGuid().ToString("N"),
+            Capabilities = BuilderCapabilities,
+            ExpiryGroups = [new("Front")],
+            Legs = [new("Future", "Futures", "Buy", "None", 1, "Front")]
         };
         var hash = await ctx.InsertStrategyCatalogDraftAsync(d, 0, "catalog-tests");
         await FluentActions.Invoking(() => ctx.PublishStrategyCatalogAsync(d.Key, hash, Now, "catalog-tests"))
@@ -78,7 +80,8 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
         var ctx = Context(); var graph = await Graph(ctx);
         var invalid = Definition(StrategyCatalogKind.Variant) with
         {
-            Parent = graph.Structure.Key, Capabilities = ValidatorCapabilities,
+            Parent = graph.Structure.Key,
+            Capabilities = ValidatorCapabilities,
             VariantLegs = [new("MissingLeg", "Sell", 1)]
         };
         await FluentActions.Invoking(() => ctx.InsertStrategyCatalogDraftAsync(invalid, 0, "catalog-tests"))
@@ -185,7 +188,8 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
             .Should().ThrowAsync<ArgumentException>().WithMessage("*fixture product*");
         var badParameter = graph.Deployment with
         {
-            Key = Key(StrategyCatalogKind.Deployment), Code = "BadParameter-" + Guid.NewGuid().ToString("N"),
+            Key = Key(StrategyCatalogKind.Deployment),
+            Code = "BadParameter-" + Guid.NewGuid().ToString("N"),
             PipelineParameters = [new("selection", CatalogPipelineParameterKind.TradeSelection, Guid.NewGuid(), 1, new string('a', 64))]
         };
         hash = await ctx.InsertStrategyCatalogDraftAsync(badParameter, 0, "catalog-tests");
@@ -264,7 +268,8 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
 
     static StrategyCatalogDefinition Structure() => Definition(StrategyCatalogKind.Structure) with
     {
-        Capabilities = BuilderCapabilities, ExpiryGroups = [new("Front")],
+        Capabilities = BuilderCapabilities,
+        ExpiryGroups = [new("Front")],
         Legs = [new("Future", "Futures", "Buy", "None", 1, "Front")]
     };
 
@@ -284,8 +289,12 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
         var parameter = Definition(StrategyCatalogKind.ParameterSet) with { Parent = schema.Key, Settings = Json("{\"threshold\":0.5,\"enabled\":true}") }; await Publish(ctx, parameter);
         var deployment = Definition(StrategyCatalogKind.Deployment) with
         {
-            Parent = strategy.Key, Capabilities = ValidatorCapabilities, Variants = [variant.Key],
-            Products = [new(101, "ES", "CME", "USD")], Parameters = [new("entry", parameter.Key)], LegacyFamilies = [new(5901, 1)]
+            Parent = strategy.Key,
+            Capabilities = ValidatorCapabilities,
+            Variants = [variant.Key],
+            Products = [new(101, "ES", "CME", "USD")],
+            Parameters = [new("entry", parameter.Key)],
+            LegacyFamilies = [new(5901, 1)]
         };
         await Publish(ctx, deployment);
         return new(structure, variant, schema, parameter, deployment);

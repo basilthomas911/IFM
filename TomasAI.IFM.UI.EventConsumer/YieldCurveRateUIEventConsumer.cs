@@ -16,7 +16,7 @@ public class YieldCurveRateUIEventConsumer(INatsEventListenerOptions options, IL
     readonly ILogger _logger = logger;
     readonly Dictionary<ActorMailboxId, List<string>> _eventMap = new()
     {
-        [new ActorMailboxId(ActorType.Event, YieldCurveRateAddedCompleteEvent.Actor)] 
+        [new ActorMailboxId(ActorType.Event, YieldCurveRateAddedCompleteEvent.Actor)]
             = [YieldCurveRateAddedCompleteEvent.Verb,
                 YieldCurveRateAddedFailEvent.Verb,
                 YieldCurveRateChangedCompleteEvent.Verb,

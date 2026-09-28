@@ -35,7 +35,7 @@ public class MarketDataFeedResetUIEventConsumer(INatsEventListenerOptions option
             {
                 await (eventVerb switch
                 {
-                    _ when eventVerb == MarketDataFeedResetStreamingEvent.Verb 
+                    _ when eventVerb == MarketDataFeedResetStreamingEvent.Verb
                         => HandleEvent(eventMsg.AsEvent<MarketDataFeedResetStreamingEvent>()!, eventAction),
                     _ => ValueTask.CompletedTask
                 }).ConfigureAwait(false);
@@ -50,6 +50,6 @@ public class MarketDataFeedResetUIEventConsumer(INatsEventListenerOptions option
                 Func<MarketDataFeedResetStreamingEvent, ValueTask> eventAction)
                 => eventAction(e);
         }
-       
+
     }
 }

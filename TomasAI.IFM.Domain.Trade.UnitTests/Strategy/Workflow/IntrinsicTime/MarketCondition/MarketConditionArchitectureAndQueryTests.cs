@@ -18,11 +18,11 @@ public sealed class MarketConditionArchitectureAndQueryTests
     [Fact]
     public void Function_terminal_map_owns_completion_and_failure_without_factory_overrides()
     {
-        var actor=typeof(MarketConditionFunctionActor);
-        var map=(System.Collections.IDictionary)actor.GetField("_eventMap",BindingFlags.Static|BindingFlags.NonPublic)!.GetValue(null)!;
-        map.Keys.Cast<Type>().Should().BeEquivalentTo([typeof(MarketConditionAssessmentCompletedEvent),typeof(MarketConditionAssessmentFailedEvent)]);
-        actor.GetMethods(BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.DeclaredOnly)
-            .Should().NotContain(method=>method.Name=="CreateFailedEvent" || method.Name=="CreateConflictFailedEvent" || method.Name=="WithinDeadlineAsync");
+        var actor = typeof(MarketConditionFunctionActor);
+        var map = (System.Collections.IDictionary)actor.GetField("_eventMap", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+        map.Keys.Cast<Type>().Should().BeEquivalentTo([typeof(MarketConditionAssessmentCompletedEvent), typeof(MarketConditionAssessmentFailedEvent)]);
+        actor.GetMethods(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)
+            .Should().NotContain(method => method.Name == "CreateFailedEvent" || method.Name == "CreateConflictFailedEvent" || method.Name == "WithinDeadlineAsync");
     }
 
     [Fact]

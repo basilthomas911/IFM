@@ -35,7 +35,7 @@ public class TradePlanQueryApi(IActorProducer actorProducer)
     /// <summary>
     /// Return a range of iron condor forward loss ratios for the specified date range.
     /// </summary>
-    public async Task<ServiceResult<TradePlanForwardLossRatioReadModel[]>> GetIronCondorTradePlanForwardLossRatiosAsync(DateOnly startDate,DateOnly endDate)
+    public async Task<ServiceResult<TradePlanForwardLossRatioReadModel[]>> GetIronCondorTradePlanForwardLossRatiosAsync(DateOnly startDate, DateOnly endDate)
     {
         var entityId = new GetTradePlanForwardLossRatiosParameter(startDate, endDate);
         GetTradePlanForwardLossRatiosQuery query = new(startDate, endDate)

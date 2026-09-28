@@ -29,18 +29,18 @@ namespace TomasAI.IFM.Domain.Trade.Shared
         public string ActionReason => _actionReason;
 
         public static TradeDiaryId Create(int orderId, int tradeId, DateOnly valueDate, TradeStatus tradeStatus, ActionSource actionSource, ActionType actionType, ActionSubType actionSubType, ActionState actionState, string actionReason)
-            => new TradeDiaryId(orderId, tradeId,valueDate, tradeStatus, actionSource, actionType, actionSubType, actionState, actionReason);
+            => new TradeDiaryId(orderId, tradeId, valueDate, tradeStatus, actionSource, actionType, actionSubType, actionState, actionReason);
 
         [JsonConstructor]
         private TradeDiaryId(
-            int orderId, 
-            int tradeId, 
-            DateOnly valueDate, 
-            TradeStatus tradeStatus, 
-            ActionSource actionSource, 
-            ActionType actionType, 
-            ActionSubType actionSubType, 
-            ActionState actionState, 
+            int orderId,
+            int tradeId,
+            DateOnly valueDate,
+            TradeStatus tradeStatus,
+            ActionSource actionSource,
+            ActionType actionType,
+            ActionSubType actionSubType,
+            ActionState actionState,
             string actionReason)
         {
             _orderId = orderId;

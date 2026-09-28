@@ -75,7 +75,7 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
         where TQuery : class, IQuery<TResult>
         where TResult : class
         => (_producer ??= _supervisor.GetProducer(_actorId))
-            .RequestAsync<TResult, TQuery   >(query.Subject, query);
+            .RequestAsync<TResult, TQuery>(query.Subject, query);
 
     /// <summary>
     /// Sends a command to the actor and awaits a service result containing the command id.
@@ -172,7 +172,7 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
     /// that the mailboxes are valid and currently have an event router established.</remarks>
     /// <param name="fromActorTypeId">The identifier of the source actor type from which events are being routed.</param>
     /// <param name="toMailboxId">The identifier of the destination mailbox to which events are being routed.</param>
-    public void RemoveEventRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId) 
+    public void RemoveEventRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId)
         => _supervisor.RemoveEventRouter(fromActorTypeId, toMailboxId);
 
     /// <summary>

@@ -54,7 +54,9 @@ public sealed class StrategyCatalogContractTests
     }
 
     [Theory]
-    [InlineData(TimeFrameType.Daily)] [InlineData(TimeFrameType.Weekly)] [InlineData(TimeFrameType.Monthly)]
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
     public void Deployments_accept_only_the_supported_trigger_horizons(TimeFrameType horizon)
     {
         StrategyCatalogValidation.Freeze(Definition(StrategyCatalogKind.Deployment) with { Horizon = horizon }).Horizon.Should().Be(horizon);
@@ -133,12 +135,15 @@ public sealed class StrategyCatalogContractTests
     internal static CatalogKey Key(StrategyCatalogKind kind) => new(kind, Guid.NewGuid(), 1);
     internal static StrategyCatalogDefinition Definition(StrategyCatalogKind kind) => new()
     {
-        Key = Key(kind), Code = "Test-" + Guid.NewGuid().ToString("N"), Name = "Catalog fixture",
+        Key = Key(kind),
+        Code = "Test-" + Guid.NewGuid().ToString("N"),
+        Name = "Catalog fixture",
         Parent = kind switch
         {
             StrategyCatalogKind.Variant => Key(StrategyCatalogKind.Structure),
             StrategyCatalogKind.ParameterSet => Key(StrategyCatalogKind.ParameterSchema),
-            StrategyCatalogKind.Deployment => Key(StrategyCatalogKind.Strategy), _ => null
+            StrategyCatalogKind.Deployment => Key(StrategyCatalogKind.Strategy),
+            _ => null
         },
         Horizon = kind == StrategyCatalogKind.Deployment ? TimeFrameType.Daily : TimeFrameType.None,
         Side = kind == StrategyCatalogKind.Variant ? "Long" : "",

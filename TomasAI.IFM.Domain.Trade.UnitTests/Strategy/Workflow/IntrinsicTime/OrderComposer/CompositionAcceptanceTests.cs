@@ -13,8 +13,13 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Ord
 public sealed class CompositionAcceptanceTests
 {
     [Theory]
-    [InlineData("price")] [InlineData("quantity")] [InlineData("side")] [InlineData("reservation")]
-    [InlineData("contracts")] [InlineData("invocation")] [InlineData("expiry")]
+    [InlineData("price")]
+    [InlineData("quantity")]
+    [InlineData("side")]
+    [InlineData("reservation")]
+    [InlineData("contracts")]
+    [InlineData("invocation")]
+    [InlineData("expiry")]
     public async Task Altered_or_expired_completions_never_start_risk(string alteration)
     {
         var c = await CompositionFixture.Command(); var model = new Composer(new Black76ComposerPricer());

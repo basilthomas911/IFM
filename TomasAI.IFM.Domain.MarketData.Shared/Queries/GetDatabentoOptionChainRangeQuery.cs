@@ -38,6 +38,7 @@ public sealed record GetDatabentoOptionChainRangeQuery : IQuery<OptionContractEx
     [Key(3)] public DateOnly FromMaturityDate { get; set; }
     [Key(4)] public DateOnly ThroughMaturityDate { get; set; }
     [IgnoreMember] public int ErrorCode => ErrorId;
-    [IgnoreMember] public string QueryParams =>
+    [IgnoreMember]
+    public string QueryParams =>
         $"underlyingSymbol={Uri.EscapeDataString(UnderlyingSymbol)}&fromMaturityDate={FromMaturityDate:yyyy-MM-dd}&throughMaturityDate={ThroughMaturityDate:yyyy-MM-dd}";
 }

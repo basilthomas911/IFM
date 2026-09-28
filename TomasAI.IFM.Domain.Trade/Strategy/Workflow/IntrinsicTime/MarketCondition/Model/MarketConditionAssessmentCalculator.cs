@@ -51,7 +51,7 @@ public sealed class MarketConditionAssessmentCalculator : IMarketConditionAssess
             fresh.Add(o.SourceId, usable);
             var reason = usable ? o.Reason : string.IsNullOrWhiteSpace(o.Reason)
                 ? $"MC.ASSESSMENT.{o.SourceId.ToUpperInvariant()}.{(o.Availability == MarketSourceAvailability.Unavailable ? "MISSING" : "STALE")}" : o.Reason;
-            evidence.Add(new(p.TargetHorizon, o.SourceId, "SourceObservation", o.Value, o.Unit, o.ObservedAtUtc, age, o.Availability, reason,o.Sequence));
+            evidence.Add(new(p.TargetHorizon, o.SourceId, "SourceObservation", o.Value, o.Unit, o.ObservedAtUtc, age, o.Availability, reason, o.Sequence));
             evidence.Add(new(p.TargetHorizon, o.SourceId, "MaximumAge", binding.MaximumAgeSeconds, "seconds", at, 0, MarketSourceAvailability.Available, "Frozen source threshold"));
             if (!usable) reasons.Add(reason);
             if (!binding.Required) continue;
@@ -61,8 +61,8 @@ public sealed class MarketConditionAssessmentCalculator : IMarketConditionAssess
         if (regime.ProducedAtUtc > at.AddSeconds(p.FutureClockSkewSeconds) || regime.MarketDataAsOfUtc > regime.ProducedAtUtc.AddSeconds(p.FutureClockSkewSeconds))
             throw Invalid("Upstream result timestamps are untrustworthy.");
         var regimeAge = Age(at, regime.ProducedAtUtc);
-        var requiredFreshness=fitness;
-        var regimeFreshness=Math.Clamp(1m-regimeAge/p.HorizonProfile.RegimeMaximumAgeSeconds,0m,1m);
+        var requiredFreshness = fitness;
+        var regimeFreshness = Math.Clamp(1m - regimeAge / p.HorizonProfile.RegimeMaximumAgeSeconds, 0m, 1m);
         fitness = Math.Min(fitness, Math.Clamp(1m - regimeAge / p.HorizonProfile.RegimeMaximumAgeSeconds, 0m, 1m));
         expiry = Min(expiry, regime.ProducedAtUtc.AddSeconds(p.HorizonProfile.RegimeMaximumAgeSeconds));
         if (regimeAge >= p.HorizonProfile.RegimeMaximumAgeSeconds) reasons.Add("MC.ASSESSMENT.REGIME.STALE");
@@ -78,10 +78,10 @@ public sealed class MarketConditionAssessmentCalculator : IMarketConditionAssess
         {
             expiry = Min(expiry, coverage!.ValidUntilUtc!.Value);
             // A profile can demand a stricter download age than the shared coverage reader.
-            foreach (var attempt in coverage.Attempts.GroupBy(x=>x.Outcome.ValueDate).Select(group=>group
-                .OrderByDescending(x=>x.Outcome.RequestedAtUtc)
-                .ThenBy(x=>x.Outcome.Status==TomasAI.IFM.Domain.MarketData.Shared.DownloadLog.MarketDataDownloadStatus.Failed?0:1)
-                .ThenBy(x=>x.Outcome.FinishedAtUtc).ThenBy(x=>x.Outcome.ImportCommandId).First()))
+            foreach (var attempt in coverage.Attempts.GroupBy(x => x.Outcome.ValueDate).Select(group => group
+                .OrderByDescending(x => x.Outcome.RequestedAtUtc)
+                .ThenBy(x => x.Outcome.Status == TomasAI.IFM.Domain.MarketData.Shared.DownloadLog.MarketDataDownloadStatus.Failed ? 0 : 1)
+                .ThenBy(x => x.Outcome.FinishedAtUtc).ThenBy(x => x.Outcome.ImportCommandId).First()))
                 expiry = Min(expiry, attempt.Outcome.FinishedAtUtc.AddSeconds(p.CalendarDownloadMaximumAgeSeconds));
             covered = expiry > at;
         }
@@ -110,8 +110,8 @@ public sealed class MarketConditionAssessmentCalculator : IMarketConditionAssess
                 if (spread == 0) reasons.Add("MC.ASSESSMENT.QUOTE.LOCKED");
             }
             var o = observations.Single(x => x.SourceId == "ReferenceQuote");
-            evidence.Add(new(p.TargetHorizon, o.SourceId, "SpreadTicks", spread, "ticks", o.ObservedAtUtc, Age(at,o.ObservedAtUtc), o.Availability, crossed ? "Crossed market" : ""));
-            evidence.Add(new(p.TargetHorizon, o.SourceId, "BestSideSize", size, "contracts", o.ObservedAtUtc, Age(at,o.ObservedAtUtc), o.Availability, ""));
+            evidence.Add(new(p.TargetHorizon, o.SourceId, "SpreadTicks", spread, "ticks", o.ObservedAtUtc, Age(at, o.ObservedAtUtc), o.Availability, crossed ? "Crossed market" : ""));
+            evidence.Add(new(p.TargetHorizon, o.SourceId, "BestSideSize", size, "contracts", o.ObservedAtUtc, Age(at, o.ObservedAtUtc), o.Availability, ""));
         }
         decimal? Optional(string id)
         {
@@ -137,38 +137,64 @@ public sealed class MarketConditionAssessmentCalculator : IMarketConditionAssess
         var alignment = Age(at, triggerAt) >= p.TriggerMaximumAgeSeconds ? AssessmentTriggerAlignment.NotApplicable
             : decision.Direction == RegimeDirection.Neutral ? AssessmentTriggerAlignment.Neutral
             : (trend == IntrinsicTimeTrendType.UpTrend) == (decision.Direction == RegimeDirection.Up) ? AssessmentTriggerAlignment.Aligned : AssessmentTriggerAlignment.Conflicted;
-        var triggerEvidence = new AssessmentEvidence(p.TargetHorizon, "ITI", "TriggerAlignment", null, "", triggerAt, Age(at,triggerAt), MarketSourceAvailability.Available, alignment.ToString());
+        var triggerEvidence = new AssessmentEvidence(p.TargetHorizon, "ITI", "TriggerAlignment", null, "", triggerAt, Age(at, triggerAt), MarketSourceAvailability.Available, alignment.ToString());
         evidence.Add(triggerEvidence);
         if (alignment == AssessmentTriggerAlignment.NotApplicable) reasons.Add("MC.ASSESSMENT.TRIGGER.STALE");
         decimal? confidence = available ? Math.Round(decision.Confidence * fitness, 6, MidpointRounding.AwayFromZero) : null;
-        foreach(var term in new (string Feature,decimal Value,string Unit)[]
+        foreach (var term in new (string Feature, decimal Value, string Unit)[]
         {
             ("RequiredFreshnessFactor",requiredFreshness,"ratio"),("RegimeFreshnessFactor",regimeFreshness,"ratio"),
             ("AppliedFreshnessFactor",fitness,"ratio"),("HealthySpreadThreshold",p.HealthySpreadTicks,"ticks"),
             ("DegradedSpreadThreshold",p.DegradedSpreadTicks,"ticks"),("HealthySizeThreshold",p.HealthyBestSize,"contracts"),
             ("DegradedSizeThreshold",p.DegradedBestSize,"contracts"),("MovementStressThreshold",p.MovementStressThreshold,"ATR ratio"),
             ("VolatilityStressThreshold",p.VolatilityChangeStressThreshold,"relative change")
-        }) evidence.Add(new(p.TargetHorizon,"Calculation",term.Feature,term.Value,term.Unit,at,0,MarketSourceAvailability.Available,"Applied frozen policy; diagnostic evidence, not independent market authority"));
+        }) evidence.Add(new(p.TargetHorizon, "Calculation", term.Feature, term.Value, term.Unit, at, 0, MarketSourceAvailability.Available, "Applied frozen policy; diagnostic evidence, not independent market authority"));
         var summary = available ? string.Create(CultureInfo.InvariantCulture, $"{p.InstrumentRoot} {p.TargetHorizon}: {condition}; liquidity {liquidity}; stress {stress}; session {s.SessionState}; events {s.EventContext}; confidence {confidence:0.000000}.")
             : $"{p.InstrumentRoot} {p.TargetHorizon}: Unavailable ({string.Join(", ", reasons.Distinct().Order(StringComparer.Ordinal))}).";
         var result = new MarketConditionAssessmentResult
         {
-            ResultId = resultId, WorkflowId = command.WorkflowId, EntityId = command.WorkflowEntityId, CommandId = command.CommandId,
-            InputWorkflowRevision = command.InputWorkflowRevision, MarketProfileId = p.MarketProfileId, InstrumentRoot = p.InstrumentRoot,
-            ParameterSetId = p.ParameterSetId, ParameterSetVersion = p.Version, ParameterPayloadSha256 = command.ParameterPayloadSha256,
-            RegimeResultId = regime.ResultId, RegimePayloadSha256 = command.RegimePayloadSha256, SnapshotId = s.SnapshotId,
-            SnapshotSha256 = s.PayloadSha256, EvaluatedAtUtc = at, TargetHorizon = p.TargetHorizon, SummaryText = summary, CalendarEvidence = coverage,
+            ResultId = resultId,
+            WorkflowId = command.WorkflowId,
+            EntityId = command.WorkflowEntityId,
+            CommandId = command.CommandId,
+            InputWorkflowRevision = command.InputWorkflowRevision,
+            MarketProfileId = p.MarketProfileId,
+            InstrumentRoot = p.InstrumentRoot,
+            ParameterSetId = p.ParameterSetId,
+            ParameterSetVersion = p.Version,
+            ParameterPayloadSha256 = command.ParameterPayloadSha256,
+            RegimeResultId = regime.ResultId,
+            RegimePayloadSha256 = command.RegimePayloadSha256,
+            SnapshotId = s.SnapshotId,
+            SnapshotSha256 = s.PayloadSha256,
+            EvaluatedAtUtc = at,
+            TargetHorizon = p.TargetHorizon,
+            SummaryText = summary,
+            CalendarEvidence = coverage,
             Assessment = new()
             {
-                Horizon = p.TargetHorizon, Availability = available ? AssessmentAvailability.Available : AssessmentAvailability.Unavailable,
-                RegimeResultId = regime.ResultId, RegimePayloadSha256 = command.RegimePayloadSha256, UpstreamContext = available ? decision : null,
-                ConditionType = condition, LiquidityCondition = liquidity, StressState = stress, SessionState = s.SessionState, EventRiskState = s.EventContext,
+                Horizon = p.TargetHorizon,
+                Availability = available ? AssessmentAvailability.Available : AssessmentAvailability.Unavailable,
+                RegimeResultId = regime.ResultId,
+                RegimePayloadSha256 = command.RegimePayloadSha256,
+                UpstreamContext = available ? decision : null,
+                ConditionType = condition,
+                LiquidityCondition = liquidity,
+                StressState = stress,
+                SessionState = s.SessionState,
+                EventRiskState = s.EventContext,
                 VolatilityBehavior = !available ? AssessmentVolatility.Unknown : stress == AssessmentStress.Elevated ? AssessmentVolatility.Shock : decision.VolatilityChange switch
                 { VolatilityRegimeChange.Stable => AssessmentVolatility.Stable, VolatilityRegimeChange.Expanding => AssessmentVolatility.Expanding, VolatilityRegimeChange.Contracting => AssessmentVolatility.Contracting, _ => AssessmentVolatility.Unknown },
-                TriggerAlignment = alignment, AssessmentConfidence = confidence, DataQuality = !available ? MarketConditionDataQuality.Unusable : reasons.Count > 0 ? MarketConditionDataQuality.Degraded : MarketConditionDataQuality.Healthy,
-                EvaluatedAtUtc = at, ValidUntilUtc = available ? expiry : null, EvidenceItems = evidence.OrderBy(x => x.SourceId,StringComparer.Ordinal).ThenBy(x => x.Feature,StringComparer.Ordinal).ToArray(),
+                TriggerAlignment = alignment,
+                AssessmentConfidence = confidence,
+                DataQuality = !available ? MarketConditionDataQuality.Unusable : reasons.Count > 0 ? MarketConditionDataQuality.Degraded : MarketConditionDataQuality.Healthy,
+                EvaluatedAtUtc = at,
+                ValidUntilUtc = available ? expiry : null,
+                EvidenceItems = evidence.OrderBy(x => x.SourceId, StringComparer.Ordinal).ThenBy(x => x.Feature, StringComparer.Ordinal).ToArray(),
                 ConflictingEvidenceItems = alignment == AssessmentTriggerAlignment.Conflicted ? [triggerEvidence] : [],
-                LimitationReasons = reasons.Distinct().Order(StringComparer.Ordinal).ToArray(), InheritedRestrictions = decision.Restrictions.Distinct().Order().ToArray(), SummaryText = summary
+                LimitationReasons = reasons.Distinct().Order(StringComparer.Ordinal).ToArray(),
+                InheritedRestrictions = decision.Restrictions.Distinct().Order().ToArray(),
+                SummaryText = summary
             }
         };
         MarketConditionAssessmentContracts.ValidateResult(result);

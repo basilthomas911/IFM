@@ -44,7 +44,7 @@ public static class GenerateFuturesRsiDailySignal
               CreatedBy = e.OriginatedBy,
               CreatedOn = e.OriginatedOn
           };
-  
+
     internal static FuturesRsiDailySignalsGeneratedEvent CreateFuturesRsiDailySignalsGeneratedEvent(
         this GenerateFuturesRsiDailySignalCommand e, FuturesRsiSignalReadModel futuresRsiSignal, IReadOnlyCollection<FuturesRsiSignalReadModel> futuresRsiSignals, int periodLength)
        => new()

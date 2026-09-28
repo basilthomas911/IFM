@@ -335,7 +335,7 @@ public class MarketDataAnalyticsTestFixture : IDisposable
     {
         var sv = supervisor ?? Substitute.For<IActorSupervisor>();
         var lg = logger ?? Substitute.For<ILogger<FuturesAdxSignalEventActor>>();
-        var scw =  Substitute.For<IStatusConsoleWriter>();    
+        var scw = Substitute.For<IStatusConsoleWriter>();
         return new TestableFuturesAdxSignalEventActor(sv, scw, lg,
             marketDataApi ?? Substitute.For<IMarketDataApi>());
     }

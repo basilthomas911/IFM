@@ -1223,11 +1223,20 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         var evt = new FuturesTickQuoteDataChangedEvent
         {
             Subject = new ActorSubject(ActorType.Realtime, FuturesTickQuoteDataChangedEvent.Actor, FuturesTickQuoteDataChangedEvent.Verb, entity.Format()),
-            Id = pending.EventId, CommandId = pending.CommandId, EntityId = entity,
-            AggregateId = entity.Format(), EventSource = nameof(TickAggregationService), ReceivedOn = pending.TimestampUtc,
-            TickDataId = pending.TickDataId, AssetTypeId = state.Mapping.AssetTypeId, Dataset = state.Mapping.Dataset,
-            DefinitionDate = state.Mapping.DefinitionDate, PublisherId = state.Mapping.PublisherId,
-            InstrumentId = state.Mapping.InstrumentId, EmissionReason = pending.Reason, QuoteCount = count,
+            Id = pending.EventId,
+            CommandId = pending.CommandId,
+            EntityId = entity,
+            AggregateId = entity.Format(),
+            EventSource = nameof(TickAggregationService),
+            ReceivedOn = pending.TimestampUtc,
+            TickDataId = pending.TickDataId,
+            AssetTypeId = state.Mapping.AssetTypeId,
+            Dataset = state.Mapping.Dataset,
+            DefinitionDate = state.Mapping.DefinitionDate,
+            PublisherId = state.Mapping.PublisherId,
+            InstrumentId = state.Mapping.InstrumentId,
+            EmissionReason = pending.Reason,
+            QuoteCount = count,
             QuoteData = new FuturesTickQuoteDataSegment(lease.Buffer, count)
         };
         try
@@ -1309,12 +1318,18 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         {
             Subject = new ActorSubject(ActorType.Realtime, FuturesTickTradeDataChangedEvent.Actor,
                 FuturesTickTradeDataChangedEvent.Verb, entity.Format()),
-            Id = Guid.NewGuid(), CommandId = Guid.NewGuid(), EntityId = entity,
-            AggregateId = entity.Format(), EventSource = nameof(TickAggregationService), ReceivedOn = timestampUtc,
+            Id = Guid.NewGuid(),
+            CommandId = Guid.NewGuid(),
+            EntityId = entity,
+            AggregateId = entity.Format(),
+            EventSource = nameof(TickAggregationService),
+            ReceivedOn = timestampUtc,
             TickDataId = new TickDataId(state.Mapping.ContractId, state.ValueDate, sequence,
                 DateTime.SpecifyKind(timestampUtc, DateTimeKind.Utc)),
-            AssetTypeId = state.Mapping.AssetTypeId, Dataset = state.Mapping.Dataset,
-            DefinitionDate = state.Mapping.DefinitionDate, PublisherId = trade.Header.PublisherId,
+            AssetTypeId = state.Mapping.AssetTypeId,
+            Dataset = state.Mapping.Dataset,
+            DefinitionDate = state.Mapping.DefinitionDate,
+            PublisherId = trade.Header.PublisherId,
             InstrumentId = trade.Header.InstrumentId,
             TradeData = new FuturesTickTradeData(
                 trade.Header.Sequence, trade.Header.EventTimestampNanoseconds,

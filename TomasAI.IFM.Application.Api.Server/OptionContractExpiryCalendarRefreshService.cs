@@ -102,8 +102,8 @@ public sealed class OptionContractExpiryCalendarRefreshService(
                 EqualityComparer<(DateOnly, string, string)>.Default);
             var rootRequests = new List<(string Family, string Root)>();
             foreach (var (family, roots) in OptionExpiryCalendarPolicy.GetRoots(symbol))
-            foreach (var root in roots)
-                rootRequests.Add((family, root));
+                foreach (var root in roots)
+                    rootRequests.Add((family, root));
             var definitionsByRoot = new FuturesOptionContractReadModel[rootRequests.Count][];
             await Parallel.ForEachAsync(
                 Enumerable.Range(0, rootRequests.Count),
@@ -144,9 +144,12 @@ public sealed class OptionContractExpiryCalendarRefreshService(
                     expiryMappings.Add((expiry, root, underlyingId));
                     cached.Add(new()
                     {
-                        Symbol = symbol, UnderlyingContractId = underlyingId,
-                        ExpiryDate = expiry, ProviderRoot = root,
-                        OptionFamily = family, Definition = definition,
+                        Symbol = symbol,
+                        UnderlyingContractId = underlyingId,
+                        ExpiryDate = expiry,
+                        ProviderRoot = root,
+                        OptionFamily = family,
+                        Definition = definition,
                         RefreshedAtUtc = refreshedAtUtc
                     });
                 }

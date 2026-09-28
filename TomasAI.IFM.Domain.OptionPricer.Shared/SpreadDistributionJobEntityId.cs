@@ -28,6 +28,6 @@ public record struct SpreadDistributionJobEntityId(
     public string Format() => string.Create(null, stackalloc char[32], $"{OrderId}.{TradeId}.{ValueDate:yyyyMMdd}");
 
     [IgnoreMember]
-    public bool IsValid 
+    public bool IsValid
         => OrderId > 0 && TradeId > 0 && ValueDate > DateOnly.MinValue;
 }

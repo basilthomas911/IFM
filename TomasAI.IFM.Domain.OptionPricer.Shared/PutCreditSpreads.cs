@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
         {
         }
 
-        public PutCreditSpreads(IEnumerable<double[]> collection):base(collection)
+        public PutCreditSpreads(IEnumerable<double[]> collection) : base(collection)
         {
         }
     }

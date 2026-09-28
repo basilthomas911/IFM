@@ -39,22 +39,22 @@ public sealed class PortfolioFinancialPolicyQueryActor(
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
-    {
-        [GetPortfolioFinancialPolicyQuery.Verb] = static message => message.AsQuery<GetPortfolioFinancialPolicyQuery, PortfolioFinancialPolicyReadModel>()!,
-        [GetPortfolioFinancialPoliciesQuery.Verb] = static message => message.AsQuery<GetPortfolioFinancialPoliciesQuery, PortfolioPage<PortfolioFinancialPolicyReadModel>>()!,
-        [GetActivePortfolioFinancialPolicyQuery.Verb] = static message => message.AsQuery<GetActivePortfolioFinancialPolicyQuery, PortfolioFinancialPolicyReadModel>()!,
-    };
+        {
+            [GetPortfolioFinancialPolicyQuery.Verb] = static message => message.AsQuery<GetPortfolioFinancialPolicyQuery, PortfolioFinancialPolicyReadModel>()!,
+            [GetPortfolioFinancialPoliciesQuery.Verb] = static message => message.AsQuery<GetPortfolioFinancialPoliciesQuery, PortfolioPage<PortfolioFinancialPolicyReadModel>>()!,
+            [GetActivePortfolioFinancialPolicyQuery.Verb] = static message => message.AsQuery<GetActivePortfolioFinancialPolicyQuery, PortfolioFinancialPolicyReadModel>()!,
+        };
 
     static readonly IReadOnlyDictionary<Type, Func<PortfolioQueryParameters, IQueryActorContext<PortfolioFinancialPolicyQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<PortfolioQueryParameters, IQueryActorContext<PortfolioFinancialPolicyQueryActor>, IQuery, CancellationToken, ValueTask>>
-    {
-        [typeof(GetPortfolioFinancialPolicyQuery)] = static (parameters, context, query, token) =>
-            ((GetPortfolioFinancialPolicyQuery)query).ExecuteAsync(context, parameters, token),
-        [typeof(GetPortfolioFinancialPoliciesQuery)] = static (parameters, context, query, token) =>
-            ((GetPortfolioFinancialPoliciesQuery)query).ExecuteAsync(context, parameters, token),
-        [typeof(GetActivePortfolioFinancialPolicyQuery)] = static (parameters, context, query, token) =>
-            ((GetActivePortfolioFinancialPolicyQuery)query).ExecuteAsync(context, parameters, token),
-    };
+        {
+            [typeof(GetPortfolioFinancialPolicyQuery)] = static (parameters, context, query, token) =>
+                ((GetPortfolioFinancialPolicyQuery)query).ExecuteAsync(context, parameters, token),
+            [typeof(GetPortfolioFinancialPoliciesQuery)] = static (parameters, context, query, token) =>
+                ((GetPortfolioFinancialPoliciesQuery)query).ExecuteAsync(context, parameters, token),
+            [typeof(GetActivePortfolioFinancialPolicyQuery)] = static (parameters, context, query, token) =>
+                ((GetActivePortfolioFinancialPolicyQuery)query).ExecuteAsync(context, parameters, token),
+        };
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
         CreateQueryExceptionMap(_receiveMap.Keys, static (query, exception) => exception switch

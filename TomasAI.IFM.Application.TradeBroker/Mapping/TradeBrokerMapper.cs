@@ -20,11 +20,24 @@ public static class TradeBrokerMapper
     public static BrokerDispatchReceipt ToApplication(FrameworkDispatchReceipt x) => new((BrokerDispatchOutcome)x.Outcome, x.OperationId, x.BrokerOrderId, x.Category, x.Detail, x.RecordedAtUtc);
     public static BrokerObservation ToApplication(FrameworkBrokerObservation x) => new()
     {
-        Kind = (BrokerObservationKind)x.Kind, ObservationId = x.ObservationId, AccountAlias = x.AccountAlias,
-        BrokerOrderId = x.BrokerOrderId, OperationId = x.OperationId, ComponentId = x.ComponentId, LegId = x.LegId,
-        ContractId = x.ContractId, ExternalExecutionId = x.ExternalExecutionId, SignedQuantity = x.SignedQuantity,
-        Price = x.Price, Commission = x.Commission, OrderRevision = x.OrderRevision, SourceEpoch = x.SourceEpoch,
-        SourceSequence = x.SourceSequence, OccurredAtUtc = x.OccurredAtUtc, Category = x.Category, Detail = x.Detail
+        Kind = (BrokerObservationKind)x.Kind,
+        ObservationId = x.ObservationId,
+        AccountAlias = x.AccountAlias,
+        BrokerOrderId = x.BrokerOrderId,
+        OperationId = x.OperationId,
+        ComponentId = x.ComponentId,
+        LegId = x.LegId,
+        ContractId = x.ContractId,
+        ExternalExecutionId = x.ExternalExecutionId,
+        SignedQuantity = x.SignedQuantity,
+        Price = x.Price,
+        Commission = x.Commission,
+        OrderRevision = x.OrderRevision,
+        SourceEpoch = x.SourceEpoch,
+        SourceSequence = x.SourceSequence,
+        OccurredAtUtc = x.OccurredAtUtc,
+        Category = x.Category,
+        Detail = x.Detail
     };
     public static BrokerAccountSnapshot ToApplication(FrameworkAccountSnapshot x) => new(x.AccountAlias, x.Currency,
         x.CashBalance, x.AvailableFunds, x.Complete, x.NewRiskAllowed, x.Generation, x.AsOfUtc,

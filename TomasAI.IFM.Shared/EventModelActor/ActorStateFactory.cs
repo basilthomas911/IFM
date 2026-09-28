@@ -32,7 +32,7 @@ public class ActorStateFactory(IActorStateFactoryResolver resolver, IDistributed
     /// <param name="stateId">The unique identifier to assign to the created actor state.</param>
     /// <returns>An instance of the specified actor state type, initialized with the provided <paramref name="stateId"/>.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the actor state of the specified type cannot be resolved.</exception>
-   TState CreateState<TState>(ActorThreadId stateId) where TState : IActorState
+    TState CreateState<TState>(ActorThreadId stateId) where TState : IActorState
     {
         var actorStateType = typeof(IActorState<>);
         var actorStateGenericType = actorStateType.MakeGenericType(typeof(TState));

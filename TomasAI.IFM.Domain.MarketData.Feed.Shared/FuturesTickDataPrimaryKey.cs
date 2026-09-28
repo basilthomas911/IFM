@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared
 {
     public class FuturesTickDataPrimaryKey
     {
-   
+
         public static FuturesTickDataPrimaryKey Create(string symbol, string lastTradeDate)
             => new FuturesTickDataPrimaryKey(symbol, lastTradeDate);
 

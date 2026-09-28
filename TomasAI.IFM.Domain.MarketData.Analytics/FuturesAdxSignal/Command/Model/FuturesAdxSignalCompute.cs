@@ -14,8 +14,8 @@ public class FuturesAdxSignalCompute
     readonly FuturesAdxSignalReadModel? _adxSignal;
     readonly int _adxPeriod;
 
-    public static bool Create(int adxPeriod, FuturesAdxSignalReadModel? adxSignal, 
-        IReadOnlyCollection<FuturesAdxSignalReadModel> adxSignals, 
+    public static bool Create(int adxPeriod, FuturesAdxSignalReadModel? adxSignal,
+        IReadOnlyCollection<FuturesAdxSignalReadModel> adxSignals,
         out FuturesAdxSignalCompute model)
     {
         model = new(adxPeriod, adxSignals, adxSignal);

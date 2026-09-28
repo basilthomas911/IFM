@@ -38,7 +38,8 @@ public sealed record GetReconciliationQuery : IFinancialQueryMessage<GetReconcil
     [Key(4)] public Guid CorrelationId { get; init; }
     [Key(5)] public DateTime RequestedAtUtc { get; init; }
 
-    [IgnoreMember] public GetReconciliationRequest Parameters
+    [IgnoreMember]
+    public GetReconciliationRequest Parameters
     {
         get => new(ReconciliationId);
         init

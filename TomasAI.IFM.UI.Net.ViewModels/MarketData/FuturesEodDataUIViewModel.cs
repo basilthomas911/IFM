@@ -58,7 +58,8 @@ public class FuturesEodDataUIViewModel
         return;
 
         PresentationColorRole GetMarketDirectionBackColor()
-            => e.MarketDirection switch {
+            => e.MarketDirection switch
+            {
                 MarketDirectionType.Up => PresentationColorRole.Caution,
                 MarketDirectionType.NeutralDown => PresentationColorRole.Warning,
                 MarketDirectionType.Down => PresentationColorRole.Negative,
@@ -66,7 +67,8 @@ public class FuturesEodDataUIViewModel
             };
 
         PresentationColorRole GetMarketVolatilityBackColor()
-            => e.MarketVolatility switch {
+            => e.MarketVolatility switch
+            {
                 MarketVolatilityType.High => PresentationColorRole.Negative,
                 MarketVolatilityType.Low => PresentationColorRole.Caution,
                 MarketVolatilityType.Rising => PresentationColorRole.Warning,
@@ -74,7 +76,8 @@ public class FuturesEodDataUIViewModel
             };
 
         PresentationColorRole GetPriceDirectionBackColor()
-            => e.PriceDirection switch {
+            => e.PriceDirection switch
+            {
                 PriceDirectionType.Rising => PresentationColorRole.Positive,
                 PriceDirectionType.RisingSlowly => PresentationColorRole.PositiveMuted,
                 PriceDirectionType.Flat => PresentationColorRole.Caution,
@@ -84,7 +87,8 @@ public class FuturesEodDataUIViewModel
             };
 
         PresentationColorRole GetPriceVolatilityBackColor()
-            => e.PriceVolatility switch {
+            => e.PriceVolatility switch
+            {
                 PriceVolatilityType.Rising => PresentationColorRole.Negative,
                 PriceVolatilityType.Flat => PresentationColorRole.Caution,
                 _ => PresentationColorRole.Positive
@@ -134,11 +138,11 @@ public class FuturesEodDataUIViewModel
             VwapForeColor = PresentationColorRole.DarkText;
             VwapBackColor = !exact ? PresentationColorRole.Caution
                 : vwap.Vwap.Value.CompareTo(snapshot.FuturesEodData.ClosePrice) switch
-            {
-                > 0 => PresentationColorRole.Negative,
-                < 0 => PresentationColorRole.Positive,
-                _ => PresentationColorRole.Caution
-            };
+                {
+                    > 0 => PresentationColorRole.Negative,
+                    < 0 => PresentationColorRole.Positive,
+                    _ => PresentationColorRole.Caution
+                };
         }
         else
         {

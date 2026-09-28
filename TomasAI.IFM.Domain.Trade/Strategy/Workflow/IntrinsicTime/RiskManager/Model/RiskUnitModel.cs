@@ -142,32 +142,32 @@ public static class RiskUnitModel
         int count = 0;
         var optionCalculator = future ? null : new OptionCalculator();
         foreach (var forwardShock in ForwardShocks)
-        foreach (var volatilityShock in VolatilityShocks)
-        foreach (var elapsed in ElapsedYears)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            decimal value = 0;
-            foreach (var leg in legs)
-            {
-                decimal forward = leg.Forward * (1 + forwardShock);
-                decimal price;
-                if (future) price = forward;
-                else
+            foreach (var volatilityShock in VolatilityShocks)
+                foreach (var elapsed in ElapsedYears)
                 {
-                    var request = new OptionPricingRequest(UnderlyingKind.Futures, ExerciseKind.European,
-                        PremiumKind.PaidUpfront, leg.IsCall ? OptionSide.Call : OptionSide.Put,
-                        (double)forward, (double)leg.Strike, (double)Math.Max(0, leg.Years - elapsed),
-                        (double)leg.AnnualRate);
-                    var priced = optionCalculator!.TheoreticalPrice(request,
-                        (double)Math.Max(.0001m, leg.Volatility + volatilityShock));
-                    Require(priced.Success, "RM.CALCULATION.OPTION_PRICING");
-                    price = Normalize(priced.Price!.Value);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    decimal value = 0;
+                    foreach (var leg in legs)
+                    {
+                        decimal forward = leg.Forward * (1 + forwardShock);
+                        decimal price;
+                        if (future) price = forward;
+                        else
+                        {
+                            var request = new OptionPricingRequest(UnderlyingKind.Futures, ExerciseKind.European,
+                                PremiumKind.PaidUpfront, leg.IsCall ? OptionSide.Call : OptionSide.Put,
+                                (double)forward, (double)leg.Strike, (double)Math.Max(0, leg.Years - elapsed),
+                                (double)leg.AnnualRate);
+                            var priced = optionCalculator!.TheoreticalPrice(request,
+                                (double)Math.Max(.0001m, leg.Volatility + volatilityShock));
+                            Require(priced.Success, "RM.CALCULATION.OPTION_PRICING");
+                            price = Normalize(priced.Price!.Value);
+                        }
+                        value += leg.SignedRatio * price;
+                    }
+                    scenarioLoss = Math.Max(scenarioLoss, (worstDebit - value) * multiplier + composerCostReserve);
+                    count++;
                 }
-                value += leg.SignedRatio * price;
-            }
-            scenarioLoss = Math.Max(scenarioLoss, (worstDebit - value) * multiplier + composerCostReserve);
-            count++;
-        }
         decimal loss = Math.Max(maxLoss ?? Math.Max(plannedFutureLoss!.Value, composerFutureStressLoss!.Value), scenarioLoss)
             + incrementalLossReserve;
         return new(maxLoss is null ? null : CeilingMoney(maxLoss.Value), CeilingMoney(scenarioLoss), CeilingMoney(loss),

@@ -20,10 +20,10 @@ public static class TradeBlotterFactory
     /// <param name="historicalReadOnly">Whether the monitor is restricted to historical display.</param>
     /// <param name="portfolioId">The Portfolio component of the canonical trade identity.</param>
     /// <returns>The supported strategy monitor, or <see langword="null"/> when no monitor is available.</returns>
-    public static Control? Create(Control parentControl, IAppRoot appRoot, PortfolioFundEditorModel fund,  PortfolioFundOrderEditorModel fundOrder, PortfolioFundOrderTradeEditorModel fundOrderTrade, DateOnly? valueDate, ICollection<FuturesContractV3ReadModel> baseContracts, bool historicalReadOnly = false, int portfolioId = 0)
+    public static Control? Create(Control parentControl, IAppRoot appRoot, PortfolioFundEditorModel fund, PortfolioFundOrderEditorModel fundOrder, PortfolioFundOrderTradeEditorModel fundOrderTrade, DateOnly? valueDate, ICollection<FuturesContractV3ReadModel> baseContracts, bool historicalReadOnly = false, int portfolioId = 0)
     {
         var blotter = default(Control);
-        switch(fundOrderTrade.TradeType)
+        switch (fundOrderTrade.TradeType)
         {
             case TradeType.ShortIronCondor:
             case TradeType.LongIronCondor:

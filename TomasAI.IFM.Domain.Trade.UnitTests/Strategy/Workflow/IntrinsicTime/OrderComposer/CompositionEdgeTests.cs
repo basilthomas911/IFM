@@ -8,11 +8,18 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.O
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model;
 using Composer = TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.OrderComposer;
 namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.OrderComposer;
+
 public sealed class CompositionEdgeTests
 {
     [Theory]
-    [InlineData("generation")] [InlineData("future")] [InlineData("stale")] [InlineData("crossed")]
-    [InlineData("style")] [InlineData("underlying")] [InlineData("multiplier")] [InlineData("duplicate")]
+    [InlineData("generation")]
+    [InlineData("future")]
+    [InlineData("stale")]
+    [InlineData("crossed")]
+    [InlineData("style")]
+    [InlineData("underlying")]
+    [InlineData("multiplier")]
+    [InlineData("duplicate")]
     public async Task Invalid_required_market_data_fails_instead_of_selecting_from_reduced_scope(string change)
     {
         var c = await CompositionFixture.Command("BullCallDebit"); var items = c.MarketSnapshot.Instruments;
@@ -59,8 +66,15 @@ public sealed class CompositionEdgeTests
     {
         var c = await CompositionFixture.Command(); var first = c.MarketSnapshot.Instruments[0];
         var old = first with { Instrument = first.Instrument with { FutureDefinition = first.Instrument.FutureDefinition! with { LastTradingUtc = new DateTimeOffset(c.EvaluatedAtUtc.AddHours(119)) } } };
-        var next = first with { Instrument = first.Instrument with { ContractId = "ESH7", Quote = first.Instrument.Quote with { ContractId = "ESH7" },
-            FutureDefinition = first.Instrument.FutureDefinition! with { ContractId = "ESH7", LastTradingUtc = new DateTimeOffset(c.EvaluatedAtUtc.AddDays(200)) } } };
+        var next = first with
+        {
+            Instrument = first.Instrument with
+            {
+                ContractId = "ESH7",
+                Quote = first.Instrument.Quote with { ContractId = "ESH7" },
+                FutureDefinition = first.Instrument.FutureDefinition! with { ContractId = "ESH7", LastTradingUtc = new DateTimeOffset(c.EvaluatedAtUtc.AddDays(200)) }
+            }
+        };
         var r = new Composer(new Black76ComposerPricer()).Calculate(c with { MarketSnapshot = c.MarketSnapshot with { Instruments = [old, next] } });
         Assert.Equal("ESH7", r.Candidate!.Legs[0].InstrumentId);
     }
@@ -72,7 +86,9 @@ public sealed class CompositionEdgeTests
         Assert.Throws<CompositionException>(() => new Composer(pricer).Calculate(c)); Assert.Equal(1, pricer.Calls);
     }
     [Theory]
-    [InlineData("en-US")] [InlineData("fr-FR")] [InlineData("tr-TR")]
+    [InlineData("en-US")]
+    [InlineData("fr-FR")]
+    [InlineData("tr-TR")]
     public async Task Result_and_candidate_hashes_are_culture_independent(string name)
     {
         var c = await CompositionFixture.Command("BearPutDebit"); var model = new Composer(new Black76ComposerPricer());

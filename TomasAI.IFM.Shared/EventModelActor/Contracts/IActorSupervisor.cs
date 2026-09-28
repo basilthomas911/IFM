@@ -37,7 +37,7 @@ public interface IActorSupervisor
 
     IActorMailbox CreateMailbox(ActorMailboxId mailboxId);
 
-    ValueTask StartAsync(ActorMailboxId mailboxId); 
+    ValueTask StartAsync(ActorMailboxId mailboxId);
     ValueTask StartAsync(ActorMailboxId mailboxId, CancellationToken cancellationToken);
     ValueTask StopAsync(ActorMailboxId mailboxId);
     ValueTask StopAsync(ActorMailboxId mailboxId, CancellationToken cancellationToken);

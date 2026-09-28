@@ -144,13 +144,13 @@ public static class MarketDataAnalyticsCommandApiExtensions
     /// <param name="signalId">The strongly typed signal identifier.</param>
     /// <param name="futuresPrice">The current futures price.</param>
     /// <returns>A value task containing the typed command result returned by the target actor.</returns>
-      public static ValueTask<ServiceResult<GuidResult>> GenerateFuturesRsiSignalAsync(
-          this IEventActorContext context,
-          FuturesRsiSignalId signalId,
-          decimal futuresPrice,
-          long sourceSequence = 0,
-          DateTime sourceEventTimestamp = default,
-          FuturesTradeSessionBarReadModel? observation = null)
+    public static ValueTask<ServiceResult<GuidResult>> GenerateFuturesRsiSignalAsync(
+        this IEventActorContext context,
+        FuturesRsiSignalId signalId,
+        decimal futuresPrice,
+        long sourceSequence = 0,
+        DateTime sourceEventTimestamp = default,
+        FuturesTradeSessionBarReadModel? observation = null)
     {
         var entityId = signalId.ToEntityId();
         GenerateFuturesRsiSignalCommand command = new(
@@ -220,21 +220,21 @@ public static class MarketDataAnalyticsCommandApiExtensions
     /// <param name="signalId">The strongly typed signal identifier.</param>
     /// <param name="futuresPrice">The current futures price.</param>
     /// <returns>A value task containing the typed command result returned by the target actor.</returns>
-      public static ValueTask<ServiceResult<GuidResult>> GenerateFuturesMacdSignalAsync(
-          this IEventActorContext context,
-          FuturesMacdSignalId signalId,
-          decimal futuresPrice,
-          FuturesTradeSessionBarReadModel? observation = null)
+    public static ValueTask<ServiceResult<GuidResult>> GenerateFuturesMacdSignalAsync(
+        this IEventActorContext context,
+        FuturesMacdSignalId signalId,
+        decimal futuresPrice,
+        FuturesTradeSessionBarReadModel? observation = null)
     {
         var entityId = signalId.ToEntityId();
-          GenerateFuturesMacdSignalCommand command = new(signalId, futuresPrice, observation)
+        GenerateFuturesMacdSignalCommand command = new(signalId, futuresPrice, observation)
         {
             CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(
-                ActorType.Command,
-                GenerateFuturesMacdSignalCommand.Actor,
-                GenerateFuturesMacdSignalCommand.Verb,
-                entityId.Format()),
+              ActorType.Command,
+              GenerateFuturesMacdSignalCommand.Actor,
+              GenerateFuturesMacdSignalCommand.Verb,
+              entityId.Format()),
             EntityId = entityId,
             ErrorCode = GenerateFuturesMacdSignalCommand.ErrorId
         };
@@ -281,14 +281,14 @@ public static class MarketDataAnalyticsCommandApiExtensions
           FuturesTradeSessionBarReadModel observation)
     {
         var entityId = signalId.ToEntityId();
-          GenerateFuturesAtrSignalCommand command = new(signalId, futuresPrice, observation)
+        GenerateFuturesAtrSignalCommand command = new(signalId, futuresPrice, observation)
         {
             CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(
-                ActorType.Command,
-                GenerateFuturesAtrSignalCommand.Actor,
-                GenerateFuturesAtrSignalCommand.Verb,
-                entityId.Format()),
+              ActorType.Command,
+              GenerateFuturesAtrSignalCommand.Actor,
+              GenerateFuturesAtrSignalCommand.Verb,
+              entityId.Format()),
             EntityId = entityId,
             ErrorCode = GenerateFuturesAtrSignalCommand.ErrorId
         };

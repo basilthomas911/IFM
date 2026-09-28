@@ -6,7 +6,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.ViewModels
 {
     public class TradePositionChangeSourceReadModel
     {
-  
+
         public TradePositionChangeSourceReadModel(
             TradePositionReadModel putTradePosition,
             TradePositionReadModel callTradePosition,

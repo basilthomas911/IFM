@@ -38,7 +38,8 @@ public sealed record GetFinancialPostingConfigurationQuery : IFinancialQueryMess
     [Key(4)] public Guid CorrelationId { get; init; }
     [Key(5)] public DateTime RequestedAtUtc { get; init; }
 
-    [IgnoreMember] public GetFinancialPostingConfigurationRequest Parameters
+    [IgnoreMember]
+    public GetFinancialPostingConfigurationRequest Parameters
     {
         get => new(AccountingDate);
         init

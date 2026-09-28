@@ -19,11 +19,21 @@ public sealed class FuturesTradePlanAlgorithm
         var decision = FuturesExitConditionModel.Evaluate(position, pnl, forward - current, parameters, nowUtc);
         var plan = new StrategyTradePlanSnapshot
         {
-            Position = position, ValueDate = valueDate, PlanRevision = (previous?.PlanRevision ?? 0) + 1,
-            OpeningValue = opening, CurrentValue = current, TotalPnl = pnl, ForwardTradePrice = forward,
-            ForwardPnl = pnl + forward - current, ForwardLoss = Math.Max(0, -(pnl + forward - current)),
-            State = decision.State, Action = decision.Action, RequiresExit = decision.RequiresExit,
-            ReasonCode = decision.ReasonCode, Explanation = decision.Explanation, Parameters = parameters,
+            Position = position,
+            ValueDate = valueDate,
+            PlanRevision = (previous?.PlanRevision ?? 0) + 1,
+            OpeningValue = opening,
+            CurrentValue = current,
+            TotalPnl = pnl,
+            ForwardTradePrice = forward,
+            ForwardPnl = pnl + forward - current,
+            ForwardLoss = Math.Max(0, -(pnl + forward - current)),
+            State = decision.State,
+            Action = decision.Action,
+            RequiresExit = decision.RequiresExit,
+            ReasonCode = decision.ReasonCode,
+            Explanation = decision.Explanation,
+            Parameters = parameters,
             CalculatedAtUtc = nowUtc
         };
         plan = plan with { MaterialChange = FuturesTradePlanComparisonModel.IsMaterial(previous, plan) };

@@ -66,7 +66,7 @@ public record UpdateFuturesTradeSignalCommand
     /// </summary>
     [Key(10)]
     public decimal VixFuturesPrice { get; init; }
-    
+
     [Key(11)]
     public TimeFrameType TimePeriod { get; init; }
 
@@ -90,7 +90,7 @@ public record UpdateFuturesTradeSignalCommand
         FuturesTdiSignalReadModel? futuresTdiSignal = null,
         FuturesItiSignalDataReadModel? futuresItiSignalData = null,
         decimal vixFuturesPrice = 0,
-        TimeFrameType timePeriod = TimeFrameType.FifteenSeconds )
+        TimeFrameType timePeriod = TimeFrameType.FifteenSeconds)
     {
         FuturesEodData = futuresEodData ?? throw new ArgumentNullException(nameof(futuresEodData));
         FuturesRsiSignal = futuresRsiSignal;

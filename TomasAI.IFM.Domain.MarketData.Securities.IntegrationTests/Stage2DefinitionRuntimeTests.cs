@@ -1,6 +1,4 @@
-using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -27,19 +25,21 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.IntegrationTests;
 
-/// <summary>Dedicated brokers on 24222/26379/25432; unique Scylla keyspace. Never enables live feeds.</summary>
+/// <summary>Uses the authoritative isolated integration infrastructure and never enables live feeds.</summary>
 public sealed class Stage2DefinitionRuntimeTests
 {
     [Fact]
-    public async Task Migrated_reference_actor_serves_snapshot_pinned_HTTP_and_NATS_pages()
+    public async Task Migrated_reference_actor_serves_snapshot_pinned_NATS_pages_and_operational_health()
     {
-        const string pg = "Host=127.0.0.1;Port=25432;Database=ifm_stage2";
-        var keyspace = "ifm_s2_" + Guid.NewGuid().ToString("N");
+        await using var infrastructure = new TomasAI.IFM.IntegrationTesting.IsolatedIntegrationInfrastructure("stage2");
+        await infrastructure.StartAsync();
+        var pg = infrastructure.PostgresConnectionString;
+        var keyspace = infrastructure.CqlKeyspace;
         var referenceRoot = "ES" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
-        var scylla = $"Contact Points=localhost;Port=9042;Default Keyspace={keyspace}";
+        var scylla = infrastructure.CqlConnectionString;
         var logger = NullLogger<DbProvider>.Instance;
         var settings = new DbConnectionSettings()
-            .Add("admin", "Contact Points=localhost;Port=9042;Default Keyspace=system", "System.Data.ScyllaDb")
+            .Add("admin", scylla.Replace($"Default Keyspace={keyspace}", "Default Keyspace=system", StringComparison.Ordinal), "System.Data.ScyllaDb")
             .Add("ReferenceDbConnection", scylla, "System.Data.ScyllaDb")
             .Add("SecuritiesDbConnection", scylla, "System.Data.ScyllaDb")
             .Add("ConfigurationDbConnection", pg, "System.Data.Postgres")
@@ -48,16 +48,14 @@ public sealed class Stage2DefinitionRuntimeTests
         var admin = new Db(settings["admin"], logger);
         using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(3));
         var token = deadline.Token;
-        await admin.Use("Stage2.Create", $"CREATE KEYSPACE {keyspace} WITH replication = {{'class':'SimpleStrategy','replication_factor':1}};").ExecuteCommandAsync(token);
         try
         {
-            await using var nats = new NatsClient("nats://127.0.0.1:24222");
+            await using var nats = new NatsClient(infrastructure.NatsUrl);
             await nats.CreateJetStreamContext().CreateOrUpdateStreamAsync(new StreamConfig("Stage2Events", ["Event.>"]));
             await new ConfigurationSchemaDb(settings, logger).CreateAllAsync();
             await new EventSourceSchemaDb(settings, logger).CreateAllAsync();
             await new SequenceIdSchemaDb(settings, logger).CreateAllAsync();
             await new ReferenceSchemaDb(settings, logger).CreateAllAsync();
-            await new SecuritiesSchemaDb(settings, logger).CreateAllAsync();
             await new SecuritiesSchemaDb(settings, logger).CreateAllAsync();
             var db = new Db(settings["ReferenceDbConnection"], logger);
             var store = new InstrumentDefinitionStore(db, Substitute.For<ITradeStrategySymbolStore>());
@@ -65,19 +63,26 @@ public sealed class Stage2DefinitionRuntimeTests
             for (uint id = 1; id <= 3; id++)
                 await store.IndexSelectionAsync(new()
                 {
-                    SnapshotId = snapshot, Dataset = "GLBX.MDP3", Root = "ES", InstrumentClass = "C",
-                    PublisherId = 1, InstrumentId = id, RawSymbol = $"ES-test-{id}", Strike = 6500.5m + id,
-                    ExpirationUtc = DateTimeOffset.UtcNow.AddDays(10), DefinitionDigest = new('a', 64)
+                    SnapshotId = snapshot,
+                    Dataset = "GLBX.MDP3",
+                    Root = "ES",
+                    InstrumentClass = "C",
+                    PublisherId = 1,
+                    InstrumentId = id,
+                    RawSymbol = $"ES-test-{id}",
+                    Strike = 6500.5m + id,
+                    ExpirationUtc = DateTimeOffset.UtcNow.AddDays(10),
+                    DefinitionDigest = new('a', 64)
                 }, token);
             await db.Use("Stage2.Snapshot", $"INSERT INTO instrument_definition_snapshot(catalog,snapshot_id,completed_utc,record_count,datasets_json) VALUES('current',{snapshot},'2026-09-19T00:00:00Z',3,'[\"GLBX.MDP3\"]');").ExecuteCommandAsync(token);
             await db.Use("Stage2.Complete", $"INSERT INTO instrument_definition_selection_status(snapshot_id,complete) VALUES({snapshot},true);").ExecuteCommandAsync(token);
-            await using var source = new WebApplicationFactory<Program>();
+            await using var source = new TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>();
             await using var host = source.WithWebHostBuilder(builder =>
             {
                 builder.UseEnvironment("Development")
                     .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.MarketData.Securities")
-                    .UseSetting("IFM_TEST_NATS_URL", "nats://127.0.0.1:24222")
-                    .UseSetting("IFM_TEST_REDIS_URL", "127.0.0.1:26379")
+                    .UseSetting("IFM_TEST_NATS_URL", infrastructure.NatsUrl)
+                    .UseSetting("IFM_TEST_REDIS_URL", infrastructure.RedisConnectionString)
                     .UseSetting("IFM_TEST_POSTGRES_CONNECTION", pg);
                 builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
                     new[] { "Securities", "Reference", "Trade", "Fund", "OptionPricer", "MarketData" }
@@ -95,6 +100,11 @@ public sealed class Stage2DefinitionRuntimeTests
                 });
             });
             using var http = host.CreateClient();
+            await Until(async () =>
+            {
+                using var health = await http.GetAsync("/health/actors", token);
+                return health.IsSuccessStatusCode;
+            }, token);
             var producer = host.Services.GetRequiredService<IActorProducer>();
             await producer.StartAsync(new ActorMailboxId(ActorType.Query, "Stage2Acceptance"));
             try
@@ -106,12 +116,10 @@ public sealed class Stage2DefinitionRuntimeTests
                 Assert.Equal(new uint[] { 1, 2 }, first.Value!.Items.Select(x => x.InstrumentId));
                 Assert.Equal(6501.5m, first.Value.Items[0].Strike);
                 var next = request with { SnapshotId = snapshot, ContinuationToken = first.Value.ContinuationToken };
-                using var response = await http.GetAsync("/api/marketdata/instrument-definitions?" + next.QueryParams, token);
-                response.EnsureSuccessStatusCode();
-                var json = await response.Content.ReadAsStringAsync(token);
-                using var body = System.Text.Json.JsonDocument.Parse(json);
-                Assert.Contains("ES-test-3", json);
-                Assert.DoesNotContain("ES-test-1", json);
+                var second = await api.GetInstrumentDefinitionsAsync(next, token);
+                Assert.True(second.Success, second.ErrorMessage);
+                Assert.Contains(second.Value!.Items, item => item.RawSymbol == "ES-test-3");
+                Assert.DoesNotContain(second.Value.Items, item => item.RawSymbol == "ES-test-1");
                 var wrong = await api.GetInstrumentDefinitionsAsync(next with { Root = "NQ" }, token);
                 Assert.False(wrong.Success);
                 var stale = await api.GetInstrumentDefinitionsAsync(next with { SnapshotId = Guid.NewGuid() }, token);
@@ -120,11 +128,21 @@ public sealed class Stage2DefinitionRuntimeTests
                 var at = DateTimeOffset.UtcNow;
                 var definition = new InstrumentDefinitionSelection
                 {
-                    SnapshotId = snapshot, Dataset = "GLBX.MDP3", Root = referenceRoot, PublisherId = 1, InstrumentId = 99,
-                    InstrumentClass = "F", RawSymbol = "ESZ6-fixture", Currency = "USD", Exchange = "CME",
+                    SnapshotId = snapshot,
+                    Dataset = "GLBX.MDP3",
+                    Root = referenceRoot,
+                    PublisherId = 1,
+                    InstrumentId = 99,
+                    InstrumentClass = "F",
+                    RawSymbol = "ESZ6-fixture",
+                    Currency = "USD",
+                    Exchange = "CME",
                     ExpirationUtc = new DateTimeOffset(2026, 12, 18, 21, 0, 0, TimeSpan.Zero),
-                    DefinitionTimestampUtc = at, DefinitionDigest = new('b', 64), RawDefinitionReference = "fixture/future",
-                    Multiplier = 50, TickSize = .25m
+                    DefinitionTimestampUtc = at,
+                    DefinitionDigest = new('b', 64),
+                    RawDefinitionReference = "fixture/future",
+                    Multiplier = 50,
+                    TickSize = .25m
                 };
                 var future = InstrumentDefinitionImport.Future(definition, "America/New_York", at);
                 var commands = new MarketDataCommandApi(producer);
@@ -133,8 +151,12 @@ public sealed class Stage2DefinitionRuntimeTests
                 await Until(async () => (await api.GetFuturesContractAsync(future.ContractId)).Value == future, token);
                 var option = InstrumentDefinitionImport.Option(definition with
                 {
-                    InstrumentId = 42, UnderlyingInstrumentId = 99, InstrumentClass = "C", RawSymbol = "ESZ6 C6500.5",
-                    Strike = 6500.5m, RawDefinitionReference = "fixture/option"
+                    InstrumentId = 42,
+                    UnderlyingInstrumentId = 99,
+                    InstrumentClass = "C",
+                    RawSymbol = "ESZ6 C6500.5",
+                    Strike = 6500.5m,
+                    RawDefinitionReference = "fixture/option"
                 }, future, "America/New_York", at);
                 var optionAdded = await commands.AddFuturesOptionContractAsync(option, false);
                 Assert.True(optionAdded.Success, optionAdded.ErrorMessage);

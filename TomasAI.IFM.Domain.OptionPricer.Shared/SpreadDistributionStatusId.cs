@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 
 namespace TomasAI.IFM.Domain.OptionPricer.Shared
-{ 
+{
     public class SpreadDistributionStatusId
     {
         readonly int _tradeId;

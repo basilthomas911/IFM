@@ -22,9 +22,10 @@ namespace TomasAI.IFM.Domain.Reference.Shared
             foreach (var e in mdiForwardLossRatios)
                 _mdiMap.Add(e.Id, e);
         }
-     
-        public  MDIForwardLossRatioReadModel Get(double mdi, IntrinsicTimeTrendType trendDirection, TradeType tradeType)
-            => mdi switch  {
+
+        public MDIForwardLossRatioReadModel Get(double mdi, IntrinsicTimeTrendType trendDirection, TradeType tradeType)
+            => mdi switch
+            {
                 _ when mdi >= 100 => Get(100, trendDirection, tradeType), //0.80,
                 _ when mdi >= 90 => Get(90, trendDirection, tradeType), //0.79,
                 _ when mdi >= 80 => Get(80, trendDirection, tradeType), //0.78,
@@ -38,7 +39,7 @@ namespace TomasAI.IFM.Domain.Reference.Shared
                 _ => Get(0, trendDirection, tradeType)
             };
 
-        MDIForwardLossRatioReadModel Get(int mdi,  IntrinsicTimeTrendType trendDirection,  TradeType tradeType)
+        MDIForwardLossRatioReadModel Get(int mdi, IntrinsicTimeTrendType trendDirection, TradeType tradeType)
         {
             var key = new MDIForwardLossRatioId(mdi, trendDirection, tradeType);
             return _mdiMap.ContainsKey(key)
@@ -47,5 +48,5 @@ namespace TomasAI.IFM.Domain.Reference.Shared
         }
     }
 
-   
+
 }

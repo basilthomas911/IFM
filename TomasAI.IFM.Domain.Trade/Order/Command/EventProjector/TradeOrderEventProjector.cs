@@ -19,8 +19,8 @@ public sealed class TradeOrderEventProjector : ConventionalEventProjector<TradeO
     readonly ImmutableArray<EventProjectionDescriptor> descriptors;
     public TradeOrderEventProjector(ICommandActorContext<TradeOrderCommandActor> actorContext,
         EventProjectorReliabilityOptions? options = null)
-        : base(Typed(actorContext).DurableReplayQueue,Typed(actorContext).DbEventSource,
-            Typed(actorContext).BlackboardService,Typed(actorContext).Logger,options)
+        : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource,
+            Typed(actorContext).BlackboardService, Typed(actorContext).Logger, options)
     {
         context = Typed(actorContext);
         descriptors = [DescribeNotification<TradeOrderChangedEvent, TomasAI.IFM.Domain.Trade.Shared.TradeOrderId>(ProjectAsync)];
@@ -35,12 +35,15 @@ public sealed class TradeOrderEventProjector : ConventionalEventProjector<TradeO
             changed.State.Id, changed.ExecutionAttemptId);
         var command = new StartOrderExecutionCommand
         {
-            CommandId = TradeHandoffIdentity.Create("order-execution",changed.State.Id.Format(),changed.ExecutionAttemptId.ToString("N")),
-            Subject = new ActorSubject(ActorType.Command,OrderExecutionActorNames.Command,StartOrderExecutionCommand.Verb,executionId.Format()),
-            EntityId = executionId, Order = changed.State, ExecutionAttemptId = changed.ExecutionAttemptId,
-            Channel = changed.ExecutionChannel, EffectiveAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc ? changed.ReceivedOn : DateTime.UtcNow
+            CommandId = TradeHandoffIdentity.Create("order-execution", changed.State.Id.Format(), changed.ExecutionAttemptId.ToString("N")),
+            Subject = new ActorSubject(ActorType.Command, OrderExecutionActorNames.Command, StartOrderExecutionCommand.Verb, executionId.Format()),
+            EntityId = executionId,
+            Order = changed.State,
+            ExecutionAttemptId = changed.ExecutionAttemptId,
+            Channel = changed.ExecutionChannel,
+            EffectiveAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc ? changed.ReceivedOn : DateTime.UtcNow
         };
-        var result = await context.ActorService.SendAsync<StartOrderExecutionCommand, TomasAI.IFM.Domain.Trade.Shared.OrderExecutionId>(command,command.EntityId).ConfigureAwait(false);
+        var result = await context.ActorService.SendAsync<StartOrderExecutionCommand, TomasAI.IFM.Domain.Trade.Shared.OrderExecutionId>(command, command.EntityId).ConfigureAwait(false);
         if (!result.Success) throw new InvalidOperationException($"TRADE_ORDER.HANDOFF_FAILED;{result.ErrorCode};{result.ErrorMessage}");
     }
     static ITradeOrderCommandContext Typed(ICommandActorContext<TradeOrderCommandActor> c) => c as ITradeOrderCommandContext ?? throw new ArgumentException("Typed Trade Order command context required.");

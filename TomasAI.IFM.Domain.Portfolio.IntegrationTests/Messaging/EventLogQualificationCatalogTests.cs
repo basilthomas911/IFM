@@ -17,7 +17,7 @@ public sealed class EventLogQualificationCatalogTests
     public async Task Isolated_host_returns_all_current_starter_definitions_as_unpublished_drafts()
     {
         var url = Environment.GetEnvironmentVariable("IFM_NATS_URL");
-        url.Should().Be("nats://127.0.0.1:24223", "this qualification targets only the disposable host");
+        url.Should().MatchRegex(@"^nats://127\.0\.0\.1:\d+$", "this qualification targets only the disposable host");
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         var producer = new NatsActorProducer(new NatsProducerOptions { Url = url! }, Substitute.For<ILogger<NatsActorProducer>>());
         await producer.StartAsync(new ActorMailboxId(ActorType.Query, $"QualificationCatalog{Guid.NewGuid():N}"), timeout.Token);

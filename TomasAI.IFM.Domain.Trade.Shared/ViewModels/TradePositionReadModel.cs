@@ -200,7 +200,7 @@ public record TradePositionReadModel
     /// Factory for a default snapshot with zeroed metrics and empty identifiers.
     /// </summary>
     public static TradePositionReadModel Default(int orderId, int tradeId, TradeType tradeType, DateOnly valueDate, int daysToExpiry, TradeStatus tradeStatus)
-        => new (
+        => new(
             orderId: orderId,
             tradeId: tradeId,
             valueDate: valueDate,
@@ -226,7 +226,7 @@ public record TradePositionReadModel
 
     /// <summary>Creates a deep copy including OptionLegData entries.</summary>
     public TradePositionReadModel Copy()
-        => new (
+        => new(
             orderId: EntityId.OrderId,
             tradeId: EntityId.TradeId,
             valueDate: ValueDate,

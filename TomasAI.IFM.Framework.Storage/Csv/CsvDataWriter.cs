@@ -24,7 +24,7 @@ public class CsvWriter
         if (property.PropertyType == typeof(TimeOnly))
         {
             var value = (TimeOnly)property.GetValue(obj, null)!;
-            var stringValue =  $"'{value:O}'";
+            var stringValue = $"'{value:O}'";
             return stringValue;
         }
         if (property.PropertyType == typeof(DateTime))

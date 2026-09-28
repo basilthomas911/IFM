@@ -36,9 +36,15 @@ public sealed record FuturesBbSignalGeneratedEvent : IEvent<FuturesTradeSessionB
         (ICompleteEvent<TEntityId>)(object)new FuturesBbSignalGeneratedCompleteEvent
         {
             Subject = new(ActorType.Event, Actor, FuturesBbSignalGeneratedCompleteEvent.Verb, EntityId.Format()),
-            EntityId = EntityId, Id = Id, EventId = EventId, CommandId = CommandId,
-            AggregateId = AggregateId, EventSource = EventSource, ReceivedOn = ReceivedOn,
-            Signal = Signal, Checkpoint = Checkpoint
+            EntityId = EntityId,
+            Id = Id,
+            EventId = EventId,
+            CommandId = CommandId,
+            AggregateId = AggregateId,
+            EventSource = EventSource,
+            ReceivedOn = ReceivedOn,
+            Signal = Signal,
+            Checkpoint = Checkpoint
         };
 
     /// <inheritdoc />
@@ -124,10 +130,17 @@ public sealed record FuturesBbSignalGeneratedFailEvent : IErrorEvent<FuturesTrad
     internal static FuturesBbSignalGeneratedFailEvent Create(FuturesBbSignalGeneratedEvent source, Exception exception) => new()
     {
         Subject = new(ActorType.Event, FuturesBbSignalGeneratedEvent.Actor, Verb, source.EntityId.Format()),
-        EntityId = source.EntityId, Id = source.Id, ErrorDate = DateTime.UtcNow,
-        EventId = source.EventId, CommandId = source.CommandId, EventSource = source.EventSource,
-        ErrorMessage = exception.Message, ErrorCode = FuturesBbSignalGeneratedEvent.ErrorCode,
-        ErrorType = ErrorType.Command, ErrorData = exception.ToString(), ReceivedOn = source.ReceivedOn,
+        EntityId = source.EntityId,
+        Id = source.Id,
+        ErrorDate = DateTime.UtcNow,
+        EventId = source.EventId,
+        CommandId = source.CommandId,
+        EventSource = source.EventSource,
+        ErrorMessage = exception.Message,
+        ErrorCode = FuturesBbSignalGeneratedEvent.ErrorCode,
+        ErrorType = ErrorType.Command,
+        ErrorData = exception.ToString(),
+        ReceivedOn = source.ReceivedOn,
         AggregateId = source.AggregateId
     };
 }

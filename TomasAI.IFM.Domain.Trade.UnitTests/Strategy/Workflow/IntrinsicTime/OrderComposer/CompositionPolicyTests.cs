@@ -12,16 +12,22 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Ord
 public sealed class CompositionPolicyTests
 {
     [Theory]
-    [InlineData(CompositionOperation.Set, 3)] [InlineData(CompositionOperation.Add, 5)]
-    [InlineData(CompositionOperation.Subtract, -1)] [InlineData(CompositionOperation.Multiply, 6)]
-    [InlineData(CompositionOperation.Minimum, 2)] [InlineData(CompositionOperation.Maximum, 3)]
+    [InlineData(CompositionOperation.Set, 3)]
+    [InlineData(CompositionOperation.Add, 5)]
+    [InlineData(CompositionOperation.Subtract, -1)]
+    [InlineData(CompositionOperation.Multiply, 6)]
+    [InlineData(CompositionOperation.Minimum, 2)]
+    [InlineData(CompositionOperation.Maximum, 3)]
     public void Every_numeric_operation_uses_explicit_ordered_bounds(CompositionOperation operation, decimal expected)
     {
         var rules = Rule(operation);
         // Fee can never be negative; use target delta as the bounded signed test parameter.
-        rules = rules with { BaseParameters = rules.BaseParameters with { TargetNetDelta = .2m },
+        rules = rules with
+        {
+            BaseParameters = rules.BaseParameters with { TargetNetDelta = .2m },
             HardBounds = [new() { Parameter = CompositionParameter.TargetNetDelta, Minimum = -1, Maximum = 1, Grid = .1m }],
-            AdjustmentRules = [rules.AdjustmentRules[0] with { Parameter = CompositionParameter.TargetNetDelta, Operand = operation == CompositionOperation.Multiply ? 3 : .3m }] };
+            AdjustmentRules = [rules.AdjustmentRules[0] with { Parameter = CompositionParameter.TargetNetDelta, Operand = operation == CompositionOperation.Multiply ? 3 : .3m }]
+        };
         var value = CompositionParameterResolver.Resolve(rules, new Dictionary<CompositionFeature, decimal> { [CompositionFeature.SelectionConfidence] = .9m }, default);
         Assert.Equal(expected / 10, value.Values.TargetNetDelta);
         Assert.Single(value.Evidence); Assert.NotEmpty(value.Hash);
@@ -49,15 +55,21 @@ public sealed class CompositionPolicyTests
         Assert.DoesNotContain(actor.GetMethods(BindingFlags.DeclaredOnly | BindingFlags.NonPublic | BindingFlags.Instance), x => x.Name is "GetFunctionDeadline" or "Typed");
     }
     [Theory]
-    [InlineData("schema")] [InlineData("hash")] [InlineData("route")] [InlineData("revision")]
-    [InlineData("time")] [InlineData("reservation")]
+    [InlineData("schema")]
+    [InlineData("hash")]
+    [InlineData("route")]
+    [InlineData("revision")]
+    [InlineData("time")]
+    [InlineData("reservation")]
     public async Task Invalid_contract_is_rejected_before_repository_load(string change)
     {
         var c = await CompositionFixture.Command();
         c = change switch
         {
-            "schema" => c with { SchemaVersion = 0 }, "hash" => c with { InputSha256 = new('a', 64) },
-            "route" => c with { PostEvents = true }, "revision" => c with { InputWorkflowRevision = 0 },
+            "schema" => c with { SchemaVersion = 0 },
+            "hash" => c with { InputSha256 = new('a', 64) },
+            "route" => c with { PostEvents = true },
+            "revision" => c with { InputWorkflowRevision = 0 },
             "time" => c with { EvaluatedAtUtc = DateTime.SpecifyKind(c.EvaluatedAtUtc, DateTimeKind.Unspecified) },
             _ => c with { Reservation = null! }
         };
@@ -65,7 +77,11 @@ public sealed class CompositionPolicyTests
         var result = await f.Execute(); Assert.True(result.IsFailed); Assert.Empty(f.Order);
     }
     [Theory]
-    [InlineData("portfolio")] [InlineData("fund")] [InlineData("date")] [InlineData("size")] [InlineData("malformed")]
+    [InlineData("portfolio")]
+    [InlineData("fund")]
+    [InlineData("date")]
+    [InlineData("size")]
+    [InlineData("malformed")]
     public void History_cursor_cannot_cross_the_original_scope(string change)
     {
         var date = new DateOnly(2026, 9, 8); var encoded = OrderCompositionPaging.Encode(1, 2, date, 10, [1, 2]);

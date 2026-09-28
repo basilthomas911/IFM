@@ -17,8 +17,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesItiSignal;
 
-public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> factory, MarketDataAnalyticsFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataAnalyticsFixture>
+public class FuturesItiSignalCommandApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory, MarketDataAnalyticsFixture dbFixture)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<MarketDataAnalyticsFixture>
 {
     readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
@@ -33,7 +33,7 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
         FuturesItiSignalGeneratedFailEvent futuresItiSignalGeneratedFailEvent = default!;
         var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-       
+
         var contractId = SampleData.ContractId;
         var valueDate = SampleData.ValueDate;
 

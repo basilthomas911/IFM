@@ -44,12 +44,24 @@ public sealed class PortfolioFinancialPolicyScenarios
         };
         var envelope = new FundRiskEnvelopeReadModel
         {
-            PortfolioId = 101, PortfolioVersion = 2, FundId = 201, FundMandateVersion = 1,
-            EnvelopeId = Guid.NewGuid(), EnvelopeVersion = 1, CapacityState = FundCapacityState.Available,
-            MaximumRiskPerTrade = 1_000, MaximumAggregateRisk = 5_000, MaximumMargin = 20_000,
-            MaximumGrossNotional = 200_000, MaximumOpenPositions = 5, EffectiveFromUtc = Now.AddMinutes(-1),
-            ExpiresAtUtc = Now.AddHours(1), SourcePolicyId = 9001, SourcePolicyVersion = 1,
-            CreatedOnUtc = Now, CreatedBy = "risk-admin"
+            PortfolioId = 101,
+            PortfolioVersion = 2,
+            FundId = 201,
+            FundMandateVersion = 1,
+            EnvelopeId = Guid.NewGuid(),
+            EnvelopeVersion = 1,
+            CapacityState = FundCapacityState.Available,
+            MaximumRiskPerTrade = 1_000,
+            MaximumAggregateRisk = 5_000,
+            MaximumMargin = 20_000,
+            MaximumGrossNotional = 200_000,
+            MaximumOpenPositions = 5,
+            EffectiveFromUtc = Now.AddMinutes(-1),
+            ExpiresAtUtc = Now.AddHours(1),
+            SourcePolicyId = 9001,
+            SourcePolicyVersion = 1,
+            CreatedOnUtc = Now,
+            CreatedBy = "risk-admin"
         };
 
         policy.ResolveEffectiveCaps(3, 1, envelope, Now).PermitsNewExposure.Should().BeFalse();
@@ -57,19 +69,34 @@ public sealed class PortfolioFinancialPolicyScenarios
 
     static PortfolioFinancialPolicyReadModel Draft(long version) => new()
     {
-        PortfolioId = 101, PolicyId = 9001, PolicyVersion = version, Name = $"Core limits v{version}",
-        OperatingState = PortfolioFinancialPolicyState.Draft, CapitalBase = 1_000_000,
-        MaximumDeployableCapital = 900_000, MaximumRiskPerTrade = 10_000,
-        MaximumAggregateRisk = 100_000, MaximumMargin = 500_000, MaximumGrossNotional = 5_000_000,
-        MaximumOpenPositions = 100, MaximumDrawdownAmount = 200_000,
-        TradeFamilyLimits = [Family(1), Family(2), Family(3)], EffectiveFromUtc = Now.AddMinutes(-1),
-        CreatedOnUtc = Now, CreatedBy = "risk-admin"
+        PortfolioId = 101,
+        PolicyId = 9001,
+        PolicyVersion = version,
+        Name = $"Core limits v{version}",
+        OperatingState = PortfolioFinancialPolicyState.Draft,
+        CapitalBase = 1_000_000,
+        MaximumDeployableCapital = 900_000,
+        MaximumRiskPerTrade = 10_000,
+        MaximumAggregateRisk = 100_000,
+        MaximumMargin = 500_000,
+        MaximumGrossNotional = 5_000_000,
+        MaximumOpenPositions = 100,
+        MaximumDrawdownAmount = 200_000,
+        TradeFamilyLimits = [Family(1), Family(2), Family(3)],
+        EffectiveFromUtc = Now.AddMinutes(-1),
+        CreatedOnUtc = Now,
+        CreatedBy = "risk-admin"
     };
 
     static TradeFamilyRiskLimitReadModel Family(int id) => new()
     {
-        TradeStrategyFamilyId = id, DefinitionVersion = 1, Enabled = true,
-        MaximumRiskPerTrade = 5_000, MaximumAggregateRisk = 50_000, MaximumMargin = 250_000,
-        MaximumGrossNotional = 2_500_000, MaximumOpenPositions = 50
+        TradeStrategyFamilyId = id,
+        DefinitionVersion = 1,
+        Enabled = true,
+        MaximumRiskPerTrade = 5_000,
+        MaximumAggregateRisk = 50_000,
+        MaximumMargin = 250_000,
+        MaximumGrossNotional = 2_500_000,
+        MaximumOpenPositions = 50
     };
 }

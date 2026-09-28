@@ -224,7 +224,7 @@ public record ServiceApiEvent : IEvent
 
     [IgnoreMember] public string EventName => this.GetType().Name;
 
-    public ServiceApiEvent() { }    
+    public ServiceApiEvent() { }
 
     [SerializationConstructor]
     public ServiceApiEvent(ActorSubject subject, string entityId, Guid id, long eventId, Guid commandId, string aggregateId, string eventSource, DateTime receivedOn)
@@ -297,7 +297,7 @@ public record CompleteEvent : ICompleteEvent
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public EventType EventType => EventType.CompletedEvent;
 
-    public CompleteEvent() { }  
+    public CompleteEvent() { }
 
     [SerializationConstructor]
     public CompleteEvent(ActorSubject subject, string entityId, Guid id, Guid commandId, string aggregateId, long eventId, string eventSource, DateTime receivedOn)

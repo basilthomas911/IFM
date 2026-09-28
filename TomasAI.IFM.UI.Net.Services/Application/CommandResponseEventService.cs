@@ -31,7 +31,7 @@ public class CommandResponseEventService : UiServiceBase<CommandResponseEventSer
     public void SetSiteId(Guid siteId) => _siteId = siteId;
 
     /// <summary>Executes or exposes a documented UI service operation.</summary>
-    public async Task StartCommandResponseEventConsumerAsync(EventTopic eventTopic, ICollection<IEvent> commandResponseEvents, Action<IEvent> eventAction) 
+    public async Task StartCommandResponseEventConsumerAsync(EventTopic eventTopic, ICollection<IEvent> commandResponseEvents, Action<IEvent> eventAction)
     {
         var eventSource = $"{eventTopic}";
         foreach (var e in commandResponseEvents)

@@ -55,5 +55,5 @@ public static class MarketDataFeedStarted
         }
         return false;
     }
-    
+
 }

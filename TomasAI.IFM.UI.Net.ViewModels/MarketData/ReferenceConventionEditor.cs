@@ -26,35 +26,65 @@ public sealed class ReferenceConventionEditor
 
     public FuturesContractV3ReadModel Apply(FuturesContractV3ReadModel value) => value with
     {
-        ReviewState = ReviewState, MappingVersion = MappingVersion, EvidenceId = EvidenceId,
-        EffectiveFromUtc = EffectiveFromUtc, EffectiveUntilUtc = EffectiveUntilUtc, ExchangeTimeZoneId = ExchangeTimeZoneId,
-        CalendarVersion = CalendarVersion, LastTradingUtc = LastTradingUtc, SettlementStyle = SettlementStyle
+        ReviewState = ReviewState,
+        MappingVersion = MappingVersion,
+        EvidenceId = EvidenceId,
+        EffectiveFromUtc = EffectiveFromUtc,
+        EffectiveUntilUtc = EffectiveUntilUtc,
+        ExchangeTimeZoneId = ExchangeTimeZoneId,
+        CalendarVersion = CalendarVersion,
+        LastTradingUtc = LastTradingUtc,
+        SettlementStyle = SettlementStyle
     };
     public FuturesOptionContractReadModel Apply(FuturesOptionContractReadModel value) => value with
     {
-        ReviewState = ReviewState, MappingVersion = MappingVersion, EvidenceId = EvidenceId,
-        EffectiveFromUtc = EffectiveFromUtc, EffectiveUntilUtc = EffectiveUntilUtc, ExchangeTimeZoneId = ExchangeTimeZoneId,
-        CalendarVersion = CalendarVersion, LastTradingUtc = LastTradingUtc, SettlementStyle = SettlementStyle,
-        ExerciseStyle = ExerciseStyle, PremiumStyle = PremiumStyle, PremiumTickRule = PremiumTickRule,
-        TickRuleVersion = TickRuleVersion, DayCount = DayCount, ExerciseCutoffUtc = ExerciseCutoffUtc,
+        ReviewState = ReviewState,
+        MappingVersion = MappingVersion,
+        EvidenceId = EvidenceId,
+        EffectiveFromUtc = EffectiveFromUtc,
+        EffectiveUntilUtc = EffectiveUntilUtc,
+        ExchangeTimeZoneId = ExchangeTimeZoneId,
+        CalendarVersion = CalendarVersion,
+        LastTradingUtc = LastTradingUtc,
+        SettlementStyle = SettlementStyle,
+        ExerciseStyle = ExerciseStyle,
+        PremiumStyle = PremiumStyle,
+        PremiumTickRule = PremiumTickRule,
+        TickRuleVersion = TickRuleVersion,
+        DayCount = DayCount,
+        ExerciseCutoffUtc = ExerciseCutoffUtc,
         ExerciseResultContractId = string.IsNullOrWhiteSpace(ExerciseResultContractId) ? null : ExerciseResultContractId
     };
     public static ReferenceConventionEditor From(FuturesContractV3ReadModel value) => new()
     {
-        ReviewState = value.ReviewState, MappingVersion = value.MappingVersion ?? "", EvidenceId = value.EvidenceId ?? "",
-        EffectiveFromUtc = value.EffectiveFromUtc, EffectiveUntilUtc = value.EffectiveUntilUtc,
-        ExchangeTimeZoneId = value.ExchangeTimeZoneId ?? "", CalendarVersion = value.CalendarVersion ?? "",
-        LastTradingUtc = value.LastTradingUtc, SettlementStyle = value.SettlementStyle
+        ReviewState = value.ReviewState,
+        MappingVersion = value.MappingVersion ?? "",
+        EvidenceId = value.EvidenceId ?? "",
+        EffectiveFromUtc = value.EffectiveFromUtc,
+        EffectiveUntilUtc = value.EffectiveUntilUtc,
+        ExchangeTimeZoneId = value.ExchangeTimeZoneId ?? "",
+        CalendarVersion = value.CalendarVersion ?? "",
+        LastTradingUtc = value.LastTradingUtc,
+        SettlementStyle = value.SettlementStyle
     };
     public static ReferenceConventionEditor From(FuturesOptionContractReadModel value) => new()
     {
-        ReviewState = value.ReviewState, MappingVersion = value.MappingVersion ?? "", EvidenceId = value.EvidenceId ?? "",
-        EffectiveFromUtc = value.EffectiveFromUtc, EffectiveUntilUtc = value.EffectiveUntilUtc,
-        ExchangeTimeZoneId = value.ExchangeTimeZoneId ?? "", CalendarVersion = value.CalendarVersion ?? "",
-        LastTradingUtc = value.LastTradingUtc, SettlementStyle = value.SettlementStyle,
-        UnderlyingContractId = value.UnderlyingContractId ?? "", ExerciseStyle = value.ExerciseStyle,
-        PremiumStyle = value.PremiumStyle, PremiumTickRule = value.PremiumTickRule,
-        TickRuleVersion = value.TickRuleVersion ?? "", DayCount = value.DayCount,
-        ExerciseCutoffUtc = value.ExerciseCutoffUtc, ExerciseResultContractId = value.ExerciseResultContractId ?? ""
+        ReviewState = value.ReviewState,
+        MappingVersion = value.MappingVersion ?? "",
+        EvidenceId = value.EvidenceId ?? "",
+        EffectiveFromUtc = value.EffectiveFromUtc,
+        EffectiveUntilUtc = value.EffectiveUntilUtc,
+        ExchangeTimeZoneId = value.ExchangeTimeZoneId ?? "",
+        CalendarVersion = value.CalendarVersion ?? "",
+        LastTradingUtc = value.LastTradingUtc,
+        SettlementStyle = value.SettlementStyle,
+        UnderlyingContractId = value.UnderlyingContractId ?? "",
+        ExerciseStyle = value.ExerciseStyle,
+        PremiumStyle = value.PremiumStyle,
+        PremiumTickRule = value.PremiumTickRule,
+        TickRuleVersion = value.TickRuleVersion ?? "",
+        DayCount = value.DayCount,
+        ExerciseCutoffUtc = value.ExerciseCutoffUtc,
+        ExerciseResultContractId = value.ExerciseResultContractId ?? ""
     };
 }

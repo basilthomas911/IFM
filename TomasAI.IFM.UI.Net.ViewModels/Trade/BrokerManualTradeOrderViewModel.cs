@@ -119,8 +119,12 @@ public sealed class BrokerManualTradeOrderViewModel
         if (order is null) throw new InvalidOperationException($"Portfolio order {_trade.OrderId} was not found.");
         var request = new ManualFundOrderTradeMutationRequest
         {
-            PortfolioId = _portfolioId, FundId = _trade.FundId, OrderId = _trade.OrderId,
-            ExpectedOrderVersion = order.AggregateVersion, TradeId = _trade.TradeId, RequestedAtUtc = DateTime.UtcNow
+            PortfolioId = _portfolioId,
+            FundId = _trade.FundId,
+            OrderId = _trade.OrderId,
+            ExpectedOrderVersion = order.AggregateVersion,
+            TradeId = _trade.TradeId,
+            RequestedAtUtc = DateTime.UtcNow
         };
         var result = await _appRoot.Services.PortfolioFundCommands.RemoveManualTradeAsync(request);
         if (!result.Success) throw new InvalidOperationException(result.ErrorMessage ?? "Unable to remove the Portfolio order trade.");
@@ -292,17 +296,17 @@ public sealed class BrokerManualTradeOrderViewModel
 
     TradeLegDefinition NewLeg(string contractId, int signedQuantity, TradeAssetFamily family,
         decimal strike, byte putCall, decimal multiplier) => new()
-    {
-        TradeLegId = Guid.NewGuid(),
-        AssetFamily = family,
-        SignedQuantity = signedQuantity,
-        ContractId = contractId,
-        ContractKey = contractId,
-        Expiry = _trade.RequestedMaturityDate ?? _trade.RequestedTradeDate,
-        Strike = strike,
-        PutCall = putCall,
-        CashMultiplier = multiplier
-    };
+        {
+            TradeLegId = Guid.NewGuid(),
+            AssetFamily = family,
+            SignedQuantity = signedQuantity,
+            ContractId = contractId,
+            ContractKey = contractId,
+            Expiry = _trade.RequestedMaturityDate ?? _trade.RequestedTradeDate,
+            Strike = strike,
+            PutCall = putCall,
+            CashMultiplier = multiplier
+        };
 
     (decimal[] Strikes, byte PutCall) ParseVerticalReference()
     {

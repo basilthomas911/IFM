@@ -20,8 +20,8 @@ public sealed class PortfolioQueryLanguageScenarios
         ];
         journeys.Should().OnlyContain(x => x.Contains("WHERE", StringComparison.OrdinalIgnoreCase));
         journeys.Should().OnlyContain(x => x.Contains("LIMIT", StringComparison.OrdinalIgnoreCase)
-            || x.Contains("order_id=$1",StringComparison.OrdinalIgnoreCase)
-            || x.Contains("trade_id=$1",StringComparison.OrdinalIgnoreCase));
+            || x.Contains("order_id=$1", StringComparison.OrdinalIgnoreCase)
+            || x.Contains("trade_id=$1", StringComparison.OrdinalIgnoreCase));
         journeys.Should().OnlyContain(x => !x.Contains("ALLOW FILTERING", StringComparison.OrdinalIgnoreCase));
     }
 }

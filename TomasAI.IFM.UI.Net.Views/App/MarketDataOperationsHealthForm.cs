@@ -34,7 +34,10 @@ public sealed class MarketDataOperationsHealthForm : DarkTradingForm, IForm<Mark
         AutoScaleMode = AutoScaleMode.Dpi;
         var layout = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 6, Padding = new Padding(12)
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 6,
+            Padding = new Padding(12)
         };
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
@@ -51,7 +54,9 @@ public sealed class MarketDataOperationsHealthForm : DarkTradingForm, IForm<Mark
         toolbar.Controls.Add(refresh);
         toolbar.Controls.Add(new Label
         {
-            AutoSize = true, Text = "Auto-refresh every 5 seconds; status queries only.", Padding = new Padding(8)
+            AutoSize = true,
+            Text = "Auto-refresh every 5 seconds; status queries only.",
+            Padding = new Padding(8)
         });
         var tabs = new TomasAI.IFM.UI.Net.Views.App.DarkTabControl { Name = "operationsHealthTabs", Dock = DockStyle.Fill };
         var stageTab = new TabPage("Processing stages") { BackColor = BackColor };
@@ -173,20 +178,33 @@ public sealed class MarketDataOperationsHealthForm : DarkTradingForm, IForm<Mark
 
     static Label Label(string name, int height) => new()
     {
-        Name = name, Dock = DockStyle.Fill, Height = height, TextAlign = ContentAlignment.MiddleLeft,
-        AutoEllipsis = true, Margin = new Padding(0, 2, 0, 2)
+        Name = name,
+        Dock = DockStyle.Fill,
+        Height = height,
+        TextAlign = ContentAlignment.MiddleLeft,
+        AutoEllipsis = true,
+        Margin = new Padding(0, 2, 0, 2)
     };
 
     static DataGridView Grid(string name) => new()
     {
-        Name = name, Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false,
-        AllowUserToDeleteRows = false, AllowUserToOrderColumns = true, RowHeadersVisible = false,
-        AutoGenerateColumns = true, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells,
-        BackgroundColor = Color.FromArgb(25, 25, 25), GridColor = Color.DimGray,
-        EnableHeadersVisualStyles = false, ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize,
+        Name = name,
+        Dock = DockStyle.Fill,
+        ReadOnly = true,
+        AllowUserToAddRows = false,
+        AllowUserToDeleteRows = false,
+        AllowUserToOrderColumns = true,
+        RowHeadersVisible = false,
+        AutoGenerateColumns = true,
+        AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells,
+        BackgroundColor = Color.FromArgb(25, 25, 25),
+        GridColor = Color.DimGray,
+        EnableHeadersVisualStyles = false,
+        ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize,
         ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle { BackColor = Color.FromArgb(50, 50, 50), ForeColor = Color.White },
         DefaultCellStyle = new DataGridViewCellStyle { BackColor = Color.FromArgb(30, 30, 30), ForeColor = Color.Gainsboro },
-        SelectionMode = DataGridViewSelectionMode.FullRowSelect, MultiSelect = false
+        SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+        MultiSelect = false
     };
 
     protected override void Dispose(bool disposing)

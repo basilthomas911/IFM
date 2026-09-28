@@ -104,12 +104,12 @@ public class FuturesRsiSignalCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<FuturesRsiSignalCommandActor>,
         FuturesRsiSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<FuturesRsiSignalCommandActor>,
         FuturesRsiSignalCommandState, ServiceResult<GuidResult>>>()
-    {
-        [typeof(StartFuturesRsiSignalCommand)] = (cmd, context, state) => (cmd as StartFuturesRsiSignalCommand)!.Execute(state,((StartFuturesRsiSignalCommand)cmd).HistoricalSeed is null?null:context.Container.Resolve<TomasAI.IFM.Application.MarketData.Contracts.Historical.IMarketSessionCalendar>()),
-        [typeof(StopFuturesRsiSignalCommand)] = (cmd, context, state) => (cmd as StopFuturesRsiSignalCommand)!.Execute(state),
-        [typeof(GenerateFuturesRsiSignalCommand)] = (cmd, context, state) => (cmd as GenerateFuturesRsiSignalCommand)!.Execute(state),
-        [typeof(GenerateFuturesRsiDailySignalCommand)] = (cmd, context, state) => (cmd as GenerateFuturesRsiDailySignalCommand)!.Execute(state),
-    };
+        {
+            [typeof(StartFuturesRsiSignalCommand)] = (cmd, context, state) => (cmd as StartFuturesRsiSignalCommand)!.Execute(state, ((StartFuturesRsiSignalCommand)cmd).HistoricalSeed is null ? null : context.Container.Resolve<TomasAI.IFM.Application.MarketData.Contracts.Historical.IMarketSessionCalendar>()),
+            [typeof(StopFuturesRsiSignalCommand)] = (cmd, context, state) => (cmd as StopFuturesRsiSignalCommand)!.Execute(state),
+            [typeof(GenerateFuturesRsiSignalCommand)] = (cmd, context, state) => (cmd as GenerateFuturesRsiSignalCommand)!.Execute(state),
+            [typeof(GenerateFuturesRsiDailySignalCommand)] = (cmd, context, state) => (cmd as GenerateFuturesRsiDailySignalCommand)!.Execute(state),
+        };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -135,34 +135,38 @@ public class FuturesRsiSignalCommandActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
-    {
-        [typeof(StartFuturesRsiSignalCommand)] = cmd => {
-            var e = (StartFuturesRsiSignalCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesRsiSignalEntityId(e.EntityId);
-        },
-        [typeof(StopFuturesRsiSignalCommand)] = cmd => {
-            var e = (StopFuturesRsiSignalCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesRsiSignalEntityId(e.EntityId);
-        },
-        [typeof(GenerateFuturesRsiSignalCommand)] = cmd => {
-            var e = (GenerateFuturesRsiSignalCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesRsiSignalEntityId(e.EntityId)
-                .ValidateClosedObservation(e.Observation, e.EntityId.ContractId,
-                    e.EntityId.ValueDate, e.EntityId.TimePeriod, e.CommandName);
-        },
-        [typeof(GenerateFuturesRsiDailySignalCommand)] = cmd => {
-            var e = (GenerateFuturesRsiDailySignalCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesRsiDailySignalEntityId(e.EntityId);
-        }
-    };
+        {
+            [typeof(StartFuturesRsiSignalCommand)] = cmd =>
+            {
+                var e = (StartFuturesRsiSignalCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFuturesRsiSignalEntityId(e.EntityId);
+            },
+            [typeof(StopFuturesRsiSignalCommand)] = cmd =>
+            {
+                var e = (StopFuturesRsiSignalCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFuturesRsiSignalEntityId(e.EntityId);
+            },
+            [typeof(GenerateFuturesRsiSignalCommand)] = cmd =>
+            {
+                var e = (GenerateFuturesRsiSignalCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFuturesRsiSignalEntityId(e.EntityId)
+                    .ValidateClosedObservation(e.Observation, e.EntityId.ContractId,
+                        e.EntityId.ValueDate, e.EntityId.TimePeriod, e.CommandName);
+            },
+            [typeof(GenerateFuturesRsiDailySignalCommand)] = cmd =>
+            {
+                var e = (GenerateFuturesRsiDailySignalCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFuturesRsiDailySignalEntityId(e.EntityId);
+            }
+        };
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.

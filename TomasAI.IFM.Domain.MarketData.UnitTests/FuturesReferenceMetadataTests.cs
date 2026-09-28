@@ -25,21 +25,40 @@ public sealed class FuturesReferenceMetadataTests
     static FuturesOptionContractReadModel Option() => new("ES20260918C6500.5", "fixture", "ES", "E3BU6 C6500.5",
         "FOP", "USD", "CME", "50", new(2026, 9, 18), 6500.5, "Call")
     {
-        StrikePriceDecimal = 6500.5m, SchemaVersion = 1, ReviewState = ReferenceReviewState.Reviewed,
-        Dataset = "GLBX.MDP3", PublisherId = 1, InstrumentId = 42, RawSymbol = "E3BU6 C6500.5",
+        StrikePriceDecimal = 6500.5m,
+        SchemaVersion = 1,
+        ReviewState = ReferenceReviewState.Reviewed,
+        Dataset = "GLBX.MDP3",
+        PublisherId = 1,
+        InstrumentId = 42,
+        RawSymbol = "E3BU6 C6500.5",
         DefinitionTimestampUtc = new(2026, 9, 1, 0, 0, 0, TimeSpan.Zero),
-        DefinitionDigest = new('a', 64), RawDefinitionReference = "fixture/definition/42",
+        DefinitionDigest = new('a', 64),
+        RawDefinitionReference = "fixture/definition/42",
         ExpirationUtc = new(2026, 9, 18, 20, 0, 0, TimeSpan.Zero),
-        LastTradingUtc = new(2026, 9, 18, 20, 0, 0, TimeSpan.Zero), ExchangeTimeZoneId = "America/New_York",
-        SettlementStyle = ReferenceSettlementStyle.DeliveryOfFuture, MultiplierValue = 50, PriceScale = 1,
-        TickSize = .25m, CalendarVersion = "fixture/calendar", MappingVersion = "fixture/v1", EvidenceId = "fixture/review",
+        LastTradingUtc = new(2026, 9, 18, 20, 0, 0, TimeSpan.Zero),
+        ExchangeTimeZoneId = "America/New_York",
+        SettlementStyle = ReferenceSettlementStyle.DeliveryOfFuture,
+        MultiplierValue = 50,
+        PriceScale = 1,
+        TickSize = .25m,
+        CalendarVersion = "fixture/calendar",
+        MappingVersion = "fixture/v1",
+        EvidenceId = "fixture/review",
         EffectiveFromUtc = new(2026, 9, 1, 0, 0, 0, TimeSpan.Zero),
-        EffectiveUntilUtc = new(2026, 9, 18, 20, 0, 0, TimeSpan.Zero), UnderlyingContractId = "ES20260918",
-        UnderlyingAssetType = ReferenceAssetType.Futures, OptionRight = ReferenceOptionRight.Call,
-        UnderlyingInstrumentId = 99, UnderlyingPublisherId = 1,
-        ExerciseStyle = ReferenceExerciseStyle.American, PremiumStyle = ReferencePremiumStyle.PremiumPaid,
-        ExerciseCutoffUtc = new(2026, 9, 18, 20, 0, 0, TimeSpan.Zero), ExerciseResultContractId = "ES20260918",
-        PremiumTickRule = ReferencePremiumTickRule.Fixed, TickRuleVersion = "fixture/ticks", DayCount = ReferenceDayCount.Actual365Fixed
+        EffectiveUntilUtc = new(2026, 9, 18, 20, 0, 0, TimeSpan.Zero),
+        UnderlyingContractId = "ES20260918",
+        UnderlyingAssetType = ReferenceAssetType.Futures,
+        OptionRight = ReferenceOptionRight.Call,
+        UnderlyingInstrumentId = 99,
+        UnderlyingPublisherId = 1,
+        ExerciseStyle = ReferenceExerciseStyle.American,
+        PremiumStyle = ReferencePremiumStyle.PremiumPaid,
+        ExerciseCutoffUtc = new(2026, 9, 18, 20, 0, 0, TimeSpan.Zero),
+        ExerciseResultContractId = "ES20260918",
+        PremiumTickRule = ReferencePremiumTickRule.Fixed,
+        TickRuleVersion = "fixture/ticks",
+        DayCount = ReferenceDayCount.Actual365Fixed
     };
 
     [Fact]
@@ -67,10 +86,19 @@ public sealed class FuturesReferenceMetadataTests
         var value = new FuturesContractV3ReadModel("ES20260918", "fixture", "ES", "ESU6", "FUT", "USD", "CME", "50",
             new(2026, 9, 18), false)
         {
-            SchemaVersion = 1, ReviewState = ReferenceReviewState.Draft, Dataset = "GLBX.MDP3", PublisherId = 1,
-            InstrumentId = 99, RawSymbol = "ESU6", DefinitionTimestampUtc = DateTimeOffset.UnixEpoch,
-            DefinitionDigest = new('b', 64), RawDefinitionReference = "fixture/99", MultiplierValue = 50,
-            PriceScale = 1, TickSize = .25m, MappingVersion = "v1"
+            SchemaVersion = 1,
+            ReviewState = ReferenceReviewState.Draft,
+            Dataset = "GLBX.MDP3",
+            PublisherId = 1,
+            InstrumentId = 99,
+            RawSymbol = "ESU6",
+            DefinitionTimestampUtc = DateTimeOffset.UnixEpoch,
+            DefinitionDigest = new('b', 64),
+            RawDefinitionReference = "fixture/99",
+            MultiplierValue = 50,
+            PriceScale = 1,
+            TickSize = .25m,
+            MappingVersion = "v1"
         };
         Assert.Equal(value, MessagePackBinarySerializer.Shared.Deserialize<FuturesContractV3ReadModel>(
             MessagePackBinarySerializer.Shared.Serialize(value)!));

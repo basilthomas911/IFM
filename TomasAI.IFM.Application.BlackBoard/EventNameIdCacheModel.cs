@@ -38,8 +38,8 @@ public class EventNameIdCacheModel(IRedisCache redisCache, IJsonSerializer jsonS
             value = jsonSerializer.Serialize(eventNameId);
             redisCache.Set(key, value);
         }
-        return string.IsNullOrEmpty(value) 
-            ? new EventNameIdReadModel(-1, string.Empty, string.Empty) 
+        return string.IsNullOrEmpty(value)
+            ? new EventNameIdReadModel(-1, string.Empty, string.Empty)
             : jsonSerializer.Deserialize<EventNameIdReadModel>(value);
     }
 }

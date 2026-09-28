@@ -122,7 +122,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
         return await RequestAsync<GetFuturesRsiSignalQuery, FuturesRsiSignalReadModel>(query.Subject, query);
     }
 
-   
+
     /// <summary>
     /// Gets the futures trend direction from RSI signal.
     /// </summary>

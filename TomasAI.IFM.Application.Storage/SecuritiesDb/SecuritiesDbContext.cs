@@ -551,26 +551,26 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
                     .QueueCommand());
             }
             foreach (var rollover in new[] { false, true })
-            foreach (var onTheRun in new[] { false, true })
-            {
-                var candidate = new FuturesContractProjectionKey(
-                    e.Symbol,
-                    rollover,
-                    onTheRun,
-                    e.MaturityDate,
-                    e.ContractId);
-                if (candidate == replacementProjectionKey)
-                    continue;
+                foreach (var onTheRun in new[] { false, true })
+                {
+                    var candidate = new FuturesContractProjectionKey(
+                        e.Symbol,
+                        rollover,
+                        onTheRun,
+                        e.MaturityDate,
+                        e.ContractId);
+                    if (candidate == replacementProjectionKey)
+                        continue;
 
-                queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV3)
-                    .SetParameters(new DeleteFuturesContractBySymbolV3(
-                        candidate.Symbol,
-                        candidate.Rollover,
-                        candidate.OnTheRun,
-                        candidate.LastTradeDate,
-                        candidate.ContractId))
-                    .QueueCommand());
-            }
+                    queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV3)
+                        .SetParameters(new DeleteFuturesContractBySymbolV3(
+                            candidate.Symbol,
+                            candidate.Rollover,
+                            candidate.OnTheRun,
+                            candidate.LastTradeDate,
+                            candidate.ContractId))
+                        .QueueCommand());
+                }
         }
 
         queuedCommands.AddRange([
@@ -637,13 +637,13 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
                 .QueueCommand(),
         ];
         foreach (var rollover in new[] { false, true })
-        foreach (var onTheRun in new[] { false, true })
-        {
-            queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV3)
-                .SetParameters(new DeleteFuturesContractBySymbolV3(
-                    e.Symbol, rollover, onTheRun, e.MaturityDate, e.ContractId))
-                .QueueCommand());
-        }
+            foreach (var onTheRun in new[] { false, true })
+            {
+                queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV3)
+                    .SetParameters(new DeleteFuturesContractBySymbolV3(
+                        e.Symbol, rollover, onTheRun, e.MaturityDate, e.ContractId))
+                    .QueueCommand());
+            }
         await this.ExecuteProjectionMutationAsync(
             db,
             FuturesContractSymbolProjection,
@@ -663,7 +663,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
             await DeleteFuturesContractAsync(fc.Id);
     }
 
-/// <summary>
+    /// <summary>
     /// Get currently traded futures contract from the database 
     /// </summary>
     /// <returns>The futures contract with the specified ID</returns>
@@ -1083,7 +1083,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
     /// <param name="symbol">The symbol of the futures contracts to retrieve</param>
     /// <returns>A list of futures contracts with the specified IDs</returns>
     public async Task<ICollection<FuturesContractV3ReadModel>> GetFuturesContractsByIdsAsync(ICollection<string> contractIds, string symbol)
-        =>  await DbFactory.SecuritiesDb
+        => await DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContractsByIds)}", SecuritiesDbCql.GetFuturesContractsByIds)
             .SetParameters(new GetFuturesContractsByIds(contractIds, symbol))
             .ExecuteQueryAsync(MapToFuturesContract!);
@@ -1254,9 +1254,12 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
         if (row.IsNull(1) || row.IsNull(5)) return null;
         return new()
         {
-            Symbol = row.GetString(0), UnderlyingContractId = row.GetString(1),
-            ExpiryDate = row.GetDateOnly(2), ProviderRoot = row.GetString(3),
-            OptionFamily = row.GetString(4), Definition = ReferencePayloadCodec.ReadOption(row.GetBytes(5)),
+            Symbol = row.GetString(0),
+            UnderlyingContractId = row.GetString(1),
+            ExpiryDate = row.GetDateOnly(2),
+            ProviderRoot = row.GetString(3),
+            OptionFamily = row.GetString(4),
+            Definition = ReferencePayloadCodec.ReadOption(row.GetBytes(5)),
             RefreshedAtUtc = row.GetDateTime(6)
         };
     }

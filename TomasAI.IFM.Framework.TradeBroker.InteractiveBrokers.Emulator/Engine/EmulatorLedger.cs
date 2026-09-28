@@ -137,12 +137,19 @@ public sealed class EmulatorLedger
             };
             Append("Modify", request.BrokerOrderId, request.OperationId);
             var receipt = Store(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.AcceptedForDispatch, "EM.MODIFIED", "Price-only change accepted."));
-            CommitAndPublish(new FrameworkBrokerObservation { Kind = FrameworkObservationKind.Acknowledged,
+            CommitAndPublish(new FrameworkBrokerObservation
+            {
+                Kind = FrameworkObservationKind.Acknowledged,
                 ObservationId = ObservationId("modified", request.BrokerOrderId, _sequence),
-                AccountAlias = AccountAlias, BrokerOrderId = request.BrokerOrderId,
-                OperationId = request.OperationId, ComponentId = order.Request.ComponentId,
-                OrderRevision = order.Revision, SourceEpoch = _generation,
-                SourceSequence = _sequence, OccurredAtUtc = _clock.UtcNow });
+                AccountAlias = AccountAlias,
+                BrokerOrderId = request.BrokerOrderId,
+                OperationId = request.OperationId,
+                ComponentId = order.Request.ComponentId,
+                OrderRevision = order.Revision,
+                SourceEpoch = _generation,
+                SourceSequence = _sequence,
+                OccurredAtUtc = _clock.UtcNow
+            });
             return receipt;
         }
     }
@@ -277,11 +284,19 @@ public sealed class EmulatorLedger
             if (order.Filled)
             {
                 Append("OrderCompleted", brokerOrderId, order.Request.OperationId);
-                pendingFacts.Add(new FrameworkBrokerObservation { Kind = FrameworkObservationKind.OrderCompleted,
-                    ObservationId = ObservationId("completed", brokerOrderId, _sequence), AccountAlias = AccountAlias,
-                    BrokerOrderId = brokerOrderId, OperationId = order.Request.OperationId,
-                    ComponentId = order.Request.ComponentId, OrderRevision = order.Revision,
-                    SourceEpoch = epoch, SourceSequence = _sequence, OccurredAtUtc = _clock.UtcNow });
+                pendingFacts.Add(new FrameworkBrokerObservation
+                {
+                    Kind = FrameworkObservationKind.OrderCompleted,
+                    ObservationId = ObservationId("completed", brokerOrderId, _sequence),
+                    AccountAlias = AccountAlias,
+                    BrokerOrderId = brokerOrderId,
+                    OperationId = order.Request.OperationId,
+                    ComponentId = order.Request.ComponentId,
+                    OrderRevision = order.Revision,
+                    SourceEpoch = epoch,
+                    SourceSequence = _sequence,
+                    OccurredAtUtc = _clock.UtcNow
+                });
             }
             _generation++;
             Append("Account", brokerOrderId, order.Request.OperationId);
@@ -296,9 +311,18 @@ public sealed class EmulatorLedger
         lock (_sync)
         {
             var available = _cash - ActiveReserve();
-            return new FrameworkAccountSnapshot { AccountAlias = AccountAlias, Currency = _scenario.Currency, CashBalance = _cash,
-                AvailableFunds = available, Complete = true, NewRiskAllowed = available >= 0,
-                Generation = _generation, AsOfUtc = _clock.UtcNow, Positions = [.. _positions.Values] };
+            return new FrameworkAccountSnapshot
+            {
+                AccountAlias = AccountAlias,
+                Currency = _scenario.Currency,
+                CashBalance = _cash,
+                AvailableFunds = available,
+                Complete = true,
+                NewRiskAllowed = available >= 0,
+                Generation = _generation,
+                AsOfUtc = _clock.UtcNow,
+                Positions = [.. _positions.Values]
+            };
         }
     }
 

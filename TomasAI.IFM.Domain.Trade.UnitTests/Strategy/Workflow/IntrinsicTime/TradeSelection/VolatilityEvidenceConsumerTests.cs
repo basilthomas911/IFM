@@ -115,15 +115,15 @@ public sealed class VolatilityEvidenceConsumerTests
 
     static VolatilityWorkflowInput Input(DateTime atUtc, VolatilityDependencyRequirement requirement,
         OptionIvMetricSnapshot? snapshot, VolatilityFreshnessStatus freshness) => new()
-    {
-        Dependency = new(VolatilityWorkflowDependencyPolicy.CurrentSchemaVersion,
+        {
+            Dependency = new(VolatilityWorkflowDependencyPolicy.CurrentSchemaVersion,
             "ES-selection-volatility", "dependency-v1", new("ES-ATM-30D", "method-v1"),
             "metric-v1", requirement),
-        Snapshot = snapshot,
-        FreshnessStatus = freshness,
-        EvaluatedAtUtc = new DateTimeOffset(DateTime.SpecifyKind(atUtc, DateTimeKind.Utc)),
-        QualificationReasonCode = snapshot is null ? "VOL.UNAVAILABLE" : "VOL.CANDIDATE"
-    };
+            Snapshot = snapshot,
+            FreshnessStatus = freshness,
+            EvaluatedAtUtc = new DateTimeOffset(DateTime.SpecifyKind(atUtc, DateTimeKind.Utc)),
+            QualificationReasonCode = snapshot is null ? "VOL.UNAVAILABLE" : "VOL.CANDIDATE"
+        };
 
     internal static OptionIvMetricSnapshot Snapshot(ExecuteTradeSelectionPipelineCommand command)
     {

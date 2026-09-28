@@ -45,7 +45,8 @@ public sealed class CheckedDropdownTests
                 form.Close(); completed.SetResult();
             }
             catch (Exception ex) { completed.SetException(ex); }
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA); thread.Start();
         await completed.Task.WaitAsync(TimeSpan.FromSeconds(15));
     }

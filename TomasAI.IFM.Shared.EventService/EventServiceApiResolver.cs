@@ -23,10 +23,10 @@ public class EventServiceApiResolver(Func<Type, object>? resolverFunction)
     {
         try
         {
-            var eventServiceApiType = typeof(TApi); 
+            var eventServiceApiType = typeof(TApi);
             return resolverFunction?.Invoke(eventServiceApiType) as TApi;
         }
-        catch 
+        catch
         {
             return default;
         }

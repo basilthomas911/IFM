@@ -27,15 +27,15 @@ public sealed class TradeStrategyFamilyBootstrapProcessIntegrationTests
     [Trait("Gate", "PF-22")]
     public async Task Simultaneous_processes_seed_exactly_one_row_per_stable_family_key()
     {
-        ReferenceConnection.Should().MatchRegex(@"^Contact Points=127\.0\.0\.1;Port=9042;Default Keyspace=ifm_bootstrap_[0-9]{8}_reference$");
-        SequenceConnection.Should().MatchRegex(@"^Host=127\.0\.0\.1;Port=25432;Database=ifm_bootstrap_[0-9]{8}$");
+        ReferenceConnection.Should().MatchRegex(@"^Contact Points=127\.0\.0\.1;Port=\d+;Default Keyspace=ifm_synthetic_[a-f0-9]{12}_reference$");
+        SequenceConnection.Should().MatchRegex(@"^Host=127\.0\.0\.1;Port=\d+;Database=ifm_eventlog_bench_[a-f0-9]{12}_synthetic_host$");
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
         var settings = new DbConnectionSettings();
         settings.Add(ReferenceDbContext.ReferenceDbConnection, ReferenceConnection, "System.Data.ScyllaDb");
         settings.Add(SequenceIdDbContext.SequenceIdDbConnection, SequenceConnection, "System.Data.Postgres");
         var logger = Substitute.For<ILogger<DbProvider>>();
         var schema = new ReferenceSchemaDb(settings, logger);
-        await schema.RecreateAsync(["trade_strategy_family", "trade_strategy_family"], timeout.Token);
+        await schema.RecreateAsync(["trade_strategy_family"], timeout.Token);
         await schema.CreateAsync(["trade_strategy_family_catalog", "trade_strategy_symbol"], timeout.Token);
         await new SequenceIdSchemaDb(settings, logger).CreateAllAsync();
 

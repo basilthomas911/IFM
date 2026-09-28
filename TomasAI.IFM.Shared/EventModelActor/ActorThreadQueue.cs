@@ -60,12 +60,12 @@ public sealed class ActorThreadQueue()
     public async IAsyncEnumerable<IActorMessage> ReadAllAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var channel = _messageChannel;
-        if (channel is null) 
+        if (channel is null)
             yield break;
 
         var reader = channel.Reader;
         await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false);
-        if (cancellationToken.IsCancellationRequested) 
+        if (cancellationToken.IsCancellationRequested)
             yield break;
         while (reader.TryRead(out var item))
         {
@@ -101,7 +101,7 @@ public sealed class ActorThreadQueue()
     /// langword="false"/>.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Write(IActorMessage message)
-        =>_messageChannel.Writer.TryWrite(message);
+        => _messageChannel.Writer.TryWrite(message);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Write(IActorMessage message, CancellationToken cancellationToken = default)
@@ -163,7 +163,7 @@ public sealed class ActorThreadQueue()
     /// restarted.</remarks>
     public void Stop()
     {
-        if(_messageChannel is null || !_started) 
+        if (_messageChannel is null || !_started)
             return;
         _messageChannel.Writer.TryComplete();
         while (_messageChannel.Reader.TryRead(out var pending))

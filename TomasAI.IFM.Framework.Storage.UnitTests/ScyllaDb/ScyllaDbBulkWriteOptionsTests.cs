@@ -30,14 +30,14 @@ public sealed class ScyllaDbBulkWriteOptionsTests
         => WithEnvironment("32", "16", () =>
             FluentActions.Invoking(ScyllaDbBulkWriteOptions.FromEnvironment)
                 .Should().Throw<StorageException>()
-                .WithMessage("*must be greater than or equal*") );
+                .WithMessage("*must be greater than or equal*"));
 
     [Fact]
     public void FromEnvironment_RejectsInvalidConcurrency()
         => WithEnvironment("0", "64", () =>
             FluentActions.Invoking(ScyllaDbBulkWriteOptions.FromEnvironment)
                 .Should().Throw<StorageException>()
-                .WithMessage("*between 1 and 1024*") );
+                .WithMessage("*between 1 and 1024*"));
 
     static void WithEnvironment(string concurrency, string capacity, Action assertion)
     {

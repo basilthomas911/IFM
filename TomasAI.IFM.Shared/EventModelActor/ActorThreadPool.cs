@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// </para></remarks>
 /// <param name="context"></param>
 /// <param name="logger"></param>
-public class ActorThreadPool(IActorSupervisor context, ILogger logger) 
+public class ActorThreadPool(IActorSupervisor context, ILogger logger)
     : IActorThreadPool
 {
     readonly IActorSupervisor _context = IsArgumentNull.Set(context);

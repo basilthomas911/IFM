@@ -10,7 +10,8 @@ public interface IPortfolioCloseOrderCompositionFunctionContext :
     IFunctionActorContext<PortfolioCloseOrderCompositionFunctionActor>
 {
     IEventSourceFunctionStateRepository<PortfolioCloseOrderCompositionFunctionState,
-        EvaluatePortfolioCloseOrderCompositionCommand> StateRepository { get; }
+        EvaluatePortfolioCloseOrderCompositionCommand> StateRepository
+    { get; }
     TimeProvider TimeProvider { get; }
     ILogger<PortfolioCloseOrderCompositionFunctionActor> Logger { get; }
 }

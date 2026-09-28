@@ -38,7 +38,8 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
     internal BinaryCopyEventLogAppender(string connectionString, bool useLz4Compression,
         EventLogPersistenceOptions? options, EventLogSqlLayout layout)
         : this(connectionString, useLz4Compression,
-            new AppenderConfiguration((options ?? DefaultOptions(useLz4Compression)).Validate(), layout)) { }
+            new AppenderConfiguration((options ?? DefaultOptions(useLz4Compression)).Validate(), layout))
+    { }
 
     BinaryCopyEventLogAppender(string connectionString, bool useLz4Compression, AppenderConfiguration configuration)
     {

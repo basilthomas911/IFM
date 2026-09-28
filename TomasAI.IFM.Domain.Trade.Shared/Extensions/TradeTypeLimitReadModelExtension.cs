@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Extensions
 
         public static void Set(this TradeTypeLimitReadModel[] tradeTypeLimits, TradeType tradeType, TradeTypeLimitReadModel tradeTypeLimit)
         {
-            for(var index = 0; index < tradeTypeLimits.Length; index++)
+            for (var index = 0; index < tradeTypeLimits.Length; index++)
             {
                 if (tradeTypeLimits[index].TradeType == tradeType)
                 {

@@ -12,11 +12,15 @@ public sealed class TradeOrderSchemaTests
     {
         var old = new LegacyTradeOrder
         {
-            SchemaVersion = 3, Id = new TradeOrderId(1, 2, 3), Revision = 1,
-            Status = TradeOrderStatus.Approved, ValueDate = new DateOnly(2026, 9, 16),
+            SchemaVersion = 3,
+            Id = new TradeOrderId(1, 2, 3),
+            Revision = 1,
+            Status = TradeOrderStatus.Approved,
+            ValueDate = new DateOnly(2026, 9, 16),
             ValidUntilUtc = new DateTime(2026, 9, 16, 14, 5, 0, DateTimeKind.Utc),
             Components = [new TradeOrderComponentDefinition { ComponentId = Guid.NewGuid(), StrategyKind = TradeStrategyKind.FuturesOutright }],
-            DefinitionHash = "OLD-DEFINITION", PositionType = TradeOrderPositionType.Opening
+            DefinitionHash = "OLD-DEFINITION",
+            PositionType = TradeOrderPositionType.Opening
         };
         var payload = MessagePackSerializer.Serialize(old);
         var newReader = MessagePackSerializer.Deserialize<TradeOrderDefinition>(payload);
@@ -38,11 +42,17 @@ public sealed class TradeOrderSchemaTests
         var operationId = Guid.NewGuid();
         var order = new TradeOrderDefinition
         {
-            Id = new(7, 8, 9), Revision = 1, Status = TradeOrderStatus.Approved,
-            PositionType = TradeOrderPositionType.Opening, PortfolioApprovalId = Guid.NewGuid(),
-            BrokerAccountAlias = "EMU", BrokerEnvironment = BrokerEnvironment.Emulator,
-            DefinitionHash = "hash", MicroExecutionProfileHash = "profile",
-            RequiredCapital = 1_000m, MaximumLoss = 1_000m,
+            Id = new(7, 8, 9),
+            Revision = 1,
+            Status = TradeOrderStatus.Approved,
+            PositionType = TradeOrderPositionType.Opening,
+            PortfolioApprovalId = Guid.NewGuid(),
+            BrokerAccountAlias = "EMU",
+            BrokerEnvironment = BrokerEnvironment.Emulator,
+            DefinitionHash = "hash",
+            MicroExecutionProfileHash = "profile",
+            RequiredCapital = 1_000m,
+            MaximumLoss = 1_000m,
             ValidUntilUtc = new DateTime(2026, 9, 16, 14, 5, 0, DateTimeKind.Utc),
             Components = [new TradeOrderComponentDefinition
             {

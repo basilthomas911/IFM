@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 
 [MessagePackObject(AllowPrivate = true)]
-public sealed record GetParameterSetStateQuery:IQuery<ParameterSetSnapshot>
+public sealed record GetParameterSetStateQuery : IQuery<ParameterSetSnapshot>
 {
 
     /// <summary>Creates an empty query for serialization.</summary>
@@ -22,10 +22,10 @@ public sealed record GetParameterSetStateQuery:IQuery<ParameterSetSnapshot>
         EntityId = entityId;
         SetId = setId;
     }
- public const string Actor="ParameterSetQuery"; public const string Verb="GetParameterSetState";
- [Key(0)] public ActorSubject Subject {get;init;}
- [Key(1)] public IActorEntityId EntityId {get;init;}=ActorEntityId.Default;
- [Key(2)] public Guid SetId {get;init;}
- [IgnoreMember] public int ErrorCode {get;init;}=33101;
- [IgnoreMember] public string? QueryParams {get;init;}
+    public const string Actor = "ParameterSetQuery"; public const string Verb = "GetParameterSetState";
+    [Key(0)] public ActorSubject Subject { get; init; }
+    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
+    [Key(2)] public Guid SetId { get; init; }
+    [IgnoreMember] public int ErrorCode { get; init; } = 33101;
+    [IgnoreMember] public string? QueryParams { get; init; }
 }

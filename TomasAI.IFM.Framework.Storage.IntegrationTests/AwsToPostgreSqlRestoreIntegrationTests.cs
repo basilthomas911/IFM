@@ -168,8 +168,11 @@ public sealed class AwsToPostgreSqlRestoreIntegrationTests : IDisposable
         {
             ["disposable-validation"] = new()
             {
-                Host = "127.0.0.1", Port = 55433, Database = "postgres",
-                AllowedLogicalTargets = ["gate10"], StartupTimeout = TimeSpan.FromSeconds(5)
+                Host = "127.0.0.1",
+                Port = 55433,
+                Database = "postgres",
+                AllowedLogicalTargets = ["gate10"],
+                StartupTimeout = TimeSpan.FromSeconds(5)
             }
         },
         MinimumMajorVersion = 17,

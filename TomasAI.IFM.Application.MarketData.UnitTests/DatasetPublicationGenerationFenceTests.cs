@@ -222,30 +222,30 @@ public sealed class DatasetPublicationGenerationFenceTests
     static DatasetPublicationEnvelope Replay(
         DatasetWorkerAdmission identity,
         string contractId) => new()
-    {
-        Dataset = identity.Dataset,
-        ValueDate = identity.ValueDate,
-        WorkerInstanceId = identity.WorkerInstanceId,
-        GenerationId = identity.GenerationId,
-        ManifestRevision = identity.ManifestRevision,
-        PublicationSequence = 1,
-        Kind = DatasetPublicationKind.TradeReplayBatch,
-        Payload = MessagePackSerializer.Serialize(new FuturesTradeReplayBatchRealtimeEvent
         {
-            EntityId = new TickDataEntityId(contractId, identity.ValueDate, AssetTypeId.Futures),
-            RecoveryGenerationId = Guid.NewGuid(),
-            BatchOrdinal = 0,
-            IsFirstBatch = true,
-            IsFinalBatch = true,
-            LiveStreamEpochId = Guid.NewGuid(),
-            Trades =
+            Dataset = identity.Dataset,
+            ValueDate = identity.ValueDate,
+            WorkerInstanceId = identity.WorkerInstanceId,
+            GenerationId = identity.GenerationId,
+            ManifestRevision = identity.ManifestRevision,
+            PublicationSequence = 1,
+            Kind = DatasetPublicationKind.TradeReplayBatch,
+            Payload = MessagePackSerializer.Serialize(new FuturesTradeReplayBatchRealtimeEvent
+            {
+                EntityId = new TickDataEntityId(contractId, identity.ValueDate, AssetTypeId.Futures),
+                RecoveryGenerationId = Guid.NewGuid(),
+                BatchOrdinal = 0,
+                IsFirstBatch = true,
+                IsFinalBatch = true,
+                LiveStreamEpochId = Guid.NewGuid(),
+                Trades =
             [
                 new FuturesTradeReplayObservation(
                     6500m, 2, 10, DateTimeOffset.UtcNow,
                     NormalizedTradeAction.New, NormalizedTradeConditionFlags.Replay)
             ]
-        })
-    };
+            })
+        };
 
     static DatasetPublicationEnvelope Price(DatasetWorkerAdmission identity, string contractId, long sequence = 1) => new()
     {

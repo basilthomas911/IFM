@@ -28,7 +28,8 @@ public sealed class GetDatabentoWatchdogHistoryQuery : IQuery<DatabentoWatchdogO
         ValueDate = valueDate; MajorStatus = majorStatus; PageSize = pageSize;
         EntityId = new GetDatabentoWatchdogHistoryParameter(valueDate, majorStatus, pageSize);
     }
-    [SerializationConstructor] public GetDatabentoWatchdogHistoryQuery(
+    [SerializationConstructor]
+    public GetDatabentoWatchdogHistoryQuery(
         ActorSubject subject, IActorEntityId entityId, DateOnly? valueDate, string? majorStatus, int pageSize)
     {
         Subject = subject; ValueDate = valueDate; MajorStatus = majorStatus; PageSize = pageSize;

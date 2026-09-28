@@ -49,21 +49,43 @@ public sealed record ExactInstrumentDefinition
             maturity = new DateOnly(year, month, day);
         var summary = new ContractDetail
         {
-            Dataset = dataset, Instrument = new(publisher, id), RawSymbol = rawSymbol, Ticker = Text("asset"),
-            Underlying = Text("underlying"), UnderlyingInstrumentId = checked((uint)Number("underlying_id")),
-            ContractKind = kind, Currency = Text("currency"), Exchange = Text("exchange"),
-            SettlementCurrency = Text("settl_currency"), SecurityType = Text("security_type"), Cfi = Text("cfi"), UnitOfMeasure = Text("unit_of_measure"),
-            ActivationTimestampNanoseconds = Timestamp("activation"), ExpirationTimestampNanoseconds = expiry, MaturityDate = maturity,
-            StrikePrice = Price("strike_price"), MinimumPriceIncrement = Price("min_price_increment"),
-            MinimumPriceIncrementAmount = Price("min_price_increment_amount"), ContractMultiplier = Multiplier(),
+            Dataset = dataset,
+            Instrument = new(publisher, id),
+            RawSymbol = rawSymbol,
+            Ticker = Text("asset"),
+            Underlying = Text("underlying"),
+            UnderlyingInstrumentId = checked((uint)Number("underlying_id")),
+            ContractKind = kind,
+            Currency = Text("currency"),
+            Exchange = Text("exchange"),
+            SettlementCurrency = Text("settl_currency"),
+            SecurityType = Text("security_type"),
+            Cfi = Text("cfi"),
+            UnitOfMeasure = Text("unit_of_measure"),
+            ActivationTimestampNanoseconds = Timestamp("activation"),
+            ExpirationTimestampNanoseconds = expiry,
+            MaturityDate = maturity,
+            StrikePrice = Price("strike_price"),
+            MinimumPriceIncrement = Price("min_price_increment"),
+            MinimumPriceIncrementAmount = Price("min_price_increment_amount"),
+            ContractMultiplier = Multiplier(),
             MaturityWeek = Week()
         };
         return new()
         {
-            Dataset = dataset, Json = json, PublisherId = publisher, InstrumentId = id, RawSymbol = rawSymbol,
-            Asset = summary.Ticker, InstrumentClass = Text("instrument_class"), Currency = summary.Currency, Exchange = summary.Exchange,
-            ReceivedNanoseconds = Number("ts_recv"), EventNanoseconds = ulong.Parse(header.GetProperty("ts_event").ToString(), CultureInfo.InvariantCulture),
-            Deleted = Text("security_update_action") == "D", Summary = summary
+            Dataset = dataset,
+            Json = json,
+            PublisherId = publisher,
+            InstrumentId = id,
+            RawSymbol = rawSymbol,
+            Asset = summary.Ticker,
+            InstrumentClass = Text("instrument_class"),
+            Currency = summary.Currency,
+            Exchange = summary.Exchange,
+            ReceivedNanoseconds = Number("ts_recv"),
+            EventNanoseconds = ulong.Parse(header.GetProperty("ts_event").ToString(), CultureInfo.InvariantCulture),
+            Deleted = Text("security_update_action") == "D",
+            Summary = summary
         };
     }
 }

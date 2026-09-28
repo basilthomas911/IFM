@@ -103,9 +103,14 @@ public class MarketDataFeedQueryActorTests : IClassFixture<MarketDataFeedTestFix
         var lifecycle = Substitute.For<IMarketDataLifecycleRequests>();
         lifecycle.Current.Returns(new DatabentoLifecycleSnapshot
         {
-            State = DatabentoLifecycleState.Healthy, StateRevision = 3, ValueDate = valueDate,
-            CorrelationId = Guid.NewGuid(), NativeGeneration = Guid.NewGuid(), RecoveryAttempt = 0,
-            Reason = "ready", ChangedOnUtc = DateTime.UtcNow,
+            State = DatabentoLifecycleState.Healthy,
+            StateRevision = 3,
+            ValueDate = valueDate,
+            CorrelationId = Guid.NewGuid(),
+            NativeGeneration = Guid.NewGuid(),
+            RecoveryAttempt = 0,
+            Reason = "ready",
+            ChangedOnUtc = DateTime.UtcNow,
             LastObservation = Observation(valueDate)
         });
         var store = Substitute.For<IMarketDataServiceStore>();
@@ -155,21 +160,43 @@ public class MarketDataFeedQueryActorTests : IClassFixture<MarketDataFeedTestFix
 
     static FuturesRolloverContractAssignment Assignment(DatabentoContractRole role, string id) => new()
     {
-        ContractRole = role, RootSymbol = role == DatabentoContractRole.EsQuarterly ? "ES" : "VX",
-        ContractId = id, Description = id, LocalSymbol = id, SecurityType = "FUT", Currency = "USD",
-        Exchange = "CME", Multiplier = "1", LastTradeDate = new(2026, 12, 18),
-        NextRolloverDate = new(2026, 12, 18), SourceContractHash = new string('a', 64), RowVersion = 1,
-        CreatedOnUtc = DateTime.UtcNow, CreatedBy = "test", UpdatedOnUtc = DateTime.UtcNow, UpdatedBy = "test"
+        ContractRole = role,
+        RootSymbol = role == DatabentoContractRole.EsQuarterly ? "ES" : "VX",
+        ContractId = id,
+        Description = id,
+        LocalSymbol = id,
+        SecurityType = "FUT",
+        Currency = "USD",
+        Exchange = "CME",
+        Multiplier = "1",
+        LastTradeDate = new(2026, 12, 18),
+        NextRolloverDate = new(2026, 12, 18),
+        SourceContractHash = new string('a', 64),
+        RowVersion = 1,
+        CreatedOnUtc = DateTime.UtcNow,
+        CreatedBy = "test",
+        UpdatedOnUtc = DateTime.UtcNow,
+        UpdatedBy = "test"
     };
 
     static DatabentoWatchdogObservation Observation(DateOnly valueDate) => new()
     {
-        WatchdogStatusLogId = 1, ObservationId = Guid.NewGuid(), CorrelationId = Guid.NewGuid(),
-        ValueDate = valueDate, ObservedOnUtc = DateTime.UtcNow, OperationReason = DatabentoOperationReason.WatchdogPoll,
-        MajorStatus = DatabentoMajorStatus.Up, DisplayHealth = DatabentoDisplayHealth.Green,
-        CoreContractsReady = true, RecoveryAttempt = 0, NativeBackend = "Cpp", NativeAbiVersion = 3,
-        NativeGeneration = Guid.NewGuid(), FeedStatusDetails = [], RowVersion = 1
+        WatchdogStatusLogId = 1,
+        ObservationId = Guid.NewGuid(),
+        CorrelationId = Guid.NewGuid(),
+        ValueDate = valueDate,
+        ObservedOnUtc = DateTime.UtcNow,
+        OperationReason = DatabentoOperationReason.WatchdogPoll,
+        MajorStatus = DatabentoMajorStatus.Up,
+        DisplayHealth = DatabentoDisplayHealth.Green,
+        CoreContractsReady = true,
+        RecoveryAttempt = 0,
+        NativeBackend = "Cpp",
+        NativeAbiVersion = 3,
+        NativeGeneration = Guid.NewGuid(),
+        FeedStatusDetails = [],
+        RowVersion = 1
     };
 
- 
+
 }

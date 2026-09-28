@@ -60,7 +60,7 @@ public class NatsJsonDataSerializer : IDataSerializer
                 return result as TData;
             }
         }
-        catch 
+        catch
         {
         }
         return default;

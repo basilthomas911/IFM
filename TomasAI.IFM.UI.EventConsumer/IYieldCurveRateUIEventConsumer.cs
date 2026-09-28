@@ -4,7 +4,7 @@ namespace TomasAI.IFM.UI.EventConsumer;
 
 public interface IYieldCurveRateUIEventConsumer
 {
-    ValueTask StartAsync(Func<IEvent,ValueTask> eventAction);
+    ValueTask StartAsync(Func<IEvent, ValueTask> eventAction);
     ValueTask StopAsync();
 }
 

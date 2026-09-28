@@ -94,11 +94,19 @@ public sealed record MarketConditionAssessmentParameterSet
     public static bool IsHorizon(TimeFrameType value) => value is TimeFrameType.Daily or TimeFrameType.Weekly or TimeFrameType.Monthly;
     public static MarketConditionAssessmentParameterSet CreateDefault(string marketProfileId, TimeFrameType horizon,
         Guid parameterId, Guid regimeProfileId, int regimeVersion) => new()
-    {
-        ParameterSetId = parameterId, Version = 1, MarketProfileId = marketProfileId, TargetHorizon = horizon,
-        HorizonProfile = new() { Horizon = horizon, RegimeProfileId = regimeProfileId, RegimeProfileVersion = regimeVersion,
-            ResultLifetimeSeconds = horizon switch { TimeFrameType.Daily => 30, TimeFrameType.Weekly => 60, TimeFrameType.Monthly => 90, _ => throw new ArgumentException("Unsupported horizon.") } }
-    };
+        {
+            ParameterSetId = parameterId,
+            Version = 1,
+            MarketProfileId = marketProfileId,
+            TargetHorizon = horizon,
+            HorizonProfile = new()
+            {
+                Horizon = horizon,
+                RegimeProfileId = regimeProfileId,
+                RegimeProfileVersion = regimeVersion,
+                ResultLifetimeSeconds = horizon switch { TimeFrameType.Daily => 30, TimeFrameType.Weekly => 60, TimeFrameType.Monthly => 90, _ => throw new ArgumentException("Unsupported horizon.") }
+            }
+        };
 }
 
 public static class MarketConditionAssessmentHash
@@ -112,11 +120,11 @@ public static class MarketConditionAssessmentHash
     }
     sealed class CanonicalDecimalConverter : System.Text.Json.Serialization.JsonConverter<decimal>
     {
-        public override decimal Read(ref Utf8JsonReader reader,Type type,JsonSerializerOptions options)=>reader.GetDecimal();
-        public override void Write(Utf8JsonWriter writer,decimal value,JsonSerializerOptions options)
-            =>writer.WriteRawValue(value.ToString("G29",System.Globalization.CultureInfo.InvariantCulture));
+        public override decimal Read(ref Utf8JsonReader reader, Type type, JsonSerializerOptions options) => reader.GetDecimal();
+        public override void Write(Utf8JsonWriter writer, decimal value, JsonSerializerOptions options)
+            => writer.WriteRawValue(value.ToString("G29", System.Globalization.CultureInfo.InvariantCulture));
     }
-    public static string Serialize<T>(T value) => JsonSerializer.Serialize(value,Options);
+    public static string Serialize<T>(T value) => JsonSerializer.Serialize(value, Options);
     public static string Compute<T>(T value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Serialize(value))));
     public static string Parameters(MarketConditionAssessmentParameterSet p)
     {

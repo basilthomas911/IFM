@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Shared.Extensions;
 /// <remarks>This static class includes methods for setting event properties such as source, subject, and received
 /// timestamp, as well as for routing events and serializing them to JSON. These extensions are intended to streamline
 /// common event-handling scenarios and promote consistency when working with domain events.</remarks>
-public  static class EventExtension
+public static class EventExtension
 {
     public static void CheckForEmptyCommandId(this IEvent @event)
     {
@@ -51,10 +51,10 @@ public  static class EventExtension
     public static IEvent RoutedFrom(this IEvent @event)
         => RoutedFrom(@event, @event.CommandId, @event.AggregateId, @event.EventSource);
 
-    public static IEvent RoutedFrom(this IEvent @event, ICommand command) 
+    public static IEvent RoutedFrom(this IEvent @event, ICommand command)
         => RoutedFrom(@event, command.CommandId, command.StreamId, command.EventSource);
 
-    public static string ToEventData(this IEvent domainEvent) 
+    public static string ToEventData(this IEvent domainEvent)
         => JsonConvert.SerializeObject(domainEvent, Formatting.Indented);
 
 }

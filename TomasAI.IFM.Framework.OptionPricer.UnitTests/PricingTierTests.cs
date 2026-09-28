@@ -7,15 +7,15 @@ public class PricingTierTests
     public static IEnumerable<object[]> Cases()
     {
         foreach (var exercise in new[] { ExerciseKind.European, ExerciseKind.American })
-        foreach (var side in new[] { OptionSide.Call, OptionSide.Put })
-        {
-            foreach (var premium in new[] { PremiumKind.PaidUpfront, PremiumKind.FuturesStyle })
-                yield return [new OptionPricingRequest(UnderlyingKind.Futures, exercise, premium, side, 100, 103, .5, -.02)];
-            foreach (var dividend in new[] { DividendKind.None, DividendKind.ContinuousYield, DividendKind.DiscreteCash })
-                yield return [new OptionPricingRequest(UnderlyingKind.Equity, exercise, PremiumKind.PaidUpfront,
+            foreach (var side in new[] { OptionSide.Call, OptionSide.Put })
+            {
+                foreach (var premium in new[] { PremiumKind.PaidUpfront, PremiumKind.FuturesStyle })
+                    yield return [new OptionPricingRequest(UnderlyingKind.Futures, exercise, premium, side, 100, 103, .5, -.02)];
+                foreach (var dividend in new[] { DividendKind.None, DividendKind.ContinuousYield, DividendKind.DiscreteCash })
+                    yield return [new OptionPricingRequest(UnderlyingKind.Equity, exercise, PremiumKind.PaidUpfront,
                     side, 100, 103, .5, .04, dividend, dividend == DividendKind.ContinuousYield ? .02 : 0)
                     { CashDividends = dividend == DividendKind.DiscreteCash ? [new(.2, 2)] : [] }];
-        }
+            }
     }
 
     [Theory]
@@ -52,8 +52,13 @@ public class PricingTierTests
     [Fact]
     public void EuropeanDeltaIsAnalyticNotThePrivatePriceEvaluatorsPlaceholder()
     {
-        var r = Request with { Underlying = UnderlyingKind.Equity, Exercise = ExerciseKind.European,
-            TimeToExpiry = 1, Rate = .05 };
+        var r = Request with
+        {
+            Underlying = UnderlyingKind.Equity,
+            Exercise = ExerciseKind.European,
+            TimeToExpiry = 1,
+            Rate = .05
+        };
         var c = new OptionCalculator();
         var call = c.PriceAndDelta(r, .2);
         var put = c.PriceAndDelta(r with { Side = OptionSide.Put }, .2);
@@ -66,8 +71,13 @@ public class PricingTierTests
     public void FastPathsDoNotExecuteTheFullGreekPostpass()
     {
         var c = new OptionCalculator(new() { Steps = 100, SpatialSteps = 100 });
-        var r = Request with { Underlying = UnderlyingKind.Equity, Dividends = DividendKind.DiscreteCash,
-            TimeToExpiry = 1, CashDividends = [new(.5, 2)] };
+        var r = Request with
+        {
+            Underlying = UnderlyingKind.Equity,
+            Dividends = DividendKind.DiscreteCash,
+            TimeToExpiry = 1,
+            CashDividends = [new(.5, 2)]
+        };
         // At the FD total-volatility boundary the core price/Delta exists, but
         // the full calculation's upward Vega bump is outside the qualified domain.
         Assert.True(c.PriceAndDelta(r, .5).Success);

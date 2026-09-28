@@ -140,10 +140,13 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                 foreach (var route in routes) pricing.Register(route);
                 await sessions.StartAsync(new()
                 {
-                    FuturesContractId = underlying!, ValueDate = valueDate, Routes = routes,
+                    FuturesContractId = underlying!,
+                    ValueDate = valueDate,
+                    Routes = routes,
                     Subscription = new()
                     {
-                        Underlying = underlying!, MaturityDate = request.MaturityDate,
+                        Underlying = underlying!,
+                        MaturityDate = request.MaturityDate,
                         Strikes = ordered.Select(x => x.Strike).Distinct().Order().ToArray(),
                         ResolvedContracts = routes.Select(x => x.Definition).ToArray(),
                         DataKinds = MarketDataKinds.Quote | MarketDataKinds.Trade
@@ -237,7 +240,8 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                     values.Add(new(id, selection.Option, option.Pricing, option.Strike, option.IsCall, selection.Underlying)
                     {
                         Selection = OptionSelectionValue.From(selection, refreshPolicy.ImpliedVolatilityMilliseconds),
-                        SessionVolume = item.SessionVolume, OpenInterest = item.OpenInterest,
+                        SessionVolume = item.SessionVolume,
+                        OpenInterest = item.OpenInterest,
                         StatisticsAtUtc = item.StatisticsAtUtc
                     });
                     continue;
@@ -271,9 +275,14 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
         var c = option.Pricing.Contract;
         return new()
         {
-            Dataset = c.Dataset, RawSymbol = c.RawSymbol, Ticker = c.Root, Underlying = c.UnderlyingContractId,
-            Instrument = new(c.PublisherId, c.InstrumentId), Right = option.IsCall ? OptionRightSelection.Call : OptionRightSelection.Put,
-            StrikePrice = option.Strike, MaturityDate = maturity,
+            Dataset = c.Dataset,
+            RawSymbol = c.RawSymbol,
+            Ticker = c.Root,
+            Underlying = c.UnderlyingContractId,
+            Instrument = new(c.PublisherId, c.InstrumentId),
+            Right = option.IsCall ? OptionRightSelection.Call : OptionRightSelection.Put,
+            StrikePrice = option.Strike,
+            MaturityDate = maturity,
             ExpirationTimestampNanoseconds = checked((ulong)(c.ExpirationUtc.UtcTicks - DateTimeOffset.UnixEpoch.UtcTicks) * 100)
         };
     }
@@ -344,9 +353,14 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
     public static string PhysicalDigest(ImmutableArray<WorkerOptionDefinition> options) => PricingSemanticHash.Compute(
         options.OrderBy(x => x.Pricing.Contract.ContractId, StringComparer.Ordinal).Select(x => new
         {
-            x.Strike, x.IsCall, x.Pricing.Contract.ContractId, x.Pricing.Contract.Dataset,
-            x.Pricing.Contract.InstrumentId, x.Pricing.Contract.RawSymbol,
-            x.Pricing.Contract.UnderlyingContractId, x.Pricing.Contract.ExpirationUtc,
+            x.Strike,
+            x.IsCall,
+            x.Pricing.Contract.ContractId,
+            x.Pricing.Contract.Dataset,
+            x.Pricing.Contract.InstrumentId,
+            x.Pricing.Contract.RawSymbol,
+            x.Pricing.Contract.UnderlyingContractId,
+            x.Pricing.Contract.ExpirationUtc,
             x.Pricing.Contract.DefinitionDigest
         }).ToArray());
     sealed class Scope(OptionChainSessionKey key, string digest, ImmutableArray<WorkerOptionDefinition> options, Guid leaseId, DateTimeOffset expires)

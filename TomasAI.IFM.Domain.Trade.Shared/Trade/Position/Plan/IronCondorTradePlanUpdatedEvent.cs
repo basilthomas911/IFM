@@ -28,7 +28,8 @@ public sealed record IronCondorTradePlanUpdatedEvent : ICompleteEvent<IronCondor
     [IgnoreMember] public string EventName => nameof(IronCondorTradePlanUpdatedEvent);
     [IgnoreMember] public EventType EventType => EventType.CompletedEvent;
     [IgnoreMember] public bool RequiresDurableProjection => Plan.MaterialChange;
-    [IgnoreMember] public DurableProjectionRequirement RequiredProjection => new(
+    [IgnoreMember]
+    public DurableProjectionRequirement RequiredProjection => new(
         "FuturesIronCondorTradePositionCommandActor",
         "IronCondorPositionEventProjector",
         EventProjectorStageType.ApplyProjection);

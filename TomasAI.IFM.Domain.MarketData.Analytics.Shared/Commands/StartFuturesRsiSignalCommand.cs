@@ -28,7 +28,7 @@ public record StartFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityId>
     [Key(4)] public int ErrorCode { get; init; }
     [Key(5)] public BoundedContextName RouteTo { get; init; }
 
-    [Key(6)] public FuturesRsiHistoricalSeed? HistoricalSeed {get;init;}
+    [Key(6)] public FuturesRsiHistoricalSeed? HistoricalSeed { get; init; }
 
     // Ignored / derived members
     [IgnoreMember] public string CommandName => GetType().Name;

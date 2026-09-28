@@ -9,5 +9,5 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Model;
 /// </summary>
 internal static class FuturesClosingPriceModel
 {
-   
+
 }

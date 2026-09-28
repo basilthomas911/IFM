@@ -66,16 +66,24 @@ public sealed partial class TradeSelectionRuntimeTests
             var result = TradeSelectionEvaluator.Evaluate(c);
             var complete = new CompleteTradeSelectionCommand
             {
-                CommandId = Guid.NewGuid(), Subject = Subject(CompleteTradeSelectionCommand.Verb, c.WorkflowEntityId),
-                EntityId = c.WorkflowEntityId, WorkflowId = c.WorkflowId, InputWorkflowRevision = c.InputWorkflowRevision,
-                SourceEventId = result.ResultId, CorrelationId = c.CorrelationId, CausationId = result.ResultId,
+                CommandId = Guid.NewGuid(),
+                Subject = Subject(CompleteTradeSelectionCommand.Verb, c.WorkflowEntityId),
+                EntityId = c.WorkflowEntityId,
+                WorkflowId = c.WorkflowId,
+                InputWorkflowRevision = c.InputWorkflowRevision,
+                SourceEventId = result.ResultId,
+                CorrelationId = c.CorrelationId,
+                CausationId = result.ResultId,
                 CompletedAtUtc = DateTime.UtcNow,
                 Result = StrategyStageResultEnvelope.CreateSelection(result)
             };
             var seed = new WorkflowStrategyStateUpdatedEvent
             {
-                Id = Guid.NewGuid(), EntityId = c.WorkflowEntityId, WorkflowId = c.WorkflowId,
-                WorkflowRevision = c.InputWorkflowRevision, State = c.WorkflowView with { SelectionDispatch = c },
+                Id = Guid.NewGuid(),
+                EntityId = c.WorkflowEntityId,
+                WorkflowId = c.WorkflowId,
+                WorkflowRevision = c.InputWorkflowRevision,
+                State = c.WorkflowView with { SelectionDispatch = c },
                 Subject = new(ActorType.Event, CompleteTradeSelectionCommand.Actor, WorkflowStrategyStateUpdatedEvent.Verb, c.WorkflowEntityId.Format())
             };
             await factory.Services.GetRequiredService<IEventSourceActorDbContext>().SaveEventsAsync(complete.StreamId, Guid.NewGuid(), new DomainEventCollection([seed]), 0, CancellationToken.None);
@@ -111,11 +119,17 @@ public sealed partial class TradeSelectionRuntimeTests
 
             var callback = new CompleteTradeSelectionReservationCommand
             {
-                CommandId = Guid.NewGuid(), Subject = Subject(CompleteTradeSelectionReservationCommand.Verb, c.WorkflowEntityId),
-                EntityId = c.WorkflowEntityId, WorkflowId = c.WorkflowId, InputWorkflowRevision = pending.AcceptedSelectionRevision,
-                SourceEventId = pending.SelectionSourceEventId, Reservation = reservation,
-                ReservationRequestSha256 = pending.ReservationRequestSha256, CompletedAtUtc = DateTime.UtcNow,
-                CorrelationId = c.CorrelationId, CausationId = pending.SelectionSourceEventId
+                CommandId = Guid.NewGuid(),
+                Subject = Subject(CompleteTradeSelectionReservationCommand.Verb, c.WorkflowEntityId),
+                EntityId = c.WorkflowEntityId,
+                WorkflowId = c.WorkflowId,
+                InputWorkflowRevision = pending.AcceptedSelectionRevision,
+                SourceEventId = pending.SelectionSourceEventId,
+                Reservation = reservation,
+                ReservationRequestSha256 = pending.ReservationRequestSha256,
+                CompletedAtUtc = DateTime.UtcNow,
+                CorrelationId = c.CorrelationId,
+                CausationId = pending.SelectionSourceEventId
             };
             await producer.SendAsync<CompleteTradeSelectionReservationCommand, IntrinsicTimeStrategyWorkflowEntityId>(callback.Subject, callback, callback.EntityId);
             var reserved = await UntilSnapshot(snapshots, x => x.State.CurrentStage == StrategyWorkflowStage.OrderComposition);

@@ -43,7 +43,7 @@ public record FuturesTradeSignalEntityId : IActorEntityId
     /// <summary>
     /// Factory method for explicit creation.
     /// </summary>
-    public static FuturesTradeSignalEntityId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod) 
+    public static FuturesTradeSignalEntityId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
         => new(contractId, valueDate, timePeriod);
 
     /// <summary>

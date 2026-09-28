@@ -22,7 +22,8 @@ namespace TomasAI.IFM.UI.Net.SystemTests.Portfolio;
 public sealed class TradeStrategyFamilyReferenceUiSystemTests
 {
     static TradeStrategyFamilyReadModel Row(int id = 5901) => TradeStrategyFamilySeed.Definitions[0]
-        .Create(id, new DateTime(2026, 9, 1, 12, 0, 0, DateTimeKind.Utc), "test") with { TradeStrategySymbolId = 101, Exchange = "XCME" };
+        .Create(id, new DateTime(2026, 9, 1, 12, 0, 0, DateTimeKind.Utc), "test") with
+    { TradeStrategySymbolId = 101, Exchange = "XCME" };
 
     static IReferenceQueryApi Queries(params TradeStrategyFamilyReadModel[] rows)
     {
@@ -178,7 +179,8 @@ public sealed class TradeStrategyFamilyReferenceUiSystemTests
                 finally { context.ExitThread(); }
             });
             System.Windows.Forms.Application.Run(context);
-        }) { IsBackground = true, Name = "Reference family UI verification" };
+        })
+        { IsBackground = true, Name = "Reference family UI verification" };
         thread.SetApartmentState(ApartmentState.STA); thread.Start();
         await completion.Task.WaitAsync(TimeSpan.FromSeconds(15));
     }
@@ -278,7 +280,8 @@ public sealed class TradeStrategyFamilyReferenceUiSystemTests
                 completion.SetResult();
             }
             catch (Exception ex) { completion.SetException(ex); }
-        }) { IsBackground = true, Name = "Reference modal close verification" };
+        })
+        { IsBackground = true, Name = "Reference modal close verification" };
         thread.SetApartmentState(ApartmentState.STA); thread.Start();
         await completion.Task.WaitAsync(TimeSpan.FromSeconds(15));
     }
@@ -317,7 +320,8 @@ public sealed class TradeStrategyFamilyReferenceUiSystemTests
     {
         var commands = Substitute.For<IReferenceCommandApi>(); var queries = Queries(Row()); string? prompt = null;
         commands.RemoveTradeStrategyFamilyAsync(Arg.Any<RemoveTradeStrategyFamilyRequest>(), Arg.Any<CancellationToken>())
-            .Returns(call => {
+            .Returns(call =>
+            {
                 queries.GetTradeStrategyFamiliesAsync(Arg.Any<CancellationToken>()).Returns(new ServiceOk<TradeStrategyFamilyReadModel[]>(
                     [Row(), Row() with { DefinitionVersion = 2, State = TradeStrategyFamilyState.Retired }]));
                 return new ServiceOk<Guid>(call.Arg<RemoveTradeStrategyFamilyRequest>().OperationId);

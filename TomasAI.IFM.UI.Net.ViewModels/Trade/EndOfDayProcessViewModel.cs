@@ -197,8 +197,12 @@ public sealed class EndOfDayProcessViewModel : ObservableObject, IAsyncLifecycle
             await _appRoot.Services.FeedQueries.ExecuteObservableAsync(
                 model => model.GetFuturesEodDataAsync(_parameter.BaseContractId, ValueDate,
                     value => marketData = value), cancellationToken);
-            var scope = new FinancialReadScope { PortfolioId = PortfolioId, FundId = FundId,
-                Access = new(Environment.UserName, ["LedgerRead"], [PortfolioId]) };
+            var scope = new FinancialReadScope
+            {
+                PortfolioId = PortfolioId,
+                FundId = FundId,
+                Access = new(Environment.UserName, ["LedgerRead"], [PortfolioId])
+            };
             var balanceResult = await _appRoot.Services.PortfolioFinancial.GetAccountBalancesAsync(scope, new(), cancellationToken);
             var fundBalance = balanceResult.Success && balanceResult.Value?.Value is { } balance
                 ? balance.AvailableCash : throw new InvalidOperationException($"Portfolio Fund {FundId} balance was not found.");

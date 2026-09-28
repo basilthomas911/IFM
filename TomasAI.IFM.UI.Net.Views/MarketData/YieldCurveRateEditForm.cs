@@ -65,7 +65,7 @@ public partial class YieldCurveRateEditForm
     /// rate details and disables editing of the value date.</remarks>
     void ShowYieldCurveRate()
     {
-        if (_yieldCurveRate == null|| _yieldCurveRate.ValueDate == DateOnly.MinValue)
+        if (_yieldCurveRate == null || _yieldCurveRate.ValueDate == DateOnly.MinValue)
         {
             this.Text = "Add Yield Curve Rate";
             dtmValueDate.Value = EasternTime.GetNow(TimeProvider.System);
@@ -115,7 +115,7 @@ public partial class YieldCurveRateEditForm
             !ValidateRate(txtTwentyYear.Text, out var twentyYear, "Invalid 20 Year rate") ||
             !ValidateRate(txtThirtyYear.Text, out var thirtyYear, "Invalid 30 Year rate"))
             return false;
-        _yieldCurveRate = new YieldCurveRateReadModel (
+        _yieldCurveRate = new YieldCurveRateReadModel(
             valueDate: new DateOnly(dtmValueDate.Value.Year, dtmValueDate.Value.Month, dtmValueDate.Value.Day),
             oneMonth: oneMonth,
             twoMonth: twoMonth,

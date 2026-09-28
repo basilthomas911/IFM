@@ -152,8 +152,13 @@ public sealed class TypedRegimeEnvelopeTests
         {
             return value switch
             {
-                string s => s + "changed", Guid => Guid.NewGuid(), DateTime d => d.AddTicks(1), DateOnly d => d.AddDays(1),
-                bool b => !b, decimal d => d + 1, Enum e => Enum.ToObject(e.GetType(), Convert.ToInt64(e) + 1),
+                string s => s + "changed",
+                Guid => Guid.NewGuid(),
+                DateTime d => d.AddTicks(1),
+                DateOnly d => d.AddDays(1),
+                bool b => !b,
+                decimal d => d + 1,
+                Enum e => Enum.ToObject(e.GetType(), Convert.ToInt64(e) + 1),
                 _ when value!.GetType().IsPrimitive => Convert.ChangeType(2, value.GetType()),
                 _ when value!.GetType().IsValueType => Activator.CreateInstance(value.GetType()),
                 _ => null

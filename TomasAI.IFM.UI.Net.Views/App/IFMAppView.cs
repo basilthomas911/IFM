@@ -81,7 +81,8 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
         marketDataFeedHealthIndicator.Click += MarketDataFeedHealthIndicator_Click;
         var operationsHealth = new ToolStripButton("Operations health")
         {
-            Name = "marketDataOperationsHealthButton", DisplayStyle = ToolStripItemDisplayStyle.Text,
+            Name = "marketDataOperationsHealthButton",
+            DisplayStyle = ToolStripItemDisplayStyle.Text,
             AccessibleName = "Open read-only market data operations health",
             ToolTipText = "Read central pipeline and dataset-worker health independently of UI market updates."
         };
@@ -89,7 +90,8 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
         toolStrip1.Items.Insert(toolStrip1.Items.IndexOf(marketDataFeedHealthIndicator) + 1, operationsHealth);
         var actorHealthButton = new ToolStripButton("Actor Health")
         {
-            Name = "actorHealthButton", DisplayStyle = ToolStripItemDisplayStyle.Text,
+            Name = "actorHealthButton",
+            DisplayStyle = ToolStripItemDisplayStyle.Text,
             AccessibleName = "Open read-only actor health"
         };
         actorHealthButton.Click += (_, _) => _navigator.ShowModal<ActorHealthForm>();
@@ -172,7 +174,7 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
             { ActionState.RedAlert, Color.Red },
         };
         //lstStatusConsole.SetDoubleBuffered(true);
-     }
+    }
 
     private void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
     {

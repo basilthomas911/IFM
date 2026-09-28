@@ -165,14 +165,14 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
             var dbReader = db as IReferenceDbReadContext;
             var dbWriter = db as IReferenceDbWriteContext;
             await dbWriter.InsertLookupTypeAsync(SampleData.LookupType);
-            await dbWriter.InsertLookupTypeAsync(SampleData.LookupType with { OrderId = 2, ShortCode = "ST2"});
+            await dbWriter.InsertLookupTypeAsync(SampleData.LookupType with { OrderId = 2, ShortCode = "ST2" });
             await dbWriter.DeleteLookupTypeAsync(SampleData.LookupType.Id);
             var updatedLookupType = SampleData.LookupType with { OrderId = 0 };
             var lookupType = await dbReader.GetLookupTypeAsync(updatedLookupType.Id);
             lookupType.Should().NotBeNull();
             lookupType.LookupTypeName.Should().Be(SampleData.LookupType.LookupTypeName);
             lookupType.ShortCode.Should().Be("ST2");
-            lookupType.OrderId.Should().Be(0);  
+            lookupType.OrderId.Should().Be(0);
             lookupType.Id.OrderId.Should().Be(0);
         }
 
@@ -325,10 +325,10 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
                 secondId = await dbReader.GetScheduledJobIdAsync(second.JobName);
 
                 await FluentActions.Awaiting(() => dbWriter.UpdateScheduledJobAsync(first with
-                    {
-                        JobId = firstId,
-                        JobName = second.JobName
-                    }))
+                {
+                    JobId = firstId,
+                    JobName = second.JobName
+                }))
                     .Should().ThrowAsync<StorageException>();
 
                 (await dbReader.GetScheduledJobIdAsync(first.JobName)).Should().Be(firstId);

@@ -348,7 +348,7 @@ public class SampleData
         };
 
     // Trade Limit
-    public static readonly TradeLimitReadModel TradeLimit = new (
+    public static readonly TradeLimitReadModel TradeLimit = new(
         tradeId: TradeId,
         tradeType: TradeType.LongIronCondor,
         riskMargin: 5000m, // $5000 risk margin

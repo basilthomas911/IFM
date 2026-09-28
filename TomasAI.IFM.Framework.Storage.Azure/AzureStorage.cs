@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Framework.Storage.Azure
     public class AzureStorage : IAzureStorage
     {
         readonly IAzureStorageOptions _options;
-       
+
         public AzureStorage(IAzureStorageOptions options)
         {
             _options = options;

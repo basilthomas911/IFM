@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Framework.Storage.Azure
 {
     public interface IAzureStorage
     {
-        Task UploadFileAsync(string dbName, string backupType, Func<string,Task>? progressFunc = null);
+        Task UploadFileAsync(string dbName, string backupType, Func<string, Task>? progressFunc = null);
     }
 
 

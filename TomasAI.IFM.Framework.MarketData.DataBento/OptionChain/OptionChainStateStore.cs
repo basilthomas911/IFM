@@ -51,8 +51,8 @@ public sealed class OptionChainStateStore : IOptionChainStateStore
         }
     }
 
-    internal void UpdateStatistics(OptionChainSessionKey key,string contractId,
-        long? volume,long? openInterest,DateTimeOffset observedAtUtc)
+    internal void UpdateStatistics(OptionChainSessionKey key, string contractId,
+        long? volume, long? openInterest, DateTimeOffset observedAtUtc)
     {
         lock (_sync)
         {

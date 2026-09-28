@@ -26,20 +26,27 @@ public sealed class MarketConditionAssessmentOnlyTests
     [InlineData(TimeFrameType.Monthly)]
     public async Task Workflow_start_admits_without_pipeline_configuration(TimeFrameType horizon)
     {
-        var selection = await TradeSelection.TradeSelectionFixture.Command(horizon:horizon);
+        var selection = await TradeSelection.TradeSelectionFixture.Command(horizon: horizon);
         var assessment = AssessmentFixture.Command(horizon);
-        var frozen=selection.SelectionBinding.PortfolioSnapshot with {WorkflowId=assessment.WorkflowId.Value,CorrelationId=assessment.CorrelationId};
-        frozen=frozen with {PayloadSha256=TomasAI.IFM.Domain.Portfolio.Workflow.PortfolioCanonicalHash.Compute(frozen with {PayloadSha256=""})};
-        var binding=Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.TradeSelectionContracts.Seal(selection.SelectionBinding with {PortfolioSnapshot=frozen});
+        var frozen = selection.SelectionBinding.PortfolioSnapshot with { WorkflowId = assessment.WorkflowId.Value, CorrelationId = assessment.CorrelationId };
+        frozen = frozen with { PayloadSha256 = TomasAI.IFM.Domain.Portfolio.Workflow.PortfolioCanonicalHash.Compute(frozen with { PayloadSha256 = "" }) };
+        var binding = Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.TradeSelectionContracts.Seal(selection.SelectionBinding with { PortfolioSnapshot = frozen });
         var view = assessment.WorkflowView;
         var start = new ExecuteIntrinsicTimeStrategyWorkflowCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = view.EntityId,
+            CommandId = Guid.NewGuid(),
+            EntityId = view.EntityId,
             Subject = new(ActorType.Command, ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor,
                 ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb, view.EntityId.Format()),
-            FundId = 1, TriggerEvent = assessment.TriggerEvent,TriggerEventId=assessment.TriggerEvent.Id,
-            ProposedWorkflowId=assessment.WorkflowId,RequestedAtUtc=binding.FrozenAtUtc,SelectionBinding=binding,
-            CorrelationId=assessment.CorrelationId,CausationId=assessment.CausationId,WorkflowDefinitionVersion=1,
+            FundId = 1,
+            TriggerEvent = assessment.TriggerEvent,
+            TriggerEventId = assessment.TriggerEvent.Id,
+            ProposedWorkflowId = assessment.WorkflowId,
+            RequestedAtUtc = binding.FrozenAtUtc,
+            SelectionBinding = binding,
+            CorrelationId = assessment.CorrelationId,
+            CausationId = assessment.CausationId,
+            WorkflowDefinitionVersion = 1,
             RegimeDiscoveryParameterSet = view.RegimeDiscoveryParameterSet,
             RegimeDiscoveryParameterPayloadSha256 = view.RegimeDiscoveryParameterPayloadSha256,
             AssessmentBinding = view.AssessmentBinding
@@ -108,24 +115,24 @@ public sealed class MarketConditionAssessmentOnlyTests
     [InlineData("invalid-command")]
     public async Task Invalid_ingress_is_rejected_before_state_or_market_access(string scenario)
     {
-        var command=AssessmentFixture.Command();
-        if(scenario=="invalid-command") command=command with { CommandId=Guid.Empty };
-        var context=Substitute.For<IMarketConditionFunctionContext>();
-        context.ActorId.Returns(new ActorMailboxId(ActorType.Function,MarketConditionFunctionActor.ActorName));
+        var command = AssessmentFixture.Command();
+        if (scenario == "invalid-command") command = command with { CommandId = Guid.Empty };
+        var context = Substitute.For<IMarketConditionFunctionContext>();
+        context.ActorId.Returns(new ActorMailboxId(ActorType.Function, MarketConditionFunctionActor.ActorName));
         context.Logger.Returns(Substitute.For<ILogger<MarketConditionFunctionActor>>());
         context.TimeProvider.Returns(new Clock(command.RequestedAtUtc));
-        var repository=Substitute.For<IEventSourceFunctionStateRepository<MarketConditionAssessmentState,ExecuteMarketConditionAssessmentCommand>>();
-        var provider=Substitute.For<IMarketConditionAssessmentSnapshotProvider>();
-        var projector=Substitute.For<IFunctionProjector<MarketConditionAssessmentCompletedEvent>>();
+        var repository = Substitute.For<IEventSourceFunctionStateRepository<MarketConditionAssessmentState, ExecuteMarketConditionAssessmentCommand>>();
+        var provider = Substitute.For<IMarketConditionAssessmentSnapshotProvider>();
+        var projector = Substitute.For<IFunctionProjector<MarketConditionAssessmentCompletedEvent>>();
         context.StateRepository.Returns(repository); context.SnapshotProvider.Returns(provider); context.FunctionProjector.Returns(projector);
-        var message=Substitute.For<IActorMessage>();
-        message.Subject.Returns(new ActorSubject(scenario=="actor-type"?ActorType.Command:ActorType.Function,
-            scenario=="actor-name"?"WrongFunction":MarketConditionFunctionActor.ActorName,
-            ExecuteMarketConditionAssessmentCommand.Verb, scenario=="entity"?"wrong-entity":command.EntityId.Format()));
-        if(scenario=="malformed-payload") message.AsCommand<ExecuteMarketConditionAssessmentCommand>().Returns(_=>throw new InvalidOperationException("bad payload"));
-        else message.AsCommand<ExecuteMarketConditionAssessmentCommand>().Returns(scenario=="null-payload"?null:command);
-        ServiceResult<FunctionResult<MarketConditionAssessmentCompletedEvent,MarketConditionAssessmentFailedEvent>>? reply=null;
-        message.ReplyAsync(Arg.Do<ServiceResult<FunctionResult<MarketConditionAssessmentCompletedEvent,MarketConditionAssessmentFailedEvent>>>(value=>reply=value))
+        var message = Substitute.For<IActorMessage>();
+        message.Subject.Returns(new ActorSubject(scenario == "actor-type" ? ActorType.Command : ActorType.Function,
+            scenario == "actor-name" ? "WrongFunction" : MarketConditionFunctionActor.ActorName,
+            ExecuteMarketConditionAssessmentCommand.Verb, scenario == "entity" ? "wrong-entity" : command.EntityId.Format()));
+        if (scenario == "malformed-payload") message.AsCommand<ExecuteMarketConditionAssessmentCommand>().Returns(_ => throw new InvalidOperationException("bad payload"));
+        else message.AsCommand<ExecuteMarketConditionAssessmentCommand>().Returns(scenario == "null-payload" ? null : command);
+        ServiceResult<FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent>>? reply = null;
+        message.ReplyAsync(Arg.Do<ServiceResult<FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent>>>(value => reply = value))
             .Returns(ValueTask.CompletedTask);
         await new MarketConditionFunctionActor(context).HandleMessageAsync(message);
         reply!.Value!.Failed!.FailureCategory.Should().Be(MarketConditionFailureCategory.ContractInvalid);

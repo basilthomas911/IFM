@@ -206,10 +206,16 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
     {
         var value = new PortfolioReadModel
         {
-            PortfolioId = id, PortfolioVersion = 1, SchemaVersion = 3, Name = options.PortfolioName,
-            BaseCurrency = options.Currency, OperatingState = PortfolioOperatingState.Draft,
-            EffectiveFromUtc = ManifestEpoch, BrokerAccountRefs = [options.ExecutionAccountReference],
-            CreatedOnUtc = ManifestEpoch, CreatedBy = Principal
+            PortfolioId = id,
+            PortfolioVersion = 1,
+            SchemaVersion = 3,
+            Name = options.PortfolioName,
+            BaseCurrency = options.Currency,
+            OperatingState = PortfolioOperatingState.Draft,
+            EffectiveFromUtc = ManifestEpoch,
+            BrokerAccountRefs = [options.ExecutionAccountReference],
+            CreatedOnUtc = ManifestEpoch,
+            CreatedBy = Principal
         };
         await RequireSuccess(portfolios.CreatePortfolioAsync(value, StableId("portfolio"), token), "Create development Portfolio").ConfigureAwait(false);
         return await RequiredEventually(
@@ -264,19 +270,35 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
 
     PortfolioFinancialPolicyReadModel Policy(int portfolioId, int policyId, CatalogKey[] deployments) => new()
     {
-        PortfolioId = portfolioId, PolicyId = policyId, PolicyVersion = 1, SchemaVersion = 3,
-        Name = "IFM Development Paper Limits", OperatingState = PortfolioFinancialPolicyState.Draft,
-        BaseCurrency = options.Currency, CapitalBase = options.DevelopmentCapital, ProtectedReserve = options.ProtectedReserve,
+        PortfolioId = portfolioId,
+        PolicyId = policyId,
+        PolicyVersion = 1,
+        SchemaVersion = 3,
+        Name = "IFM Development Paper Limits",
+        OperatingState = PortfolioFinancialPolicyState.Draft,
+        BaseCurrency = options.Currency,
+        CapitalBase = options.DevelopmentCapital,
+        ProtectedReserve = options.ProtectedReserve,
         MaximumDeployableCapital = options.DevelopmentCapital - options.ProtectedReserve,
-        MaximumRiskPerTrade = options.MaximumRiskPerTrade, MaximumAggregateRisk = options.MaximumAggregateRisk,
-        MaximumMargin = options.MaximumMargin, MaximumGrossNotional = options.MaximumGrossNotional,
-        MaximumOpenPositions = options.MaximumOpenPositions, MaximumDrawdownAmount = options.MaximumDrawdown,
+        MaximumRiskPerTrade = options.MaximumRiskPerTrade,
+        MaximumAggregateRisk = options.MaximumAggregateRisk,
+        MaximumMargin = options.MaximumMargin,
+        MaximumGrossNotional = options.MaximumGrossNotional,
+        MaximumOpenPositions = options.MaximumOpenPositions,
+        MaximumDrawdownAmount = options.MaximumDrawdown,
         TradeFamilyLimits = deployments.Select(x => new TradeFamilyRiskLimitReadModel
         {
-            CatalogDeployment = x, Enabled = true, MaximumRiskPerTrade = options.MaximumRiskPerTrade,
-            MaximumAggregateRisk = options.MaximumAggregateRisk, MaximumMargin = options.MaximumMargin,
-            MaximumGrossNotional = options.MaximumGrossNotional, MaximumOpenPositions = options.MaximumOpenPositions
-        }).ToArray(), EffectiveFromUtc = ManifestEpoch, CreatedOnUtc = ManifestEpoch, CreatedBy = Principal
+            CatalogDeployment = x,
+            Enabled = true,
+            MaximumRiskPerTrade = options.MaximumRiskPerTrade,
+            MaximumAggregateRisk = options.MaximumAggregateRisk,
+            MaximumMargin = options.MaximumMargin,
+            MaximumGrossNotional = options.MaximumGrossNotional,
+            MaximumOpenPositions = options.MaximumOpenPositions
+        }).ToArray(),
+        EffectiveFromUtc = ManifestEpoch,
+        CreatedOnUtc = ManifestEpoch,
+        CreatedBy = Principal
     };
 
     async Task<FundMandateReadModel> EnsureFundAsync(PortfolioReadModel portfolio, PortfolioFinancialPolicyReadModel policy,
@@ -315,15 +337,28 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
             var asset = stored.Definition.Code.Contains("Future", StringComparison.Ordinal) ? "Futures" : "FuturesOption";
             var assignment = new FundTradeTemplateAssignmentReadModel
             {
-                PortfolioId = portfolio.PortfolioId, PortfolioVersion = portfolio.PortfolioVersion,
-                FundId = fund.FundId, FundMandateVersion = fund.FundMandateVersion, AssignmentVersion = fundRevision + 1,
-                TradeTemplateId = deployment.Id, TradeTemplateVersion = deployment.Version, Enabled = true,
-                DecisionHorizon = horizon.ToString(), UnderlyingUniverse = [options.InstrumentRoot], AssetType = asset,
-                TradeFamily = stored.Definition.Code, Priority = stored.Definition.Code.Contains("Future", StringComparison.Ordinal) ? 10 : stored.Definition.Code.Contains("Vertical", StringComparison.Ordinal) ? 20 : 30,
-                EffectiveFromUtc = ManifestEpoch, TradeSelectionHintProfileId = selection.ParameterSetId,
-                TradeSelectionHintProfileVersion = selection.Version, OrderCompositionProfileId = construction.ParameterSetId,
-                OrderCompositionProfileVersion = construction.Version, CreatedOnUtc = ManifestEpoch, CreatedBy = Principal,
-                SchemaVersion = 3, TradeStrategyFamily = new(0, 0) { CatalogDeployment = deployment }
+                PortfolioId = portfolio.PortfolioId,
+                PortfolioVersion = portfolio.PortfolioVersion,
+                FundId = fund.FundId,
+                FundMandateVersion = fund.FundMandateVersion,
+                AssignmentVersion = fundRevision + 1,
+                TradeTemplateId = deployment.Id,
+                TradeTemplateVersion = deployment.Version,
+                Enabled = true,
+                DecisionHorizon = horizon.ToString(),
+                UnderlyingUniverse = [options.InstrumentRoot],
+                AssetType = asset,
+                TradeFamily = stored.Definition.Code,
+                Priority = stored.Definition.Code.Contains("Future", StringComparison.Ordinal) ? 10 : stored.Definition.Code.Contains("Vertical", StringComparison.Ordinal) ? 20 : 30,
+                EffectiveFromUtc = ManifestEpoch,
+                TradeSelectionHintProfileId = selection.ParameterSetId,
+                TradeSelectionHintProfileVersion = selection.Version,
+                OrderCompositionProfileId = construction.ParameterSetId,
+                OrderCompositionProfileVersion = construction.Version,
+                CreatedOnUtc = ManifestEpoch,
+                CreatedBy = Principal,
+                SchemaVersion = 3,
+                TradeStrategyFamily = new(0, 0) { CatalogDeployment = deployment }
             };
             await RequireSuccess(funds.AssignTradeTemplateAsync(assignment, fundRevision, token), $"Assign {stored.Definition.Code}").ConfigureAwait(false);
             fundRevision++;
@@ -333,11 +368,21 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
         {
             await RequireSuccess(portfolios.DelegateAllocationAsync(new()
             {
-                PortfolioId = portfolio.PortfolioId, PortfolioVersion = portfolio.PortfolioVersion, FundId = fund.FundId,
-                FundMandateVersion = fund.FundMandateVersion, AllocationVersion = 1, TargetWeight = 1m / 3m,
-                MinimumWeight = 0, MaximumWeight = 1, AllocatedCapital = FundCapital(horizon),
-                Currency = options.Currency, SourcePolicyId = policy.PolicyId, SourcePolicyVersion = policy.PolicyVersion,
-                EffectiveFromUtc = ManifestEpoch, CreatedOnUtc = ManifestEpoch, CreatedBy = Principal
+                PortfolioId = portfolio.PortfolioId,
+                PortfolioVersion = portfolio.PortfolioVersion,
+                FundId = fund.FundId,
+                FundMandateVersion = fund.FundMandateVersion,
+                AllocationVersion = 1,
+                TargetWeight = 1m / 3m,
+                MinimumWeight = 0,
+                MaximumWeight = 1,
+                AllocatedCapital = FundCapital(horizon),
+                Currency = options.Currency,
+                SourcePolicyId = policy.PolicyId,
+                SourcePolicyVersion = policy.PolicyVersion,
+                EffectiveFromUtc = ManifestEpoch,
+                CreatedOnUtc = ManifestEpoch,
+                CreatedBy = Principal
             }, portfolioRevision, token), $"Delegate {horizon} allocation").ConfigureAwait(false);
             portfolioRevision++;
         }
@@ -347,16 +392,30 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
             var allocated = FundCapital(horizon);
             await RequireSuccess(portfolios.DelegateRiskEnvelopeAsync(new()
             {
-                PortfolioId = portfolio.PortfolioId, PortfolioVersion = portfolio.PortfolioVersion, FundId = fund.FundId,
-                FundMandateVersion = fund.FundMandateVersion, EnvelopeId = StableId("envelope/" + code), EnvelopeVersion = 1,
-                CapacityState = FundCapacityState.Available, Currency = options.Currency, AllocatedCapital = allocated,
-                AvailableCapital = allocated, MaximumRiskPerTrade = Math.Min(options.MaximumRiskPerTrade, allocated),
-                MaximumAggregateRisk = Math.Min(options.MaximumAggregateRisk, allocated), MaximumMargin = Math.Min(options.MaximumMargin, allocated),
-                MaximumGrossNotional = options.MaximumGrossNotional / 3m, MaximumContracts = options.MaximumContracts,
-                MaximumOpenPositions = options.MaximumOpenPositions, MaximumDrawdown = Math.Min(options.MaximumDrawdown, allocated),
-                RemainingLossBudget = Math.Min(options.MaximumDrawdown, allocated), EffectiveFromUtc = ManifestEpoch,
-                ExpiresAtUtc = new(DateTime.UtcNow.Year + 2, 1, 1, 0, 0, 0, DateTimeKind.Utc), SourcePolicyId = policy.PolicyId,
-                SourcePolicyVersion = policy.PolicyVersion, CreatedOnUtc = ManifestEpoch, CreatedBy = Principal
+                PortfolioId = portfolio.PortfolioId,
+                PortfolioVersion = portfolio.PortfolioVersion,
+                FundId = fund.FundId,
+                FundMandateVersion = fund.FundMandateVersion,
+                EnvelopeId = StableId("envelope/" + code),
+                EnvelopeVersion = 1,
+                CapacityState = FundCapacityState.Available,
+                Currency = options.Currency,
+                AllocatedCapital = allocated,
+                AvailableCapital = allocated,
+                MaximumRiskPerTrade = Math.Min(options.MaximumRiskPerTrade, allocated),
+                MaximumAggregateRisk = Math.Min(options.MaximumAggregateRisk, allocated),
+                MaximumMargin = Math.Min(options.MaximumMargin, allocated),
+                MaximumGrossNotional = options.MaximumGrossNotional / 3m,
+                MaximumContracts = options.MaximumContracts,
+                MaximumOpenPositions = options.MaximumOpenPositions,
+                MaximumDrawdown = Math.Min(options.MaximumDrawdown, allocated),
+                RemainingLossBudget = Math.Min(options.MaximumDrawdown, allocated),
+                EffectiveFromUtc = ManifestEpoch,
+                ExpiresAtUtc = new(DateTime.UtcNow.Year + 2, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                SourcePolicyId = policy.PolicyId,
+                SourcePolicyVersion = policy.PolicyVersion,
+                CreatedOnUtc = ManifestEpoch,
+                CreatedBy = Principal
             }, portfolioRevision, token), $"Delegate {horizon} risk envelope").ConfigureAwait(false);
             portfolioRevision++;
         }
@@ -369,17 +428,26 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
 
     FundMandateReadModel Fund(int portfolioId, int fundId, string code, TimeFrameType horizon, CatalogKey[] deployments) => new()
     {
-        PortfolioId = portfolioId, FundId = fundId, FundCode = code, Name = $"ES {horizon} Development Fund",
-        FundMandateVersion = 1, SchemaVersion = 3, TradingYear = DateTime.UtcNow.Year,
-        OperatingState = FundOperatingState.Draft, EffectiveFromUtc = new(DateTime.UtcNow.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-        EffectiveUntilUtc = new(DateTime.UtcNow.Year + 1, 1, 1, 0, 0, 0, DateTimeKind.Utc), DecisionHorizon = horizon.ToString(),
+        PortfolioId = portfolioId,
+        FundId = fundId,
+        FundCode = code,
+        Name = $"ES {horizon} Development Fund",
+        FundMandateVersion = 1,
+        SchemaVersion = 3,
+        TradingYear = DateTime.UtcNow.Year,
+        OperatingState = FundOperatingState.Draft,
+        EffectiveFromUtc = new(DateTime.UtcNow.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+        EffectiveUntilUtc = new(DateTime.UtcNow.Year + 1, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+        DecisionHorizon = horizon.ToString(),
         Objective = "Exercise the production decision, composition, capacity and risk path with paper capital.",
-        UnderlyingUniverse = [options.InstrumentRoot], EligibleAssetTypes = ["Futures", "FuturesOption"],
+        UnderlyingUniverse = [options.InstrumentRoot],
+        EligibleAssetTypes = ["Futures", "FuturesOption"],
         PermittedDirections = Enum.GetNames<MarketConditionDirection>().Where(x => x != nameof(MarketConditionDirection.Undefined)).ToArray(),
         PermittedConditions = Enum.GetNames<MarketConditionType>().Where(x => x != nameof(MarketConditionType.Undefined)).ToArray(),
         PermittedTradeFamilies = deployments.Select(DevelopmentDeploymentCode).ToArray(),
         PermittedTradeStrategyFamilies = deployments.Select(x => new TradeStrategyFamilyReference(0, 0) { CatalogDeployment = x }).ToArray(),
-        CreatedOnUtc = ManifestEpoch, CreatedBy = Principal
+        CreatedOnUtc = ManifestEpoch,
+        CreatedBy = Principal
     };
 
     async Task EnsureFinancialBookAsync(int portfolioId, int[] fundIds, CancellationToken token)
@@ -464,18 +532,36 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
                 : FundCapitalByIndex(index);
             var post = new PostFundTransactionCommand
             {
-                CommandId = operation, OperationId = operation, PortfolioId = portfolioId, EntityId = new(portfolioId),
+                CommandId = operation,
+                OperationId = operation,
+                PortfolioId = portfolioId,
+                EntityId = new(portfolioId),
                 Subject = new(ActorType.Command, PostFundTransactionCommand.Actor, PostFundTransactionCommand.Verb, portfolioId.ToString()),
-                CorrelationId = operation, CausationId = operation, RequestedAtUtc = requested, ExpiresAtUtc = new(2099, 12, 31),
-                ExpectedFinancialRevision = index + 1, Access = new(Principal, ["PortfolioAdministrator"]),
+                CorrelationId = operation,
+                CausationId = operation,
+                RequestedAtUtc = requested,
+                ExpiresAtUtc = new(2099, 12, 31),
+                ExpectedFinancialRevision = index + 1,
+                Access = new(Principal, ["PortfolioAdministrator"]),
                 Body = new()
                 {
-                    BookId = draft.BookId, FundId = fundIds[index], Amount = amount, Currency = options.Currency,
-                    TransactionKind = LedgerTransactionKind.DepositConfirmed, AccountingDate = DateOnly.FromDateTime(ManifestEpoch),
-                    ValueDate = DateOnly.FromDateTime(ManifestEpoch), Description = "Separately entered Development paper capital",
+                    BookId = draft.BookId,
+                    FundId = fundIds[index],
+                    Amount = amount,
+                    Currency = options.Currency,
+                    TransactionKind = LedgerTransactionKind.DepositConfirmed,
+                    AccountingDate = DateOnly.FromDateTime(ManifestEpoch),
+                    ValueDate = DateOnly.FromDateTime(ManifestEpoch),
+                    Description = "Separately entered Development paper capital",
                     PostingRule = new() { RuleId = rule.RuleId, Version = rule.Version, ContentHash = rule.ContentHash },
-                    Source = new() { System = "DevelopmentPortfolioProvisioner", SourceEntityId = options.PortfolioName,
-                        SourceEventId = operation, SourceContentHash = new('D', 64), OccurredAtUtc = requested },
+                    Source = new()
+                    {
+                        System = "DevelopmentPortfolioProvisioner",
+                        SourceEntityId = options.PortfolioName,
+                        SourceEventId = operation,
+                        SourceContentHash = new('D', 64),
+                        OccurredAtUtc = requested
+                    },
                     MovementEvidence = new() { Status = MovementStatus.Confirmed, SourceReference = "Configured paper capital; no live cash movement" }
                 }
             };
@@ -489,14 +575,20 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
         {
             await ConfigureAsync(portfolioId, fundIds.Length + 1, new()
             {
-                Action = LedgerConfigurationAction.Reconcile, BookId = draft.BookId, SourceCut = capitalCut,
+                Action = LedgerConfigurationAction.Reconcile,
+                BookId = draft.BookId,
+                SourceCut = capitalCut,
                 Reason = "Reconcile separately entered Development capital"
             }, token, reconcileId).ConfigureAwait(false);
         }
         await ConfigureAsync(portfolioId, fundIds.Length + 2, new()
         {
-            Action = LedgerConfigurationAction.QualifyDevelopmentBook, BookId = draft.BookId, Book = draft.Book,
-            ReconciliationId = reconcileId, SourceCut = capitalCut, Reason = "Qualify fresh Development paper book"
+            Action = LedgerConfigurationAction.QualifyDevelopmentBook,
+            BookId = draft.BookId,
+            Book = draft.Book,
+            ReconciliationId = reconcileId,
+            SourceCut = capitalCut,
+            Reason = "Qualify fresh Development paper book"
         }, token, StableId("development-qualification")).ConfigureAwait(false);
 
         var authority = await financial.PrepareFinancialAuthorityAsync(scope, new(true), token).ConfigureAwait(false);
@@ -521,10 +613,18 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
         var operation = id ?? StableId("ledger-create");
         var command = new ConfigureLedgerCommand
         {
-            CommandId = operation, OperationId = operation, PortfolioId = portfolioId, EntityId = new(portfolioId),
+            CommandId = operation,
+            OperationId = operation,
+            PortfolioId = portfolioId,
+            EntityId = new(portfolioId),
             Subject = new(ActorType.Command, ConfigureLedgerCommand.Actor, ConfigureLedgerCommand.Verb, portfolioId.ToString()),
-            CorrelationId = operation, CausationId = operation, RequestedAtUtc = ManifestEpoch, ExpiresAtUtc = new(2099, 12, 31),
-            ExpectedFinancialRevision = revision, Access = new(Principal, ["PortfolioAdministrator", "LedgerConfigure", "LedgerImport"]), Body = body
+            CorrelationId = operation,
+            CausationId = operation,
+            RequestedAtUtc = ManifestEpoch,
+            ExpiresAtUtc = new(2099, 12, 31),
+            ExpectedFinancialRevision = revision,
+            Access = new(Principal, ["PortfolioAdministrator", "LedgerConfigure", "LedgerImport"]),
+            Body = body
         };
         command = command with { InputSha256 = FinancialCanonicalHash.Request(command) };
         await RequireFinancial(await financial.ConfigureAsync(command, token).ConfigureAwait(false), body.Action.ToString()).ConfigureAwait(false);
@@ -655,13 +755,20 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
             var isFuture = structureCode == "Future";
             var item = StrategyCatalogExamples.New(StrategyCatalogKind.Variant, "Development" + source.Code, "Development " + source.Name) with
             {
-                Parent = structures[structureCode].Key, Side = source.Side, Bias = source.Bias, PremiumMode = source.PremiumMode,
-                Capabilities = source.Capabilities, VariantLegs = source.VariantLegs,
+                Parent = structures[structureCode].Key,
+                Side = source.Side,
+                Bias = source.Bias,
+                PremiumMode = source.PremiumMode,
+                Capabilities = source.Capabilities,
+                VariantLegs = source.VariantLegs,
                 Settings = JsonSerializer.SerializeToElement(new
                 {
                     TargetNetDelta = isFuture ? (source.Side == "Long" ? 1m : -1m) : source.Bias == "Balanced" ? 0m : source.Bias == "Bullish" ? .15m : -.15m,
-                    BalanceTolerance = .05m, SymmetricWings = true, MinimumWingWidth = isFuture ? 0m : 5m,
-                    MaximumWingWidth = isFuture ? 0m : 20m, DeltaUnits = "UnderlyingEquivalent"
+                    BalanceTolerance = .05m,
+                    SymmetricWings = true,
+                    MinimumWingWidth = isFuture ? 0m : 5m,
+                    MaximumWingWidth = isFuture ? 0m : 20m,
+                    DeltaUnits = "UnderlyingEquivalent"
                 })
             };
             variants.Add(source.Code, item);
@@ -692,7 +799,10 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
                 definitions.Add(parameter);
                 var deployment = StrategyCatalogExamples.New(StrategyCatalogKind.Deployment, $"Development{horizon}{group.Code}", $"Development {horizon} {group.Code}") with
                 {
-                    Parent = strategy.Key, Horizon = horizon, Variants = selected.Select(x => x.Key).ToArray(), Products = [group.Product],
+                    Parent = strategy.Key,
+                    Horizon = horizon,
+                    Variants = selected.Select(x => x.Key).ToArray(),
+                    Products = [group.Product],
                     Capabilities = [new("validator", "StructureVariant", 1)],
                     PipelineParameters =
                     [

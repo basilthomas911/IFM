@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -35,17 +35,25 @@ public static class SampleData
     );
 
     public static FuturesOptionContractReadModel ShortOptionContract => new(
-        contractId: "ES20251219P5400",
-        description: "E-mini S&P 500 Dec 2025 Put 5400",
+        contractId: "ES20261218P5400",
+        description: "E-mini S&P 500 Dec 2026 Put 5400",
         symbol: Symbol,
-        localSymbol: "ESZ5 P5400",
+        localSymbol: "ESZ6 P5400",
         securityType: "FOP",
         currency: "USD",
         exchange: "CME",
         multiplier: "50",
-        contractMonth: new DateOnly(2025, 12, 1),
+        contractMonth: new DateOnly(2026, 12, 1),
         strikePrice: 5400.0,
-        optionType: "Put");
+        optionType: "Put")
+    {
+        SchemaVersion = 1,
+        MultiplierValue = 50m,
+        StrikePriceDecimal = 5400m,
+        UnderlyingContractId = FuturesContractId,
+        UnderlyingAssetType = ReferenceAssetType.Futures,
+        OptionRight = ReferenceOptionRight.Put
+    };
 
     public static FuturesOptionContractReadModel LongOptionContract => new(
         contractId: "ES20251219P5300",
@@ -158,18 +166,18 @@ public static class SampleData
         theta: -0.80,
         rho: 0.02);
 
-    public static readonly string FuturesContractId = "ES20251010";
+    public static readonly string FuturesContractId = "ES20261218";
 
     public static FuturesContractV3ReadModel FuturesContract => new(
         contractId: FuturesContractId,
-        description: "E-mini S&P 500 Dec 2025",
+        description: "E-mini S&P 500 Dec 2026",
         symbol: Symbol,
-        localSymbol: "ESZ5",
+        localSymbol: "ESZ6",
         securityType: "FUT",
         currency: "USD",
         exchange: "CME",
         multiplier: "50",
-        lastTradeDate: new DateOnly(2025, 12, 19),
+        lastTradeDate: new DateOnly(2026, 12, 18),
         onTheRun: true);
 
     public static FuturesTickDataV2ReadModel UnderlyingFuturesTickData => new(

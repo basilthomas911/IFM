@@ -23,7 +23,7 @@ public sealed class PortfolioEventStoreFixture
                 ?? "Host=localhost;Port=5432;Database=event-source-test-db",
             "System.Data.Postgres");
         var logger = Substitute.For<ILogger<DbProvider>>();
-        if(initializeSchema) new EventSourceSchemaDb(settings, logger).CreateAllAsync().GetAwaiter().GetResult();
+        if (initializeSchema) new EventSourceSchemaDb(settings, logger).CreateAllAsync().GetAwaiter().GetResult();
 
         var cache = Substitute.For<IRedisCache>();
         var values = new Dictionary<string, string>();

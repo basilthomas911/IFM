@@ -20,7 +20,7 @@ public record FuturesOptionContractEntityId(
     /// <summary>
     /// Parameterless constructor required for some serializers; defaults to the current UTC year.
     /// </summary>
-    public FuturesOptionContractEntityId() : this(string.Empty,DateTime.UtcNow.Year) { }
+    public FuturesOptionContractEntityId() : this(string.Empty, DateTime.UtcNow.Year) { }
 
     /// <summary>
     /// Formats the identifier as a dot-separated key.

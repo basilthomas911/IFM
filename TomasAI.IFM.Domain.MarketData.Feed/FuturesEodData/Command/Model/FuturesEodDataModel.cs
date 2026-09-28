@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Model;
 /// Session-relative percentage and direction are live price facts and are recalculated here.
 /// Historical analytics indicators are preserved because Analytics actors own them.
 /// </remarks>
-internal static class FuturesEodDataModel 
+internal static class FuturesEodDataModel
 {
     public static FuturesEodDataV2ReadModel CreateFuturesEodData(
         DateOnly valueDate,
@@ -51,6 +51,6 @@ internal static class FuturesEodDataModel
         ICollection<VixFuturesEodDataReadModel> vixEodData)
         => CreateFuturesEodData(valueDate, futuresTickData, contract, eodDataToday);
 
-   
-   
+
+
 }

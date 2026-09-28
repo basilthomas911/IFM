@@ -56,5 +56,5 @@ public record StatusConsoleLoggedEvent : IEvent<ActorEntityId>
     [IgnoreMember]
     public bool IsValid
         => true;
-    
+
 }

@@ -30,7 +30,8 @@ public sealed class MarketConditionEventRiskAdapter(IDbContextFactory storage,
                 Status = MarketEventRiskStatus.Unknown,
                 DownloadEvidence = coverage,
                 Observation = CheckedNow("EventRiskCalendar", evaluationTimestampUtc)
-                    with { Availability = MarketSourceAvailability.Unavailable }
+                    with
+                { Availability = MarketSourceAvailability.Unavailable }
             };
         var rows = await storage.MarketDataDb.GetEconomicCalendarsAsync(
             evaluationTimestampUtc.AddMinutes(-after), evaluationTimestampUtc.AddMinutes(before), "US",
@@ -39,11 +40,11 @@ public sealed class MarketConditionEventRiskAdapter(IDbContextFactory storage,
             throw new InvalidOperationException("Economic-calendar event identity is invalid.");
 
         var active = rows.Select(x => new
-            {
-                Value = x,
-                Category = IsRateDecision(x.EventName) ? "RateDecision" :
+        {
+            Value = x,
+            Category = IsRateDecision(x.EventName) ? "RateDecision" :
                     string.Equals(x.Impact, "High", StringComparison.OrdinalIgnoreCase) ? "HighImpact" : string.Empty
-            })
+        })
             .Where(x => configuration.RequiredEventCategories.Contains(x.Category, StringComparer.Ordinal))
             .Where(x => InWindow(x.Value.EventDate, x.Category, configuration, evaluationTimestampUtc))
             .OrderBy(x => Math.Abs((x.Value.EventDate - evaluationTimestampUtc).Ticks))
@@ -61,8 +62,12 @@ public sealed class MarketConditionEventRiskAdapter(IDbContextFactory storage,
 
     static MarketSourceObservation CheckedNow(string source, DateTime at) => new()
     {
-        SourceId = source, SourceTimestampUtc = at, ReceivedAtUtc = at, SequenceId = at.Ticks,
-        Availability = MarketSourceAvailability.Available, Validity = MarketSourceValidity.Valid
+        SourceId = source,
+        SourceTimestampUtc = at,
+        ReceivedAtUtc = at,
+        SequenceId = at.Ticks,
+        Availability = MarketSourceAvailability.Available,
+        Validity = MarketSourceValidity.Valid
     };
 
     static bool IsRateDecision(string name) =>

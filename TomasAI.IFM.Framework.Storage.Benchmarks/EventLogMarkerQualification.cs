@@ -60,8 +60,11 @@ internal static class EventLogMarkerQualification
         var results = new List<Result>();
         await File.WriteAllTextAsync(Path.Combine(output, "metadata.json"), JsonSerializer.Serialize(new
         {
-            Run = run, StartedUtc = DateTime.UtcNow, PostgreSql = await Sql(admin, "SELECT version()"),
-            Repetitions = 3, Durability = "on/on/on",
+            Run = run,
+            StartedUtc = DateTime.UtcNow,
+            PostgreSql = await Sql(admin, "SELECT version()"),
+            Repetitions = 3,
+            Durability = "on/on/on",
             SchemaComparison = schemaComparison,
             Scope = processRestart ? "Independent writer processes, abrupt writer death, graceful database restart and SIGKILL server recovery; not physical power-loss testing."
                 : "Independent writer connections; checkpoint race; backend termination; cancellation; lost COMMIT acknowledgment. Not OS/process/power-loss qualification.",
@@ -77,7 +80,7 @@ internal static class EventLogMarkerQualification
             var variant = schemaComparison ? (candidate ? "threeindex" : "fourindex") : batch ? "batched" : "baseline";
             var database = $"ifm_eventlog_bench_{run}_{variant}";
             var builder = new NpgsqlConnectionStringBuilder(raw)
-                { Database = database, Pooling = false, ApplicationName = "MarkerQualification" };
+            { Database = database, Pooling = false, ApplicationName = "MarkerQualification" };
             var direct = builder.ConnectionString;
             builder.Username = ""; builder.Password = "";
             var provider = builder.ConnectionString;
@@ -117,32 +120,32 @@ internal static class EventLogMarkerQualification
                     nameof(EventLogV2Benchmark.BenchmarkEvent),
                     typeof(EventLogV2Benchmark.BenchmarkEvent).AssemblyQualifiedName!));
                 for (var repetition = 1; repetition <= 3; repetition++)
-                foreach (var scenario in processRestart
-                    ? new[] { "process-version-race", "process-duplicate", "process-death", "graceful-restart", "server-crash" }
-                    : new[] { "competing-stream-version", "duplicate-command", "checkpoint-advance",
+                    foreach (var scenario in processRestart
+                        ? new[] { "process-version-race", "process-duplicate", "process-death", "graceful-restart", "server-crash" }
+                        : new[] { "competing-stream-version", "duplicate-command", "checkpoint-advance",
                         "backend-termination", "cancel-after-admission", "lost-commit-ack" })
-                {
-                    var timer = Stopwatch.StartNew();
-                    try
                     {
-                        if (processRestart)
-                            await EventLogProcessQualification.RunCase(db, direct, provider, batch, eventNameId,
-                                scenario, repetition, output);
-                        else await RunCase(db, direct, provider, layout, eventNameId, scenario, repetition);
-                        results.Add(new(variant, repetition, scenario, database, true, timer.Elapsed.TotalSeconds,
-                            "Durable events, markers, command audit, stream counter and retry invariants passed."));
-                        Console.WriteLine($"PASS {variant} {repetition} {scenario}");
+                        var timer = Stopwatch.StartNew();
+                        try
+                        {
+                            if (processRestart)
+                                await EventLogProcessQualification.RunCase(db, direct, provider, batch, eventNameId,
+                                    scenario, repetition, output);
+                            else await RunCase(db, direct, provider, layout, eventNameId, scenario, repetition);
+                            results.Add(new(variant, repetition, scenario, database, true, timer.Elapsed.TotalSeconds,
+                                "Durable events, markers, command audit, stream counter and retry invariants passed."));
+                            Console.WriteLine($"PASS {variant} {repetition} {scenario}");
+                        }
+                        catch (Exception ex)
+                        {
+                            results.Add(new(variant, repetition, scenario, database, false, timer.Elapsed.TotalSeconds, ex.ToString()));
+                            throw;
+                        }
+                        finally
+                        {
+                            await File.WriteAllTextAsync(Path.Combine(output, "results.json"), JsonSerializer.Serialize(results, Json));
+                        }
                     }
-                    catch (Exception ex)
-                    {
-                        results.Add(new(variant, repetition, scenario, database, false, timer.Elapsed.TotalSeconds, ex.ToString()));
-                        throw;
-                    }
-                    finally
-                    {
-                        await File.WriteAllTextAsync(Path.Combine(output, "results.json"), JsonSerializer.Serialize(results, Json));
-                    }
-                }
                 success = true;
             }
             finally
@@ -209,7 +212,7 @@ internal static class EventLogMarkerQualification
         {
             await using var proxy = new CommitAckDropProxy(new NpgsqlConnectionStringBuilder(direct).Port);
             var routed = new NpgsqlConnectionStringBuilder(provider)
-                { Host = "127.0.0.1", Port = proxy.Port, SslMode = SslMode.Disable, Pooling = false };
+            { Host = "127.0.0.1", Port = proxy.Port, SslMode = SslMode.Disable, Pooling = false };
             routed["GSS Encryption Mode"] = "Disable";
             await using (var writer = Writer(routed.ConnectionString, layout))
             {
@@ -306,8 +309,14 @@ internal static class EventLogMarkerQualification
         var command = new EventLogV2Benchmark.BenchmarkCommand { CommandId = commandId, StreamId = stream, Value = expected + 8 };
         return new(stream, streamId, commandId,
             Enumerable.Range(1, 8).Select(i => new EventLogAppendEntry(eventNameId,
-                new EventLogV2Benchmark.BenchmarkEvent { CommandId = commandId, AggregateId = stream,
-                    Value = expected + i, RequiresDurableProjection = true, Payload = "qualification" })).ToArray(),
+                new EventLogV2Benchmark.BenchmarkEvent
+                {
+                    CommandId = commandId,
+                    AggregateId = stream,
+                    Value = expected + i,
+                    RequiresDurableProjection = true,
+                    Payload = "qualification"
+                })).ToArray(),
             expected, DateTime.UtcNow, CommandAuditEnvelope.Create(command, new CommandAuditMessagePackCodec()));
     }
 
@@ -437,7 +446,9 @@ internal static class EventLogMarkerQualification
                 finally
                 {
                     client.Close(); server.Close();
-                    try { await forward; } catch (IOException) { } catch (OperationCanceledException) { }
+                    try { await forward; }
+                    catch (IOException) { }
+                    catch (OperationCanceledException) { }
                     catch (ObjectDisposedException) { }
                 }
             }

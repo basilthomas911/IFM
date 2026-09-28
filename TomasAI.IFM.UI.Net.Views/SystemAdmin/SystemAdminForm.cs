@@ -20,7 +20,7 @@ public partial class SystemAdminForm : DarkTradingForm, IForm<SystemAdminForm>, 
             { "BackupDatabases", () => new BackupDatabasesView(
                 new DatabaseBackupViewModel(databaseBackupService)) },
         };
-        
+
     }
 
     public void LoadViewModel(SystemAdminViewModel viewModel)
@@ -58,19 +58,19 @@ public partial class SystemAdminForm : DarkTradingForm, IForm<SystemAdminForm>, 
         if (sysAdminFuncType != null && _controlMap.ContainsKey(sysAdminFuncType.ShortCode))
         {
             var control = _controlMap[sysAdminFuncType.ShortCode]();
-            ((IFormControl)control).Open(); 
+            ((IFormControl)control).Open();
             pnlSystemAdmin.Controls.Add(control);
         }
     }
 
-    
+
 
     private async void SystemAdminForm_FormClosing(object sender, FormClosingEventArgs e)
     {
         if (_closeComplete)
             return;
         e.Cancel = true;
-        foreach(IFormControl control in pnlSystemAdmin.Controls)
+        foreach (IFormControl control in pnlSystemAdmin.Controls)
             await CloseControlAsync(control);
         _viewModel.LoadFunctionTypesOperation.PropertyChanged -= LoadOperation_PropertyChanged;
         _closeComplete = true;

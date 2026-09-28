@@ -230,7 +230,9 @@ public sealed class DashboardSplitterRenderingTests
         var api = Substitute.For<IMarketDataFeedQueryApi>();
         api.GetDatabentoReadinessAsync().Returns(new ServiceOk<DatabentoReadinessReadModel>(new()
         {
-            State = feedState, DisplayHealth = displayHealth, CoreReady = coreReady
+            State = feedState,
+            DisplayHealth = displayHealth,
+            CoreReady = coreReady
         }));
         root.Services.FeedQueries.Returns(new MarketDataFeedQueryService(api));
         await using var model = new IFMAppViewModel(root, new Version(1, 0), "TEST",
@@ -247,19 +249,19 @@ public sealed class DashboardSplitterRenderingTests
             await (Task)refresh.Invoke(model, null)!;
             model.IsMarketDataFeedActive.Should().Be(feedActive);
             foreach (var valueDate in new DateOnly?[] { null, new(2026, 9, 8) })
-            foreach (var busy in new[] { false, true })
-            {
-                typeof(IFMAppViewModel).GetProperty(nameof(model.ValueDate))!.SetValue(model, valueDate);
-                typeof(IFMAppViewModel).GetProperty(nameof(model.IsMarketDataFeedOperationInProgress))!.SetValue(model, busy);
-                render.Invoke(form, null);
-                new[] { "tradeButton", "marketDataButton", "portfolioButton", "referenceButton", "systemAdminButton" }
-                    .Select(name => menu.Items[name])
-                    .Should().OnlyContain(item => item != null && item.Enabled,
-                        $"navigation must remain available in {marketState} with a {feedState} feed");
-                menu.Items["marketDataFeedButton"].Enabled.Should().Be(
-                    valueDate.HasValue && (marketState != FuturesMarketState.Closed || feedActive) && !busy,
-                    "feed commands retain their date, session and operation-in-progress checks");
-            }
+                foreach (var busy in new[] { false, true })
+                {
+                    typeof(IFMAppViewModel).GetProperty(nameof(model.ValueDate))!.SetValue(model, valueDate);
+                    typeof(IFMAppViewModel).GetProperty(nameof(model.IsMarketDataFeedOperationInProgress))!.SetValue(model, busy);
+                    render.Invoke(form, null);
+                    new[] { "tradeButton", "marketDataButton", "portfolioButton", "referenceButton", "systemAdminButton" }
+                        .Select(name => menu.Items[name])
+                        .Should().OnlyContain(item => item != null && item.Enabled,
+                            $"navigation must remain available in {marketState} with a {feedState} feed");
+                    menu.Items["marketDataFeedButton"].Enabled.Should().Be(
+                        valueDate.HasValue && (marketState != FuturesMarketState.Closed || feedActive) && !busy,
+                        "feed commands retain their date, session and operation-in-progress checks");
+                }
         }
     }
 
@@ -279,7 +281,8 @@ public sealed class DashboardSplitterRenderingTests
             {
                 completion.SetException(exception);
             }
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
 
@@ -327,7 +330,8 @@ public sealed class DashboardSplitterRenderingTests
             {
                 completion.SetException(exception);
             }
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
 
@@ -382,7 +386,8 @@ public sealed class DashboardSplitterRenderingTests
             {
                 completion.SetException(exception);
             }
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
 

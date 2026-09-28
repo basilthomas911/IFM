@@ -6,8 +6,8 @@ public interface IJsonSerializer
     T Deserialize<T>(string content);
     object Deserialize(string content, Type contentType);
 
-    string[] SupportedContentTypes { get; } 
-    string ContentType { get; set; } 
+    string[] SupportedContentTypes { get; }
+    string ContentType { get; set; }
     DataFormat DataFormat { get; }
 }
 

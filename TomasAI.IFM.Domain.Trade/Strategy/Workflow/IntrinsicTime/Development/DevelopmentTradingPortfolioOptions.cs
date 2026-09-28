@@ -61,10 +61,16 @@ public static class DevelopmentTradingPortfolioDefaults
 
     public static SelectionConstructionPolicy[] ConstructionPolicies() => DevelopmentTradingPortfolioOptions.Horizons.Select(h => new SelectionConstructionPolicy
     {
-        SchemaVersion = 1, ParameterSetId = ConstructionId(h), Version = 1, MaximumLegs = 4,
+        SchemaVersion = 1,
+        ParameterSetId = ConstructionId(h),
+        Version = 1,
+        MaximumLegs = 4,
         MinimumDaysToExpiry = h == TimeFrameType.Daily ? 7 : h == TimeFrameType.Weekly ? 14 : 21,
         MaximumDaysToExpiry = h == TimeFrameType.Daily ? 60 : h == TimeFrameType.Weekly ? 90 : 120,
-        MinimumWingWidth = 5, MaximumWingWidth = 20, DeltaUnits = "UnderlyingEquivalent", MaximumDeltaTolerance = .10m
+        MinimumWingWidth = 5,
+        MaximumWingWidth = 20,
+        DeltaUnits = "UnderlyingEquivalent",
+        MaximumDeltaTolerance = .10m
     }).ToArray();
 
     public static decimal[] CapitalAllocations(decimal total)

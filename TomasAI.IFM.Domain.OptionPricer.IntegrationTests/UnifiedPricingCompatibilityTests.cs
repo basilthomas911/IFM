@@ -17,7 +17,7 @@ public sealed class UnifiedPricingCompatibilityTests
         var r = new OptionPricingRequest(underlying, exercise, PremiumKind.PaidUpfront,
             OptionSide.Put, 100, 103, .5, .04,
             underlying == UnderlyingKind.Equity ? DividendKind.DiscreteCash : DividendKind.None)
-            { CashDividends = underlying == UnderlyingKind.Equity ? [new(.2, 2)] : [] };
+        { CashDividends = underlying == UnderlyingKind.Equity ? [new(.2, 2)] : [] };
         var calculator = new OptionCalculator(new() { Steps = 100, SpatialSteps = 100 });
         var fast = calculator.PriceAndDelta(r, .24);
         Assert.True(fast.Success);
@@ -48,7 +48,7 @@ public sealed class UnifiedPricingCompatibilityTests
     {
         var original = new OptionPricingRequest(UnderlyingKind.Equity, exercise, PremiumKind.PaidUpfront,
             OptionSide.Put, 100, 100, .5, .04, DividendKind.DiscreteCash)
-            { CashDividends = [new(.2, 2)] };
+        { CashDividends = [new(.2, 2)] };
         var request = JsonSerializer.Deserialize<OptionPricingRequest>(JsonSerializer.Serialize(original));
         Assert.True(original.CashDividends.SequenceEqual(request.CashDividends));
         var calculator = new OptionCalculator(new() { Steps = 100, SpatialSteps = 200 });

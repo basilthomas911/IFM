@@ -19,7 +19,7 @@ internal static class FuturesAdxSignalEventExtensions
     /// <param name="futuresEodData">The end-of-day futures data used as input for RSI signal generation.</param>
     /// <returns>A ValueTask representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the generate operation fails or returns an unsuccessful result.</exception>
-    public static async ValueTask GenerateFuturesAdxSignalAsync(this IEventActorContext commandApi, FuturesEodDataV2ReadModel futuresEodData,TimeFrameType timePeriod, int periodLength, decimal futuresPrice)
+    public static async ValueTask GenerateFuturesAdxSignalAsync(this IEventActorContext commandApi, FuturesEodDataV2ReadModel futuresEodData, TimeFrameType timePeriod, int periodLength, decimal futuresPrice)
     {
         var signalId = new FuturesAdxSignalId(futuresEodData.ContractId, futuresEodData.ValueDate, timePeriod, periodLength, TimeOnly.FromDateTime(DateTime.Now));
         _ = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesAdxSignalAsync(commandApi, signalId, futuresPrice);

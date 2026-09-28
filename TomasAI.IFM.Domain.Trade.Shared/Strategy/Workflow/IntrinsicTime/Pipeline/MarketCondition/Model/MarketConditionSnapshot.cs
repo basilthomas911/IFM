@@ -116,13 +116,15 @@ public sealed record MarketConditionSnapshot
     [Key(12)] public MarketConditionSessionState SessionState { get; init; } = new();
     [Key(13)] public MarketConditionEventRiskState EventRiskState { get; init; } = new();
     [Key(14)] public MarketConditionVolatilityShockState VolatilityShockState { get; init; } = new();
-    [Key(15)] public MarketConditionOperationalHealthItem[] OperationalHealth
+    [Key(15)]
+    public MarketConditionOperationalHealthItem[] OperationalHealth
     {
         get => _operationalHealth is null ? null! : [.. _operationalHealth];
         init => _operationalHealth = value is null ? null : [.. value];
     }
     [Key(16)] public MarketConditionWorkflowEligibilityState WorkflowEligibility { get; init; } = new();
-    [Key(17)] public MarketSourceObservation[] DataQualityItems
+    [Key(17)]
+    public MarketSourceObservation[] DataQualityItems
     {
         get => _dataQualityItems is null ? null! : [.. _dataQualityItems];
         init => _dataQualityItems = value is null ? null : [.. value];

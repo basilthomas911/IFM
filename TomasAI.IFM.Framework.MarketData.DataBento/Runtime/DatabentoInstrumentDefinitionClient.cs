@@ -35,9 +35,17 @@ public sealed class DatabentoInstrumentDefinitionClient(HttpClient http, Func<st
         using var request = Request(HttpMethod.Post, "timeseries.get_range");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            ["dataset"] = dataset, ["schema"] = "definition", ["symbols"] = "ALL_SYMBOLS", ["stype_in"] = "raw_symbol",
-            ["start"] = start, ["end"] = end, ["encoding"] = "json", ["compression"] = "none",
-            ["pretty_px"] = "false", ["pretty_ts"] = "false", ["map_symbols"] = "false"
+            ["dataset"] = dataset,
+            ["schema"] = "definition",
+            ["symbols"] = "ALL_SYMBOLS",
+            ["stype_in"] = "raw_symbol",
+            ["start"] = start,
+            ["end"] = end,
+            ["encoding"] = "json",
+            ["compression"] = "none",
+            ["pretty_px"] = "false",
+            ["pretty_ts"] = "false",
+            ["map_symbols"] = "false"
         });
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();

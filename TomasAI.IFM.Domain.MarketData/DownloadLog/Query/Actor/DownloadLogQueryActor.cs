@@ -3,6 +3,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.MarketData.DownloadLog.Query.Actor;
+
 public sealed class DownloadLogQueryActor(IQueryActorContext<DownloadLogQueryActor> context)
     : BaseQueryActor<DownloadLogQueryActor>(context, ((IDownloadLogQueryContext)context).Logger)
 {

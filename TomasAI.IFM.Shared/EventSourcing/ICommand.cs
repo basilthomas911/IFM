@@ -26,7 +26,7 @@ public interface ICommand
 /// </summary>
 /// <remarks>Implementations of this interface represent values or settings that influence command behavior. The
 /// specific contract and usage depend on the command system in which this interface is used.</remarks>
-public interface  ICommandParameter
+public interface ICommandParameter
 {
     int ErrorCode { get; }
 }
@@ -46,7 +46,7 @@ public interface ICommandParameter<TEntityId>
 /// </summary>
 /// <typeparam name="TEntityId">The type of the actor entity identifier. Must implement <see cref="IActorEntityId"/>.</typeparam>
 public interface ICommand<TEntityId>
-    : ICommand  where TEntityId : IActorEntityId
+    : ICommand where TEntityId : IActorEntityId
 {
     TEntityId EntityId { get; }
 }

@@ -60,8 +60,8 @@ public sealed class TradeBrokerEmulatorRegistrationTests
 }
 
 /// <summary>Starts the isolated actor host and verifies the emulator account runtime without a strategy workflow.</summary>
-public sealed class TradeBrokerEmulatorHostTests(WebApplicationFactory<Program> sourceFactory)
-    : IClassFixture<WebApplicationFactory<Program>>
+public sealed class TradeBrokerEmulatorHostTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> sourceFactory)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>
 {
     /// <summary>Starts and cleanly stops the API actor host with one coherent synthetic account.</summary>
     [Fact]
@@ -70,7 +70,7 @@ public sealed class TradeBrokerEmulatorHostTests(WebApplicationFactory<Program> 
         await using var host = sourceFactory.WithWebHostBuilder(builder => builder
             .UseSetting("IFM_TEST_ACTOR_DOMAIN",
                 "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.BrokerAccount")
-            .UseSetting("IFM_TEST_NATS_URL", "nats://127.0.0.1:14222"));
+            .UseSetting("IFM_TEST_NATS_URL", DomainActorIntegrationInfrastructureFixture.NatsUrl));
         using var client = host.CreateClient();
         var supervisor = host.Services.GetRequiredService<IActorSupervisor>();
         try

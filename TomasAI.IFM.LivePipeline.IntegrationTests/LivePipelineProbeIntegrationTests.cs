@@ -48,15 +48,18 @@ public sealed class LivePipelineProbeIntegrationTests
         await using var f = await Fixture.Create();
         var original = f.Epoch.GetHealth();
         var native = new FeedHealthSnapshot(default, default, 100, 10, 10, 20, 10, 1, 0, 0, 0, null)
-            { TransportReady = true, TradingReady = true, ChannelBatchCount = 1 };
+        { TransportReady = true, TradingReady = true, ChannelBatchCount = 1 };
         var dataset = new DatabentoDatasetFeedHealth("test", Guid.NewGuid(), native, default);
         f.Epoch.GetHealth().Returns(original with { DatasetFeedStatuses = [dataset] });
         await f.Probe.CheckAsync(default);
         var stalled = await f.Probe.CheckAsync(default);
         Assert.Contains(stalled.Checks, x => x.Component == "Native delivery" && x.Status == "Degraded");
         Assert.Contains(stalled.Checks, x => x.Component == "Aggregation" && x.Status == "Degraded");
-        f.Epoch.GetHealth().Returns(original with { DatasetFeedStatuses = [dataset with
-            { Health = native with { RingUsedRecords = 0, ChannelBatchCount = 0, RecordsConsumed = 20 } }] });
+        f.Epoch.GetHealth().Returns(original with
+        {
+            DatasetFeedStatuses = [dataset with
+            { Health = native with { RingUsedRecords = 0, ChannelBatchCount = 0, RecordsConsumed = 20 } }]
+        });
         var drained = await f.Probe.CheckAsync(default);
         Assert.Contains(drained.Checks, x => x.Component == "Native delivery" && x.Status == "Healthy");
         Assert.Contains(drained.Checks, x => x.Component == "Aggregation" && x.Status == "Healthy");
@@ -80,11 +83,23 @@ public sealed class LivePipelineProbeIntegrationTests
         {
             Assert.True(rolloverCompleted);
             return contracts.Select(c => new FuturesRolloverContractAssignment
-        {
-            ContractRole = DatabentoContractRole.EsQuarterly, RootSymbol = c.Symbol, ContractId = c.ContractId,
-            Description = c.Symbol, LocalSymbol = c.Symbol, SecurityType = "FUT", Currency = "USD", Exchange = "CME", Multiplier = "50",
-            LastTradeDate = f.Date.AddDays(10), NextRolloverDate = f.Date.AddDays(9), SourceContractHash = "test",
-            CreatedOnUtc = DateTime.UtcNow, UpdatedOnUtc = DateTime.UtcNow, CreatedBy = "test", UpdatedBy = "test"
+            {
+                ContractRole = DatabentoContractRole.EsQuarterly,
+                RootSymbol = c.Symbol,
+                ContractId = c.ContractId,
+                Description = c.Symbol,
+                LocalSymbol = c.Symbol,
+                SecurityType = "FUT",
+                Currency = "USD",
+                Exchange = "CME",
+                Multiplier = "50",
+                LastTradeDate = f.Date.AddDays(10),
+                NextRolloverDate = f.Date.AddDays(9),
+                SourceContractHash = "test",
+                CreatedOnUtc = DateTime.UtcNow,
+                UpdatedOnUtc = DateTime.UtcNow,
+                CreatedBy = "test",
+                UpdatedBy = "test"
             }).ToArray();
         });
         var commands = Substitute.For<IMarketDataFeedCommandApi>();
@@ -250,18 +265,31 @@ public sealed class LivePipelineProbeIntegrationTests
             var f = new Fixture(); var now = DateTimeOffset.UtcNow;
             var session = Substitute.For<IFuturesMarketSessionAuthority>();
             f.Sessions = session;
-            session.Current.Returns(new MarketSessionReadModel { OperationalValueDate = f.Date, ActiveValueDate = f.Date,
-                Revision = 1, AsOfUtc = now.UtcDateTime, SessionStartUtc = now.AddHours(-1).UtcDateTime,
-                SessionEndUtc = now.AddHours(1).UtcDateTime, NextTransitionUtc = now.AddHours(1).UtcDateTime,
-                State = FuturesMarketState.OffTrading });
+            session.Current.Returns(new MarketSessionReadModel
+            {
+                OperationalValueDate = f.Date,
+                ActiveValueDate = f.Date,
+                Revision = 1,
+                AsOfUtc = now.UtcDateTime,
+                SessionStartUtc = now.AddHours(-1).UtcDateTime,
+                SessionEndUtc = now.AddHours(1).UtcDateTime,
+                NextTransitionUtc = now.AddHours(1).UtcDateTime,
+                State = FuturesMarketState.OffTrading
+            });
             var registry = Substitute.For<IDatabentoContractRegistrationRegistry>();
             foreach (var symbol in new[] { "ES", "VX" })
             {
                 var contract = new FuturesContractV3ReadModel(symbol + "20260918", symbol, symbol, symbol + "U6", "FUT", "USD", "CME", "50", f.Date.AddDays(10), true);
                 registry.TryGetOnTheRunFuturesContract(symbol, out Arg.Any<FuturesContractV3ReadModel>()).Returns(call => { call[1] = contract; return true; });
                 f.Storage.MarketDataDb.GetLastFuturesBarDataAsync(contract.ContractId, symbol, f.Date)
-                    .Returns(_ => new FuturesBarDataReadModel { ContractId = contract.ContractId, Symbol = symbol, ValueDate = f.Date,
-                        BarDate = f.FreshBars ? DateTime.UtcNow : now.AddHours(-1).UtcDateTime, BarValue = 10 });
+                    .Returns(_ => new FuturesBarDataReadModel
+                    {
+                        ContractId = contract.ContractId,
+                        Symbol = symbol,
+                        ValueDate = f.Date,
+                        BarDate = f.FreshBars ? DateTime.UtcNow : now.AddHours(-1).UtcDateTime,
+                        BarValue = 10
+                    });
             }
             f.Epoch.ValueDate.Returns(f.Date);
             f.Epoch.IsFeedUp(Arg.Any<TimeSpan>()).Returns(true);

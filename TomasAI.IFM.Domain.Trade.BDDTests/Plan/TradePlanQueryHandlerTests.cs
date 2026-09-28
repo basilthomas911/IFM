@@ -19,6 +19,6 @@ using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Trade.BDDTests.Plan;
 
-public class TradePlanQueryHandlerTests 
+public class TradePlanQueryHandlerTests
 {
 }

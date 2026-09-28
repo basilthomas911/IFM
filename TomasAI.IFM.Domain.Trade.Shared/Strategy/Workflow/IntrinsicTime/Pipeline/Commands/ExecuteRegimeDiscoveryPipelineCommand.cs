@@ -38,7 +38,7 @@ public sealed record ExecuteRegimeDiscoveryPipelineCommand : ICommand<RegimeDisc
     /// <summary>Gets the immutable, initialization-qualified market evidence snapshot.</summary>
     [Key(16)] public RegimeDiscoveryMarketSignalSnapshot Snapshot { get; init; } = new();
 
-    [Key(17)] public ParameterApplicationProvenance? ParameterApplication {get;init;}
+    [Key(17)] public ParameterApplicationProvenance? ParameterApplication { get; init; }
 
     /// <summary>Gets the owning workflow entity without duplicating serialized identity.</summary>
     [IgnoreMember] public IntrinsicTimeStrategyWorkflowEntityId WorkflowEntityId => EntityId.WorkflowEntityId;

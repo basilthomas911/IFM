@@ -42,9 +42,13 @@ public sealed class PortfolioCommandActorTests
         var commandId = Guid.NewGuid();
         var model = new PortfolioReadModel
         {
-            PortfolioId = id.Id, Name = "Idempotent", PortfolioVersion = 1,
-            OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
-            CreatedOnUtc = now, CreatedBy = "admin",
+            PortfolioId = id.Id,
+            Name = "Idempotent",
+            PortfolioVersion = 1,
+            OperatingState = PortfolioOperatingState.Draft,
+            EffectiveFromUtc = now,
+            CreatedOnUtc = now,
+            CreatedBy = "admin",
         };
         events.FindCommittedPortfolioCommandAsync(id, commandId, Arg.Any<CancellationToken>())
             .Returns(new PortfolioCreatedEvent(Guid.NewGuid(), commandId, 1, now, "admin", model) { IdempotencyKey = commandId });
@@ -52,9 +56,12 @@ public sealed class PortfolioCommandActorTests
             .Returns(new PortfolioCreatedEvent(Guid.NewGuid(), commandId, 1, now, "admin", model) { IdempotencyKey = commandId });
         var command = new CreatePortfolioCommand
         {
-            CommandId = commandId, EntityId = id, ErrorCode = 34002,
+            CommandId = commandId,
+            EntityId = id,
+            ErrorCode = 34002,
             Subject = new ActorSubject(ActorType.Command, PortfolioCommandActor.ActorName, "CreatePortfolio", id.Format()),
-            Portfolio = model, IdempotencyKey = commandId,
+            Portfolio = model,
+            IdempotencyKey = commandId,
             Access = PortfolioAccessContext.Administrator("integration-admin"),
         };
         var typed = (ICommandActor<PortfolioCommandActor>)actor;
@@ -64,7 +71,8 @@ public sealed class PortfolioCommandActorTests
         var conflict = await typed.ReceiveAsync(context, state, command with
         {
             CommandId = Guid.NewGuid(),
-            Portfolio = model with { Name = "Changed" }, IdempotencyKey = commandId,
+            Portfolio = model with { Name = "Changed" },
+            IdempotencyKey = commandId,
         });
 
         replay.Success.Should().BeTrue();
@@ -93,14 +101,21 @@ public sealed class PortfolioCommandActorTests
         var now = DateTime.UtcNow;
         var command = new CreatePortfolioCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = id, ErrorCode = 34002,
+            CommandId = Guid.NewGuid(),
+            EntityId = id,
+            ErrorCode = 34002,
             Subject = new ActorSubject(ActorType.Command, PortfolioCommandActor.ActorName, "CreatePortfolio", id.Format()),
             Portfolio = new PortfolioReadModel
             {
-                PortfolioId = 101, Name = "Core", PortfolioVersion = 1,
-                OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
-                CreatedOnUtc = now, CreatedBy = "admin",
-            }, IdempotencyKey = Guid.NewGuid(),
+                PortfolioId = 101,
+                Name = "Core",
+                PortfolioVersion = 1,
+                OperatingState = PortfolioOperatingState.Draft,
+                EffectiveFromUtc = now,
+                CreatedOnUtc = now,
+                CreatedBy = "admin",
+            },
+            IdempotencyKey = Guid.NewGuid(),
             Access = PortfolioAccessContext.Administrator("integration-admin"),
         };
         var typed = (ICommandActor<PortfolioCommandActor>)actor;
@@ -132,8 +147,13 @@ public sealed class PortfolioCommandActorTests
         var aggregate = new PortfolioAggregate();
         aggregate.Create(Guid.NewGuid(), new PortfolioReadModel
         {
-            PortfolioId = id.Id, Name = "Delete", PortfolioVersion = 1,
-            OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "admin",
+            PortfolioId = id.Id,
+            Name = "Delete",
+            PortfolioVersion = 1,
+            OperatingState = PortfolioOperatingState.Draft,
+            EffectiveFromUtc = now,
+            CreatedOnUtc = now,
+            CreatedBy = "admin",
         }, now, "admin");
         var context = Substitute.For<ICommandActorContext<PortfolioCommandActor>>();
         context.ActorId.Returns(new ActorMailboxId(ActorType.Command, PortfolioCommandActor.ActorName));
@@ -145,9 +165,12 @@ public sealed class PortfolioCommandActorTests
         var actor = new PortfolioCommandActor(context, events, projector, Guard(), Substitute.For<ILogger<PortfolioCommandActor>>());
         var command = new DeleteDraftPortfolioCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = id, ErrorCode = PortfolioErrorCodes.DraftDeletionNotAllowed,
+            CommandId = Guid.NewGuid(),
+            EntityId = id,
+            ErrorCode = PortfolioErrorCodes.DraftDeletionNotAllowed,
             Subject = new ActorSubject(ActorType.Command, PortfolioCommandActor.ActorName, "DeleteDraftPortfolio", id.Format()),
-            ExpectedVersion = 1, Reason = "duplicate",
+            ExpectedVersion = 1,
+            Reason = "duplicate",
             Access = PortfolioAccessContext.Administrator("integration-admin"),
         };
         var typed = (ICommandActor<PortfolioCommandActor>)actor;
@@ -176,15 +199,23 @@ public sealed class PortfolioCommandActorTests
         var now = DateTime.UtcNow;
         var command = new CreatePortfolioCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = id, ErrorCode = PortfolioErrorCodes.ValidationFailed,
+            CommandId = Guid.NewGuid(),
+            EntityId = id,
+            ErrorCode = PortfolioErrorCodes.ValidationFailed,
             Subject = new ActorSubject(ActorType.Command, PortfolioCommandActor.ActorName, "CreatePortfolio", id.Format()),
             Portfolio = new PortfolioReadModel
             {
-                PortfolioId = id.Id, Name = "Denied", PortfolioVersion = 1,
-                OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
-                CreatedOnUtc = now, CreatedBy = "ignored",
-            }, IdempotencyKey = Guid.NewGuid(),
-            CorrelationId = Guid.NewGuid(), RequestedOnUtc = now,
+                PortfolioId = id.Id,
+                Name = "Denied",
+                PortfolioVersion = 1,
+                OperatingState = PortfolioOperatingState.Draft,
+                EffectiveFromUtc = now,
+                CreatedOnUtc = now,
+                CreatedBy = "ignored",
+            },
+            IdempotencyKey = Guid.NewGuid(),
+            CorrelationId = Guid.NewGuid(),
+            RequestedOnUtc = now,
             Access = PortfolioAccessContext.Reader("read-only-user"),
         };
         var typed = (ICommandActor<PortfolioCommandActor>)actor;

@@ -14,7 +14,7 @@ public record RiskPositionTypeReadModel
     public RiskPositionType RiskPositionType { get; init; }
 
     /// <summary>Parameterless constructor for MessagePack and other serializers.</summary>
-    public RiskPositionTypeReadModel() 
+    public RiskPositionTypeReadModel()
     {
         RiskPositionType = RiskPositionType.Unknown;
     }

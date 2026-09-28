@@ -8,8 +8,6 @@ builder.ConfigureApiServer(out var logger);
 builder.Services.RegisterServices(builder.Configuration, logger);
 var app = builder.Build();
 app.ConfigureRequestPipeline(logger);
-app.MapApiCommands();
-app.MapApiQueries();
 var isolatedQuoteSoak = Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK") == "true";
 if (isolatedQuoteSoak)
     await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.MarketDataDb.Schema.MarketDataSchemaDb>().CreateAllAsync();
@@ -52,7 +50,7 @@ finally
 }
 
 
-public partial class Program { } // Needed for WebApplicationFactory<Program>
+public partial class Program { } // Needed for TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<Program>
 
 
 

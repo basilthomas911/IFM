@@ -1,31 +1,31 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
 using FluentAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.FuturesEodData;
 
-public class FuturesEodDataQueryApiTests(WebApplicationFactory<Program> factory, MarketDataFeedFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataFeedFixture>
+public class FuturesEodDataQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory, MarketDataFeedFixture dbFixture)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<MarketDataFeedFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     [Fact]
     public async Task GetFuturesEodDataByDateRange_Ok()
     {
         // arrange...
-        var contractId = SampleData.FuturesContractId;
-        var eodDataRange = SampleData.FuturesEodDataRange;
+        var contractId = $"ESQUERY{Guid.NewGuid():N}";
+        var eodDataRange = SampleData.FuturesEodDataRange
+            .Select(eodData => eodData with { ContractId = contractId })
+            .ToList();
         var startDate = eodDataRange.Last().ValueDate;
         var endDate = eodDataRange.First().ValueDate;
 
@@ -34,9 +34,7 @@ public class FuturesEodDataQueryApiTests(WebApplicationFactory<Program> factory,
         await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodDataRange);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedQueryApi(queryServiceApi);
+        var marketDataFeedApi = new MarketDataFeedQueryApi(_actorProducer);
         var response = await marketDataFeedApi.GetFuturesEodDataAsync(contractId, startDate, endDate);
 
         // assert...
@@ -76,9 +74,7 @@ public class FuturesEodDataQueryApiTests(WebApplicationFactory<Program> factory,
         await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodDataRange);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedQueryApi(queryServiceApi);
+        var marketDataFeedApi = new MarketDataFeedQueryApi(_actorProducer);
         var response = await marketDataFeedApi.GetFuturesEodDataParametersAsync(contractId, valueDate);
 
         // assert...
@@ -127,9 +123,7 @@ public class FuturesEodDataQueryApiTests(WebApplicationFactory<Program> factory,
         await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodData);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedQueryApi(queryServiceApi);
+        var marketDataFeedApi = new MarketDataFeedQueryApi(_actorProducer);
         var response = await marketDataFeedApi.GetFuturesEodDataAsync(contractId, valueDate);
 
         // assert...
@@ -160,9 +154,7 @@ public class FuturesEodDataQueryApiTests(WebApplicationFactory<Program> factory,
         await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodData);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedQueryApi(queryServiceApi);
+        var marketDataFeedApi = new MarketDataFeedQueryApi(_actorProducer);
         var response = await marketDataFeedApi.GetLastFuturesEodDataAsync(contractId, valueDate);
 
         // assert...
@@ -192,9 +184,7 @@ public class FuturesEodDataQueryApiTests(WebApplicationFactory<Program> factory,
         await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodDataRange);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedQueryApi(queryServiceApi);
+        var marketDataFeedApi = new MarketDataFeedQueryApi(_actorProducer);
         var response = await marketDataFeedApi.GetFuturesEodMovingAveragesAsync(contractId, symbol, valueDate);
 
         // assert...
@@ -225,9 +215,7 @@ public class FuturesEodDataQueryApiTests(WebApplicationFactory<Program> factory,
         await dbFixture.MarketDataDb.InsertVixFuturesEodDataAsync(vixFuturesTickData);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedQueryApi(queryServiceApi);
+        var marketDataFeedApi = new MarketDataFeedQueryApi(_actorProducer);
         var response = await marketDataFeedApi.GetLastVixFuturesEodDataAsync(vixContractId, valueDate);
 
         // assert...
@@ -256,9 +244,7 @@ public class FuturesEodDataQueryApiTests(WebApplicationFactory<Program> factory,
         await dbFixture.MarketDataDb.InsertVixFuturesEodDataAsync(vixFuturesTickData);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedQueryApi(queryServiceApi);
+        var marketDataFeedApi = new MarketDataFeedQueryApi(_actorProducer);
         var response = await marketDataFeedApi.GetVixFuturesEodDataAsync(vixContractId, valueDate);
 
         // assert...

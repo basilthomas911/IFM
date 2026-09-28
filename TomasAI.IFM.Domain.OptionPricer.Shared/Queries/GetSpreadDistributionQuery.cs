@@ -18,8 +18,8 @@ public record GetSpreadDistributionQuery : IQuery<SpreadDistributionReadModel>
     [IgnoreMember] public const string Verb = "GetSpreadDistribution";
     [IgnoreMember] public const int ErrorId = 1016;
 
-    [Key(0)] public ActorSubject Subject { get; init; } 
-    [Key(1)] public IActorEntityId EntityId { get; init; } 
+    [Key(0)] public ActorSubject Subject { get; init; }
+    [Key(1)] public IActorEntityId EntityId { get; init; }
     [IgnoreMember] public int ErrorCode { get; init; }
     [IgnoreMember] public string? QueryParams { get; init; }
 

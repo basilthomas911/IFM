@@ -62,9 +62,9 @@ public static class ActorExtensions
     /// <typeparam name="TEntityId">Type of the actor entity id.</typeparam>
     /// <param name="command">Command to cast.</param>
     /// <returns>Command cast to <typeparamref name="TCommand"/>.</returns>
-    public static TCommand ToCommand<TCommand, TEntityId>(this ICommand<TEntityId> command) 
+    public static TCommand ToCommand<TCommand, TEntityId>(this ICommand<TEntityId> command)
         where TEntityId : IActorEntityId
-        where TCommand : class,ICommand<TEntityId>
+        where TCommand : class, ICommand<TEntityId>
     {
         return (TCommand)command;
     }
@@ -75,7 +75,7 @@ public static class ActorExtensions
     /// <typeparam name="TEvent">Target event type.</typeparam>
     /// <param name="event">Event instance.</param>
     /// <returns>The event cast to <typeparamref name="TEvent"/>.</returns>
-    public static TEvent ToEvent<TEvent>(this IEvent @event) 
+    public static TEvent ToEvent<TEvent>(this IEvent @event)
         where TEvent : IEvent
     {
         return (TEvent)@event;
@@ -114,7 +114,7 @@ public static class ActorExtensions
     /// identifier returned by the command action.</returns>
     public static Task<ServiceResult<Guid>> ExecuteAsync(this ICommandParameter command, Func<ICommandParameter, Task<ServiceResult<Guid>>> commandAction)
         => commandAction(command);
-    
+
 
     /// <summary>
     /// Executes a synchronous command action using the provided command and returns the resulting service result.
@@ -123,20 +123,20 @@ public static class ActorExtensions
     /// <param name="command">Command to execute.</param>
     /// <param name="commandAction">Synchronous action that performs the command execution.</param>
     /// <returns>The <see cref="ServiceResult{Guid}"/> returned by the action.</returns>
-    public static ServiceResult<Guid> Execute<TEntityId>(this ICommand<TEntityId> command, Func<ICommand, ServiceResult<Guid>> commandAction) 
+    public static ServiceResult<Guid> Execute<TEntityId>(this ICommand<TEntityId> command, Func<ICommand, ServiceResult<Guid>> commandAction)
         where TEntityId : IActorEntityId
     {
         return commandAction(command);
     }
 
-     /// <summary>
-     /// Deserializes a <see cref="NatsMsg{byte[]}"/> payload into a concrete command type.
-     /// </summary>
-     /// <typeparam name="TCommand">Target command type.</typeparam>
-     /// <param name="message">NATS message containing serialized command data.</param>
-     /// <returns>Deserialized command instance or null if data is missing.</returns>
-     public static TCommand? AsCommand<TCommand>(this NatsMsg<byte[]> message) where TCommand : class, ICommand
-       => DataSerializer.Deserialize<TCommand>(message.Data);
+    /// <summary>
+    /// Deserializes a <see cref="NatsMsg{byte[]}"/> payload into a concrete command type.
+    /// </summary>
+    /// <typeparam name="TCommand">Target command type.</typeparam>
+    /// <param name="message">NATS message containing serialized command data.</param>
+    /// <returns>Deserialized command instance or null if data is missing.</returns>
+    public static TCommand? AsCommand<TCommand>(this NatsMsg<byte[]> message) where TCommand : class, ICommand
+      => DataSerializer.Deserialize<TCommand>(message.Data);
 
     /// <summary>
     /// Deserializes a <see cref="NatsMsg{byte[]}"/> payload into a concrete event type.

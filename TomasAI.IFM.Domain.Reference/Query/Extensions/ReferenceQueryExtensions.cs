@@ -23,255 +23,255 @@ public static partial class ReferenceQueryExtensions
     extension(IReferenceQueryContext context)
     {
 
-    /// <summary>
-    /// Gets market data definition types.
-    /// </summary>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<LookupTypeCollection>> GetMarketDataDefinitionTypesAsync()
-    {
-        try
+        /// <summary>
+        /// Gets market data definition types.
+        /// </summary>
+        /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
+        public async Task<ServiceResult<LookupTypeCollection>> GetMarketDataDefinitionTypesAsync()
         {
-            LookupTypeCollection result = await GetLookupTypesCoreAsync(context, "MarketDataDefinitionType");
-            return new ServiceOk<LookupTypeCollection>(result);
+            try
+            {
+                LookupTypeCollection result = await GetLookupTypesCoreAsync(context, "MarketDataDefinitionType");
+                return new ServiceOk<LookupTypeCollection>(result);
+            }
+            catch (Exception ex)
+            {
+                return new ServiceFailed<LookupTypeCollection>(GetLookupTypeQuery.ErrorId, ex.Message);
+            }
         }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<LookupTypeCollection>(GetLookupTypeQuery.ErrorId, ex.Message);
-        }
-    }
 
-    /// <summary>
-    /// Gets reference data definition types.
-    /// </summary>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<LookupTypeCollection>> GetReferenceDataDefinitionTypesAsync()
-    {
-        try
+        /// <summary>
+        /// Gets reference data definition types.
+        /// </summary>
+        /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
+        public async Task<ServiceResult<LookupTypeCollection>> GetReferenceDataDefinitionTypesAsync()
         {
-            LookupTypeCollection result = await GetLookupTypesCoreAsync(context, "ReferenceDataDefinitionType");
-            return new ServiceOk<LookupTypeCollection>(result);
+            try
+            {
+                LookupTypeCollection result = await GetLookupTypesCoreAsync(context, "ReferenceDataDefinitionType");
+                return new ServiceOk<LookupTypeCollection>(result);
+            }
+            catch (Exception ex)
+            {
+                return new ServiceFailed<LookupTypeCollection>(GetLookupTypeQuery.ErrorId, ex.Message);
+            }
         }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<LookupTypeCollection>(GetLookupTypeQuery.ErrorId, ex.Message);
-        }
-    }
 
-    /// <summary>
-    /// Gets system admin function types.
-    /// </summary>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<LookupTypeCollection>> GetSystemAdminFunctionTypesAsync()
-    {
-        try
+        /// <summary>
+        /// Gets system admin function types.
+        /// </summary>
+        /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
+        public async Task<ServiceResult<LookupTypeCollection>> GetSystemAdminFunctionTypesAsync()
         {
-            LookupTypeCollection result = await GetLookupTypesCoreAsync(context, "SystemAdminFunctionType");
-            return new ServiceOk<LookupTypeCollection>(result);
+            try
+            {
+                LookupTypeCollection result = await GetLookupTypesCoreAsync(context, "SystemAdminFunctionType");
+                return new ServiceOk<LookupTypeCollection>(result);
+            }
+            catch (Exception ex)
+            {
+                return new ServiceFailed<LookupTypeCollection>(GetLookupTypeQuery.ErrorId, ex.Message);
+            }
         }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<LookupTypeCollection>(GetLookupTypeQuery.ErrorId, ex.Message);
-        }
-    }
 
-    /// <summary>
-    /// Gets lookup types.
-    /// </summary>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<LookupTypeCollection>> GetLookupTypesAsync()
-    {
-        try
+        /// <summary>
+        /// Gets lookup types.
+        /// </summary>
+        /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
+        public async Task<ServiceResult<LookupTypeCollection>> GetLookupTypesAsync()
         {
-            var result = new LookupTypeCollection([.. await context.DbFactory.ReferenceDb.GetLookupTypesAsync()]);
-            return new ServiceOk<LookupTypeCollection>(result);
+            try
+            {
+                var result = new LookupTypeCollection([.. await context.DbFactory.ReferenceDb.GetLookupTypesAsync()]);
+                return new ServiceOk<LookupTypeCollection>(result);
+            }
+            catch (Exception ex)
+            {
+                return new ServiceFailed<LookupTypeCollection>(GetLookupTypesQuery.ErrorId, ex.Message);
+            }
         }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<LookupTypeCollection>(GetLookupTypesQuery.ErrorId, ex.Message);
-        }
-    }
 
-    /// <summary>
-    /// Gets lookup types.
-    /// </summary>
-    /// <param name="lookupTypeName">The lookup-type name.</param>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<LookupTypeCollection>> GetLookupTypesAsync(string lookupTypeName)
-    {
-        try
+        /// <summary>
+        /// Gets lookup types.
+        /// </summary>
+        /// <param name="lookupTypeName">The lookup-type name.</param>
+        /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
+        public async Task<ServiceResult<LookupTypeCollection>> GetLookupTypesAsync(string lookupTypeName)
         {
-            LookupTypeCollection result = await GetLookupTypesCoreAsync(context, lookupTypeName);
-            return new ServiceOk<LookupTypeCollection>(result);
+            try
+            {
+                LookupTypeCollection result = await GetLookupTypesCoreAsync(context, lookupTypeName);
+                return new ServiceOk<LookupTypeCollection>(result);
+            }
+            catch (Exception ex)
+            {
+                return new ServiceFailed<LookupTypeCollection>(GetLookupTypeQuery.ErrorId, ex.Message);
+            }
         }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<LookupTypeCollection>(GetLookupTypeQuery.ErrorId, ex.Message);
-        }
-    }
 
-    /// <summary>
-    /// Gets lookup type names.
-    /// </summary>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<string[]>> GetLookupTypeNamesAsync()
-    {
-        try
+        /// <summary>
+        /// Gets lookup type names.
+        /// </summary>
+        /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
+        public async Task<ServiceResult<string[]>> GetLookupTypeNamesAsync()
         {
-            string[] result = [.. await context.DbFactory.ReferenceDb.GetLookupTypeNamesAsync()];
-            return new ServiceOk<string[]>(result);
+            try
+            {
+                string[] result = [.. await context.DbFactory.ReferenceDb.GetLookupTypeNamesAsync()];
+                return new ServiceOk<string[]>(result);
+            }
+            catch (Exception ex)
+            {
+                return new ServiceFailed<string[]>(GetLookupTypeNamesQuery.ErrorId, ex.Message);
+            }
         }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<string[]>(GetLookupTypeNamesQuery.ErrorId, ex.Message);
-        }
-    }
 
-    /// <summary>
-    /// Gets lookup type short codes.
-    /// </summary>
-    /// <param name="lookupTypeName">The lookup-type name.</param>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<LookupTypeShortCodeReadModel[]>> GetLookupTypeShortCodesAsync(
-        string lookupTypeName)
-    {
-        try
+        /// <summary>
+        /// Gets lookup type short codes.
+        /// </summary>
+        /// <param name="lookupTypeName">The lookup-type name.</param>
+        /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
+        public async Task<ServiceResult<LookupTypeShortCodeReadModel[]>> GetLookupTypeShortCodesAsync(
+            string lookupTypeName)
         {
-            LookupTypeShortCodeReadModel[] result =
-                [.. await context.DbFactory.ReferenceDb.GetLookupTypeShortCodesAsync(lookupTypeName)];
-            return new ServiceOk<LookupTypeShortCodeReadModel[]>(result);
+            try
+            {
+                LookupTypeShortCodeReadModel[] result =
+                    [.. await context.DbFactory.ReferenceDb.GetLookupTypeShortCodesAsync(lookupTypeName)];
+                return new ServiceOk<LookupTypeShortCodeReadModel[]>(result);
+            }
+            catch (Exception ex)
+            {
+                return new ServiceFailed<LookupTypeShortCodeReadModel[]>(
+                    GetLookupTypeShortCodesQuery.ErrorId,
+                    ex.Message);
+            }
         }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<LookupTypeShortCodeReadModel[]>(
-                GetLookupTypeShortCodesQuery.ErrorId,
-                ex.Message);
-        }
-    }
 
-    /// <summary>
-    /// Gets next seed ID.
-    /// </summary>
-    /// <param name="seedType">The seed category.</param>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<ScalarReadModel<int>>> GetNextSeedIdAsync(string seedType)
-    {
-        try
+        /// <summary>
+        /// Gets next seed ID.
+        /// </summary>
+        /// <param name="seedType">The seed category.</param>
+        /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
+        public async Task<ServiceResult<ScalarReadModel<int>>> GetNextSeedIdAsync(string seedType)
         {
-            var result = new ScalarReadModel<int>(await context.DbFactory.ReferenceDb.GetNextSeedIdAsync(seedType));
-            return new ServiceOk<ScalarReadModel<int>>(result);
+            try
+            {
+                var result = new ScalarReadModel<int>(await context.DbFactory.ReferenceDb.GetNextSeedIdAsync(seedType));
+                return new ServiceOk<ScalarReadModel<int>>(result);
+            }
+            catch (Exception ex)
+            {
+                return new ServiceFailed<ScalarReadModel<int>>(GetNextSeedIdQuery.ErrorId, ex.Message);
+            }
         }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<ScalarReadModel<int>>(GetNextSeedIdQuery.ErrorId, ex.Message);
-        }
-    }
 
-    /// <summary>
-    /// Gets the highest seed ID currently reserved by PostgreSQL.
-    /// </summary>
-    /// <param name="seedType">The seed category.</param>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<ScalarReadModel<int>>> GetCurrentSeedIdAsync(string seedType)
-    {
-        try
+        /// <summary>
+        /// Gets the highest seed ID currently reserved by PostgreSQL.
+        /// </summary>
+        /// <param name="seedType">The seed category.</param>
+        /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
+        public async Task<ServiceResult<ScalarReadModel<int>>> GetCurrentSeedIdAsync(string seedType)
         {
-            var result = new ScalarReadModel<int>(await context.DbFactory.ReferenceDb.GetCurrentSeedIdAsync(seedType));
-            return new ServiceOk<ScalarReadModel<int>>(result);
+            try
+            {
+                var result = new ScalarReadModel<int>(await context.DbFactory.ReferenceDb.GetCurrentSeedIdAsync(seedType));
+                return new ServiceOk<ScalarReadModel<int>>(result);
+            }
+            catch (Exception ex)
+            {
+                return new ServiceFailed<ScalarReadModel<int>>(GetCurrentSeedIdQuery.ErrorId, ex.Message);
+            }
         }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<ScalarReadModel<int>>(GetCurrentSeedIdQuery.ErrorId, ex.Message);
-        }
-    }
 
-    /// <summary>
-    /// Gets default futures contract definitions.
-    /// </summary>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<DefaultFuturesContractDefinitionsReadModel>>
-        GetDefaultFuturesContractDefinitionsAsync()
-    {
-        try
+        /// <summary>
+        /// Gets default futures contract definitions.
+        /// </summary>
+        /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
+        public async Task<ServiceResult<DefaultFuturesContractDefinitionsReadModel>>
+            GetDefaultFuturesContractDefinitionsAsync()
         {
-            var result = await GetDefaultFuturesContractDefinitions
-                .GetDefaultFuturesContractDefinitionsAsync(context.DbFactory.ReferenceDb);
-            return new ServiceOk<DefaultFuturesContractDefinitionsReadModel>(result);
+            try
+            {
+                var result = await GetDefaultFuturesContractDefinitions
+                    .GetDefaultFuturesContractDefinitionsAsync(context.DbFactory.ReferenceDb);
+                return new ServiceOk<DefaultFuturesContractDefinitionsReadModel>(result);
+            }
+            catch (Exception ex)
+            {
+                return new ServiceFailed<DefaultFuturesContractDefinitionsReadModel>(
+                    GetDefaultFuturesContractDefinitionsQuery.ErrorId,
+                    ex.Message);
+            }
         }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<DefaultFuturesContractDefinitionsReadModel>(
-                GetDefaultFuturesContractDefinitionsQuery.ErrorId,
-                ex.Message);
-        }
-    }
 
-    /// <summary>
-    /// Gets futures option strike price definitions.
-    /// </summary>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<FuturesOptionStrikePriceReadModel>>
-        GetFuturesOptionStrikePriceDefinitionsAsync()
-    {
-        try
+        /// <summary>
+        /// Gets futures option strike price definitions.
+        /// </summary>
+        /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
+        public async Task<ServiceResult<FuturesOptionStrikePriceReadModel>>
+            GetFuturesOptionStrikePriceDefinitionsAsync()
         {
-            var result = await GetFuturesOptionStrikePriceDefinitions
-                .GetFuturesOptionStrikePriceDefinitionsAsync(context.DbFactory.ReferenceDb);
-            return new ServiceOk<FuturesOptionStrikePriceReadModel>(result);
+            try
+            {
+                var result = await GetFuturesOptionStrikePriceDefinitions
+                    .GetFuturesOptionStrikePriceDefinitionsAsync(context.DbFactory.ReferenceDb);
+                return new ServiceOk<FuturesOptionStrikePriceReadModel>(result);
+            }
+            catch (Exception ex)
+            {
+                return new ServiceFailed<FuturesOptionStrikePriceReadModel>(
+                    GetFuturesOptionStrikePriceDefinitionsQuery.ErrorId,
+                    ex.Message);
+            }
         }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<FuturesOptionStrikePriceReadModel>(
-                GetFuturesOptionStrikePriceDefinitionsQuery.ErrorId,
-                ex.Message);
-        }
-    }
 
-    /// <summary>
-    /// Determines whether lookup type short code exists.
-    /// </summary>
-    /// <param name="lookupTypeName">The lookup-type name.</param>
-    /// <param name="shortCode">The lookup short code.</param>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<ScalarReadModel<bool>>> LookupTypeShortCodeExistsAsync(
-        string lookupTypeName, string shortCode)
-    {
-        try
+        /// <summary>
+        /// Determines whether lookup type short code exists.
+        /// </summary>
+        /// <param name="lookupTypeName">The lookup-type name.</param>
+        /// <param name="shortCode">The lookup short code.</param>
+        /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
+        public async Task<ServiceResult<ScalarReadModel<bool>>> LookupTypeShortCodeExistsAsync(
+            string lookupTypeName, string shortCode)
         {
-            var result = new ScalarReadModel<bool>(await context.DbFactory.ReferenceDb
-                .LookupTypeShortCodeExistsAsync(lookupTypeName, shortCode));
-            return new ServiceOk<ScalarReadModel<bool>>(result);
+            try
+            {
+                var result = new ScalarReadModel<bool>(await context.DbFactory.ReferenceDb
+                    .LookupTypeShortCodeExistsAsync(lookupTypeName, shortCode));
+                return new ServiceOk<ScalarReadModel<bool>>(result);
+            }
+            catch (Exception ex)
+            {
+                return new ServiceFailed<ScalarReadModel<bool>>(
+                    GetLookupTypeShortCodeExistsQuery.ErrorId,
+                    ex.Message);
+            }
         }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<ScalarReadModel<bool>>(
-                GetLookupTypeShortCodeExistsQuery.ErrorId,
-                ex.Message);
-        }
-    }
 
 
-    /// <summary>
-    /// Gets MDI forward loss ratios.
-    /// </summary>
-    /// <param name="trendDirection">The intrinsic-time trend direction.</param>
-    /// <param name="tradeType">The trade strategy type.</param>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<MDIForwardLossRatioReadModel[]>> GetMDIForwardLossRatiosAsync(
-        IntrinsicTimeTrendType trendDirection, TradeType tradeType)
-    {
-        try
+        /// <summary>
+        /// Gets MDI forward loss ratios.
+        /// </summary>
+        /// <param name="trendDirection">The intrinsic-time trend direction.</param>
+        /// <param name="tradeType">The trade strategy type.</param>
+        /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
+        public async Task<ServiceResult<MDIForwardLossRatioReadModel[]>> GetMDIForwardLossRatiosAsync(
+            IntrinsicTimeTrendType trendDirection, TradeType tradeType)
         {
-            MDIForwardLossRatioReadModel[] result =
-                [.. await context.DbFactory.ReferenceDb.GetMDIForwardLossRatiosAsync(trendDirection, tradeType)];
-            return new ServiceOk<MDIForwardLossRatioReadModel[]>(result);
+            try
+            {
+                MDIForwardLossRatioReadModel[] result =
+                    [.. await context.DbFactory.ReferenceDb.GetMDIForwardLossRatiosAsync(trendDirection, tradeType)];
+                return new ServiceOk<MDIForwardLossRatioReadModel[]>(result);
+            }
+            catch (Exception ex)
+            {
+                return new ServiceFailed<MDIForwardLossRatioReadModel[]>(
+                    GetMDIForwardLossRatiosQuery.ErrorId,
+                    ex.Message);
+            }
         }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<MDIForwardLossRatioReadModel[]>(
-                GetMDIForwardLossRatiosQuery.ErrorId,
-                ex.Message);
-        }
-    }
 
     }
 

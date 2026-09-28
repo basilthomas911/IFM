@@ -278,10 +278,21 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         {
             CommandId = DeterministicTerminalCommandId(view.EntityId, view.WorkflowId, view.WorkflowRevision, snapshot.Id, FailRegimeDiscoveryCommand.Verb),
             Subject = WorkflowSubject(FailRegimeDiscoveryCommand.Verb, view.EntityId),
-            EntityId = view.EntityId, WorkflowId = view.WorkflowId, InputWorkflowRevision = view.WorkflowRevision,
-            SourceEventId = snapshot.Id, CorrelationId = view.CorrelationId, CausationId = snapshot.Id, FailedAtUtc = now,
-            Failure = new StrategyPipelineFailure { ErrorCode = 23102, ErrorType = error.ErrorType,
-                ErrorMessage = error.Message, ErrorData = diagnostic, FailedAtUtc = now },
+            EntityId = view.EntityId,
+            WorkflowId = view.WorkflowId,
+            InputWorkflowRevision = view.WorkflowRevision,
+            SourceEventId = snapshot.Id,
+            CorrelationId = view.CorrelationId,
+            CausationId = snapshot.Id,
+            FailedAtUtc = now,
+            Failure = new StrategyPipelineFailure
+            {
+                ErrorCode = 23102,
+                ErrorType = error.ErrorType,
+                ErrorMessage = error.Message,
+                ErrorData = diagnostic,
+                FailedAtUtc = now
+            },
             ParameterSetId = error.ParameterSetId,
             ParameterSetVersion = error.ParameterSetVersion,
             ParameterPayloadSha256 = error.ParameterPayloadSha256
@@ -305,14 +316,23 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         var fail = new FailMarketConditionCommand
         {
             CommandId = DeterministicTerminalCommandId(view.EntityId, view.WorkflowId, view.WorkflowRevision, snapshot.Id, FailMarketConditionCommand.Verb),
-            Subject = WorkflowSubject(FailMarketConditionCommand.Verb, view.EntityId), EntityId = view.EntityId,
-            WorkflowId = view.WorkflowId, InputWorkflowRevision = view.WorkflowRevision, SourceEventId = snapshot.Id,
-            CorrelationId = view.CorrelationId, CausationId = snapshot.Id, FailedAtUtc = now,
+            Subject = WorkflowSubject(FailMarketConditionCommand.Verb, view.EntityId),
+            EntityId = view.EntityId,
+            WorkflowId = view.WorkflowId,
+            InputWorkflowRevision = view.WorkflowRevision,
+            SourceEventId = snapshot.Id,
+            CorrelationId = view.CorrelationId,
+            CausationId = snapshot.Id,
+            FailedAtUtc = now,
             FailureCategory = Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model.MarketConditionFailureCategory.ContractInvalid,
-            Failure = new() { ErrorCode = MarketConditionAssessmentFailedEvent.ErrorId,
+            Failure = new()
+            {
+                ErrorCode = MarketConditionAssessmentFailedEvent.ErrorId,
                 ErrorMessage = error.Message,
                 ErrorType = error.ErrorType,
-                ErrorData = string.Join(';', error.ReasonCodes.Concat(error.DiagnosticData.Select(pair => $"{pair.Key}={pair.Value}"))), FailedAtUtc = now }
+                ErrorData = string.Join(';', error.ReasonCodes.Concat(error.DiagnosticData.Select(pair => $"{pair.Key}={pair.Value}"))),
+                FailedAtUtc = now
+            }
         };
         await context.SendAsync<FailMarketConditionCommand, IntrinsicTimeStrategyWorkflowEntityId>(fail, fail.EntityId).ConfigureAwait(false);
     }
@@ -332,10 +352,10 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
             view.WorkflowRevision);
         var route = IntrinsicTimeStrategyPipelineRoutes.Get(view.CurrentStage);
         var input = new LaterPipelineInput(view, snapshot.Id, commandId, route.BoundedContext);
-        var command=CreateLaterStart<TCommand>(input,actor,verb,errorCode);
-        if(command is StartOrderCompositionPipelineCommand composition)
-            TradeSelection.TradeSelectionHandoff.ValidateStart(composition,RequireEventContext(context).TimeProvider.GetUtcNow().UtcDateTime);
-        await context.SendAsync<TCommand, IntrinsicTimeStrategyWorkflowEntityId>(command,view.EntityId).ConfigureAwait(false);
+        var command = CreateLaterStart<TCommand>(input, actor, verb, errorCode);
+        if (command is StartOrderCompositionPipelineCommand composition)
+            TradeSelection.TradeSelectionHandoff.ValidateStart(composition, RequireEventContext(context).TimeProvider.GetUtcNow().UtcDateTime);
+        await context.SendAsync<TCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, view.EntityId).ConfigureAwait(false);
     }
 
     /// <summary>Builds the deterministic Regime Execute command only from a committed Started/Regime snapshot.</summary>
@@ -393,16 +413,16 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         Set(command, "CausationId", input.CausationId);
         Set(command, "RequestedAtUtc", view.UpdatedAtUtc);
         Set(command, "ExpectedCompletionAtUtc", view.ExpiresAtUtc);
-        if(command is StartOrderCompositionPipelineCommand composition)
+        if (command is StartOrderCompositionPipelineCommand composition)
         {
-            var handoff=view.CompositionHandoff??throw new ArgumentException("Missing committed composition reservation.");
+            var handoff = view.CompositionHandoff ?? throw new ArgumentException("Missing committed composition reservation.");
             // Notification IDs change on redispatch; the committed reservation transition remains the cause.
             Set(composition, nameof(composition.CausationId), view.CausationId);
-            Set(composition,nameof(composition.AcceptedSelection),view.TradeSelection.Result);
-            Set(composition,nameof(composition.SelectionBinding),view.SelectionBinding);
-            Set(composition,nameof(composition.Reservation),handoff.Reservation);
-            Set(composition,nameof(composition.ExpectedCompletionAtUtc),(DateTime?)handoff.Request.ExpiresAtUtc);
-            TradeSelection.TradeSelectionHandoff.ValidateStart(composition,view.UpdatedAtUtc);
+            Set(composition, nameof(composition.AcceptedSelection), view.TradeSelection.Result);
+            Set(composition, nameof(composition.SelectionBinding), view.SelectionBinding);
+            Set(composition, nameof(composition.Reservation), handoff.Reservation);
+            Set(composition, nameof(composition.ExpectedCompletionAtUtc), (DateTime?)handoff.Request.ExpiresAtUtc);
+            TradeSelection.TradeSelectionHandoff.ValidateStart(composition, view.UpdatedAtUtc);
         }
         return command;
     }
@@ -431,8 +451,12 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(
         MarketConditionParameterSet = view.MarketConditionParameterSet,
         MarketConditionParameterPayloadSha256 = view.MarketConditionParameterPayloadSha256,
         AssessmentBinding = view.AssessmentBinding,
-        SelectionBinding = view.SelectionBinding, CompositionHandoff = view.CompositionHandoff, SelectionDispatch = view.SelectionDispatch,
-        CompositionDispatch = view.CompositionDispatch, CompositionContracts = view.CompositionContracts, CompositionExecution = view.CompositionExecution
+        SelectionBinding = view.SelectionBinding,
+        CompositionHandoff = view.CompositionHandoff,
+        SelectionDispatch = view.SelectionDispatch,
+        CompositionDispatch = view.CompositionDispatch,
+        CompositionContracts = view.CompositionContracts,
+        CompositionExecution = view.CompositionExecution
     };
 
     static void Set(object target, string property, object? value)

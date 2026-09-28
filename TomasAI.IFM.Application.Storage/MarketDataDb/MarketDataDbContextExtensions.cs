@@ -88,15 +88,12 @@ internal static class MarketDataDbContextExtensions
         /// <summary>
         /// Performs the <c>GetProjectionStateAsync</c> operation for MarketDataDb persistence.
         /// </summary>
-        internal async Task<MarketDataProjectionStateReadModel?> GetProjectionStateAsync(string projectionName) => await context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionState)}", MarketDataDbCql.GetMarketDataProjectionState)
-            .SetParameters(new GetMarketDataProjectionState(projectionName)).ExecuteSingleAsync<MarketDataProjectionStateReadModel?>(static row => MarketDataDbContext.MapToProjectionState(row));
+        internal async Task<MarketDataProjectionStateReadModel?> GetProjectionStateAsync(string projectionName) => await context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionState)}", MarketDataDbCql.GetMarketDataProjectionState).SetParameters(new GetMarketDataProjectionState(projectionName)).ExecuteSingleAsync<MarketDataProjectionStateReadModel?>(static row => MarketDataDbContext.MapToProjectionState(row));
 
         /// <summary>
         /// Performs the <c>HasProjectionMutationAsync</c> operation for MarketDataDb persistence.
         /// </summary>
-        internal async Task<bool> HasProjectionMutationAsync(string projectionName) => (await context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionMutation)}", MarketDataDbCql.GetMarketDataProjectionMutation)
-            .SetParameters(new GetMarketDataProjectionMutation(projectionName))
-            .ExecuteQueryAsync(MarketDataDbContext.MapToGuid)).Count != 0;
+        internal async Task<bool> HasProjectionMutationAsync(string projectionName) => (await context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionMutation)}", MarketDataDbCql.GetMarketDataProjectionMutation).SetParameters(new GetMarketDataProjectionMutation(projectionName)).ExecuteQueryAsync(MarketDataDbContext.MapToGuid)).Count != 0;
 
         /// <summary>
         /// Performs the <c>GetProjectionReadGenerationAsync</c> operation for MarketDataDb persistence.
@@ -130,9 +127,7 @@ internal static class MarketDataDbContextExtensions
                 var keys = scopeKeys.Skip(offset).Take(count).ToArray();
                 foreach (var key in keys)
                     states.Add(key, null);
-                var values = await context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)}", MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
-                    .SetParameters(new GetMarketDataProjectionScopeStatesV3(projectionName, keys))
-                    .ExecuteQueryAsync(MarketDataDbContext.MapToProjectionScopeState);
+                var values = await context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)}", MarketDataDbCql.GetMarketDataProjectionScopeStatesV3).SetParameters(new GetMarketDataProjectionScopeStatesV3(projectionName, keys)).ExecuteQueryAsync(MarketDataDbContext.MapToProjectionScopeState);
                 foreach (var value in values)
                     states[value.ScopeKey] = value;
             }
@@ -224,14 +219,10 @@ internal static class MarketDataDbContextExtensions
             var db = context._dbFactory.MarketDataDb;
             var scopeActivationAcknowledged = false;
             var mutationSubmissionStarted = false;
-            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)
-                .SetParameters(scopes.Select(scope => new InsertMarketDataProjectionScopeMutationV3(projectionName, scope, mutationId, DateTime.UtcNow)))
-                .ExecuteCommandAsync();
+            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3).SetParameters(scopes.Select(scope => new InsertMarketDataProjectionScopeMutationV3(projectionName, scope, mutationId, DateTime.UtcNow))).ExecuteCommandAsync();
             try
             {
-                async Task ActivateScopesAsync() => await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.BeginMarketDataProjectionScopeOperationV3)}", MarketDataDbCql.BeginMarketDataProjectionScopeOperationV3)
-                    .SetParameters(scopes.Select(scope => new BeginMarketDataProjectionScopeOperationV3(projectionName, scope, mutationId, activeOperations)))
-                    .ExecuteCommandAsync();
+                async Task ActivateScopesAsync() => await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.BeginMarketDataProjectionScopeOperationV3)}", MarketDataDbCql.BeginMarketDataProjectionScopeOperationV3).SetParameters(scopes.Select(scope => new BeginMarketDataProjectionScopeOperationV3(projectionName, scope, mutationId, activeOperations))).ExecuteCommandAsync();
                 if (context.MaintainedProjectionScopeActivationForTestingAsync is { } scopeActivation)
                     await scopeActivation(ActivateScopesAsync);
                 else
@@ -249,9 +240,7 @@ internal static class MarketDataDbContextExtensions
                     {
                         if (!globalStillValid || !restorableScopes.Contains(scope))
                             return (Scope: scope, Completed: false);
-                        var completed = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.CompleteMarketDataProjectionScopeOperationV3)}", MarketDataDbCql.CompleteMarketDataProjectionScopeOperationV3)
-                            .SetParameters(new CompleteMarketDataProjectionScopeOperationV3(projectionName, scope, mutationId, activeOperations, DateTime.UtcNow, activeOperations))
-                            .ExecuteSingleAsync(MarketDataDbContext.MapToBoolean) == true;
+                        var completed = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.CompleteMarketDataProjectionScopeOperationV3)}", MarketDataDbCql.CompleteMarketDataProjectionScopeOperationV3).SetParameters(new CompleteMarketDataProjectionScopeOperationV3(projectionName, scope, mutationId, activeOperations, DateTime.UtcNow, activeOperations)).ExecuteSingleAsync(MarketDataDbContext.MapToBoolean) == true;
                         return (Scope: scope, Completed: completed);
                     }).ToArray();
                     foreach (var completion in await Task.WhenAll(completions))
@@ -282,9 +271,7 @@ internal static class MarketDataDbContextExtensions
                     // A definitively acknowledged Begin can be classified without issuing
                     // a racing End. The active ID remains paired with its failed journal
                     // for exact removal by the next repair.
-                    await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.FailMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.FailMarketDataProjectionScopeMutationV3)
-                        .SetParameters(scopes.Select(scope => new FailMarketDataProjectionScopeMutationV3(projectionName, scope, mutationId, DateTime.UnixEpoch)))
-                        .ExecuteCommandAsync();
+                    await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.FailMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.FailMarketDataProjectionScopeMutationV3).SetParameters(scopes.Select(scope => new FailMarketDataProjectionScopeMutationV3(projectionName, scope, mutationId, DateTime.UnixEpoch))).ExecuteCommandAsync();
                 }
                 catch
                 {
@@ -307,13 +294,7 @@ internal static class MarketDataDbContextExtensions
                 throw new ArgumentOutOfRangeException(nameof(canonicalRows), canonicalRows.Count, $"Atomic tick writes require matching collections of at most {MarketDataDbContext.TickAtomicBatchRowCount} rows.");
             }
 
-            await context.ExecuteGuardedAtomicTickMutationAsync(scopeKey, db => [db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTickData)}", MarketDataDbCql.InsertFuturesTickData)
-                .SetParameters(canonicalRows)
-                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTickDataByTime)}", MarketDataDbCql.InsertFuturesTickDataByTime)
-                .SetParameters(projectionRows)
-                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.MarkMarketDataProjectionScopeAtomicWriteV3)}", MarketDataDbCql.MarkMarketDataProjectionScopeAtomicWriteV3)
-                .SetParameters(new MarkMarketDataProjectionScopeAtomicWriteV3(MarketDataDbContext.FuturesTickByTimeProjection, scopeKey, Guid.NewGuid()))
-                .QueueCommand()]);
+            await context.ExecuteGuardedAtomicTickMutationAsync(scopeKey, db => [db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTickData)}", MarketDataDbCql.InsertFuturesTickData).SetParameters(canonicalRows).QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTickDataByTime)}", MarketDataDbCql.InsertFuturesTickDataByTime).SetParameters(projectionRows).QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.MarkMarketDataProjectionScopeAtomicWriteV3)}", MarketDataDbCql.MarkMarketDataProjectionScopeAtomicWriteV3).SetParameters(new MarkMarketDataProjectionScopeAtomicWriteV3(MarketDataDbContext.FuturesTickByTimeProjection, scopeKey, Guid.NewGuid())).QueueCommand()]);
         }
 
         /// <summary>
@@ -331,11 +312,7 @@ internal static class MarketDataDbContextExtensions
             // This registration is deliberately a separate request before the data batch.
             // Set additions commute with a backfill claim, so an already-in-flight tick
             // cannot be hidden by scalar last-write-wins timestamps on the guard row.
-            List<object> registrationCommands = [db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)
-                .SetParameters(new InsertMarketDataProjectionScopeMutationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, operationId, DateTime.UtcNow))
-                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.RegisterMarketDataProjectionGuardOperationV3)}", MarketDataDbCql.RegisterMarketDataProjectionGuardOperationV3)
-                .SetParameters(new RegisterMarketDataProjectionGuardOperationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, activeOperations))
-                .QueueCommand()];
+            List<object> registrationCommands = [db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3).SetParameters(new InsertMarketDataProjectionScopeMutationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, operationId, DateTime.UtcNow)).QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.RegisterMarketDataProjectionGuardOperationV3)}", MarketDataDbCql.RegisterMarketDataProjectionGuardOperationV3).SetParameters(new RegisterMarketDataProjectionGuardOperationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, activeOperations)).QueueCommand()];
             try
             {
                 async Task RegisterGuardAsync() => await db.ExecuteQueuedCommandsAsync(registrationCommands, useTransaction: true);
@@ -385,9 +362,7 @@ internal static class MarketDataDbContextExtensions
             bool guardCompleted;
             try
             {
-                guardCompleted = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.CompleteMarketDataProjectionGuardOperationV3)}", MarketDataDbCql.CompleteMarketDataProjectionGuardOperationV3)
-                    .SetParameters(new CompleteMarketDataProjectionGuardOperationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, Guid.NewGuid(), activeOperations, DateTime.UtcNow, activeOperations))
-                    .ExecuteSingleAsync(MarketDataDbContext.MapToBoolean) == true;
+                guardCompleted = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.CompleteMarketDataProjectionGuardOperationV3)}", MarketDataDbCql.CompleteMarketDataProjectionGuardOperationV3).SetParameters(new CompleteMarketDataProjectionGuardOperationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, Guid.NewGuid(), activeOperations, DateTime.UtcNow, activeOperations)).ExecuteSingleAsync(MarketDataDbContext.MapToBoolean) == true;
             }
             catch
             {
@@ -399,9 +374,7 @@ internal static class MarketDataDbContextExtensions
             {
                 try
                 {
-                    await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)
-                        .SetParameters(new DeleteMarketDataProjectionScopeMutationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, operationId))
-                        .ExecuteCommandAsync();
+                    await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3).SetParameters(new DeleteMarketDataProjectionScopeMutationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, operationId)).ExecuteCommandAsync();
                 }
                 catch
                 {
@@ -439,11 +412,7 @@ internal static class MarketDataDbContextExtensions
             // to keep this uncommon cross-process path off the normal fast path.
             try
             {
-                List<object> cleanupCommands = [db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.RemoveMarketDataProjectionScopeOperationV3)}", MarketDataDbCql.RemoveMarketDataProjectionScopeOperationV3)
-                    .SetParameters(new RemoveMarketDataProjectionScopeOperationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, operationId))
-                    .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)
-                    .SetParameters(new DeleteMarketDataProjectionScopeMutationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, operationId))
-                    .QueueCommand()];
+                List<object> cleanupCommands = [db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.RemoveMarketDataProjectionScopeOperationV3)}", MarketDataDbCql.RemoveMarketDataProjectionScopeOperationV3).SetParameters(new RemoveMarketDataProjectionScopeOperationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, operationId)).QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3).SetParameters(new DeleteMarketDataProjectionScopeMutationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, operationId)).QueueCommand()];
                 await db.ExecuteQueuedCommandsAsync(cleanupCommands, useTransaction: true);
             }
             catch
@@ -459,20 +428,14 @@ internal static class MarketDataDbContextExtensions
         {
             var db = context._dbFactory.MarketDataDb;
             var yearMonth = MarketDataDbContextExtensions.ToYearMonth(e.ValueDate);
-            List<object> commands = [db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEodDataByMonth)}", MarketDataDbCql.InsertFuturesEodDataByMonth)
-                .SetParameters(MarketDataDbContextExtensions.CreateFuturesEodDataByMonthParameters(e, openPrice))
-                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionMonth)}", MarketDataDbCql.InsertMarketDataProjectionMonth)
-                .SetParameters(new InsertMarketDataProjectionMonth(MarketDataDbContext.FuturesEodProjection, yearMonth))
-                .QueueCommand()];
+            List<object> commands = [db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEodDataByMonth)}", MarketDataDbCql.InsertFuturesEodDataByMonth).SetParameters(MarketDataDbContextExtensions.CreateFuturesEodDataByMonthParameters(e, openPrice)).QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionMonth)}", MarketDataDbCql.InsertMarketDataProjectionMonth).SetParameters(new InsertMarketDataProjectionMonth(MarketDataDbContext.FuturesEodProjection, yearMonth)).QueueCommand()];
             await db.ExecuteQueuedCommandsAsync(commands);
         }
 
         /// <summary>
         /// Performs the <c>UpsertVixFuturesContractIndexAsync</c> operation for MarketDataDb persistence.
         /// </summary>
-        internal async Task UpsertVixFuturesContractIndexAsync(string contractId) => await context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertVixFuturesContractIndex)}", MarketDataDbCql.InsertVixFuturesContractIndex)
-            .SetParameters(new InsertVixFuturesContractIndex(MarketDataDbContextExtensions.GetVixContractBucket(contractId), contractId))
-            .ExecuteCommandAsync();
+        internal async Task UpsertVixFuturesContractIndexAsync(string contractId) => await context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertVixFuturesContractIndex)}", MarketDataDbCql.InsertVixFuturesContractIndex).SetParameters(new InsertVixFuturesContractIndex(MarketDataDbContextExtensions.GetVixContractBucket(contractId), contractId)).ExecuteCommandAsync();
 
         /// <summary>
         /// Performs the <c>InsertFuturesEodBatchAsync</c> operation for MarketDataDb persistence.
@@ -485,18 +448,12 @@ internal static class MarketDataDbContextExtensions
             await context.ExecuteMaintainedProjectionMutationAsync(MarketDataDbContext.FuturesEodProjection, batch.Select(static e => MarketDataDbContextExtensions.GetFuturesEodScopeKey(e.ValueDate)), async () =>
             {
                 var db = context._dbFactory.MarketDataDb;
-                await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEodData)}", MarketDataDbCql.InsertFuturesEodData)
-                    .SetParameters(batch.Select(e => MarketDataDbContextExtensions.CreateFuturesEodDataParameters(e, e.OpenPrice)))
-                    .ExecuteCommandAsync();
-                await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEodDataByMonth)}", MarketDataDbCql.InsertFuturesEodDataByMonth)
-                    .SetParameters(batch.Select(e => MarketDataDbContextExtensions.CreateFuturesEodDataByMonthParameters(e, e.OpenPrice)))
-                    .ExecuteCommandAsync();
+                await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEodData)}", MarketDataDbCql.InsertFuturesEodData).SetParameters(batch.Select(e => MarketDataDbContextExtensions.CreateFuturesEodDataParameters(e, e.OpenPrice))).ExecuteCommandAsync();
+                await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEodDataByMonth)}", MarketDataDbCql.InsertFuturesEodDataByMonth).SetParameters(batch.Select(e => MarketDataDbContextExtensions.CreateFuturesEodDataByMonthParameters(e, e.OpenPrice))).ExecuteCommandAsync();
                 var projectionMonths = batch.Select(e => MarketDataDbContextExtensions.ToYearMonth(e.ValueDate)).Distinct().ToArray();
                 if (context.FuturesEodProjectionMonthSubmittingForTestingAsync is { } projectionMonthSubmitting)
                     await projectionMonthSubmitting();
-                await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionMonth)}", MarketDataDbCql.InsertMarketDataProjectionMonth)
-                    .SetParameters(projectionMonths.Select(yearMonth => new InsertMarketDataProjectionMonth(MarketDataDbContext.FuturesEodProjection, yearMonth)))
-                    .ExecuteCommandAsync();
+                await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionMonth)}", MarketDataDbCql.InsertMarketDataProjectionMonth).SetParameters(projectionMonths.Select(yearMonth => new InsertMarketDataProjectionMonth(MarketDataDbContext.FuturesEodProjection, yearMonth))).ExecuteCommandAsync();
             });
         }
 
@@ -506,8 +463,7 @@ internal static class MarketDataDbContextExtensions
         internal async Task<FuturesEodDataV2ReadModel?> ReadLegacyCurrentFuturesEodDataAsync(DateOnly valueDate)
         {
             FuturesEodDataV2ReadModel? latest = null;
-            await foreach (var row in context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesEodDataAll)}", MarketDataDbCql.GetFuturesEodDataAll)
-                .ExecuteStreamAsync(MarketDataDbContext.MapToFuturesEodData!))
+            await foreach (var row in context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesEodDataAll)}", MarketDataDbCql.GetFuturesEodDataAll).ExecuteStreamAsync(MarketDataDbContext.MapToFuturesEodData!))
             {
                 if (row.ValueDate > valueDate)
                     continue;
@@ -526,8 +482,7 @@ internal static class MarketDataDbContextExtensions
         internal async Task<ICollection<FuturesEodDataV2ReadModel>> ReadLegacyFuturesEodDataByMonthsAsync(DateOnly startDate, DateOnly endDate, IReadOnlySet<int> yearMonths)
         {
             List<FuturesEodDataV2ReadModel> results = [];
-            await foreach (var row in context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesEodDataAll)}", MarketDataDbCql.GetFuturesEodDataAll)
-                .ExecuteStreamAsync(MarketDataDbContext.MapToFuturesEodData!))
+            await foreach (var row in context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesEodDataAll)}", MarketDataDbCql.GetFuturesEodDataAll).ExecuteStreamAsync(MarketDataDbContext.MapToFuturesEodData!))
             {
                 if (row.ValueDate >= startDate && row.ValueDate <= endDate && yearMonths.Contains(MarketDataDbContextExtensions.ToYearMonth(row.ValueDate)))
                     results.Add(row);
@@ -542,8 +497,7 @@ internal static class MarketDataDbContextExtensions
         internal async Task<ICollection<VixFuturesEodDataReadModel>> ReadLegacyVixFuturesEodDataByValueDateAsync(DateOnly valueDate)
         {
             List<VixFuturesEodDataReadModel> results = [];
-            await foreach (var row in context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetVixFuturesEodDataAll)}", MarketDataDbCql.GetVixFuturesEodDataAll)
-                .ExecuteStreamAsync(MarketDataDbContext.MapToVixFuturesEodData))
+            await foreach (var row in context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetVixFuturesEodDataAll)}", MarketDataDbCql.GetVixFuturesEodDataAll).ExecuteStreamAsync(MarketDataDbContext.MapToVixFuturesEodData))
             {
                 if (row.ValueDate <= valueDate)
                     results.Add(row);
@@ -562,9 +516,7 @@ internal static class MarketDataDbContextExtensions
             for (var firstBucket = 0; firstBucket < MarketDataDbContext.VixContractBucketCount; firstBucket += MarketDataDbContext.ProjectionReadConcurrency)
             {
                 var bucketCount = Math.Min(MarketDataDbContext.ProjectionReadConcurrency, MarketDataDbContext.VixContractBucketCount - firstBucket);
-                var bucketReads = Enumerable.Range(firstBucket, bucketCount).Select(async bucket => await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetVixFuturesContractIds)}", MarketDataDbCql.GetVixFuturesContractIds)
-                    .SetParameters(new GetVixFuturesContractIds(bucket))
-                    .ExecuteQueryAsync(MarketDataDbContext.MapToString)).ToArray();
+                var bucketReads = Enumerable.Range(firstBucket, bucketCount).Select(async bucket => await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetVixFuturesContractIds)}", MarketDataDbCql.GetVixFuturesContractIds).SetParameters(new GetVixFuturesContractIds(bucket)).ExecuteQueryAsync(MarketDataDbContext.MapToString)).ToArray();
                 foreach (var bucket in await Task.WhenAll(bucketReads))
                     contractIds.UnionWith(bucket);
             }
@@ -574,9 +526,7 @@ internal static class MarketDataDbContextExtensions
             for (var offset = 0; offset < orderedContractIds.Length; offset += MarketDataDbContext.ProjectionReadConcurrency)
             {
                 var count = Math.Min(MarketDataDbContext.ProjectionReadConcurrency, orderedContractIds.Length - offset);
-                var contractReads = orderedContractIds.AsSpan(offset, count).ToArray().Select(async contractId => await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetVixFuturesEodDataThroughDate)}", MarketDataDbCql.GetVixFuturesEodDataThroughDate)
-                    .SetParameters(new GetVixFuturesEodDataThroughDate(contractId, valueDate))
-                    .ExecuteQueryAsync(MarketDataDbContext.MapToVixFuturesEodData)).ToArray();
+                var contractReads = orderedContractIds.AsSpan(offset, count).ToArray().Select(async contractId => await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetVixFuturesEodDataThroughDate)}", MarketDataDbCql.GetVixFuturesEodDataThroughDate).SetParameters(new GetVixFuturesEodDataThroughDate(contractId, valueDate)).ExecuteQueryAsync(MarketDataDbContext.MapToVixFuturesEodData)).ToArray();
                 foreach (var rows in await Task.WhenAll(contractReads))
                     results.AddRange(rows);
             }
@@ -596,10 +546,7 @@ internal static class MarketDataDbContextExtensions
                 throw new ArgumentOutOfRangeException(nameof(endDate), $"Yield-curve ranges may span at most {MarketDataDbContext.YieldCurveMaximumRangeDays} days.");
             }
 
-            return await context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRates)}", MarketDataDbCql.GetYieldCurveRates)
-                .SetParameters(new GetYieldCurveRates(startDate, endDate))
-                .ExecuteQueryAsync(MarketDataDbContext.MapToYieldCurveRate, cancellationToken)
-                .ConfigureAwait(false);
+            return await context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRates)}", MarketDataDbCql.GetYieldCurveRates).SetParameters(new GetYieldCurveRates(startDate, endDate)).ExecuteQueryAsync(MarketDataDbContext.MapToYieldCurveRate, cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -616,9 +563,7 @@ internal static class MarketDataDbContextExtensions
             List<FuturesItiSignalV2ReadModel> rows = [];
             foreach (var batch in contractIds.Chunk(MarketDataDbContext.ProjectionReadConcurrency))
             {
-                var reads = batch.Select(async contractId => await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)}", MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)
-                    .SetParameters(new GetFuturesItiSignalsCanonicalByContract(contractId))
-                    .ExecuteQueryAsync(MarketDataDbContext.MapToFuturesItiSignal!));
+                var reads = batch.Select(async contractId => await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)}", MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract).SetParameters(new GetFuturesItiSignalsCanonicalByContract(contractId)).ExecuteQueryAsync(MarketDataDbContext.MapToFuturesItiSignal!));
                 foreach (var values in await Task.WhenAll(reads))
                     rows.AddRange(values);
             }
@@ -647,9 +592,7 @@ internal static class MarketDataDbContextExtensions
                 {
                     var monthStart = MarketDataDbContextExtensions.GetMonthStart(partition.yearMonth);
                     var monthEnd = MarketDataDbContextExtensions.GetMonthEnd(partition.yearMonth);
-                    return await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsByContractMonth)}", MarketDataDbCql.GetFuturesItiSignalsByContractMonth)
-                        .SetParameters(new GetFuturesItiSignalsByContractMonth(partition.contractId, partition.yearMonth, startDate > monthStart ? startDate : monthStart, endDate < monthEnd ? endDate : monthEnd))
-                        .ExecuteQueryAsync(MarketDataDbContext.MapToFuturesItiSignal!);
+                    return await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsByContractMonth)}", MarketDataDbCql.GetFuturesItiSignalsByContractMonth).SetParameters(new GetFuturesItiSignalsByContractMonth(partition.contractId, partition.yearMonth, startDate > monthStart ? startDate : monthStart, endDate < monthEnd ? endDate : monthEnd)).ExecuteQueryAsync(MarketDataDbContext.MapToFuturesItiSignal!);
                 });
                 foreach (var values in await Task.WhenAll(requests))
                     rows.AddRange(values);
@@ -669,19 +612,13 @@ internal static class MarketDataDbContextExtensions
             if (stamp is not null)
             {
                 var mode = intrinsicTimeMode.ToStringFast();
-                var query = afterSequenceId.HasValue ? context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsByContractDayModeAfterSequence)}", MarketDataDbCql.GetFuturesItiSignalsByContractDayModeAfterSequence)
-                    .SetParameters(new GetFuturesItiSignalsByContractDayModeAfterSequence(contractId, valueDate, mode, afterSequenceId.Value)) : context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsByContractDayMode)}", MarketDataDbCql.GetFuturesItiSignalsByContractDayMode)
-                    .SetParameters(new GetFuturesItiSignalsByContractDayMode(contractId, valueDate, mode));
-                var projected = await query.ExecuteQueryAsync(MarketDataDbContext.MapToFuturesItiSignal!, cancellationToken)
-                    .ConfigureAwait(false);
+                var query = afterSequenceId.HasValue ? context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsByContractDayModeAfterSequence)}", MarketDataDbCql.GetFuturesItiSignalsByContractDayModeAfterSequence).SetParameters(new GetFuturesItiSignalsByContractDayModeAfterSequence(contractId, valueDate, mode, afterSequenceId.Value)) : context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsByContractDayMode)}", MarketDataDbCql.GetFuturesItiSignalsByContractDayMode).SetParameters(new GetFuturesItiSignalsByContractDayMode(contractId, valueDate, mode));
+                var projected = await query.ExecuteQueryAsync(MarketDataDbContext.MapToFuturesItiSignal!, cancellationToken).ConfigureAwait(false);
                 if (await context.IsProjectionScopeReadStampValidAsync(stamp.Value))
                     return projected;
             }
 
-            var canonical = await context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsCanonicalByContractDay)}", MarketDataDbCql.GetFuturesItiSignalsCanonicalByContractDay)
-                .SetParameters(new GetFuturesItiSignalsCanonicalByContractDay(contractId, valueDate))
-                .ExecuteQueryAsync(MarketDataDbContext.MapToFuturesItiSignal!, cancellationToken)
-                .ConfigureAwait(false);
+            var canonical = await context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsCanonicalByContractDay)}", MarketDataDbCql.GetFuturesItiSignalsCanonicalByContractDay).SetParameters(new GetFuturesItiSignalsCanonicalByContractDay(contractId, valueDate)).ExecuteQueryAsync(MarketDataDbContext.MapToFuturesItiSignal!, cancellationToken).ConfigureAwait(false);
             return [.. canonical.Where(row => row.IntrinsicTimeMode == intrinsicTimeMode && (!afterSequenceId.HasValue || row.SequenceId > afterSequenceId.Value)).OrderByDescending(static row => row.SequenceId)];
         }
 
@@ -692,10 +629,7 @@ internal static class MarketDataDbContextExtensions
         {
             var db = context._dbFactory.MarketDataDb;
             var targetMonth = MarketDataDbContextExtensions.ToYearMonth(valueDate);
-            var months = (await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionMonths)}", MarketDataDbCql.GetMarketDataProjectionMonths)
-                .SetParameters(new GetMarketDataProjectionMonths(MarketDataDbContext.FuturesItiSignalQueryProjection, targetMonth))
-                .ExecuteQueryAsync(MarketDataDbContext.MapToYearMonth, cancellationToken)
-                .ConfigureAwait(false)).ToArray();
+            var months = (await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionMonths)}", MarketDataDbCql.GetMarketDataProjectionMonths).SetParameters(new GetMarketDataProjectionMonths(MarketDataDbContext.FuturesItiSignalQueryProjection, targetMonth)).ExecuteQueryAsync(MarketDataDbContext.MapToYearMonth, cancellationToken).ConfigureAwait(false)).ToArray();
             var trend = intrinsicTimeTrend.ToStringFast();
             var mode = intrinsicTimeMode.ToStringFast();
             var scopes = months.Select(month => MarketDataDbContextExtensions.GetFuturesItiTimelineScopeKey(contractId, trend, mode, month)).Concat(context.GetProjectionGuardScopeKeys()).ToArray();
@@ -705,10 +639,7 @@ internal static class MarketDataDbContextExtensions
                 FuturesItiSignalV2ReadModel? projected = null;
                 foreach (var yearMonth in months)
                 {
-                    projected = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesItiSignalByTrendModeMonth)}", MarketDataDbCql.GetLastFuturesItiSignalByTrendModeMonth)
-                        .SetParameters(new GetLastFuturesItiSignalByTrendModeMonth(contractId, trend, mode, yearMonth, yearMonth == targetMonth ? valueDate : MarketDataDbContextExtensions.GetMonthEnd(yearMonth)))
-                        .ExecuteSingleAsync(MarketDataDbContext.MapToFuturesItiSignal!, cancellationToken)
-                        .ConfigureAwait(false);
+                    projected = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesItiSignalByTrendModeMonth)}", MarketDataDbCql.GetLastFuturesItiSignalByTrendModeMonth).SetParameters(new GetLastFuturesItiSignalByTrendModeMonth(contractId, trend, mode, yearMonth, yearMonth == targetMonth ? valueDate : MarketDataDbContextExtensions.GetMonthEnd(yearMonth))).ExecuteSingleAsync(MarketDataDbContext.MapToFuturesItiSignal!, cancellationToken).ConfigureAwait(false);
                     if (projected is not null)
                         break;
                 }
@@ -717,10 +648,7 @@ internal static class MarketDataDbContextExtensions
                     return projected;
             }
 
-            return (await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)}", MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)
-                .SetParameters(new GetFuturesItiSignalsCanonicalByContract(contractId))
-                .ExecuteQueryAsync(MarketDataDbContext.MapToFuturesItiSignal!, cancellationToken)
-                .ConfigureAwait(false)).Where(row => row.ValueDate <= valueDate && row.IntrinsicTimeTrend == intrinsicTimeTrend && row.IntrinsicTimeMode == intrinsicTimeMode).OrderByDescending(static row => row.ValueDate).ThenByDescending(static row => row.SequenceId).FirstOrDefault();
+            return (await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)}", MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract).SetParameters(new GetFuturesItiSignalsCanonicalByContract(contractId)).ExecuteQueryAsync(MarketDataDbContext.MapToFuturesItiSignal!, cancellationToken).ConfigureAwait(false)).Where(row => row.ValueDate <= valueDate && row.IntrinsicTimeTrend == intrinsicTimeTrend && row.IntrinsicTimeMode == intrinsicTimeMode).OrderByDescending(static row => row.ValueDate).ThenByDescending(static row => row.SequenceId).FirstOrDefault();
         }
 
         /// <summary>
@@ -730,38 +658,28 @@ internal static class MarketDataDbContextExtensions
             where T : class
         {
             var endOfValueDateUtc = valueDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
-            var result = await context.ReadMonthAsync(seriesIdentity, valueDate, endOfValueDateUtc, configurationId, cql, operation, map, cancellationToken)
-                .ConfigureAwait(false);
+            var result = await context.ReadMonthAsync(seriesIdentity, valueDate, endOfValueDateUtc, configurationId, cql, operation, map, cancellationToken).ConfigureAwait(false);
             if (result is not null)
                 return result;
             var previousMonth = valueDate.AddMonths(-1);
-            return await context.ReadMonthAsync(seriesIdentity, previousMonth, endOfValueDateUtc, configurationId, cql, operation, map, cancellationToken)
-                .ConfigureAwait(false);
+            return await context.ReadMonthAsync(seriesIdentity, previousMonth, endOfValueDateUtc, configurationId, cql, operation, map, cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
         /// Performs the <c>ReadMonthAsync</c> operation for MarketDataDb persistence.
         /// </summary>
         internal Task<T?> ReadMonthAsync<T>(MarketSeriesIdentity seriesIdentity, DateOnly partitionMonth, DateTime marketDataAsOf, string configurationId, string cql, string operation, Func<IObjectDataRecord, T> map, CancellationToken cancellationToken, TimeFrameType timeFrame = TimeFrameType.Daily)
-            where T : class => context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{operation}", cql)
-                .SetParameters(new GetLatestFuturesRegimeSignal(seriesIdentity.Format(), timeFrame.ToString(), configurationId, MarketDataDbContextExtensions.Bucket(partitionMonth), marketDataAsOf))
-                .ExecuteSingleAsync(map, cancellationToken);
+            where T : class => context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{operation}", cql).SetParameters(new GetLatestFuturesRegimeSignal(seriesIdentity.Format(), timeFrame.ToString(), configurationId, MarketDataDbContextExtensions.Bucket(partitionMonth), marketDataAsOf)).ExecuteSingleAsync(map, cancellationToken);
 
         /// <summary>
         /// Performs the <c>ReadObservationAsync</c> operation for MarketDataDb persistence.
         /// </summary>
-        internal async Task<OptionIvObservation?> ReadObservationAsync(string environment, string id, CancellationToken token) => await context.Database.Use("OptionVolatility.Observation.Id.Read", MarketDataDbCql.SelectObservationById)
-            .SetParameters(new OptionVolatilityParameters([environment, id]))
-            .ExecuteSingleAsync(row => MarketDataDbContextExtensions.Deserialize<OptionIvObservation>(row.GetBytes(0)), token)
-            .ConfigureAwait(false);
+        internal async Task<OptionIvObservation?> ReadObservationAsync(string environment, string id, CancellationToken token) => await context.Database.Use("OptionVolatility.Observation.Id.Read", MarketDataDbCql.SelectObservationById).SetParameters(new OptionVolatilityParameters([environment, id])).ExecuteSingleAsync(row => MarketDataDbContextExtensions.Deserialize<OptionIvObservation>(row.GetBytes(0)), token).ConfigureAwait(false);
 
         /// <summary>
         /// Performs the <c>ReadLatestAsync</c> operation for MarketDataDb persistence.
         /// </summary>
-        internal async Task<OptionIvLatestPointer?> ReadLatestAsync(VolatilityStorageScope scope, CancellationToken token) => await context.Database.Use("OptionVolatility.Latest.Read", MarketDataDbCql.SelectLatest)
-            .SetParameters(new OptionVolatilityParameters([scope.Environment, scope.Series.SeriesId, scope.Series.MethodologyVersion, scope.MetricPolicyVersion]))
-            .ExecuteSingleAsync(row => new OptionIvLatestPointer(scope, row.GetString(0), row.GetString(1), row.GetLong(2), new DateTimeOffset(DateTime.SpecifyKind(row.GetDateTime(3), DateTimeKind.Utc))), token)
-            .ConfigureAwait(false);
+        internal async Task<OptionIvLatestPointer?> ReadLatestAsync(VolatilityStorageScope scope, CancellationToken token) => await context.Database.Use("OptionVolatility.Latest.Read", MarketDataDbCql.SelectLatest).SetParameters(new OptionVolatilityParameters([scope.Environment, scope.Series.SeriesId, scope.Series.MethodologyVersion, scope.MetricPolicyVersion])).ExecuteSingleAsync(row => new OptionIvLatestPointer(scope, row.GetString(0), row.GetString(1), row.GetLong(2), new DateTimeOffset(DateTime.SpecifyKind(row.GetDateTime(3), DateTimeKind.Utc))), token).ConfigureAwait(false);
     }
 
     extension(DateOnly valueDate)
@@ -1032,9 +950,7 @@ internal static class MarketDataDbContextExtensions
         internal Task<long[]> EndProjectionScopeOperationsAsync(string projectionName, IEnumerable<string> scopeKeys, HashSet<Guid> activeOperations, CancellationToken cancellationToken = default)
         {
             var scopes = scopeKeys as ICollection<string> ?? scopeKeys.ToArray();
-            return scopes.Count == 0 ? Task.FromResult(Array.Empty<long>()) : db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.EndMarketDataProjectionScopeOperationV3)}", MarketDataDbCql.EndMarketDataProjectionScopeOperationV3)
-                .SetParameters(scopes.Select(scope => new EndMarketDataProjectionScopeOperationV3(projectionName, scope, Guid.NewGuid(), activeOperations)))
-                .ExecuteCommandAsync(cancellationToken);
+            return scopes.Count == 0 ? Task.FromResult(Array.Empty<long>()) : db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.EndMarketDataProjectionScopeOperationV3)}", MarketDataDbCql.EndMarketDataProjectionScopeOperationV3).SetParameters(scopes.Select(scope => new EndMarketDataProjectionScopeOperationV3(projectionName, scope, Guid.NewGuid(), activeOperations))).ExecuteCommandAsync(cancellationToken);
         }
 
         /// <summary>
@@ -1049,9 +965,7 @@ internal static class MarketDataDbContextExtensions
         {
             try
             {
-                await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)
-                    .SetParameters(new InsertMarketDataProjectionScopeMutationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, operationId, DateTime.UnixEpoch))
-                    .ExecuteCommandAsync();
+                await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3).SetParameters(new InsertMarketDataProjectionScopeMutationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, operationId, DateTime.UnixEpoch)).ExecuteCommandAsync();
             }
             catch
             {
@@ -1062,9 +976,7 @@ internal static class MarketDataDbContextExtensions
         /// <summary>
         /// Performs the <c>EndProjectionOperationAsync</c> operation for MarketDataDb persistence.
         /// </summary>
-        internal Task<long[]> EndProjectionOperationAsync(string projectionName, HashSet<Guid> activeOperations, CancellationToken cancellationToken = default) => db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.EndMarketDataProjectionOperation)}", MarketDataDbCql.EndMarketDataProjectionOperation)
-            .SetParameters(new EndMarketDataProjectionOperation(projectionName, Guid.NewGuid(), activeOperations))
-            .ExecuteCommandAsync(cancellationToken);
+        internal Task<long[]> EndProjectionOperationAsync(string projectionName, HashSet<Guid> activeOperations, CancellationToken cancellationToken = default) => db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.EndMarketDataProjectionOperation)}", MarketDataDbCql.EndMarketDataProjectionOperation).SetParameters(new EndMarketDataProjectionOperation(projectionName, Guid.NewGuid(), activeOperations)).ExecuteCommandAsync(cancellationToken);
     }
 
     extension(TickProjectionGuardFailureStage stage)
@@ -1174,6 +1086,25 @@ internal static class MarketDataDbContextExtensions
         /// </summary>
         internal bool IsAfterCursor(CalendarPageToken cursor) => cursor.LastEventDateTicks is null || row.EventDate.Ticks < cursor.LastEventDateTicks.Value || (row.EventDate.Ticks == cursor.LastEventDateTicks.Value && string.CompareOrdinal(row.EventName, cursor.LastEventName) > 0);
 
+        /// <summary>
+        /// Performs the <c>GetEconomicCalendarProjectionIdentity</c> operation for MarketDataDb persistence.
+        /// </summary>
+        internal ulong GetEconomicCalendarProjectionIdentity()
+        {
+            var hash = MarketDataProjectionHash.Start();
+            hash = MarketDataProjectionHash.Add(hash, row.EventDate.Ticks);
+            hash = MarketDataProjectionHash.Add(hash, row.CountryCode);
+            hash = MarketDataProjectionHash.Add(hash, row.EventName);
+            hash = MarketDataProjectionHash.Add(hash, row.Actual);
+            hash = MarketDataProjectionHash.Add(hash, row.Forecast);
+            hash = MarketDataProjectionHash.Add(hash, row.Prior);
+            hash = MarketDataProjectionHash.Add(hash, row.Impact);
+            hash = MarketDataProjectionHash.Add(hash, row.Unit);
+            hash = MarketDataProjectionHash.Add(hash, row.Change);
+            hash = MarketDataProjectionHash.Add(hash, row.ChangePercentage);
+            hash = MarketDataProjectionHash.Add(hash, row.CreatedOn.Ticks);
+            return MarketDataProjectionHash.Add(hash, row.CreatedBy);
+        }
     }
 
     extension(EconomicCalendarPageRequest request)

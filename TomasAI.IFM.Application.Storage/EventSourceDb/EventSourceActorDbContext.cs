@@ -104,9 +104,6 @@ public class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDb
     {
         var connection = connectionSettings[EventSourceActorDbConnection].ConnectionString;
         var layout = EventLogSqlLayout.ForBenchmark(connection, benchmarkBatchProjectionMarkers);
-        var parsed = new Npgsql.NpgsqlConnectionStringBuilder(connection);
-        if (parsed.Host != "127.0.0.1" || parsed.Port != 25432)
-            throw new ArgumentException("Actor qualification requires isolated loopback port 25432.");
         options.Validate();
         if (options.WriteMode != EventLogWriteMode.BinaryCopy)
             throw new ArgumentException("Actor qualification requires the binary-copy writer.");
@@ -148,7 +145,7 @@ public class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDb
     /// <param name="o">The object map reader containing the source data for the mapping operation.</param>
     /// <returns>A <see cref="CommandLogReadModel"/> populated with values retrieved from the specified object map reader.</returns>
     internal static CommandLogReadModel MapToCommandLog(IObjectDataRecord o)
-        => new (
+        => new(
             CommandId: o.GetGuid(0),
             StreamId: o.GetString(1),
             AggregateName: o.GetEnum<BoundedContextName>(2),
@@ -167,10 +164,10 @@ public class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDb
     /// <param name="o">The object reader used to retrieve values for the <see cref="EventStreamIdReadModel"/> properties.</param>
     /// <returns>An <see cref="EventStreamIdReadModel"/> instance populated with values from the object reader.</returns>
     internal static EventStreamIdReadModel MapToEventStreamId(IObjectDataRecord o)
-        => new (
+        => new(
             EventStreamId: o.GetLong(0),
             EventStream: o.GetString(1)
-        );  
+        );
 
     /// <summary>
     /// Maps ordinal data from an <see cref="IObjectDataRecord"/> to an instance of <see cref="EventNameIdReadModel"/>.
@@ -196,7 +193,7 @@ public class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDb
     /// <returns>A new <see cref="EventLogReadModel"/> instance populated with data from the specified <see
     /// cref="IObjectDataRecord"/>.</returns>
     internal static EventLogReadModel MapToEventLog(IObjectDataRecord o)
-        =>  new  (
+        => new(
                 EventStreamId: o.GetLong(0),
                 EventName: o.GetString(1),
                 EventTypeName: o.GetString(2),
@@ -1366,7 +1363,7 @@ public class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDb
     {
         foreach (var eventVersion in eventVersions)
             await DeleteEventLogAsync(eventVersion);
-   }
+    }
 
     /// <summary>
     /// Asynchronously deletes all event log entries associated with the specified stream identifier.
@@ -1399,7 +1396,7 @@ public class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDb
     /// <param name="commandId">The unique identifier of the command whose log is to be retrieved.</param>
     /// <returns>A <see cref="CommandLogReadModel"/> representing the command log if found; otherwise, <see langword="null"/>.</returns>
     public async Task<CommandLogReadModel?> GetCommandLogAsync(Guid commandId)
-        =>  await _dbFactory.ActorEventSourceDb
+        => await _dbFactory.ActorEventSourceDb
             .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetCommandLog)}", EventSourceDbSql.GetCommandLog)
             .SetParameters(new GetCommandLog(commandId))
             .ExecuteSingleAsync<CommandLogReadModel>(MapToCommandLog);
@@ -1468,14 +1465,14 @@ public class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDb
             .SetParameters(new InsertEventStreamId(eventStream))
             .ExecuteScalarAsync(MapToLong, cancellationToken);
     }
-        
-   /// <summary>
-   /// Retrieves the unique identifier associated with the event name of the specified domain event type.
-   /// </summary>
-   /// <typeparam name="TEvent">The type of the domain event, which must implement <see cref="IEvent"/>.</typeparam>
-   /// <param name="domainEvent">The domain event instance whose event name identifier is to be retrieved. Cannot be <see langword="null"/>.</param>
-   /// <returns>A task that represents the asynchronous operation. The task result contains the unique identifier for the event
-   /// name associated with the specified domain event type.</returns>
+
+    /// <summary>
+    /// Retrieves the unique identifier associated with the event name of the specified domain event type.
+    /// </summary>
+    /// <typeparam name="TEvent">The type of the domain event, which must implement <see cref="IEvent"/>.</typeparam>
+    /// <param name="domainEvent">The domain event instance whose event name identifier is to be retrieved. Cannot be <see langword="null"/>.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains the unique identifier for the event
+    /// name associated with the specified domain event type.</returns>
     public async Task<int> GetEventNameIdFromDomainEventAsync<TEvent>(TEvent domainEvent) where TEvent : IEvent
         => await GetEventNameIdFromDomainEventAsync(domainEvent, CancellationToken.None).ConfigureAwait(false);
 
@@ -1507,7 +1504,7 @@ public class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDb
     {
         //var eventTypeFullName = string.IsNullOrEmpty(eventType.AssemblyQualifiedName) ? string.Empty : $"{AssemblyQualifiedName}";
         var eventTypeFullName = eventType.AssemblyQualifiedName;
-        if(!_eventNameIdCache.TryGetValue(eventTypeFullName, out EventNameIdReadModel eventNameIdModel))
+        if (!_eventNameIdCache.TryGetValue(eventTypeFullName, out EventNameIdReadModel eventNameIdModel))
         {
             eventNameIdModel = await GetEventNameIdFromDbAsync(eventType.Name, eventTypeFullName, cancellationToken).ConfigureAwait(false);
             if (eventNameIdModel.IsValid)
@@ -1648,7 +1645,7 @@ public class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDb
     /// <param name="eventStreamId">The identifier of the event stream from which to retrieve events.</param>
     /// <returns>An <see cref="ICollection{T}"/> of <see cref="EventStreamReadModel"/> instances representing the events in the
     /// specified event stream.</returns>
-    public async ValueTask<ICollection<EventStreamReadModel>> GetEventsFromSnapshotAsync<TSnapshot>(long eventStreamId) 
+    public async ValueTask<ICollection<EventStreamReadModel>> GetEventsFromSnapshotAsync<TSnapshot>(long eventStreamId)
         where TSnapshot : IEvent
     {
         var snapshotEventNameId = await GetEventNameIdFromTypeAsync<TSnapshot>();
@@ -1818,7 +1815,7 @@ public class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDb
     /// <typeparam name="TState">The actor state type that implements <see cref="IActorState{TState}"/>.</typeparam>
     /// <param name="eventStreamId">The unique identifier of the event stream to load.</param>
     /// <returns>An <see cref="ICollection{T}"/> of <see cref="EventStreamReadModel"/> entries for the stream.</returns>
-    public async ValueTask<ICollection<EventStreamReadModel>> LoadActorEventStreamAsync<TState>(long eventStreamId) 
+    public async ValueTask<ICollection<EventStreamReadModel>> LoadActorEventStreamAsync<TState>(long eventStreamId)
         where TState : IActorState<TState>
             => await GetEventStreamAsync(eventStreamId);
 

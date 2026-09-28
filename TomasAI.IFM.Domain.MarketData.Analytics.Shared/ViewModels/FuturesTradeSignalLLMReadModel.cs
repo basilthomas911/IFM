@@ -7,7 +7,7 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
 [MessagePackObject(true)]
-public record FuturesTradeSignalLLMReadModel  (
+public record FuturesTradeSignalLLMReadModel(
         string ContractId,
         DateOnly ValueDate,
         TimeFrameType TimePeriod,
@@ -24,7 +24,7 @@ public record FuturesTradeSignalLLMReadModel  (
         double Mean,
         double LowerBand,
         double PriceVolatility,
-        DateTime CreatedOn ,
+        DateTime CreatedOn,
         string CreatedBy)
 {
     public FuturesTradeSignalId Id => new(ContractId, ValueDate, TimePeriod, SequenceId);

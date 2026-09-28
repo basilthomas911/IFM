@@ -15,4 +15,4 @@ public interface IBoundedContextState<TboundedContextState> : IBoundedContextSta
     void ReplayEvents(IEnumerable<EventStreamReadModel> domainEvents);
     void ReplayEvents(IEnumerable<IEvent> eventStream);
 }
-    
+

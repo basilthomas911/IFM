@@ -48,7 +48,7 @@ public record FuturesItiSignalEntityId : IActorEntityId
     /// <param name="contractId">Futures contract identifier.</param>
     /// <param name="valueDate">Value date.</param>
     /// <param name="timePeriod">Time period type.</param>
-    public static FuturesItiSignalEntityId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod) 
+    public static FuturesItiSignalEntityId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
         => new(contractId, valueDate, timePeriod);
 
     /// <summary>

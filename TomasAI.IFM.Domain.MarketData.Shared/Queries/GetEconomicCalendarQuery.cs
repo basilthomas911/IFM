@@ -39,7 +39,7 @@ public class GetEconomicCalendarQuery : IQuery<EconomicCalendarReadModel[]>
         TodaysDate = todaysDate;
         CalendarViewType = calendarViewType;
         CountryCode = countryCode ?? string.Empty;
-        EntityId = new GetEconomicCalendarParameter(todaysDate,calendarViewType, countryCode);
+        EntityId = new GetEconomicCalendarParameter(todaysDate, calendarViewType, countryCode);
         ErrorCode = ErrorId;
     }
 

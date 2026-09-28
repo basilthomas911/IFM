@@ -44,7 +44,8 @@ public sealed record PrepareFinancialBookQuery : IFinancialQueryMessage<PrepareF
     [Key(6)] public Guid CorrelationId { get; init; }
     [Key(7)] public DateTime RequestedAtUtc { get; init; }
 
-    [IgnoreMember] public PrepareFinancialBookRequest Parameters
+    [IgnoreMember]
+    public PrepareFinancialBookRequest Parameters
     {
         get => new(ExecutionAccountReference, PeriodStart, PeriodEnd);
         init

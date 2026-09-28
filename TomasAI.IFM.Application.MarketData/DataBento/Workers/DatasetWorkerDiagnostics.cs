@@ -54,7 +54,8 @@ public sealed record DatasetWorkerDiagnostics
     [Key(39)] public ulong OptionRingUsed { get; init; }
     [Key(40)] public ulong OptionRingOverruns { get; init; }
 
-    [IgnoreMember] public bool Operational => Complete && NativeMajorStatus == 1
+    [IgnoreMember]
+    public bool Operational => Complete && NativeMajorStatus == 1
         && TerminalStatus == 0 && ProducerAlive && AggregationRunning && TransportReady
         && ReceivedSubscriptions >= ExpectedSubscriptions && RingOverruns == 0;
 
@@ -80,11 +81,14 @@ public sealed record DatasetWorkerDiagnostics
 
     public static DatasetWorkerDiagnostics Unavailable(string dataset, Guid generation, string detail,
         DateTime observedOnUtc) => new()
-    {
-        Dataset = dataset, GenerationId = generation, ObservedOnUtc = observedOnUtc,
-        LastHeartbeatAgeTicks = long.MaxValue, LastProviderMessageAgeTicks = long.MaxValue,
-        FailureDetail = Bound(detail, 4096)
-    };
+        {
+            Dataset = dataset,
+            GenerationId = generation,
+            ObservedOnUtc = observedOnUtc,
+            LastHeartbeatAgeTicks = long.MaxValue,
+            LastProviderMessageAgeTicks = long.MaxValue,
+            FailureDetail = Bound(detail, 4096)
+        };
 
     public static DatasetWorkerDiagnostics Capture(DatasetSubscriptionManifest manifest,
         DatabentoMarketDataEpochHealth epoch, DatabentoNativeWatchdogSnapshot? native,
@@ -107,27 +111,43 @@ public sealed record DatasetWorkerDiagnostics
                 && status.ServiceRunning && status.ContractConfigured && status.ContractRunning));
         return new()
         {
-            Dataset = manifest.Dataset, GenerationId = generation, ObservedOnUtc = observedOnUtc,
-            Complete = true, FeedInstanceId = feed.FeedInstanceId, NativeMajorStatus = feed.MajorStatus,
-            NativeState = feed.State, TerminalStatus = (int)feed.TerminalStatus,
-            ProducerAlive = feed.ProducerAlive, AggregationRunning = managedReady,
-            TransportReady = health.TransportReady, ExpectedSubscriptions = checked((int)feed.ExpectedSubscriptions),
-            ReceivedSubscriptions = checked((int)feed.ReceivedSubscriptions), HeartbeatCount = feed.HeartbeatCount,
+            Dataset = manifest.Dataset,
+            GenerationId = generation,
+            ObservedOnUtc = observedOnUtc,
+            Complete = true,
+            FeedInstanceId = feed.FeedInstanceId,
+            NativeMajorStatus = feed.MajorStatus,
+            NativeState = feed.State,
+            TerminalStatus = (int)feed.TerminalStatus,
+            ProducerAlive = feed.ProducerAlive,
+            AggregationRunning = managedReady,
+            TransportReady = health.TransportReady,
+            ExpectedSubscriptions = checked((int)feed.ExpectedSubscriptions),
+            ReceivedSubscriptions = checked((int)feed.ReceivedSubscriptions),
+            HeartbeatCount = feed.HeartbeatCount,
             ProviderMessageCount = feed.ProviderMessageCount,
             LastHeartbeatAgeTicks = Age(native!.ObservedMonotonicNanoseconds, feed.LastHeartbeatMonotonicNanoseconds),
             LastProviderMessageAgeTicks = Age(native.ObservedMonotonicNanoseconds, feed.LastProviderMessageMonotonicNanoseconds),
-            RecordsProduced = feed.RecordsProduced, RecordsConsumed = feed.RecordsConsumed,
-            RingCapacity = feed.RingCapacityRecords, RingUsed = feed.RingUsedRecords,
-            RingHighWater = feed.RingHighWaterRecords, RingOverruns = feed.RingOverruns,
-            BatchesPublished = health.BatchesPublished, ChannelFullCount = health.ChannelFullCount,
-            PoolMissCount = health.PoolMissCount, ChannelBatchCount = health.ChannelBatchCount,
+            RecordsProduced = feed.RecordsProduced,
+            RecordsConsumed = feed.RecordsConsumed,
+            RingCapacity = feed.RingCapacityRecords,
+            RingUsed = feed.RingUsedRecords,
+            RingHighWater = feed.RingHighWaterRecords,
+            RingOverruns = feed.RingOverruns,
+            BatchesPublished = health.BatchesPublished,
+            ChannelFullCount = health.ChannelFullCount,
+            PoolMissCount = health.PoolMissCount,
+            ChannelBatchCount = health.ChannelBatchCount,
             ChannelBatchCapacity = health.ChannelBatchCapacity,
             FailureDetail = Bound(string.IsNullOrEmpty(feed.FailureDetail) ? health.Warning ?? string.Empty : feed.FailureDetail, 4096),
             Drain = DatasetWorkerDrainDiagnostics.From(health.DrainDiagnostics!),
             Aggregation = DatasetWorkerAggregationDiagnostics.From(managed[0].AggregationMetrics),
-            ManagedAllocatedBytes = GC.GetTotalAllocatedBytes(), ManagedHeapBytes = GC.GetTotalMemory(false),
-            Gen0Collections = GC.CollectionCount(0), Gen1Collections = GC.CollectionCount(1),
-            Gen2Collections = GC.CollectionCount(2), GcPauseTicks = GC.GetTotalPauseDuration().Ticks,
+            ManagedAllocatedBytes = GC.GetTotalAllocatedBytes(),
+            ManagedHeapBytes = GC.GetTotalMemory(false),
+            Gen0Collections = GC.CollectionCount(0),
+            Gen1Collections = GC.CollectionCount(1),
+            Gen2Collections = GC.CollectionCount(2),
+            GcPauseTicks = GC.GetTotalPauseDuration().Ticks,
             OptionRecordsProduced = native.Feeds.Where(x => x.Dataset == manifest.Dataset && x.FeedKind == 2).Aggregate(0UL, (sum, x) => sum + x.RecordsProduced),
             OptionRecordsConsumed = native.Feeds.Where(x => x.Dataset == manifest.Dataset && x.FeedKind == 2).Aggregate(0UL, (sum, x) => sum + x.RecordsConsumed),
             OptionRingUsed = native.Feeds.Where(x => x.Dataset == manifest.Dataset && x.FeedKind == 2).Aggregate(0UL, (sum, x) => sum + x.RingUsedRecords),
@@ -142,27 +162,44 @@ public sealed record DatasetWorkerDiagnostics
         var roles = contracts.Select(Role).OfType<DatabentoContractRole>().Distinct().ToArray();
         return new()
         {
-            FeedInstanceId = FeedInstanceId, GenerationId = GenerationId, Dataset = Dataset, FeedKind = "Ticker",
+            FeedInstanceId = FeedInstanceId,
+            GenerationId = GenerationId,
+            Dataset = Dataset,
+            FeedKind = "Ticker",
             Criticality = roles.Length == 0 ? DatabentoFeedCriticality.Optional : DatabentoFeedCriticality.Core,
             MajorStatus = !Complete || !processHealthy ? DatabentoMajorStatus.Down : NativeMajorStatus switch
             {
-                1 => DatabentoMajorStatus.Up, 2 => DatabentoMajorStatus.Resetting, _ => DatabentoMajorStatus.Down
+                1 => DatabentoMajorStatus.Up,
+                2 => DatabentoMajorStatus.Resetting,
+                _ => DatabentoMajorStatus.Down
             },
-            NativeState = Complete ? NativeState.ToString() : "DiagnosticsUnavailable", TerminalStatus = TerminalStatus,
+            NativeState = Complete ? NativeState.ToString() : "DiagnosticsUnavailable",
+            TerminalStatus = TerminalStatus,
             ProducerAlive = Complete && processHealthy && ProducerAlive,
             AggregationWorkerRunning = Complete && processHealthy && AggregationRunning,
             TransportRunning = Complete && processHealthy && TransportReady,
-            ExpectedSubscriptions = ExpectedSubscriptions, ReceivedSubscriptions = ReceivedSubscriptions,
-            HeartbeatCount = HeartbeatCount, ProviderMessageCount = ProviderMessageCount,
+            ExpectedSubscriptions = ExpectedSubscriptions,
+            ReceivedSubscriptions = ReceivedSubscriptions,
+            HeartbeatCount = HeartbeatCount,
+            ProviderMessageCount = ProviderMessageCount,
             LastHeartbeatAge = TimeSpan.FromTicks(LastHeartbeatAgeTicks),
             LastProviderMessageAge = TimeSpan.FromTicks(LastProviderMessageAgeTicks),
-            RecordsProduced = RecordsProduced, RecordsConsumed = RecordsConsumed, RingCapacity = RingCapacity,
-            RingUsed = RingUsed, RingHighWater = RingHighWater, RingOverruns = RingOverruns,
-            BatchesPublished = BatchesPublished, ChannelFullCount = ChannelFullCount, PoolMissCount = PoolMissCount,
-            ChannelBatchCount = ChannelBatchCount, ChannelBatchCapacity = ChannelBatchCapacity,
-            FailureDetail = FailureDetail, ContractRoles = roles,
+            RecordsProduced = RecordsProduced,
+            RecordsConsumed = RecordsConsumed,
+            RingCapacity = RingCapacity,
+            RingUsed = RingUsed,
+            RingHighWater = RingHighWater,
+            RingOverruns = RingOverruns,
+            BatchesPublished = BatchesPublished,
+            ChannelFullCount = ChannelFullCount,
+            PoolMissCount = PoolMissCount,
+            ChannelBatchCount = ChannelBatchCount,
+            ChannelBatchCapacity = ChannelBatchCapacity,
+            FailureDetail = FailureDetail,
+            ContractRoles = roles,
             ContractIds = contracts.Select(contract => contract.DomainContractId).ToArray(),
-            DrainDiagnostics = Drain?.ToDiagnostics(), AggregationMetrics = Aggregation?.ToMetrics()
+            DrainDiagnostics = Drain?.ToDiagnostics(),
+            AggregationMetrics = Aggregation?.ToMetrics()
         };
     }
 
@@ -209,13 +246,21 @@ public sealed record DatasetWorkerDrainDiagnostics(
         value.ManagedBatchPublishRecordCount, value.ManagedBatchPublisherId, value.ManagedBatchInstrumentId);
     public FeedDrainDiagnostics ToDiagnostics() => new()
     {
-        Stage = Stage, NativeReadCallCount = NativeReadCallCount, LastNativeReadRecordCount = LastNativeReadRecordCount,
-        LastNativeReadFirstSequence = LastNativeReadFirstSequence, LastNativeReadLastSequence = LastNativeReadLastSequence,
-        LastNativeReadRecordsRouted = LastNativeReadRecordsRouted, CurrentNativeReadRecordIndex = CurrentNativeReadRecordIndex,
-        CurrentRecordKind = CurrentRecordKind, CurrentPublisherId = CurrentPublisherId,
-        CurrentInstrumentId = CurrentInstrumentId, CurrentSourceSequence = CurrentSourceSequence,
-        ManagedBatchPublishActive = ManagedBatchPublishActive, ManagedBatchPublishRecordCount = ManagedBatchPublishRecordCount,
-        ManagedBatchPublisherId = ManagedBatchPublisherId, ManagedBatchInstrumentId = ManagedBatchInstrumentId
+        Stage = Stage,
+        NativeReadCallCount = NativeReadCallCount,
+        LastNativeReadRecordCount = LastNativeReadRecordCount,
+        LastNativeReadFirstSequence = LastNativeReadFirstSequence,
+        LastNativeReadLastSequence = LastNativeReadLastSequence,
+        LastNativeReadRecordsRouted = LastNativeReadRecordsRouted,
+        CurrentNativeReadRecordIndex = CurrentNativeReadRecordIndex,
+        CurrentRecordKind = CurrentRecordKind,
+        CurrentPublisherId = CurrentPublisherId,
+        CurrentInstrumentId = CurrentInstrumentId,
+        CurrentSourceSequence = CurrentSourceSequence,
+        ManagedBatchPublishActive = ManagedBatchPublishActive,
+        ManagedBatchPublishRecordCount = ManagedBatchPublishRecordCount,
+        ManagedBatchPublisherId = ManagedBatchPublisherId,
+        ManagedBatchInstrumentId = ManagedBatchInstrumentId
     };
 }
 
@@ -259,13 +304,21 @@ public sealed record DatasetWorkerAggregationDiagnostics(
         DuplicateSourceSequences, OutOfOrderSourceSequences, SourceSequenceGaps, PublicationFailures,
         ProcessingFailures, ActiveTickers, ServiceOwnedQuoteBuffers)
     {
-        RecordsStarted = RecordsStarted, RecordsCompleted = RecordsCompleted, SourceMboRecords = SourceMboRecords,
-        SourceStatisticsRecords = SourceStatisticsRecords, StatisticsReplayCompleteRecords = StatisticsReplayCompleteRecords,
-        TradeReplayCompleteRecords = TradeReplayCompleteRecords, UnsupportedRecords = UnsupportedRecords,
-        CurrentProcessingDurationTicks = CurrentProcessingDurationTicks, TotalProcessingDurationTicks = TotalProcessingDurationTicks,
-        MaximumProcessingDurationTicks = MaximumProcessingDurationTicks, LastRecordStartedAtUtc = LastRecordStartedAtUtc,
-        LastRecordCompletedAtUtc = LastRecordCompletedAtUtc, LastRecordFailedAtUtc = LastRecordFailedAtUtc,
-        CurrentStage = CurrentStage, InFlightRecord = InFlightRecord?.ToProgress()
+        RecordsStarted = RecordsStarted,
+        RecordsCompleted = RecordsCompleted,
+        SourceMboRecords = SourceMboRecords,
+        SourceStatisticsRecords = SourceStatisticsRecords,
+        StatisticsReplayCompleteRecords = StatisticsReplayCompleteRecords,
+        TradeReplayCompleteRecords = TradeReplayCompleteRecords,
+        UnsupportedRecords = UnsupportedRecords,
+        CurrentProcessingDurationTicks = CurrentProcessingDurationTicks,
+        TotalProcessingDurationTicks = TotalProcessingDurationTicks,
+        MaximumProcessingDurationTicks = MaximumProcessingDurationTicks,
+        LastRecordStartedAtUtc = LastRecordStartedAtUtc,
+        LastRecordCompletedAtUtc = LastRecordCompletedAtUtc,
+        LastRecordFailedAtUtc = LastRecordFailedAtUtc,
+        CurrentStage = CurrentStage,
+        InFlightRecord = InFlightRecord?.ToProgress()
     };
 }
 

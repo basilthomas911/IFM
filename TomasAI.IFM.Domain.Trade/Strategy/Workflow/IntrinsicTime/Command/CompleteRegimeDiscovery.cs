@@ -73,7 +73,7 @@ public static class CompleteRegimeDiscovery
             CurrentStage = StrategyWorkflowStage.MarketCondition,
             RegimeDiscoveryParameterSet = parameterSet,
             RegimeDiscoveryParameterPayloadSha256 = parameterHash,
-            RegimeDiscoveryParameterApplication = command.ParameterApplication??current.RegimeDiscoveryParameterApplication,
+            RegimeDiscoveryParameterApplication = command.ParameterApplication ?? current.RegimeDiscoveryParameterApplication,
             RegimeDiscovery = current.RegimeDiscovery with
             {
                 ProcessingStatus = StrategyActorProcessingStatus.Completed,
@@ -112,17 +112,27 @@ public static class CompleteRegimeDiscovery
         {
             Subject = new ActorSubject(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor,
                 WorkflowStrategyStateUpdatedEvent.Verb, command.EntityId.Format()),
-            Id = Guid.CreateVersion7(new DateTimeOffset(now, TimeSpan.Zero)), EntityId = command.EntityId,
-            CommandId = command.CommandId, AggregateId = command.EntityId.Format(), EventSource = command.EventSource,
-            ReceivedOn = now, WorkflowId = view.WorkflowId, WorkflowRevision = view.WorkflowRevision,
-            CorrelationId = view.CorrelationId, CausationId = view.CausationId, PreviousStatus = previousStatus,
-            State = view, UpdatedAtUtc = now
+            Id = Guid.CreateVersion7(new DateTimeOffset(now, TimeSpan.Zero)),
+            EntityId = command.EntityId,
+            CommandId = command.CommandId,
+            AggregateId = command.EntityId.Format(),
+            EventSource = command.EventSource,
+            ReceivedOn = now,
+            WorkflowId = view.WorkflowId,
+            WorkflowRevision = view.WorkflowRevision,
+            CorrelationId = view.CorrelationId,
+            CausationId = view.CausationId,
+            PreviousStatus = previousStatus,
+            State = view,
+            UpdatedAtUtc = now
         }, command);
 
     static StrategyPipelineFailure TimeoutFailure(DateTime now) => new()
     {
-        ErrorCode = 23103, ErrorMessage = "The fixed workflow execution deadline was reached.",
-        ErrorType = "RegimeDiscoveryTimedOut", FailedAtUtc = now
+        ErrorCode = 23103,
+        ErrorMessage = "The fixed workflow execution deadline was reached.",
+        ErrorType = "RegimeDiscoveryTimedOut",
+        FailedAtUtc = now
     };
 
     static void LogStale(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,

@@ -85,7 +85,7 @@ public interface IEventProjector
 /// Defines a contract for an event projector that processes domain events for a specific command actor type.
 /// </summary>
 /// <typeparam name="TActor"></typeparam>
-public interface IEventProjector<TActor> :IEventProjector 
+public interface IEventProjector<TActor> : IEventProjector
     where TActor : ICommandActor<TActor>
 {
 }

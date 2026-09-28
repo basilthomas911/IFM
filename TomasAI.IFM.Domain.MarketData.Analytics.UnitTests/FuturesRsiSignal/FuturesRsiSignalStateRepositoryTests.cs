@@ -166,7 +166,7 @@ public class FuturesRsiSignalStateRepositoryTests
                 FuturesRsiSignalGeneratedEvent>(
                 streamId,
                 requiredHistory,
-                Arg.Any<Action<IEnumerable<EventStreamReadModel>>>() )
+                Arg.Any<Action<IEnumerable<EventStreamReadModel>>>())
             .Returns(call =>
             {
                 var rows = Enumerable.Range(0, requiredHistory)

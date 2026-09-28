@@ -29,7 +29,8 @@ public sealed class ClosedObservationNoOpGuardTests
         }, addEvent: false));
         var command = new GenerateFuturesAdxSignalCommand(
             SampleData.AdxSignalId with { TimePeriod = TimeFrameType.FifteenSeconds },
-            (decimal)SampleData.FuturesPrice) with { Observation = observation };
+            (decimal)SampleData.FuturesPrice) with
+        { Observation = observation };
 
         Assert.True(command.Execute(state).Success);
         Assert.Empty(state.Events);
@@ -53,7 +54,8 @@ public sealed class ClosedObservationNoOpGuardTests
         }, addEvent: false));
         var command = new GenerateFuturesMacdSignalCommand(
             SampleData.MacdSignalId with { TimePeriod = TimeFrameType.FifteenSeconds },
-            (decimal)SampleData.FuturesPrice) with { Observation = observation };
+            (decimal)SampleData.FuturesPrice) with
+        { Observation = observation };
 
         Assert.True(command.Execute(state).Success);
         Assert.Empty(state.Events);

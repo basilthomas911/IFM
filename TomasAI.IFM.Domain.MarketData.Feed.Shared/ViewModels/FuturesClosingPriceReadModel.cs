@@ -20,7 +20,7 @@ public record FuturesClosingPriceReadModel
     /// Full futures contract identifier (root + contract month/year code).
     /// </summary>
     [Key(0)]
-    public string ContractId { get; init; } 
+    public string ContractId { get; init; }
 
     /// <summary>
     /// As-of (value) date for this closing price.
@@ -44,7 +44,7 @@ public record FuturesClosingPriceReadModel
     /// Identity of the creator of this record.
     /// </summary>
     [Key(4)]
-    public string CreatedBy { get; init; } 
+    public string CreatedBy { get; init; }
 
     /// <summary>
     /// Derived identifier composed from <see cref="ContractId"/> and <see cref="ValueDate"/>.

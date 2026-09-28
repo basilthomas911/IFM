@@ -23,7 +23,7 @@ public record FuturesMacdDailySignalEntityId : IActorEntityId
 
     /// <summary>Value (trading) date for the MACD signal.</summary>
     [Key(1)]
-    public TimeFrameType TimePeriod {  get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     [Key(2)]
     public int SignalEmaPeriod { get; init; } = FuturesMacdConfiguration.ConventionalSignalEmaPeriod;

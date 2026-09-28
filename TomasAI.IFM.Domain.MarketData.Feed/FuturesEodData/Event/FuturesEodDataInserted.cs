@@ -21,11 +21,11 @@ public static class FuturesEodDataInserted
     static string ServiceId { get; } = default!;
 
     /// <summary>Projects the futures EOD event and returns whether the projection succeeded.</summary>
-public static async ValueTask<bool> ExecuteAsync(
-    this FuturesEodDataInsertedEvent e,
-    IEventActorContext context,
-    IEventActorContext eventApi,
-    FuturesEodDataEventParameters p, ILogger<FuturesEodDataEventActor> logger)
+    public static async ValueTask<bool> ExecuteAsync(
+        this FuturesEodDataInsertedEvent e,
+        IEventActorContext context,
+        IEventActorContext eventApi,
+        FuturesEodDataEventParameters p, ILogger<FuturesEodDataEventActor> logger)
     {
         var source = $"FuturesEodDataInsertedEvent for EntityId: {e.EntityId}";
         try

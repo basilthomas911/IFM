@@ -1,12 +1,12 @@
-﻿using FluentAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
+using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
@@ -16,8 +16,7 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -28,24 +27,22 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.TickAggregation;
 /// Only the external market feed is deterministic.
 /// </summary>
 public sealed class FuturesTickTradeToEodRealtimeIntegrationTests(
-    WebApplicationFactory<Program> factory,
+    TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory,
     MarketDataFeedFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataFeedFixture>
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<MarketDataFeedFixture>
 {
     const string ContractId = "VX20261216";
     static readonly DateOnly MaturityDate = new(2026, 12, 16);
 
-    readonly WebApplicationFactory<Program> _factory = factory;
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> _factory = factory;
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger =
         Substitute.For<ILogger<NatsActorEventListener>>();
 
     [Fact]
     public async Task NormalizedVxTradeAndQuote_RouteThroughRealtimeActors_AndPersistEod()
     {
-        var valueDate = DateOnly.FromDateTime(DateTime.UtcNow)
-            .AddDays(-Random.Shared.Next(10_001, 20_000));
+        var valueDate = SampleData.ValueDate;
         var contract = new FuturesContractV3ReadModel(
             ContractId,
             "VX Futures Dec 2026",
@@ -121,6 +118,7 @@ public sealed class FuturesTickTradeToEodRealtimeIntegrationTests(
             new NatsEventListenerOptions(),
             _logger);
         var marketDataApi = _factory.Services.GetRequiredService<DatabentoMarketDataApi>();
+        var lifecycle = _factory.Services.GetRequiredService<IMarketDataLifecycleRequests>();
 
         await listener.StartAsync(
             $"{nameof(NormalizedVxTradeAndQuote_RouteThroughRealtimeActors_AndPersistEod)}-event-{Guid.NewGuid():N}",
@@ -158,19 +156,13 @@ public sealed class FuturesTickTradeToEodRealtimeIntegrationTests(
 
         try
         {
-            if (marketDataApi.ActiveValueDate is { } activeValueDate)
-                await marketDataApi.StopAsync(activeValueDate);
-            await marketDataApi.StartAsync(valueDate);
+            if (lifecycle.Current.ValueDate is { } activeValueDate)
+                await lifecycle.StopAsync(activeValueDate);
+            await lifecycle.StartAsync(valueDate);
             await dbFixture.MarketDataDb.DeleteVixFuturesEodDataAsync(
                 ContractId,
                 valueDate);
-
-            _httpClientFactory.CreateClient();
-            var commandServiceApi = new CommandServiceApiClient(
-                _httpClientFactory,
-                _jsonSerializer,
-                new CommandServiceApiOptions("http://localhost"));
-            var feedApi = new MarketDataFeedCommandApi(commandServiceApi);
+            var feedApi = new MarketDataFeedCommandApi(_actorProducer);
 
             var startResponse = await feedApi.StartFuturesTickDataStreamingAsync(
                 contract,
@@ -283,8 +275,8 @@ public sealed class FuturesTickTradeToEodRealtimeIntegrationTests(
         {
             try
             {
-                if (marketDataApi.ActiveValueDate is { } activeValueDate)
-                    await marketDataApi.StopAsync(activeValueDate);
+                if (lifecycle.Current.ValueDate is { } activeValueDate)
+                    await lifecycle.StopAsync(activeValueDate);
             }
             finally
             {
@@ -298,65 +290,65 @@ public sealed class FuturesTickTradeToEodRealtimeIntegrationTests(
             switch (eventVerb)
             {
                 case FuturesTickDataStreamingStartedCompleteEvent.Verb:
-                {
-                    var completed = eventMsg
-                        .AsEvent<FuturesTickDataStreamingStartedCompleteEvent>();
-                    if (completed?.EntityId.ValueDate == valueDate)
-                        startTerminal.TrySetResult(completed);
-                    break;
-                }
+                    {
+                        var completed = eventMsg
+                            .AsEvent<FuturesTickDataStreamingStartedCompleteEvent>();
+                        if (completed?.EntityId.ValueDate == valueDate)
+                            startTerminal.TrySetResult(completed);
+                        break;
+                    }
                 case FuturesTickDataStreamingStartedFailEvent.Verb:
-                {
-                    var failed = eventMsg
-                        .AsEvent<FuturesTickDataStreamingStartedFailEvent>();
-                    if (failed?.EntityId.ValueDate == valueDate)
-                        startTerminal.TrySetResult(failed);
-                    break;
-                }
+                    {
+                        var failed = eventMsg
+                            .AsEvent<FuturesTickDataStreamingStartedFailEvent>();
+                        if (failed?.EntityId.ValueDate == valueDate)
+                            startTerminal.TrySetResult(failed);
+                        break;
+                    }
                 case VixFuturesEodDataInsertedEvent.Verb:
-                {
-                    var received = eventMsg.AsEvent<VixFuturesEodDataInsertedEvent>();
-                    if (received?.EntityId == new FuturesEodDataId(ContractId, valueDate))
                     {
-                        if (received.VixFuturesTickData.Size == 0)
-                            quoteInserted = received;
-                        else
-                            inserted = received;
+                        var received = eventMsg.AsEvent<VixFuturesEodDataInsertedEvent>();
+                        if (received?.EntityId == new FuturesEodDataId(ContractId, valueDate))
+                        {
+                            if (received.VixFuturesTickData.Size == 0)
+                                quoteInserted = received;
+                            else
+                                inserted = received;
+                        }
+                        break;
                     }
-                    break;
-                }
                 case VixFuturesEodDataInsertedCompleteEvent.Verb:
-                {
-                    var completed = eventMsg
-                        .AsEvent<VixFuturesEodDataInsertedCompleteEvent>();
-                    if (completed?.EntityId == new FuturesEodDataId(ContractId, valueDate))
                     {
-                        if (completed.VixFuturesTickData.Size == 0)
-                            quoteEodTerminal.TrySetResult(completed);
-                        else
-                            eodTerminal.TrySetResult(completed);
+                        var completed = eventMsg
+                            .AsEvent<VixFuturesEodDataInsertedCompleteEvent>();
+                        if (completed?.EntityId == new FuturesEodDataId(ContractId, valueDate))
+                        {
+                            if (completed.VixFuturesTickData.Size == 0)
+                                quoteEodTerminal.TrySetResult(completed);
+                            else
+                                eodTerminal.TrySetResult(completed);
+                        }
+                        break;
                     }
-                    break;
-                }
                 case VixFuturesEodDataInsertedFailEvent.Verb:
-                {
-                    var failed = eventMsg
-                        .AsEvent<VixFuturesEodDataInsertedFailEvent>();
-                    if (failed?.EntityId == new FuturesEodDataId(ContractId, valueDate))
                     {
-                        eodTerminal.TrySetResult(failed);
-                        quoteEodTerminal.TrySetResult(failed);
+                        var failed = eventMsg
+                            .AsEvent<VixFuturesEodDataInsertedFailEvent>();
+                        if (failed?.EntityId == new FuturesEodDataId(ContractId, valueDate))
+                        {
+                            eodTerminal.TrySetResult(failed);
+                            quoteEodTerminal.TrySetResult(failed);
+                        }
+                        break;
                     }
-                    break;
-                }
                 case FuturesTickTradeDataInsertedEvent.Verb:
-                {
-                    var received = eventMsg
-                        .AsEvent<FuturesTickTradeDataInsertedEvent>();
-                    if (received?.EntityId == entityId)
-                        persistedTradeReceived.TrySetResult(received);
-                    break;
-                }
+                    {
+                        var received = eventMsg
+                            .AsEvent<FuturesTickTradeDataInsertedEvent>();
+                        if (received?.EntityId == entityId)
+                            persistedTradeReceived.TrySetResult(received);
+                        break;
+                    }
             }
             return ValueTask.CompletedTask;
         }

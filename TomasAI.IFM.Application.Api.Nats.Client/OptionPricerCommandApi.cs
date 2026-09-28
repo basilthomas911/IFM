@@ -36,7 +36,7 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
         {
             IsArgumentNull.Check(putSpreadDistribution);
             IsArgumentNull.Check(callSpreadDistribution);
-            var entityId = new SpreadDistributionEntityId(putSpreadDistribution.TradeId,putSpreadDistribution.ValueDate);
+            var entityId = new SpreadDistributionEntityId(putSpreadDistribution.TradeId, putSpreadDistribution.ValueDate);
             var cmd = new InsertSpreadDistributionCommand(putSpreadDistribution, callSpreadDistribution)
             {
                 CommandId = cmdId,

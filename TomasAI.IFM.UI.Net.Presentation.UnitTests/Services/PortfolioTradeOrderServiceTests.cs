@@ -134,18 +134,18 @@ public sealed class PortfolioTradeOrderServiceTests
         PortfolioOrderCandidate candidate,
         TradeOrderDefinition[] orders,
         PortfolioOrderCompositionStatus status) => new()
-    {
-        Id = Guid.NewGuid(),
-        OperationId = Guid.NewGuid(),
-        PortfolioId = 11,
-        Receipt = new PortfolioOrderCompositionReceipt
         {
+            Id = Guid.NewGuid(),
+            OperationId = Guid.NewGuid(),
             PortfolioId = 11,
-            CompositionId = candidate.CompositionId,
-            Status = status,
-            TradeOrders = [.. orders.Select(order => order.ToPortfolioInstruction())]
-        }
-    };
+            Receipt = new PortfolioOrderCompositionReceipt
+            {
+                PortfolioId = 11,
+                CompositionId = candidate.CompositionId,
+                Status = status,
+                TradeOrders = [.. orders.Select(order => order.ToPortfolioInstruction())]
+            }
+        };
 
     static ServiceOk<FunctionResult<PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent>>
         Success(PortfolioOrderCompositionCompletedEvent completed) => new(

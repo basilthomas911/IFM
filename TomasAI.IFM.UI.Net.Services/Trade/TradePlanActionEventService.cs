@@ -25,12 +25,12 @@ namespace TomasAI.IFM.UI.Net.Services.Trade
         /// start listening for trade plan action added complete events
         /// </summary>
         /// <param name="listenerAction"></param>
-        public async Task StartTradePlanActionListenerAsync( Action<TradePlanActionUpdatedEvent> listenerAction) => await _tradePlanActionEventConsumer.StartAsync(listenerAction);
+        public async Task StartTradePlanActionListenerAsync(Action<TradePlanActionUpdatedEvent> listenerAction) => await _tradePlanActionEventConsumer.StartAsync(listenerAction);
 
         /// <summary>
         /// stop listening for trade plan action added complete events
         /// </summary>
         public async Task StopTradePlanActionListenerAsync() => await _tradePlanActionEventConsumer.StopAsync();
-        
+
     }
 }

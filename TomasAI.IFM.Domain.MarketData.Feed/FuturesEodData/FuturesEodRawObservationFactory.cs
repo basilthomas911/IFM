@@ -31,16 +31,26 @@ internal static class FuturesEodRawObservationFactory
         var sequence = Math.Max(eventId, 0);
         return new FuturesEodObservationReadModel
         {
-            MarketSeriesIdentity = series, ContractId = value.ContractId, ValueDate = value.ValueDate,
-            SessionStartUtc = session.StartUtc, SessionEndUtc = session.EndUtc,
-            Open = value.OpenPrice, High = value.HighPrice, Low = value.LowPrice,
-            Close = value.ClosePrice, Volume = value.Volume, TradeCount = 0,
+            MarketSeriesIdentity = series,
+            ContractId = value.ContractId,
+            ValueDate = value.ValueDate,
+            SessionStartUtc = session.StartUtc,
+            SessionEndUtc = session.EndUtc,
+            Open = value.OpenPrice,
+            High = value.HighPrice,
+            Low = value.LowPrice,
+            Close = value.ClosePrice,
+            Volume = value.Volume,
+            TradeCount = 0,
             PriceVolumeSum = value.ClosePrice * value.Volume,
             ObservationId = FuturesTradeSessionBarId.Create(
                 series, TimeFrameType.Daily, session.EndUtc, sequence),
-            FirstSourceSequence = sequence, LastSourceSequence = sequence,
-            FirstMarketEventUtc = session.StartUtc, LastMarketEventUtc = session.EndUtc,
-            IsComplete = true, IsValid = true
+            FirstSourceSequence = sequence,
+            LastSourceSequence = sequence,
+            FirstMarketEventUtc = session.StartUtc,
+            LastMarketEventUtc = session.EndUtc,
+            IsComplete = true,
+            IsValid = true
         };
     }
 }

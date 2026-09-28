@@ -169,7 +169,7 @@ public class MarketDataFeedQueryApi(IActorProducer actorProducer)
     /// </summary>
     public async Task<ServiceResult<FuturesOptionSpreadDataReadModel>> GetFuturesOptionSpreadDataAsync(DateOnly valueDate, DateOnly maturityDate, double assetPrice, double riskFreeRate, double timeValue, FuturesOptionContractReadModel qfShortOptionContract, FuturesOptionContractReadModel qfLongOptionContract)
     {
-        var queryForOptionContracts = new FuturesOptionContractsReadModel([qfShortOptionContract, qfLongOptionContract ]);
+        var queryForOptionContracts = new FuturesOptionContractsReadModel([qfShortOptionContract, qfLongOptionContract]);
         var entityId = new GetFuturesOptionSpreadDataParameter(valueDate, maturityDate, assetPrice, riskFreeRate, timeValue, queryForOptionContracts);
         GetFuturesOptionSpreadDataQuery query = new(valueDate, maturityDate, assetPrice, riskFreeRate, timeValue, queryForOptionContracts)
         {
@@ -238,7 +238,7 @@ public class MarketDataFeedQueryApi(IActorProducer actorProducer)
         var entityId = new GetFuturesEodMovingAveragesParameter(contractId, symbol, valueDate);
         GetFuturesEodDataMovingAveragesQuery query = new(contractId, symbol, valueDate)
         {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesEodDataMovingAveragesQuery.Actor, GetFuturesEodDataMovingAveragesQuery    .Verb, entityId.Format()),
+            Subject = new ActorSubject(ActorType.Query, GetFuturesEodDataMovingAveragesQuery.Actor, GetFuturesEodDataMovingAveragesQuery.Verb, entityId.Format()),
         };
         return await RequestAsync<GetFuturesEodDataMovingAveragesQuery, FuturesEodDataMovingAveragesReadModel>(query.Subject, query);
     }

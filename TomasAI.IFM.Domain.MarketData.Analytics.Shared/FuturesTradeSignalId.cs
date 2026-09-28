@@ -18,7 +18,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 [MessagePackObject(AllowPrivate = true)]
 public record FuturesTradeSignalId : IActorEntityId
 {
-    [Key(0)] public string ContractId { get; init; } 
+    [Key(0)] public string ContractId { get; init; }
     [Key(1)] public DateOnly ValueDate { get; init; }
     [Key(2)] public TimeFrameType TimePeriod { get; init; }
     [Key(3)] public long SequenceId { get; init; }

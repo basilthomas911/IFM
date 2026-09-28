@@ -59,11 +59,11 @@ internal static class DarkTradingTypography
     static void ApplyToChart(Chart chart)
     {
         foreach (var area in chart.ChartAreas)
-        foreach (var axis in new[] { area.AxisX, area.AxisX2, area.AxisY, area.AxisY2 })
-        {
-            axis.LabelStyle.Font = Normalize(axis.LabelStyle.Font);
-            axis.TitleFont = Normalize(axis.TitleFont);
-        }
+            foreach (var axis in new[] { area.AxisX, area.AxisX2, area.AxisY, area.AxisY2 })
+            {
+                axis.LabelStyle.Font = Normalize(axis.LabelStyle.Font);
+                axis.TitleFont = Normalize(axis.TitleFont);
+            }
 
         foreach (var legend in chart.Legends)
             legend.Font = Normalize(legend.Font);

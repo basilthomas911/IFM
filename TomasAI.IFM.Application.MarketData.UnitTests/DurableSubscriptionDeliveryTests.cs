@@ -28,7 +28,8 @@ public sealed class DurableSubscriptionDeliveryTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task Outbox_is_acknowledged_only_after_complete_current_revision_realization(bool ready)
     {
         var snapshot = Snapshot(); var store = Substitute.For<IDurableSubscriptionIntentStore>();
@@ -44,7 +45,8 @@ public sealed class DurableSubscriptionDeliveryTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task Handoff_commits_all_legs_before_readiness_and_never_releases_discovery_on_failed_realization(bool ready)
     {
         var snapshot = Snapshot(); var state = snapshot.Authorities[0];

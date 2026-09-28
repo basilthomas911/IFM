@@ -35,7 +35,8 @@ public sealed record GetTrialBalanceQuery : IFinancialQueryMessage<GetTrialBalan
     [Key(3)] public Guid CorrelationId { get; init; }
     [Key(4)] public DateTime RequestedAtUtc { get; init; }
 
-    [IgnoreMember] public GetTrialBalanceRequest Parameters
+    [IgnoreMember]
+    public GetTrialBalanceRequest Parameters
     {
         get => new();
         init

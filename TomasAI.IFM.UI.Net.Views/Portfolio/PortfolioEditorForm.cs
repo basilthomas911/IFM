@@ -56,12 +56,17 @@ public sealed class PortfolioEditorForm : DarkTradingForm
         var now = TimeProvider.System.GetUtcNow().UtcDateTime;
         var model = new PortfolioReadModel
         {
-            PortfolioId = int.Parse(_id.Text), Name = _name.Text.Trim(),
-            PortfolioVersion = _newPortfolio ? 1 : checked(_source!.PortfolioVersion + 1), BaseCurrency = _currency.Text.Trim().ToUpperInvariant(),
+            PortfolioId = int.Parse(_id.Text),
+            Name = _name.Text.Trim(),
+            PortfolioVersion = _newPortfolio ? 1 : checked(_source!.PortfolioVersion + 1),
+            BaseCurrency = _currency.Text.Trim().ToUpperInvariant(),
             OperatingState = (PortfolioOperatingState)(_state.SelectedItem ?? PortfolioOperatingState.Draft),
             EffectiveFromUtc = EasternTime.ToUtc(_effective.Value),
-            ActivePolicyId = _source?.ActivePolicyId ?? 0, ActivePolicyVersion = _source?.ActivePolicyVersion ?? 0,
-            BrokerAccountRefs = Csv(_brokerAccounts.Text), CreatedOnUtc = now, CreatedBy = Environment.UserName,
+            ActivePolicyId = _source?.ActivePolicyId ?? 0,
+            ActivePolicyVersion = _source?.ActivePolicyVersion ?? 0,
+            BrokerAccountRefs = Csv(_brokerAccounts.Text),
+            CreatedOnUtc = now,
+            CreatedBy = Environment.UserName,
         };
         var errors = model.Validate(requireActivePolicy: model.OperatingState == PortfolioOperatingState.Active);
         if (errors.Count != 0) { _error.Text = string.Join("; ", errors); return; }

@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Domain.Trade.Model.Strategy;
 public class IronCondorTrade : OptionTrade
 {
     public static IronCondorTrade Create(TradeOrderReadModel e, TradeState tradeState)
-        => new (
+        => new(
             orderId: e.OrderId,
             tradeId: e.TradeId,
             tradeStrategy: string.Empty,
@@ -27,7 +27,7 @@ public class IronCondorTrade : OptionTrade
             updatedBy: e.UpdatedBy
      );
 
-    public static IronCondorTrade Create(OptionTradeReadModel e) => new (e);
+    public static IronCondorTrade Create(OptionTradeReadModel e) => new(e);
 
     public IronCondorTrade(int orderId,
         int tradeId,
@@ -44,13 +44,13 @@ public class IronCondorTrade : OptionTrade
         DateTime createdOn,
         string createdBy,
         DateTime updatedOn,
-        string updatedBy):base(orderId, tradeId, tradeStrategy, tradeDate, maturityDate, tradeType, tradeState, tradeAction, underlyingContractId, underlyingAssetType, isPrimaryTrade, isHedgeTrade, createdOn, createdBy, updatedOn, updatedBy)
+        string updatedBy) : base(orderId, tradeId, tradeStrategy, tradeDate, maturityDate, tradeType, tradeState, tradeAction, underlyingContractId, underlyingAssetType, isPrimaryTrade, isHedgeTrade, createdOn, createdBy, updatedOn, updatedBy)
     {
 
     }
 
     public IronCondorTrade(OptionTradeReadModel viewModel)
-        :base(viewModel)
+        : base(viewModel)
     {
     }
 

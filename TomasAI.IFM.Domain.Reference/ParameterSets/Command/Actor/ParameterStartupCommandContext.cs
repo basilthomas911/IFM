@@ -32,8 +32,8 @@ public interface IParameterStartupCommandContext
     IEventSourceActorStateFactory StateFactory { get; }
     /// <summary>Gets actor infrastructure.</summary>
     IActorService ActorService { get; }
-    IEventSourceActorStateRepository<ParameterSetCommandState> ParameterSets {get;}
-    IEventSourceActorStateRepository<ParameterAssignmentCommandState> Assignments {get;}
+    IEventSourceActorStateRepository<ParameterSetCommandState> ParameterSets { get; }
+    IEventSourceActorStateRepository<ParameterAssignmentCommandState> Assignments { get; }
     /// <summary>Gets the logger.</summary>
     ILogger<ParameterStartupCommandActor> Logger { get; }
 }
@@ -45,7 +45,7 @@ public sealed class ParameterStartupCommandContext
       IParameterStartupCommandContext
 {
     readonly Lazy<IEventSourceActorStateRepository<ParameterAssignmentCommandState>> assignments;
-    public IEventSourceActorStateRepository<ParameterAssignmentCommandState> Assignments=>assignments.Value;
+    public IEventSourceActorStateRepository<ParameterAssignmentCommandState> Assignments => assignments.Value;
     readonly Lazy<IParameterAccessPolicy> accessPolicy;
     public IParameterAccessPolicy AccessPolicy => accessPolicy.Value;
 

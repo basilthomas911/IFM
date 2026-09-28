@@ -125,7 +125,9 @@ public sealed class TickAggregationContractTests
         var inserted = new FuturesTickTradeDataInsertedEvent
         {
             Subject = new ActorSubject(ActorType.Event, FuturesTickTradeDataInsertedEvent.Actor, FuturesTickTradeDataInsertedEvent.Verb, entity.Format()),
-            EntityId = entity, Id = Guid.NewGuid(), CommandId = Guid.NewGuid(),
+            EntityId = entity,
+            Id = Guid.NewGuid(),
+            CommandId = Guid.NewGuid(),
             TickDataId = new TickDataId("ESU6", entity.ValueDate, 1, DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc)),
             AssetTypeId = AssetTypeId.Futures
         };
@@ -145,15 +147,20 @@ public sealed class TickAggregationContractTests
         {
             Subject = new ActorSubject(ActorType.Event, TickAggregationCompleteEvent.Actor,
                 FuturesTickTradeDataInsertedCompleteEvent.Verb, entity.Format()),
-            EntityId = entity, TickDataId = tickId, AssetTypeId = AssetTypeId.Futures,
+            EntityId = entity,
+            TickDataId = tickId,
+            AssetTypeId = AssetTypeId.Futures,
             PersistedRecordCount = 1
         };
         var failed = new FuturesTickQuoteDataInsertedFailEvent
         {
             Subject = new ActorSubject(ActorType.Event, TickAggregationFailEvent.Actor,
                 FuturesTickQuoteDataInsertedFailEvent.Verb, entity.Format()),
-            EntityId = entity, TickDataId = tickId, AssetTypeId = AssetTypeId.Futures,
-            AttemptedRecordCount = 8, ErrorMessage = "failed"
+            EntityId = entity,
+            TickDataId = tickId,
+            AssetTypeId = AssetTypeId.Futures,
+            AttemptedRecordCount = 8,
+            ErrorMessage = "failed"
         };
 
         var completeResult = MessagePackSerializer.Deserialize<FuturesTickTradeDataInsertedCompleteEvent>(

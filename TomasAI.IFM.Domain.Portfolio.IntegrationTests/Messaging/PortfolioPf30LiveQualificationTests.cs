@@ -44,9 +44,13 @@ public sealed class PortfolioPf30LiveQualificationTests(ITestOutputHelper output
                 var now = DateTime.UtcNow;
                 var created = await new PortfolioCommandApi(producer).CreatePortfolioAsync(new()
                 {
-                    PortfolioId = expectedId, PortfolioVersion = 1, Name = "PF-30 bucketed list",
-                    OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
-                    CreatedOnUtc = now, CreatedBy = "pf30-bucketed-list"
+                    PortfolioId = expectedId,
+                    PortfolioVersion = 1,
+                    Name = "PF-30 bucketed list",
+                    OperatingState = PortfolioOperatingState.Draft,
+                    EffectiveFromUtc = now,
+                    CreatedOnUtc = now,
+                    CreatedBy = "pf30-bucketed-list"
                 }, Guid.NewGuid(), timeout.Token);
                 created.Success.Should().BeTrue(created.ErrorMessage);
                 await WaitForPortfolioAsync(queries, expectedId, timeout.Token);
@@ -89,9 +93,13 @@ public sealed class PortfolioPf30LiveQualificationTests(ITestOutputHelper output
             var queries = new PortfolioQueryApi(producer);
             var created = await commands.CreatePortfolioAsync(new()
             {
-                PortfolioId = id, PortfolioVersion = 1, Name = "PF-30 authorization",
-                OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
-                CreatedOnUtc = now, CreatedBy = "ignored-client-value",
+                PortfolioId = id,
+                PortfolioVersion = 1,
+                Name = "PF-30 authorization",
+                OperatingState = PortfolioOperatingState.Draft,
+                EffectiveFromUtc = now,
+                CreatedOnUtc = now,
+                CreatedBy = "ignored-client-value",
             }, Guid.NewGuid(), timeout.Token);
             created.Success.Should().BeTrue(created.ErrorMessage);
             await WaitForPortfolioAsync(queries, id, timeout.Token);
@@ -121,7 +129,7 @@ public sealed class PortfolioPf30LiveQualificationTests(ITestOutputHelper output
         finally { await producer.StopAsync(CancellationToken.None); }
     }
 
-    [Fact]
+    [PortfolioEnvironmentFact("IFM_PORTFOLIO_PF30_ID")]
     [Trait("Gate", "PF-30")]
     [Trait("Category", "PortfolioLiveHostPF30Restart")]
     public async Task Production_restart_recovers_the_pre_restart_authority_and_projection()
@@ -161,9 +169,13 @@ public sealed class PortfolioPf30LiveQualificationTests(ITestOutputHelper output
             var now = DateTime.UtcNow;
             var created = await new PortfolioCommandApi(setup).CreatePortfolioAsync(new()
             {
-                PortfolioId = id, PortfolioVersion = 1, Name = "PF-30 load",
-                OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
-                CreatedOnUtc = now, CreatedBy = "pf30",
+                PortfolioId = id,
+                PortfolioVersion = 1,
+                Name = "PF-30 load",
+                OperatingState = PortfolioOperatingState.Draft,
+                EffectiveFromUtc = now,
+                CreatedOnUtc = now,
+                CreatedBy = "pf30",
             }, Guid.NewGuid(), timeout.Token);
             created.Success.Should().BeTrue(created.ErrorMessage);
             await WaitForPortfolioAsync(new PortfolioQueryApi(setup), id, timeout.Token);
@@ -180,13 +192,13 @@ public sealed class PortfolioPf30LiveQualificationTests(ITestOutputHelper output
                 var api = new PortfolioQueryApi(producer);
                 var workerResults = new bool[requestsPerWorker];
                 using (PortfolioAccessScope.Push(PortfolioAccessContext.Reader("pf30-load-reader")))
-                for (var index = 0; index < requestsPerWorker; index++)
-                {
-                    var started = Stopwatch.GetTimestamp();
-                    var result = await api.GetPortfolioAsync(id, cancellationToken: timeout.Token);
-                    latencies.Add(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                    workerResults[index] = result.Success && result.Value?.PortfolioId == id;
-                }
+                    for (var index = 0; index < requestsPerWorker; index++)
+                    {
+                        var started = Stopwatch.GetTimestamp();
+                        var result = await api.GetPortfolioAsync(id, cancellationToken: timeout.Token);
+                        latencies.Add(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                        workerResults[index] = result.Success && result.Value?.PortfolioId == id;
+                    }
                 return workerResults;
             }
             finally { await producer.StopAsync(CancellationToken.None); }
@@ -204,7 +216,7 @@ public sealed class PortfolioPf30LiveQualificationTests(ITestOutputHelper output
         elapsed.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(30));
     }
 
-    [Fact]
+    [PortfolioEnvironmentFact("IFM_PORTFOLIO_ROLLBACK_QUALIFICATION")]
     [Trait("Gate", "PF-30")]
     [Trait("Category", "PortfolioLiveHostPF30Rollback")]
     public async Task Production_rollback_mode_rejects_mutations_but_keeps_queries_available()
@@ -217,9 +229,13 @@ public sealed class PortfolioPf30LiveQualificationTests(ITestOutputHelper output
             var now = DateTime.UtcNow;
             var denied = await new PortfolioCommandApi(producer).CreatePortfolioAsync(new()
             {
-                PortfolioId = id, PortfolioVersion = 1, Name = "must not commit",
-                OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
-                CreatedOnUtc = now, CreatedBy = "pf30",
+                PortfolioId = id,
+                PortfolioVersion = 1,
+                Name = "must not commit",
+                OperatingState = PortfolioOperatingState.Draft,
+                EffectiveFromUtc = now,
+                CreatedOnUtc = now,
+                CreatedBy = "pf30",
             }, Guid.NewGuid(), timeout.Token);
             denied.Success.Should().BeFalse();
             denied.ErrorCode.Should().Be(PortfolioErrorCodes.OperationallyDisabled);
@@ -232,7 +248,7 @@ public sealed class PortfolioPf30LiveQualificationTests(ITestOutputHelper output
 
     static async Task<NatsActorProducer> ProducerAsync(ActorType type, CancellationToken cancellationToken)
     {
-        var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
+        var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? DomainActorIntegrationInfrastructureFixture.NatsUrl;
         var producer = new NatsActorProducer(new NatsProducerOptions { Url = url }, Substitute.For<ILogger<NatsActorProducer>>());
         await producer.StartAsync(new ActorMailboxId(type, $"PortfolioPf30{Guid.NewGuid():N}"), cancellationToken);
         return producer;

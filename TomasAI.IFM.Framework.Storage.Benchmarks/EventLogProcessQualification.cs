@@ -229,7 +229,7 @@ internal static class EventLogProcessQualification
             try
             {
                 await using var probe = new NpgsqlConnection(new NpgsqlConnectionStringBuilder(direct)
-                    { Timeout = 1, Pooling = false }.ConnectionString);
+                { Timeout = 1, Pooling = false }.ConnectionString);
                 await probe.OpenAsync();
                 return Convert.ToInt32(await Sql(probe, "SELECT 1")) == 1;
             }
@@ -276,8 +276,13 @@ internal static class EventLogProcessQualification
     }
     static async Task<string> Docker(params string[] args)
     {
-        var start = new ProcessStartInfo("docker") { UseShellExecute = false, CreateNoWindow = true,
-            RedirectStandardOutput = true, RedirectStandardError = true };
+        var start = new ProcessStartInfo("docker")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
         foreach (var arg in args) start.ArgumentList.Add(arg);
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start docker.");
         var stdout = process.StandardOutput.ReadToEndAsync();
@@ -302,8 +307,14 @@ internal static class EventLogProcessQualification
         {
             var tag = "ProcessQualification-" + Guid.NewGuid().ToString("N");
             var provider = new NpgsqlConnectionStringBuilder(input.Provider) { ApplicationName = tag, Pooling = false };
-            var start = new ProcessStartInfo("dotnet") { UseShellExecute = false, CreateNoWindow = true,
-                RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true };
+            var start = new ProcessStartInfo("dotnet")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
             start.ArgumentList.Add(Assembly.GetExecutingAssembly().Location);
             start.ArgumentList.Add("--event-log-process-child");
             var child = new Child(Process.Start(start) ?? throw new InvalidOperationException("Cannot launch child."), tag);

@@ -236,7 +236,7 @@ public static class SampleData
         => new(ContractId, ValueDate, TimePeriod, PeriodLength);
 
     public static FuturesAdxSignalId AdxSignalId
-        => new(ContractId, ValueDate, TimePeriod, PeriodLength,TimeOnly.FromDateTime(Timestamp));
+        => new(ContractId, ValueDate, TimePeriod, PeriodLength, TimeOnly.FromDateTime(Timestamp));
 
     public static FuturesRsiSignalReadModel[] CreateRsiSignalsForAdx(int count = 15)
     {

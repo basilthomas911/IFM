@@ -155,31 +155,35 @@ public class FuturesOptionContractCommandActor(
     /// validation logic based on the command type at runtime.</remarks>
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
-    {
-        [typeof(AddFuturesOptionContractCommand)] = static cmd => {
-            var e = (AddFuturesOptionContractCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName);
-        },
-        [typeof(AddFuturesOptionContractsCommand)] = static cmd => {
-            var e = (AddFuturesOptionContractsCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName);
-        },
-        [typeof(ChangeFuturesOptionContractCommand)] = static cmd => {
-            var e = (ChangeFuturesOptionContractCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesOptionContractId(e.ContractId)
-                ;
-        },
-        [typeof(RemoveFuturesOptionContractCommand)] = static cmd => {
-            var e = (RemoveFuturesOptionContractCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesOptionContractId(e.ContractId);
-        }
-    };
+        {
+            [typeof(AddFuturesOptionContractCommand)] = static cmd =>
+            {
+                var e = (AddFuturesOptionContractCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName);
+            },
+            [typeof(AddFuturesOptionContractsCommand)] = static cmd =>
+            {
+                var e = (AddFuturesOptionContractsCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName);
+            },
+            [typeof(ChangeFuturesOptionContractCommand)] = static cmd =>
+            {
+                var e = (ChangeFuturesOptionContractCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFuturesOptionContractId(e.ContractId)
+                    ;
+            },
+            [typeof(RemoveFuturesOptionContractCommand)] = static cmd =>
+            {
+                var e = (RemoveFuturesOptionContractCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFuturesOptionContractId(e.ContractId);
+            }
+        };
 
     static List<ValidationError> ValidateReferenceData(
         ICommand command,

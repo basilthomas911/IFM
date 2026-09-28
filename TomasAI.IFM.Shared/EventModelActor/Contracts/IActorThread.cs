@@ -99,5 +99,5 @@ public interface IActorThread
     /// </summary>
     bool IsTimedOut { get; }
 
-    
+
 }

@@ -129,8 +129,11 @@ public sealed class Oct1EvaluatedOptionChainLiveTests(ITestOutputHelper output)
 
     static GetEvaluatedOptionChainQuery NewQuery(DateOnly expiry) => new()
     {
-        UnderlyingContractId = "ES20261218", UnderlyingSymbol = "ES", ProviderRoots = ["E1D"],
-        ExpiryDate = expiry, StandardDeviationMultiplier = 2.5
+        UnderlyingContractId = "ES20261218",
+        UnderlyingSymbol = "ES",
+        ProviderRoots = ["E1D"],
+        ExpiryDate = expiry,
+        StandardDeviationMultiplier = 2.5
     };
 
     sealed class StrikeStats

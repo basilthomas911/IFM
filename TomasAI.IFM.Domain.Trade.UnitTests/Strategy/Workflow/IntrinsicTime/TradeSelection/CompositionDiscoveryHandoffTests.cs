@@ -15,9 +15,13 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Tra
 public sealed class CompositionDiscoveryHandoffTests
 {
     [Theory]
-    [InlineData(2, false, false)] [InlineData(2, true, false)]
-    [InlineData(4, true, false)] [InlineData(4, true, true)]
-    [InlineData(0, true, false)] [InlineData(0, false, false)] [InlineData(0, true, true)]
+    [InlineData(2, false, false)]
+    [InlineData(2, true, false)]
+    [InlineData(4, true, false)]
+    [InlineData(4, true, true)]
+    [InlineData(0, true, false)]
+    [InlineData(0, false, false)]
+    [InlineData(0, true, true)]
     public async Task Discovery_release_requires_realized_ownership_and_never_recaptures_accepted_evidence(int count, bool ready, bool replaced)
     {
         var at = DateTimeOffset.UtcNow.AddMinutes(-5); // Accepted evidence may be expired; handoff must not recapture it.
@@ -31,9 +35,18 @@ public sealed class CompositionDiscoveryHandoffTests
         snapshot = snapshot with { Digest = PricingSemanticHash.Compute(snapshot) };
         var prepared = new CompositionPreparation(2, key, "GLBX.MDP3", request, snapshot, at, "", new(planId, Guid.NewGuid(), generation));
         prepared = prepared with { Digest = PricingSemanticHash.Compute(prepared) };
-        var workflow = new WorkflowStrategyStateUpdatedEvent { Id = Guid.NewGuid(), WorkflowId = new(workflowId),
-            State = new() { Status = count == 0 ? WorkflowStrategyMachineStatus.Completed : WorkflowStrategyMachineStatus.Started,
-                Outcome = count == 0 ? StrategyWorkflowOutcome.NoTrade : StrategyWorkflowOutcome.None, CompositionContracts = count == 0 ? null : selected, CompositionDispatch = new() { MarketEvidence = CompositionPreparationAcceptance.Reference(prepared) } } };
+        var workflow = new WorkflowStrategyStateUpdatedEvent
+        {
+            Id = Guid.NewGuid(),
+            WorkflowId = new(workflowId),
+            State = new()
+            {
+                Status = count == 0 ? WorkflowStrategyMachineStatus.Completed : WorkflowStrategyMachineStatus.Started,
+                Outcome = count == 0 ? StrategyWorkflowOutcome.NoTrade : StrategyWorkflowOutcome.None,
+                CompositionContracts = count == 0 ? null : selected,
+                CompositionDispatch = new() { MarketEvidence = CompositionPreparationAcceptance.Reference(prepared) }
+            }
+        };
         var row = new EventLogReadModel(1, workflow.EventName, workflow.GetType().AssemblyQualifiedName!, 99, TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(workflow), Guid.NewGuid(), at.ToString("O"), 6);
         var journal = Substitute.For<ICommittedBusinessEventJournal>(); journal.ReadPendingHandoffsAsync(default).Returns([row]);
         var intent = Substitute.For<IDurableSubscriptionIntentStore>();

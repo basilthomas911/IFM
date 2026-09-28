@@ -21,8 +21,10 @@ public sealed class FuturesVwapRecoveryGuardTests
                 UpdateFuturesVwapSignalCommand.Actor,
                 RecoverFuturesVwapSignalCommand.Verb, entityId.Format()),
             EntityId = entityId,
-            RecoveryGenerationId = Guid.NewGuid(), BatchOrdinal = 1,
-            IsFirstBatch = false, Trades = []
+            RecoveryGenerationId = Guid.NewGuid(),
+            BatchOrdinal = 1,
+            IsFirstBatch = false,
+            Trades = []
         };
         var state = new FuturesVwapSignalCommandState();
 

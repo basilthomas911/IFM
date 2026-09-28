@@ -118,11 +118,14 @@ public static class MarketConditionAssessmentContracts
         var r = ReadResult(state.MarketCondition.Result ?? throw Invalid("Missing accepted assessment."));
         var view = new IntrinsicTimeStrategyWorkflowView
         {
-            WorkflowId=state.WorkflowId, EntityId=state.EntityId, TriggerEvent=command.TriggerEvent,
-            AssessmentBinding=state.AssessmentBinding, RegimeDiscovery=state.RegimeDiscovery,
-            RegimeDiscoveryParameterSet=state.RegimeDiscoveryParameterSet
+            WorkflowId = state.WorkflowId,
+            EntityId = state.EntityId,
+            TriggerEvent = command.TriggerEvent,
+            AssessmentBinding = state.AssessmentBinding,
+            RegimeDiscovery = state.RegimeDiscovery,
+            RegimeDiscoveryParameterSet = state.RegimeDiscoveryParameterSet
         };
-        ValidateAcceptance(r,view,state.MarketCondition.InputWorkflowRevision);
+        ValidateAcceptance(r, view, state.MarketCondition.InputWorkflowRevision);
         if (r.Assessment.Availability != AssessmentAvailability.Available || r.Assessment.ValidUntilUtc <= now ||
             r.Assessment.InheritedRestrictions.Contains(RegimeRestriction.NoNewTrade))
             throw Invalid("Assessment is unavailable, expired or carries an inherited NoNewTrade restriction.");

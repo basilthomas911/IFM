@@ -230,12 +230,12 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
 
     public FuturesMarketHealthSnapshot GetFuturesMarketHealth(string contractId)
     {
-        if(_currentValues is not null)return _currentValues.GetFuturesMarketHealth(contractId);
-        var health=GetHealth();
-        var epoch=health.Epoch;
-        var healthy=epoch is {Running:true,ProcessingFailures:0,LastPriceStoreActive:true,LastPriceSlots:>0}&&TryGetLastTickPrice(contractId,out _);
-        var generations=epoch?.DatasetFeedStatuses is { } statuses?string.Join("|",statuses.OrderBy(x=>x.Dataset,StringComparer.Ordinal).Select(x=>$"{x.Dataset}:{x.GenerationId:N}")):"legacy-epoch";
-        return new(health.Running,healthy,generations,health.ValueDate,DateTimeOffset.UtcNow,epoch is { } e?Math.Max(e.SourceQuoteRecords,e.SourceTradeRecords):0);
+        if (_currentValues is not null) return _currentValues.GetFuturesMarketHealth(contractId);
+        var health = GetHealth();
+        var epoch = health.Epoch;
+        var healthy = epoch is { Running: true, ProcessingFailures: 0, LastPriceStoreActive: true, LastPriceSlots: > 0 } && TryGetLastTickPrice(contractId, out _);
+        var generations = epoch?.DatasetFeedStatuses is { } statuses ? string.Join("|", statuses.OrderBy(x => x.Dataset, StringComparer.Ordinal).Select(x => $"{x.Dataset}:{x.GenerationId:N}")) : "legacy-epoch";
+        return new(health.Running, healthy, generations, health.ValueDate, DateTimeOffset.UtcNow, epoch is { } e ? Math.Max(e.SourceQuoteRecords, e.SourceTradeRecords) : 0);
     }
 
     /// <inheritdoc />

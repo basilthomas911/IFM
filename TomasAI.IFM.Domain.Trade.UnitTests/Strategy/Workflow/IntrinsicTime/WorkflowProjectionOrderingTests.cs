@@ -243,7 +243,10 @@ public sealed class WorkflowProjectionOrderingTests
         var workflow = new StrategyWorkflowId(Guid.NewGuid());
         return source with
         {
-            EntityId = entity, WorkflowId = workflow, EventId = 1, WorkflowRevision = 1,
+            EntityId = entity,
+            WorkflowId = workflow,
+            EventId = 1,
+            WorkflowRevision = 1,
             State = source.State with { EntityId = entity, WorkflowId = workflow, WorkflowRevision = 1 }
         };
     }

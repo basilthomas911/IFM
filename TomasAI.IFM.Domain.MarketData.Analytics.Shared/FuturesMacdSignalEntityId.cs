@@ -23,7 +23,7 @@ public record FuturesMacdSignalEntityId : IActorEntityId
     public DateOnly ValueDate { get; init; }
 
     [Key(2)]
-    public TimeFrameType TimePeriod {  get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     [Key(3)]
     public int SignalEmaPeriod { get; init; } = FuturesMacdConfiguration.ConventionalSignalEmaPeriod;

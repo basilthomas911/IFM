@@ -50,7 +50,8 @@ public sealed class StartupCompositionTests
             {
                 completed.TrySetResult();
             }
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
 

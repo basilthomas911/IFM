@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend
     public enum TrendModelState
     {
         None = 0,
-        BuildStarted=1,
+        BuildStarted = 1,
         ModelDataLoaded = 2,
         ModelTrained = 3,
         ModelLoaded = 4

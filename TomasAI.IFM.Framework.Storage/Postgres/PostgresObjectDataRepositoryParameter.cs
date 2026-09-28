@@ -9,6 +9,6 @@ namespace TomasAI.IFM.Framework.Storage.Postgres
 {
     public class PostgresObjectDataRepositoryParameter : IObjectRepositoryParameter
     {
-        public DbParameter Parameter  => new Npgsql.NpgsqlParameter();    
+        public DbParameter Parameter => new Npgsql.NpgsqlParameter();
     }
 }

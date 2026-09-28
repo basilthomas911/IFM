@@ -23,7 +23,7 @@ public static class FuturesAdxDailySignalGeneratedComplete
     /// <param name="context">The typed ADX event context that exposes handler dependencies.</param>
     /// <param name="logger">The logger used to log messages to the application logs.</param>
     /// <returns><see langword="true"/> if the handler completed successfully; otherwise <see langword="false"/>.</returns>
-    public static async ValueTask<bool> ExecuteAsync(this FuturesAdxDailySignalGeneratedCompleteEvent e, 
+    public static async ValueTask<bool> ExecuteAsync(this FuturesAdxDailySignalGeneratedCompleteEvent e,
         IFuturesAdxSignalEventContext context,
         ILogger<FuturesAdxSignalEventActor> logger)
     {

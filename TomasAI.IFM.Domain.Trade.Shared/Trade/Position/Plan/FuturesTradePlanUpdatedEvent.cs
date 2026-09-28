@@ -28,7 +28,8 @@ public sealed record FuturesTradePlanUpdatedEvent : ICompleteEvent<FuturesTradeP
     [IgnoreMember] public string EventName => nameof(FuturesTradePlanUpdatedEvent);
     [IgnoreMember] public EventType EventType => EventType.CompletedEvent;
     [IgnoreMember] public bool RequiresDurableProjection => Plan.MaterialChange;
-    [IgnoreMember] public DurableProjectionRequirement RequiredProjection => new(
+    [IgnoreMember]
+    public DurableProjectionRequirement RequiredProjection => new(
         "FuturesTradePositionCommandActor",
         "FuturesPositionEventProjector",
         EventProjectorStageType.ApplyProjection);

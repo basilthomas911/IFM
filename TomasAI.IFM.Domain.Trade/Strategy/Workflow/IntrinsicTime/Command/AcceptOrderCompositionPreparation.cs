@@ -37,8 +37,10 @@ public static class AcceptOrderCompositionPreparation
         timing_composer_accept_validate_and_build?.Stop();
         var next = current with
         {
-            WorkflowRevision = dispatch.InputWorkflowRevision, CompositionDispatch = dispatch,
-            UpdatedAtUtc = now, CausationId = command.CommandId,
+            WorkflowRevision = dispatch.InputWorkflowRevision,
+            CompositionDispatch = dispatch,
+            UpdatedAtUtc = now,
+            CausationId = command.CommandId,
             OrderComposition = current.OrderComposition with { InputWorkflowRevision = dispatch.InputWorkflowRevision }
         };
         using var timing_composer_accept_create_execution = WorkflowTrace.Start("composer.accept.create_execution", current);
@@ -48,10 +50,19 @@ public static class AcceptOrderCompositionPreparation
         state.UpdateRequired(new WorkflowStrategyStateUpdatedEvent
         {
             Subject = new(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor, WorkflowStrategyStateUpdatedEvent.Verb, command.EntityId.Format()),
-            Id = Guid.CreateVersion7(new DateTimeOffset(now)), EntityId = command.EntityId, CommandId = command.CommandId,
-            AggregateId = command.EntityId.Format(), EventSource = command.EventSource, ReceivedOn = now,
-            WorkflowId = next.WorkflowId, WorkflowRevision = next.WorkflowRevision, CorrelationId = next.CorrelationId,
-            CausationId = next.CausationId, PreviousStatus = current.Status, State = next, UpdatedAtUtc = now
+            Id = Guid.CreateVersion7(new DateTimeOffset(now)),
+            EntityId = command.EntityId,
+            CommandId = command.CommandId,
+            AggregateId = command.EntityId.Format(),
+            EventSource = command.EventSource,
+            ReceivedOn = now,
+            WorkflowId = next.WorkflowId,
+            WorkflowRevision = next.WorkflowRevision,
+            CorrelationId = next.CorrelationId,
+            CausationId = next.CausationId,
+            PreviousStatus = current.Status,
+            State = next,
+            UpdatedAtUtc = now
         }, command);
         timing_composer_accept_state_update?.Stop();
         return new ServiceOk<GuidResult>(new(command.CommandId));

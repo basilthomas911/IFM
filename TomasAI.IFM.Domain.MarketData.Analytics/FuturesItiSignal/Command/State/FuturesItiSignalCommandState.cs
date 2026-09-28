@@ -218,5 +218,5 @@ public class FuturesItiSignalCommandState
             ? Math.Max(trendDelta, minTargetDelta)
             : minTargetDelta;
     }
- 
+
 }

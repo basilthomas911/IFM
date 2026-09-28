@@ -17,7 +17,9 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Mar
 public sealed class MarketConditionAssessmentContractTests
 {
     [Theory]
-    [InlineData(TimeFrameType.Daily)] [InlineData(TimeFrameType.Weekly)] [InlineData(TimeFrameType.Monthly)]
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
     public void One_matching_accepted_regime_round_trips_with_frozen_parameters(TimeFrameType horizon)
     {
         var c = AssessmentFixture.Command(horizon);
@@ -28,8 +30,14 @@ public sealed class MarketConditionAssessmentContractTests
     }
 
     [Theory]
-    [InlineData("horizon")] [InlineData("workflow")] [InlineData("hash")] [InlineData("unaccepted")]
-    [InlineData("profile")] [InlineData("trigger")] [InlineData("legacy")] [InlineData("subject")]
+    [InlineData("horizon")]
+    [InlineData("workflow")]
+    [InlineData("hash")]
+    [InlineData("unaccepted")]
+    [InlineData("profile")]
+    [InlineData("trigger")]
+    [InlineData("legacy")]
+    [InlineData("subject")]
     public void Cross_workflow_timeframe_profile_and_legacy_substitution_are_rejected(string change)
     {
         var c = AssessmentFixture.Command(TimeFrameType.Weekly);
@@ -65,8 +73,8 @@ public sealed class MarketConditionAssessmentContractTests
         var c = AssessmentFixture.Command();
         (c with { CorrelationId = Guid.NewGuid() }).Fingerprint().Should().NotBe(c.Fingerprint());
         c.EntityId.Format().Should().NotBe(MarketConditionExecutionEntityId.Create(c.WorkflowEntityId, c.WorkflowId).Format());
-        var normalized=c.ParameterSet with {MovementStressThreshold=1.50000m};
-        (c with {ParameterSet=normalized,WorkflowView=c.WorkflowView with {AssessmentBinding=c.WorkflowView.AssessmentBinding! with {Parameters=normalized}}})
+        var normalized = c.ParameterSet with { MovementStressThreshold = 1.50000m };
+        (c with { ParameterSet = normalized, WorkflowView = c.WorkflowView with { AssessmentBinding = c.WorkflowView.AssessmentBinding! with { Parameters = normalized } } })
             .Fingerprint().Should().Be(c.Fingerprint());
     }
 }

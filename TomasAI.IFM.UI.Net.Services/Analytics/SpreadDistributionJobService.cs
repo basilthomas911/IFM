@@ -28,7 +28,7 @@ namespace TomasAI.IFM.UI.Net.Services.Analytics
         public SpreadDistributionJobService(
             IOptionPricerCommandApi optionPricerCommandApi,
             IOptionPricerQueryApi optionPricerQueryApi)
-            //ISpreadDistributionJobUIEventConsumer spreadDistributionJobEventConsumer)
+        //ISpreadDistributionJobUIEventConsumer spreadDistributionJobEventConsumer)
         {
             _optionPricerCommandApi = optionPricerCommandApi ?? throw new ArgumentNullException(nameof(optionPricerCommandApi));
             _optionPricerQueryApi = optionPricerQueryApi ?? throw new ArgumentNullException(nameof(optionPricerQueryApi));

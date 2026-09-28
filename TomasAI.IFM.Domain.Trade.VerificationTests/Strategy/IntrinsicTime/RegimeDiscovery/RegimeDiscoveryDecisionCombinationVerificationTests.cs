@@ -87,22 +87,33 @@ public sealed class RegimeDiscoveryDecisionCombinationVerificationTests
         var decision = new MarketRegimeFusionModel().Calculate(
             new TrendRegimeResult
             {
-                IsComplete = true, Direction = value.TrendDirection, Phase = value.TrendPhase,
+                IsComplete = true,
+                Direction = value.TrendDirection,
+                Phase = value.TrendPhase,
                 Strength = trendScore == 0m ? TrendRegimeStrength.None : TrendRegimeStrength.Strong,
-                Score = trendScore, Confidence = confidence, TimeFrameAgreement = confidence
+                Score = trendScore,
+                Confidence = confidence,
+                TimeFrameAgreement = confidence
             },
             new VolatilityRegimeResult
             {
-                IsComplete = true, Level = value.VolatilityLevel, Change = value.VolatilityChange,
-                TermStructure = value.TermStructure, Score = VolatilityScore(value.VolatilityLevel),
-                Confidence = confidence, NoNewTrade = value.VolatilityLevel == VolatilityRegimeLevel.Extreme
+                IsComplete = true,
+                Level = value.VolatilityLevel,
+                Change = value.VolatilityChange,
+                TermStructure = value.TermStructure,
+                Score = VolatilityScore(value.VolatilityLevel),
+                Confidence = confidence,
+                NoNewTrade = value.VolatilityLevel == VolatilityRegimeLevel.Extreme
             },
             new MarketStructureRegimeResult
             {
-                IsComplete = true, Classification = value.StructureClassification,
-                Direction = value.StructureDirection, Breakout = value.StructureClassification ==
+                IsComplete = true,
+                Classification = value.StructureClassification,
+                Direction = value.StructureDirection,
+                Breakout = value.StructureClassification ==
                     MarketStructureClassification.BreakingOut ? MarketBreakoutState.Up : MarketBreakoutState.None,
-                Score = structureScore, Confidence = confidence
+                Score = structureScore,
+                Confidence = confidence
             }, new MarketRegimeFusionConfiguration());
 
         decision.IsComplete.Should().BeTrue(value.Name);

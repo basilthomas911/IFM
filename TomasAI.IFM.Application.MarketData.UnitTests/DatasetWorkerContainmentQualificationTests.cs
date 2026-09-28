@@ -187,8 +187,12 @@ public sealed class DatasetWorkerContainmentQualificationTests(ITestOutputHelper
             PrefixArguments = helper
                 ? [typeof(QualificationHostMarker).Assembly.Location, "--worker", "true"]
                 : [typeof(DatasetWorkerAssemblyMarker).Assembly.Location],
-            Dataset = manifest.Dataset, ValueDate = manifest.ValueDate, GenerationId = Guid.NewGuid(),
-            WorkerInstanceId = Guid.NewGuid(), Manifest = manifest, ManifestRevision = manifest.Revision
+            Dataset = manifest.Dataset,
+            ValueDate = manifest.ValueDate,
+            GenerationId = Guid.NewGuid(),
+            WorkerInstanceId = Guid.NewGuid(),
+            Manifest = manifest,
+            ManifestRevision = manifest.Revision
         };
     }
 
@@ -198,8 +202,10 @@ public sealed class DatasetWorkerContainmentQualificationTests(ITestOutputHelper
 
     static DatabentoStage3Options Options() => new()
     {
-        WorkerHandshakeTimeout = TimeSpan.FromSeconds(10), WorkerStartTimeout = TimeSpan.FromSeconds(15),
-        WorkerCommandTimeout = TimeSpan.FromSeconds(5), WorkerGracefulStopTimeout = TimeSpan.FromMilliseconds(300),
+        WorkerHandshakeTimeout = TimeSpan.FromSeconds(10),
+        WorkerStartTimeout = TimeSpan.FromSeconds(15),
+        WorkerCommandTimeout = TimeSpan.FromSeconds(5),
+        WorkerGracefulStopTimeout = TimeSpan.FromMilliseconds(300),
         WorkerForceKillTimeout = TimeSpan.FromSeconds(5)
     };
 

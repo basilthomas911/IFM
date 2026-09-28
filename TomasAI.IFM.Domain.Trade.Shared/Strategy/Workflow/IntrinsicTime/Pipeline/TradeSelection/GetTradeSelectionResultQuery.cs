@@ -6,8 +6,9 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
+
 [MessagePackObject(AllowPrivate = true)]
-public sealed record GetTradeSelectionResultQuery:IQuery<TradeSelectionResult>
+public sealed record GetTradeSelectionResultQuery : IQuery<TradeSelectionResult>
 {
 
     /// <summary>Creates an empty query for serialization.</summary>
@@ -30,15 +31,15 @@ public sealed record GetTradeSelectionResultQuery:IQuery<TradeSelectionResult>
         InvocationId = invocationId;
         ResultId = resultId;
     }
-    [IgnoreMember] public const string Actor="TradeSelectionPipelineQuery";
-    [IgnoreMember] public const string Verb="GetTradeSelectionResult";
-    [IgnoreMember] public const int ErrorId=23211;
-    [Key(0)] public ActorSubject Subject {get;init;}
-    [Key(1)] public IActorEntityId EntityId {get;init;}=ActorEntityId.Default;
-    [Key(2)] public SelectionQueryAccess Access {get;init;}=new(string.Empty,[]);
-    [Key(3)] public StrategyWorkflowId WorkflowId {get;init;}
-    [Key(4)] public Guid InvocationId {get;init;}
-    [Key(5)] public Guid ResultId {get;init;}
-    [IgnoreMember] public int ErrorCode {get;init;}=ErrorId;
-    [IgnoreMember] public string? QueryParams {get;init;}
+    [IgnoreMember] public const string Actor = "TradeSelectionPipelineQuery";
+    [IgnoreMember] public const string Verb = "GetTradeSelectionResult";
+    [IgnoreMember] public const int ErrorId = 23211;
+    [Key(0)] public ActorSubject Subject { get; init; }
+    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
+    [Key(2)] public SelectionQueryAccess Access { get; init; } = new(string.Empty, []);
+    [Key(3)] public StrategyWorkflowId WorkflowId { get; init; }
+    [Key(4)] public Guid InvocationId { get; init; }
+    [Key(5)] public Guid ResultId { get; init; }
+    [IgnoreMember] public int ErrorCode { get; init; } = ErrorId;
+    [IgnoreMember] public string? QueryParams { get; init; }
 }

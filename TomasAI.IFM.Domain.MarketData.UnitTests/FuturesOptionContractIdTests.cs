@@ -20,9 +20,12 @@ public sealed class FuturesOptionContractIdTests
     }
 
     [Theory]
-    [InlineData("ES20260910X6500")] [InlineData("ES20260230C6500")]
-    [InlineData("ES20260910C0000")] [InlineData("ES20260910C-100")]
-    [InlineData("ES20260910C6500,5")] [InlineData("ES20260910C6500.5.1")]
+    [InlineData("ES20260910X6500")]
+    [InlineData("ES20260230C6500")]
+    [InlineData("ES20260910C0000")]
+    [InlineData("ES20260910C-100")]
+    [InlineData("ES20260910C6500,5")]
+    [InlineData("ES20260910C6500.5.1")]
     public void Invalid_components_are_rejected(string value)
         => Assert.Throws<InvalidOperationException>(() => new FuturesOptionContractId(value));
 

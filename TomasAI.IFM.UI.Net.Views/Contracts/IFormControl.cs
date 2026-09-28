@@ -65,7 +65,7 @@ namespace TomasAI.IFM.UI.Net.Contracts
 
             await new WinFormsUiDispatcher(view).InvokeAsync(viewAction, cancellationToken);
         }
-           
+
 
         [DllImport("user32.dll")]
         public static extern int SendMessage(IntPtr hWnd, Int32 wMsg, bool wParam, Int32 lParam);

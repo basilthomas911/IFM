@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
         int DeviceId { get; }
         void SetBusyFlag(bool busyFlag);
         void SetDeviceId();
-  
+
         Task<double> PriceOptionAsync(
             int paths,
             int tradingDays,
@@ -45,7 +45,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
             int tradingDays,
             double assetPrice);
 
-   
-        
+
+
     }
 }

@@ -93,5 +93,5 @@ namespace TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events
     public record TradeOrderUpdatedFailEvent : ErrorEvent
     {
     }
-   
+
 }

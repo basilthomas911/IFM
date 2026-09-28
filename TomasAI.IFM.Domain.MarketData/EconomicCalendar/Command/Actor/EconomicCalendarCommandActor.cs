@@ -112,12 +112,12 @@ public class EconomicCalendarCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext,
         EconomicCalendarCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext,
         EconomicCalendarCommandState, ServiceResult<GuidResult>>>()
-    {
-        [typeof(AddEconomicCalendarCommand)] = (cmd, context, state) => (cmd as AddEconomicCalendarCommand)!.Execute(state),
-        [typeof(ChangeEconomicCalendarCommand)] = (cmd, context, state) => (cmd as ChangeEconomicCalendarCommand)!.Execute(state),
-        [typeof(RemoveEconomicCalendarCommand)] = (cmd, context, state) => (cmd as RemoveEconomicCalendarCommand)!.Execute(state),
-        [typeof(ImportEconomicCalendarsCommand)] = (cmd, context, state) => ((ImportEconomicCalendarsCommand)cmd).Execute(state)
-    };
+        {
+            [typeof(AddEconomicCalendarCommand)] = (cmd, context, state) => (cmd as AddEconomicCalendarCommand)!.Execute(state),
+            [typeof(ChangeEconomicCalendarCommand)] = (cmd, context, state) => (cmd as ChangeEconomicCalendarCommand)!.Execute(state),
+            [typeof(RemoveEconomicCalendarCommand)] = (cmd, context, state) => (cmd as RemoveEconomicCalendarCommand)!.Execute(state),
+            [typeof(ImportEconomicCalendarsCommand)] = (cmd, context, state) => ((ImportEconomicCalendarsCommand)cmd).Execute(state)
+        };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -149,40 +149,43 @@ public class EconomicCalendarCommandActor(
     /// validation logic based on the command type at runtime.</remarks>
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
-    {
-        [typeof(AddEconomicCalendarCommand)] = cmd => {
-            var e = (AddEconomicCalendarCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEconomicCalendar(e.EconomicCalendar);
-        },
-        [typeof(ChangeEconomicCalendarCommand)] = cmd => {
-            var e = (ChangeEconomicCalendarCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEconomicCalendarId(e.EconomicCalendarId)
-                .ValidateEconomicCalendar(e.EconomicCalendar);
-        },
-        [typeof(RemoveEconomicCalendarCommand)] = cmd => {
-            var e = (RemoveEconomicCalendarCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEconomicCalendarId(e.EconomicCalendarId);
-        },
-        [typeof(ImportEconomicCalendarsCommand)] = cmd =>
         {
-            var e = (ImportEconomicCalendarsCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEconomicCalendarId(e.EntityId)
-                .ValidateDateTime(e.ImportedDate, e.CommandName, "ImportDate")
-                .ValidateImportCountryCodes(e.CountryCodes, e.CommandName);
-        }
-            
-    };
+            [typeof(AddEconomicCalendarCommand)] = cmd =>
+            {
+                var e = (AddEconomicCalendarCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEconomicCalendar(e.EconomicCalendar);
+            },
+            [typeof(ChangeEconomicCalendarCommand)] = cmd =>
+            {
+                var e = (ChangeEconomicCalendarCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEconomicCalendarId(e.EconomicCalendarId)
+                    .ValidateEconomicCalendar(e.EconomicCalendar);
+            },
+            [typeof(RemoveEconomicCalendarCommand)] = cmd =>
+            {
+                var e = (RemoveEconomicCalendarCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEconomicCalendarId(e.EconomicCalendarId);
+            },
+            [typeof(ImportEconomicCalendarsCommand)] = cmd =>
+            {
+                var e = (ImportEconomicCalendarsCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEconomicCalendarId(e.EntityId)
+                    .ValidateDateTime(e.ImportedDate, e.CommandName, "ImportDate")
+                    .ValidateImportCountryCodes(e.CountryCodes, e.CommandName);
+            }
+
+        };
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.
@@ -222,7 +225,7 @@ public class EconomicCalendarCommandActor(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var economicCalendarState = IsArgumentNull.Set((state as EconomicCalendarCommandState)!);
-        await _repo.SaveStateAsync(context,economicCalendarState, cmd);
+        await _repo.SaveStateAsync(context, economicCalendarState, cmd);
     }
 
     /// <summary>

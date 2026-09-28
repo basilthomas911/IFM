@@ -179,7 +179,8 @@ public sealed class Stage4SubscriptionCoordinatorTests
         time.Advance(TimeSpan.FromSeconds(11));
         (await coordinator.AcquireAsync(request with
         {
-            DeadlineUtc = time.GetUtcNow().AddSeconds(10), Target = new(Ticker("other"))
+            DeadlineUtc = time.GetUtcNow().AddSeconds(10),
+            Target = new(Ticker("other"))
         })).Code.Should().Be(SubscriptionResultCode.Timeout);
         coordinator.Current.Leases.Should().ContainSingle();
     }
@@ -209,7 +210,8 @@ public sealed class Stage4SubscriptionCoordinatorTests
         var options = Enumerable.Range(0, legs).Select(i => Ticker($"option-{i}", true)).ToArray();
         var chain = new SubscriptionChainKey(Ticker("ES"), new(2026, 9, 18), ValueDate, options);
         var discovery = (await coordinator.AcquireAsync(Acquire(time, "one", SubscriptionLeasePurpose.Discovery)
-            with { Target = new(chain) })).Lease!;
+            with
+        { Target = new(chain) })).Lease!;
         var revision = coordinator.Current.Revision;
         var selections = options.Select((option, i) => new SubscriptionLeaseSelection(
             new("account", new TickerStreamOwner("test", "one", i.ToString())), new(option, Ticker("ES")))).ToArray();

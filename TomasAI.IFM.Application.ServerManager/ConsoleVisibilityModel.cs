@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Application.ServerManager
     public class ConsoleVisibilityModel : ObservableObject
     {
         Visibility _visibility;
-        
+
         public Visibility Value
         {
             get => _visibility;

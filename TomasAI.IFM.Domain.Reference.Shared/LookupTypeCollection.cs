@@ -19,7 +19,7 @@ public class LookupTypeCollection : ICollection<LookupTypeReadModel>
     // runtime backing list (ignored by MessagePack)
     [Key(0)]
     public List<LookupTypeReadModel> Items { get; private set; } = [];
-    
+
     /// <summary>
     /// Parameterless constructor for normal usage and serializers.
     /// </summary>

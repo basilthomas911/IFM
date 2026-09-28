@@ -60,10 +60,10 @@ public sealed class FuturesEmaSignalCommandActor(ICommandActorContext<FuturesEma
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<FuturesEmaSignalCommandActor>,
         FuturesEmaSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<FuturesEmaSignalCommandActor>,
         FuturesEmaSignalCommandState, ServiceResult<GuidResult>>>()
-    {
-        [typeof(GenerateFuturesEmaSignalCommand)] = static (command, _, state) =>
-            ((GenerateFuturesEmaSignalCommand)command).Execute(state)
-    };
+        {
+            [typeof(GenerateFuturesEmaSignalCommand)] = static (command, _, state) =>
+                ((GenerateFuturesEmaSignalCommand)command).Execute(state)
+        };
 
     /// <inheritdoc />
     protected override ValueTask OnValidateAsync(ICommandActorContext<FuturesEmaSignalCommandActor> context,
@@ -79,16 +79,16 @@ public sealed class FuturesEmaSignalCommandActor(ICommandActorContext<FuturesEma
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
-    {
-        [typeof(GenerateFuturesEmaSignalCommand)] = static command =>
         {
-            var generate = (GenerateFuturesEmaSignalCommand)command;
-            return new List<ValidationError>()
-                .ValidateCommandId(generate.CommandId, generate.CommandName)
-                .ValidateEntityId(generate.EntityId, generate.CommandName)
-                .ValidateSourceBar(generate);
-        }
-    };
+            [typeof(GenerateFuturesEmaSignalCommand)] = static command =>
+            {
+                var generate = (GenerateFuturesEmaSignalCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(generate.CommandId, generate.CommandName)
+                    .ValidateEntityId(generate.EntityId, generate.CommandName)
+                    .ValidateSourceBar(generate);
+            }
+        };
 
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(

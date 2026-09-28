@@ -181,12 +181,16 @@ public sealed class DatasetWorkerApiDependencyInjectionTests
 
     static DatasetPublicationEnvelope Envelope<T>(DatasetWorkerAdmission identity, long sequence,
         DatasetPublicationKind kind, T value) => new()
-    {
-        Dataset = identity.Dataset, ValueDate = identity.ValueDate,
-        WorkerInstanceId = identity.WorkerInstanceId, GenerationId = identity.GenerationId,
-        ManifestRevision = identity.ManifestRevision, PublicationSequence = sequence,
-        Kind = kind, Payload = MessagePackSerializer.Serialize(value)
-    };
+        {
+            Dataset = identity.Dataset,
+            ValueDate = identity.ValueDate,
+            WorkerInstanceId = identity.WorkerInstanceId,
+            GenerationId = identity.GenerationId,
+            ManifestRevision = identity.ManifestRevision,
+            PublicationSequence = sequence,
+            Kind = kind,
+            Payload = MessagePackSerializer.Serialize(value)
+        };
 
     sealed class FixedTimeProvider : TimeProvider
     {

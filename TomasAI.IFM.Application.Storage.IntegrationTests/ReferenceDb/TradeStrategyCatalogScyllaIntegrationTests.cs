@@ -59,9 +59,17 @@ public sealed class TradeStrategyCatalogScyllaIntegrationTests
             var request = new CreateTradeStrategyFamilyRequest { OperationId = Guid.NewGuid(), Family = product.Family, Strategy = TradeStrategyType.VerticalSpread, TimeFrame = TimeFrameType.Weekly, TradeStrategySymbolId = persisted.Id, Description = "Weekly ES spread" };
             TradeStrategyFamilyReadModel Candidate(CreateTradeStrategyFamilyRequest r) => new()
             {
-                Family = r.Family, Strategy = r.Strategy, TimeFrame = r.TimeFrame, TradeStrategySymbolId = r.TradeStrategySymbolId,
-                SystemKey = TradeStrategyFamilyReadModel.ComposeSystemKey(r.Family, r.Strategy), Symbol = persisted.Symbol, Currency = persisted.Currency,
-                Exchange = persisted.Exchange, Description = r.Description, CreatedOnUtc = DateTime.UtcNow, CreatedBy = "integration-test"
+                Family = r.Family,
+                Strategy = r.Strategy,
+                TimeFrame = r.TimeFrame,
+                TradeStrategySymbolId = r.TradeStrategySymbolId,
+                SystemKey = TradeStrategyFamilyReadModel.ComposeSystemKey(r.Family, r.Strategy),
+                Symbol = persisted.Symbol,
+                Currency = persisted.Currency,
+                Exchange = persisted.Exchange,
+                Description = r.Description,
+                CreatedOnUtc = DateTime.UtcNow,
+                CreatedBy = "integration-test"
             };
             var created = await Task.WhenAll(workers.Select(factory => new TradeStrategyFamilyCatalogStore(factory, ids).CreateAsync(request, Candidate(request), ct)));
             created.Select(x => x.TradeStrategyFamilyId).Distinct().Should().ContainSingle();

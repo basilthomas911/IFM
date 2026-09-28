@@ -136,11 +136,11 @@ public class LookupTypeCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext,
         LookupTypeCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext,
         LookupTypeCommandState, ServiceResult<GuidResult>>>()
-    {
-        [typeof(AddLookupTypeCommand)] = (cmd, context, state) => (cmd as AddLookupTypeCommand)!.Execute(state),
-        [typeof(ChangeLookupTypeCommand)] = (cmd, context, state) => (cmd as ChangeLookupTypeCommand)!.Execute(state),
-        [typeof(RemoveLookupTypeCommand)] = (cmd, context, state) => (cmd as RemoveLookupTypeCommand)!.Execute(state)
-    };
+        {
+            [typeof(AddLookupTypeCommand)] = (cmd, context, state) => (cmd as AddLookupTypeCommand)!.Execute(state),
+            [typeof(ChangeLookupTypeCommand)] = (cmd, context, state) => (cmd as ChangeLookupTypeCommand)!.Execute(state),
+            [typeof(RemoveLookupTypeCommand)] = (cmd, context, state) => (cmd as RemoveLookupTypeCommand)!.Execute(state)
+        };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -173,37 +173,40 @@ public class LookupTypeCommandActor(
     /// validation logic based on the command type at runtime.</remarks>
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
-    {
-        [typeof(AddLookupTypeCommand)] = cmd => {
-            var e = (AddLookupTypeCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateLookupTypeId(e.EntityId, e.CommandName)
-                .ValidateLookupType(e.LookupType)
-                .ValidateLookupTypeIdentityMatches(e.EntityId, e.LookupType?.Id, nameof(e.LookupType), e.CommandName);
-        },
-        [typeof(ChangeLookupTypeCommand)] = cmd => {
-            var e = (ChangeLookupTypeCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateLookupTypeId(e.EntityId, e.CommandName)
-                .ValidateLookupTypeId(e.LookupTypeId, e.CommandName)
-                .ValidateLookupType(e.LookupType)
-                .ValidateLookupTypeIdentityMatches(e.EntityId, e.LookupTypeId, nameof(e.LookupTypeId), e.CommandName)
-                .ValidateLookupTypeIdentityMatches(e.EntityId, e.LookupType?.Id, nameof(e.LookupType), e.CommandName);
-        },
-        [typeof(RemoveLookupTypeCommand)] = cmd => {
-            var e = (RemoveLookupTypeCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateLookupTypeId(e.EntityId, e.CommandName)
-                .ValidateLookupTypeId(e.LookupTypeId, e.CommandName)
-                .ValidateLookupTypeIdentityMatches(e.EntityId, e.LookupTypeId, nameof(e.LookupTypeId), e.CommandName);
-        }
-    };
+        {
+            [typeof(AddLookupTypeCommand)] = cmd =>
+            {
+                var e = (AddLookupTypeCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateLookupTypeId(e.EntityId, e.CommandName)
+                    .ValidateLookupType(e.LookupType)
+                    .ValidateLookupTypeIdentityMatches(e.EntityId, e.LookupType?.Id, nameof(e.LookupType), e.CommandName);
+            },
+            [typeof(ChangeLookupTypeCommand)] = cmd =>
+            {
+                var e = (ChangeLookupTypeCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateLookupTypeId(e.EntityId, e.CommandName)
+                    .ValidateLookupTypeId(e.LookupTypeId, e.CommandName)
+                    .ValidateLookupType(e.LookupType)
+                    .ValidateLookupTypeIdentityMatches(e.EntityId, e.LookupTypeId, nameof(e.LookupTypeId), e.CommandName)
+                    .ValidateLookupTypeIdentityMatches(e.EntityId, e.LookupType?.Id, nameof(e.LookupType), e.CommandName);
+            },
+            [typeof(RemoveLookupTypeCommand)] = cmd =>
+            {
+                var e = (RemoveLookupTypeCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateLookupTypeId(e.EntityId, e.CommandName)
+                    .ValidateLookupTypeId(e.LookupTypeId, e.CommandName)
+                    .ValidateLookupTypeIdentityMatches(e.EntityId, e.LookupTypeId, nameof(e.LookupTypeId), e.CommandName);
+            }
+        };
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.

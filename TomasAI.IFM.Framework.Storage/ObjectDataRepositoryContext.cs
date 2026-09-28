@@ -8,7 +8,7 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
     readonly IObjectRepository _db;
     List<object>? _parameterValues;
     IParameterValueSource? _parameterValueSource;
-      IObjectRepositoryProvider _provider;   
+    IObjectRepositoryProvider _provider;
     bool _useTransaction;
     int _commandTimeout;
     ILogger<DbProvider> _logger;
@@ -29,7 +29,7 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
         _useTransaction = true;
         _commandTimeout = -1;
         _logger = logger;
-        _provider = ObjectDataRepositoryProvider.Create(db.ProviderName, this,  logger)!;
+        _provider = ObjectDataRepositoryProvider.Create(db.ProviderName, this, logger)!;
         if (_provider == null)
             throw new ArgumentException($"ObjectDataRepositoryContext: unable to create Db Provider: {db.ProviderName}");
 
@@ -92,7 +92,7 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
     {
         _parameterValueSource = null;
         ParameterValues.Clear();
-        if (parameterValue is  null)
+        if (parameterValue is null)
             throw new ArgumentException("ObjectDataRepositoryContext.SetParameters: must set parameter value to parameter type ");
         ParameterValues.Add(parameterValue);
         return this;
@@ -216,7 +216,7 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
     /// </summary>
     /// <param name="onInfoMessage"></param>
     /// <returns></returns>
-    public Task<long[]> ExecuteCommandAsync(Action<string> onInfoMessage = null!) 
+    public Task<long[]> ExecuteCommandAsync(Action<string> onInfoMessage = null!)
         => _provider.ExecuteCommandAsync(this, onInfoMessage);
 
     /// <summary>
@@ -238,7 +238,7 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
     /// execute list of command stored procedure 
     /// </summary>
     /// <returns></returns>
-    public Task ExecuteQueuedCommandsAsync(List<object> queuedCommands, bool useTransaction = false) 
+    public Task ExecuteQueuedCommandsAsync(List<object> queuedCommands, bool useTransaction = false)
         => _provider.ExecuteQueuedCommandsAsync(queuedCommands, useTransaction);
 
     public Task ExecuteQueuedCommandsAsync(
@@ -258,5 +258,5 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
 
     }
 
-    
+
 }

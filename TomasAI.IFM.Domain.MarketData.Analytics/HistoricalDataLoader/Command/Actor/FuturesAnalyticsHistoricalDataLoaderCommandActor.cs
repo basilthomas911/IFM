@@ -53,16 +53,16 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderCommandActor(
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
-    {
-        [typeof(LoadFuturesAnalyticsHistoricalDataCommand)] = static command =>
         {
-            var load = (LoadFuturesAnalyticsHistoricalDataCommand)command;
-            return new List<ValidationError>()
-                .ValidateCommandId(load.CommandId, load.CommandName)
-                .ValidateEntityId(load.EntityId, load.CommandName)
-                .CaptureCommandValidation(() => ValidateLoad(load));
-        }
-    };
+            [typeof(LoadFuturesAnalyticsHistoricalDataCommand)] = static command =>
+            {
+                var load = (LoadFuturesAnalyticsHistoricalDataCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(load.CommandId, load.CommandName)
+                    .ValidateEntityId(load.EntityId, load.CommandName)
+                    .CaptureCommandValidation(() => ValidateLoad(load));
+            }
+        };
 
     static void ValidateLoad(LoadFuturesAnalyticsHistoricalDataCommand value)
     {
@@ -106,10 +106,10 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderCommandActor(
         FuturesAnalyticsHistoricalDataLoaderCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand,
         ICommandActorContext<FuturesAnalyticsHistoricalDataLoaderCommandActor>,
         FuturesAnalyticsHistoricalDataLoaderCommandState, ServiceResult<GuidResult>>>()
-    {
-        [typeof(LoadFuturesAnalyticsHistoricalDataCommand)] = static (command, _, state) =>
-            ((LoadFuturesAnalyticsHistoricalDataCommand)command).Execute(state)
-    };
+        {
+            [typeof(LoadFuturesAnalyticsHistoricalDataCommand)] = static (command, _, state) =>
+                ((LoadFuturesAnalyticsHistoricalDataCommand)command).Execute(state)
+        };
 
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(

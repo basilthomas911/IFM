@@ -28,7 +28,8 @@ public sealed record VerticalSpreadTradePlanUpdatedEvent : ICompleteEvent<Vertic
     [IgnoreMember] public string EventName => nameof(VerticalSpreadTradePlanUpdatedEvent);
     [IgnoreMember] public EventType EventType => EventType.CompletedEvent;
     [IgnoreMember] public bool RequiresDurableProjection => Plan.MaterialChange;
-    [IgnoreMember] public DurableProjectionRequirement RequiredProjection => new(
+    [IgnoreMember]
+    public DurableProjectionRequirement RequiredProjection => new(
         "FuturesVerticalSpreadTradePositionCommandActor",
         "VerticalSpreadPositionEventProjector",
         EventProjectorStageType.ApplyProjection);

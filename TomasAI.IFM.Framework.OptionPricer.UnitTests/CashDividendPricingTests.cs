@@ -95,7 +95,7 @@ public class CashDividendPricingTests(Xunit.Abstractions.ITestOutputHelper outpu
     public void EmptyScheduleConvergesToIndependentCrrAmericanPut()
     {
         var r = Request(ExerciseKind.American, OptionSide.Put) with
-            { UnderlyingPrice = 36, Strike = 40, Rate = .06, CashDividends = [] };
+        { UnderlyingPrice = 36, Strike = 40, Rate = .06, CashDividends = [] };
         var result = new Calculator(new() { Steps = 1600, SpatialSteps = 1600 }).Price(r, .2);
         Assert.True(result.Success);
         Assert.InRange(result.Value!.Value.Price, 4.47, 4.50);

@@ -38,7 +38,8 @@ public sealed record GetJournalQuery : IFinancialQueryMessage<GetJournalRequest,
     [Key(4)] public Guid CorrelationId { get; init; }
     [Key(5)] public DateTime RequestedAtUtc { get; init; }
 
-    [IgnoreMember] public GetJournalRequest Parameters
+    [IgnoreMember]
+    public GetJournalRequest Parameters
     {
         get => new(JournalId);
         init

@@ -100,9 +100,9 @@ public class FuturesTradeSignalCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<FuturesTradeSignalCommandActor>,
         FuturesTradeSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<FuturesTradeSignalCommandActor>,
         FuturesTradeSignalCommandState, ServiceResult<GuidResult>>>()
-    {
-        [typeof(UpdateFuturesTradeSignalCommand)] = (cmd, context, state) => (cmd as UpdateFuturesTradeSignalCommand)!.Execute(state)
-    };
+        {
+            [typeof(UpdateFuturesTradeSignalCommand)] = (cmd, context, state) => (cmd as UpdateFuturesTradeSignalCommand)!.Execute(state)
+        };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -128,19 +128,20 @@ public class FuturesTradeSignalCommandActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
-    {
-        [typeof(UpdateFuturesTradeSignalCommand)] = cmd => {
-            var e = (UpdateFuturesTradeSignalCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesEodData(e.FuturesEodData)
-                .ValidateFuturesRsiSignal(e.FuturesRsiSignal)
-                .ValidateFuturesTdiSignal(e.FuturesTdiSignal)
-                .ValidateFuturesItiSignalData(e.FuturesItiSignalData)
-                .ValidateVixFuturesPrice(e.VixFuturesPrice, e.CommandName)
-                .ValidateTimePeriod(e.TimePeriod, e.CommandName);
-        }
-    };
+        {
+            [typeof(UpdateFuturesTradeSignalCommand)] = cmd =>
+            {
+                var e = (UpdateFuturesTradeSignalCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFuturesEodData(e.FuturesEodData)
+                    .ValidateFuturesRsiSignal(e.FuturesRsiSignal)
+                    .ValidateFuturesTdiSignal(e.FuturesTdiSignal)
+                    .ValidateFuturesItiSignalData(e.FuturesItiSignalData)
+                    .ValidateVixFuturesPrice(e.VixFuturesPrice, e.CommandName)
+                    .ValidateTimePeriod(e.TimePeriod, e.CommandName);
+            }
+        };
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.

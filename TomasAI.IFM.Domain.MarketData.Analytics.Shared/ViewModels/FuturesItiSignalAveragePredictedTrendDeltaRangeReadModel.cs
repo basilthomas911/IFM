@@ -9,5 +9,5 @@ public record FuturesItiSignalAveragePredictedTrendDeltaRangeReadModel(
     double PredictedUpTrendDelta,
     double PredictedDownTrendDelta)
 {
-    public override string ToString() =>  JsonConvert.SerializeObject(this, Formatting.None); 
+    public override string ToString() => JsonConvert.SerializeObject(this, Formatting.None);
 }

@@ -50,8 +50,12 @@ public sealed class DatasetWorkerManifestIntegrationTests
         Assert.True((await runtime.ReconcileOnceAsync(default))!.AllRoutesReady);
         Assert.True(desired.TryGet("GLBX.MDP3", Date, out var rolled));
         Assert.Contains(rolled.Contracts, x => x.DomainContractId == original.DomainContractId && !x.OnTheRun);
-        committed = committed with { Revision = 2, Authorities = [authority with { SourceVersion = 2, SourceEventId = Guid.NewGuid(),
-            Status = TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.DurableAuthorityStatus.Terminal, Leases = [] }] };
+        committed = committed with
+        {
+            Revision = 2,
+            Authorities = [authority with { SourceVersion = 2, SourceEventId = Guid.NewGuid(),
+            Status = TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.DurableAuthorityStatus.Terminal, Leases = [] }]
+        };
         Assert.False((await runtime.ReconcileOnceAsync(default))!.AllRoutesReady);
         Assert.True((await runtime.ReconcileOnceAsync(default))!.AllRoutesReady);
         Assert.True(desired.TryGet("GLBX.MDP3", Date, out var terminal));
@@ -274,23 +278,33 @@ public sealed class DatasetWorkerManifestIntegrationTests
 
     static DatabentoContractRegistration Registration(string id, string dataset, bool front = true) => new()
     {
-        DomainContractId = id, ProviderContractName = id, AssetTypeId = AssetTypeId.Futures,
+        DomainContractId = id,
+        ProviderContractName = id,
+        AssetTypeId = AssetTypeId.Futures,
         RootSymbol = id.StartsWith("ES", StringComparison.Ordinal) ? "ES" : "VX",
-        Dataset = dataset, OnTheRun = front, Rollover = true
+        Dataset = dataset,
+        OnTheRun = front,
+        Rollover = true
     };
 
     static DatasetWorkerStartRequest Request(DatasetSubscriptionManifest manifest) => new()
     {
         ExecutablePath = DotNetHost(),
         PrefixArguments = [typeof(DatasetWorkerAssemblyMarker).Assembly.Location],
-        Dataset = manifest.Dataset, ValueDate = manifest.ValueDate, GenerationId = Guid.NewGuid(),
-        WorkerInstanceId = Guid.NewGuid(), Manifest = manifest, ManifestRevision = manifest.Revision
+        Dataset = manifest.Dataset,
+        ValueDate = manifest.ValueDate,
+        GenerationId = Guid.NewGuid(),
+        WorkerInstanceId = Guid.NewGuid(),
+        Manifest = manifest,
+        ManifestRevision = manifest.Revision
     };
 
     static DatabentoStage3Options Options() => new()
     {
-        WorkerHandshakeTimeout = TimeSpan.FromSeconds(10), WorkerStartTimeout = TimeSpan.FromSeconds(15),
-        WorkerCommandTimeout = TimeSpan.FromSeconds(5), WorkerGracefulStopTimeout = TimeSpan.FromMilliseconds(300),
+        WorkerHandshakeTimeout = TimeSpan.FromSeconds(10),
+        WorkerStartTimeout = TimeSpan.FromSeconds(15),
+        WorkerCommandTimeout = TimeSpan.FromSeconds(5),
+        WorkerGracefulStopTimeout = TimeSpan.FromMilliseconds(300),
         WorkerForceKillTimeout = TimeSpan.FromSeconds(5)
     };
 

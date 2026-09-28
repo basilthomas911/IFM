@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.O
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTime;
+
 public sealed partial class TradeSelectionRuntimeTests
 {
     static DateTime ComposerCatalogNow() { var at = DateTime.UtcNow; return new DateTime(at.Ticks - at.Ticks % 10, DateTimeKind.Utc); }
@@ -23,16 +24,16 @@ public sealed partial class TradeSelectionRuntimeTests
             var db = factory.Services.GetRequiredService<IConfigurationDbContext>();
             var suffix = Guid.NewGuid().ToString("N"); var now = ComposerCatalogNow().AddSeconds(-1);
             var schema = StrategyCatalogExamples.New(StrategyCatalogKind.ParameterSchema, "OCRules-" + suffix, "Composer rules integration schema") with
-                { Settings = CompositionRulesSchema.Settings(), Capabilities = [new("validator", "OrderCompositionRules", 1)] };
+            { Settings = CompositionRulesSchema.Settings(), Capabilities = [new("validator", "OrderCompositionRules", 1)] };
             var schemaHash = await db.InsertStrategyCatalogDraftAsync(schema, 0, "composer-integration");
             await db.PublishStrategyCatalogAsync(schema.Key, schemaHash, now, "composer-integration");
             var variant = StrategyCatalogExamples.Create().Single(x => x.Code == "LongFuture") with
-                { Settings = JsonSerializer.SerializeToElement(new { TargetNetDelta = 1m, BalanceTolerance = .05m, MinimumWingWidth = 0m, MaximumWingWidth = 0m, SymmetricWings = true }) };
+            { Settings = JsonSerializer.SerializeToElement(new { TargetNetDelta = 1m, BalanceTolerance = .05m, MinimumWingWidth = 0m, MaximumWingWidth = 0m, SymmetricWings = true }) };
             foreach (var horizon in new[] { Domain.MarketData.Analytics.Shared.TimeFrameType.Daily, Domain.MarketData.Analytics.Shared.TimeFrameType.Weekly, Domain.MarketData.Analytics.Shared.TimeFrameType.Monthly })
             {
                 var rules = CompositionDefaultProfiles.Create([variant], horizon, new Black76ComposerPricer().Version);
                 var parameter = StrategyCatalogExamples.New(StrategyCatalogKind.ParameterSet, "OC-" + horizon + "-" + suffix, "Composer integration rules") with
-                    { Parent = schema.Key, Settings = JsonSerializer.SerializeToElement(rules) };
+                { Parent = schema.Key, Settings = JsonSerializer.SerializeToElement(rules) };
                 var hash = await db.InsertStrategyCatalogDraftAsync(parameter, 0, "composer-integration");
                 await db.PublishStrategyCatalogAsync(parameter.Key, hash, now, "composer-integration");
                 var read = await db.GetStrategyCatalogAsync(parameter.Key);

@@ -9,16 +9,16 @@ namespace IBApi
 {
     public class DefaultEWrapper : EWrapper
     {
-		//
-		// Note to updaters:
-		//
-		//
-		// Please ensure that implementations of new EWrapper methods are declared
-		// as virtual, since the only purpose for this class to be public is so that
-		// API clients that only wish to consume a subset of the EWrapper interface
-		// can create a class that inherits from it and then override just the methods
-		// needed (ie Adapter pattern), rather than implementing EWrapper directly.
-		//
+        //
+        // Note to updaters:
+        //
+        //
+        // Please ensure that implementations of new EWrapper methods are declared
+        // as virtual, since the only purpose for this class to be public is so that
+        // API clients that only wish to consume a subset of the EWrapper interface
+        // can create a class that inherits from it and then override just the methods
+        // needed (ie Adapter pattern), rather than implementing EWrapper directly.
+        //
 
         public virtual void error(Exception e)
         {

@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SecuritiesDb
     public static class SampleData
     {
         public static FuturesContractV3ReadModel FuturesContract
-            => new (
+            => new(
                 contractId: "ES20251010",
                 description: "Test Description",
                 symbol: "TEST",
@@ -21,7 +21,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SecuritiesDb
                 onTheRun: true);
 
         public static FuturesOptionContractReadModel FuturesOptionContract
-            => new (
+            => new(
                 contractId: "ES20251010C2525",
                 description: "Test Option Description",
                 symbol: "TEST_OPT",

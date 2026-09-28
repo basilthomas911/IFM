@@ -30,7 +30,7 @@ namespace TomasAI.IFM.Shared.Domain.BDDTests
 
         public BDDTest<TBoundedContext, TboundedContextState, TEntity> Given(object state)
         {
-            _givenEvents = () =>  new IEvent[] {};
+            _givenEvents = () => new IEvent[] { };
             _state = state;
             return this;
         }
@@ -55,10 +55,10 @@ namespace TomasAI.IFM.Shared.Domain.BDDTests
             catch (Exception ex)
             {
                 IEvent[] exceptionEvent = _exceptionDecorator is not null && command is not null
-                    ? [ _exceptionDecorator.ConvertExceptionToErrorEventAsync(command, ex).Result ]
-                    : [ new ExceptionEvent { Exception = ex } ];
+                    ? [_exceptionDecorator.ConvertExceptionToErrorEventAsync(command, ex).Result]
+                    : [new ExceptionEvent { Exception = ex }];
                 Assert.True(assertFunction(exceptionEvent), ex.Message);
-             }
+            }
         }
     }
 

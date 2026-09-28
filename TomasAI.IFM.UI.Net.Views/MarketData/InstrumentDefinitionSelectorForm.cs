@@ -25,9 +25,17 @@ public sealed class InstrumentDefinitionSelectorForm : DarkTradingForm
     readonly TextBox maximumStrike = new() { Width = 95, PlaceholderText = "Max strike" };
     bool disposedResources;
     long filterRevision;
-    readonly DataGridView rows = new() { Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false,
-        AllowUserToDeleteRows = false, MultiSelect = false, SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-        AutoGenerateColumns = false, RowHeadersVisible = false };
+    readonly DataGridView rows = new()
+    {
+        Dock = DockStyle.Fill,
+        ReadOnly = true,
+        AllowUserToAddRows = false,
+        AllowUserToDeleteRows = false,
+        MultiSelect = false,
+        SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+        AutoGenerateColumns = false,
+        RowHeadersVisible = false
+    };
     readonly Button next = new() { Text = "Next page", AutoSize = true, Enabled = false };
     readonly Button select = new() { Text = "Use selected definition", AutoSize = true, Enabled = false };
     readonly Label status = new() { Dock = DockStyle.Bottom, Height = 52, AutoEllipsis = true };
@@ -49,8 +57,15 @@ public sealed class InstrumentDefinitionSelectorForm : DarkTradingForm
         Text = options ? "Databento futures option reference" : "Databento futures reference";
         Size = new(1120, 660); MinimumSize = new(850, 500); StartPosition = FormStartPosition.CenterParent;
         root.Text = option?.Symbol ?? future?.Symbol ?? "";
-        var filters = new FlowLayoutPanel { Name = "DefinitionFilters", Dock = DockStyle.Top, AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = true, Padding = new(4) };
+        var filters = new FlowLayoutPanel
+        {
+            Name = "DefinitionFilters",
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            WrapContents = true,
+            Padding = new(4)
+        };
         var find = new Button { Text = "Search", AutoSize = true };
         find.Name = "SearchDefinitions"; select.Name = "UseDefinition"; next.Name = "NextDefinitions";
         root.Name = "ProviderRoot"; dataset.Name = "ProviderDataset"; status.Name = "DefinitionStatus";
@@ -67,8 +82,14 @@ public sealed class InstrumentDefinitionSelectorForm : DarkTradingForm
         history.CheckedChanged += (_, _) => InvalidateSearch();
         expiry.ValueChanged += (_, _) => InvalidateSearch();
         right.SelectedValueChanged += (_, _) => InvalidateSearch();
-        var properties = new PropertyGrid { Dock = DockStyle.Right, Width = 330, SelectedObject = review,
-            HelpVisible = true, ToolbarVisible = false };
+        var properties = new PropertyGrid
+        {
+            Dock = DockStyle.Right,
+            Width = 330,
+            SelectedObject = review,
+            HelpVisible = true,
+            ToolbarVisible = false
+        };
         foreach (var (property, caption, width) in new[] {
             ("RawSymbol", "Provider symbol", 150), ("InstrumentId", "Instrument", 90), ("InstrumentClass", "Class", 50),
             ("Strike", "Strike", 90), ("ExpirationUtc", "Expiry UTC", 145), ("Exchange", "Exchange", 75),
@@ -91,14 +112,20 @@ public sealed class InstrumentDefinitionSelectorForm : DarkTradingForm
             select.Enabled = false; next.Enabled = false;
             search = more && search is not null && model.Page is { } page
                 ? search with { SnapshotId = page.SnapshotId, ContinuationToken = page.ContinuationToken }
-                : new() { Dataset = dataset.Text.Trim(), Root = root.Text.Trim(), Options = options,
+                : new()
+                {
+                    Dataset = dataset.Text.Trim(),
+                    Root = root.Text.Trim(),
+                    Options = options,
                     Exchange = string.IsNullOrWhiteSpace(exchange.Text) ? null : exchange.Text.Trim(),
                     Expiry = expiry.Checked ? DateOnly.FromDateTime(expiry.Value) : null,
                     Right = options ? (ReferenceOptionRight)right.SelectedItem! : ReferenceOptionRight.Unknown,
                     UnderlyingInstrumentId = string.IsNullOrWhiteSpace(underlyingFilter.Text) ? null
                         : uint.Parse(underlyingFilter.Text, System.Globalization.CultureInfo.InvariantCulture),
-                    MinimumStrike = ParseStrike(minimumStrike.Text), MaximumStrike = ParseStrike(maximumStrike.Text),
-                    IncludeExpiredOrDeleted = history.Checked };
+                    MinimumStrike = ParseStrike(minimumStrike.Text),
+                    MaximumStrike = ParseStrike(maximumStrike.Text),
+                    IncludeExpiredOrDeleted = history.Checked
+                };
             if (!await model.SearchAsync(search, lifetime.Token) || IsDisposed || revision != filterRevision) return;
             rows.DataSource = model.Page!.Items;
             next.Enabled = model.Page.ContinuationToken is not null;

@@ -135,7 +135,8 @@ public sealed class DatasetWorkerProcessRecoveryService :
                 _ = await entry.Supervisor.GetHealthAsync(deadline.Token).ConfigureAwait(false);
             }
             catch (Exception exception) when (exception is not OperationCanceledException
-                                               || !cancellationToken.IsCancellationRequested) { }
+                                               || !cancellationToken.IsCancellationRequested)
+            { }
             var current = entry.Supervisor.Current;
             currentValues?.SetDatasetHealth(new(current.Dataset, entry.Request.ValueDate,
                 current.WorkerInstanceId, current.GenerationId, current.ManifestRevision), current.Healthy);

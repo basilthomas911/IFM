@@ -18,7 +18,7 @@ public class ScyllaDbObjectDataRepositoryConnection : IObjectRepositoryConnectio
         => throw new NotImplementedException($"{nameof(ScyllaDbObjectDataRepositoryConnection)}.As<TConnection>: create ScyllaDbConnection directly in provider code");
 }
 
-internal class  ScyllaDbConnection  
+internal class ScyllaDbConnection
 {
     const string ClassName = nameof(ScyllaDbConnection);
     readonly Cluster _cluster;
@@ -27,11 +27,11 @@ internal class  ScyllaDbConnection
 
     public ScyllaDbConnection(string connectionString)
     {
-        _cluster =  ConnectToCluster(connectionString);
+        _cluster = ConnectToCluster(connectionString);
     }
 
     public string ClusterName => _stringBuilder!.ClusterName;
-    public string DefaultKeyspace => _stringBuilder!.DefaultKeyspace;    
+    public string DefaultKeyspace => _stringBuilder!.DefaultKeyspace;
     public int Port => _stringBuilder!.Port;
     public string[] ContactPoints => _stringBuilder!.ContactPoints;
 

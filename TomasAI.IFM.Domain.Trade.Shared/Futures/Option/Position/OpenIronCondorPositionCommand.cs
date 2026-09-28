@@ -6,4 +6,4 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
 
-[MessagePackObject] public sealed record OpenIronCondorPositionCommand : OpenPositionCommand { public const string Verb="OpenIronCondorPosition"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesIronCondorTradePositionBoundedContext; }
+[MessagePackObject] public sealed record OpenIronCondorPositionCommand : OpenPositionCommand { public const string Verb = "OpenIronCondorPosition"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesIronCondorTradePositionBoundedContext; }

@@ -35,37 +35,66 @@ public sealed class RiskEvaluator : IRiskEvaluator
             && assessment.InheritedRestrictions.All(Enum.IsDefined) && regime.Restrictions.All(Enum.IsDefined), "RM.INPUT.UNKNOWN_MARKET_STATE");
         var result = new RiskAssessmentResult
         {
-            ResultId=c.CommandId, InvocationId=c.CommandId, WorkflowId=c.WorkflowId, EntityId=c.WorkflowEntityId,
-            InputWorkflowRevision=c.InputWorkflowRevision, CompositionResultId=composition.ResultId,
-            CompositionResultHash=c.CompositionResult.PayloadSha256, UnitCandidateHash=candidate.CandidateHash, OrderId=candidate.OrderId,
-            EvaluatedAtUtc=c.EvaluatedAtUtc, ProducedAtUtc=c.EvaluatedAtUtc, ValidUntilUtc=c.ExpiresAtUtc,
-            Authority=c.Authority, Environment=c.SizingAuthority.Environment, PortfolioId=candidate.PortfolioId, FundId=candidate.FundId,
-            TargetHorizon=candidate.TargetHorizon, InputHash=c.InputSha256, PolicyHash=c.PolicyHash, Outcome=RiskAssessmentOutcome.Rejected
-            ,VolatilityEvidence=composition.DecisionContext.VolatilityEvidence
+            ResultId = c.CommandId,
+            InvocationId = c.CommandId,
+            WorkflowId = c.WorkflowId,
+            EntityId = c.WorkflowEntityId,
+            InputWorkflowRevision = c.InputWorkflowRevision,
+            CompositionResultId = composition.ResultId,
+            CompositionResultHash = c.CompositionResult.PayloadSha256,
+            UnitCandidateHash = candidate.CandidateHash,
+            OrderId = candidate.OrderId,
+            EvaluatedAtUtc = c.EvaluatedAtUtc,
+            ProducedAtUtc = c.EvaluatedAtUtc,
+            ValidUntilUtc = c.ExpiresAtUtc,
+            Authority = c.Authority,
+            Environment = c.SizingAuthority.Environment,
+            PortfolioId = candidate.PortfolioId,
+            FundId = candidate.FundId,
+            TargetHorizon = candidate.TargetHorizon,
+            InputHash = c.InputSha256,
+            PolicyHash = c.PolicyHash,
+            Outcome = RiskAssessmentOutcome.Rejected
+            ,
+            VolatilityEvidence = composition.DecisionContext.VolatilityEvidence
         };
         if (assessment.SessionState == MarketSessionStatus.Closed || assessment.LiquidityCondition == AssessmentLiquidity.Poor
             || assessment.ConditionType == AssessmentCondition.Dislocated || assessment.VolatilityBehavior == AssessmentVolatility.Shock
             || assessment.InheritedRestrictions.Contains(RegimeRestriction.NoNewTrade) || regime.Restrictions.Contains(RegimeRestriction.NoNewTrade))
-            return result with { Reasons=["RM.MARKET.NEW_ENTRY_BLOCKED"] };
+            return result with { Reasons = ["RM.MARKET.NEW_ENTRY_BLOCKED"] };
         var legs = RiskUnitModel.ReadLegs(candidate, c.MarketSnapshot, c.EvaluatedAtUtc, c.SizingAuthority.Environment);
         RiskUnitModel.Require(legs.All(x => x.UnderlyingId == candidate.Legs[0].UnderlyingInstrumentId) &&
-            c.SizingAuthority.UnderlyingId==FinancialScopeKeys.Underlying(candidate.Product.Symbol,candidate.Product.Exchange,candidate.Product.Currency), "RM.INPUT.UNDERLYING");
+            c.SizingAuthority.UnderlyingId == FinancialScopeKeys.Underlying(candidate.Product.Symbol, candidate.Product.Exchange, candidate.Product.Currency), "RM.INPUT.UNDERLYING");
         var unit = RiskUnitModel.Calculate(legs, candidate.Pricing.WorstDebit, candidate.Pricing.CostReserve,
             c.IncrementalLossReserve, candidate.RiskEvidence.PlannedLoss, candidate.RiskEvidence.StressLoss, token);
-        decimal includedFees=composition.ResolvedParameters.Values.FeePerContract*unit.GrossContracts;
-        RiskUnitModel.Require(includedFees>=0 && includedFees<=candidate.Pricing.CostReserve,"RM.INPUT.FEE_RESERVE");
-        unit=unit with { ComposerFeeReserve=includedFees };
+        decimal includedFees = composition.ResolvedParameters.Values.FeePerContract * unit.GrossContracts;
+        RiskUnitModel.Require(includedFees >= 0 && includedFees <= candidate.Pricing.CostReserve, "RM.INPUT.FEE_RESERVE");
+        unit = unit with { ComposerFeeReserve = includedFees };
         decimal multiplier = assessment.LiquidityCondition == AssessmentLiquidity.Degraded || assessment.StressState == AssessmentStress.Elevated
             || assessment.EventRiskState == AssessmentEventContext.Elevated || assessment.InheritedRestrictions.Any(x => x != RegimeRestriction.None)
             || regime.Restrictions.Any(x => x != RegimeRestriction.None) ? .5m : 1m;
         var sizing = RiskSizingModel.Calculate(unit, c.Policy, c.SizingAuthority, candidate.LiquidityCapacityUnits, c.Funding, multiplier, token);
-        result = result with { UnitRisk=unit, StrategyUnits=sizing.StrategyUnits, Requirements=sizing.Requirements,
-            MarginEvidence=sizing.MarginEvidence, Reasons=sizing.Reasons };
+        result = result with
+        {
+            UnitRisk = unit,
+            StrategyUnits = sizing.StrategyUnits,
+            Requirements = sizing.Requirements,
+            MarginEvidence = sizing.MarginEvidence,
+            Reasons = sizing.Reasons
+        };
         if (sizing.StrategyUnits == 0) return result;
-        var sized = candidate.Legs.Select(x => new RiskSizedLeg(x.InstrumentId,x.Side,
-            checked(x.Ratio*sizing.StrategyUnits),candidate.PrimaryTradeId)).ToImmutableArray();
-        string sizedHash = RiskContracts.Hash(new { candidate.OrderId, candidate.CandidateHash, Units=sizing.StrategyUnits,
-            Legs=sized, candidate.ExecutionEnvelope, RequirementsHash=sizing.Requirements!.ContentHash, c.ExpiresAtUtc });
-        return result with { Outcome=RiskAssessmentOutcome.Approved, SizedOrderHash=sizedHash, Legs=sized, Reasons=["RM.CAPACITY.ELIGIBLE"] };
+        var sized = candidate.Legs.Select(x => new RiskSizedLeg(x.InstrumentId, x.Side,
+            checked(x.Ratio * sizing.StrategyUnits), candidate.PrimaryTradeId)).ToImmutableArray();
+        string sizedHash = RiskContracts.Hash(new
+        {
+            candidate.OrderId,
+            candidate.CandidateHash,
+            Units = sizing.StrategyUnits,
+            Legs = sized,
+            candidate.ExecutionEnvelope,
+            RequirementsHash = sizing.Requirements!.ContentHash,
+            c.ExpiresAtUtc
+        });
+        return result with { Outcome = RiskAssessmentOutcome.Approved, SizedOrderHash = sizedHash, Legs = sized, Reasons = ["RM.CAPACITY.ELIGIBLE"] };
     }
 }

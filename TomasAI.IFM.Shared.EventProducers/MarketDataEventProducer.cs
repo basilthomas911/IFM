@@ -37,7 +37,7 @@ public class MarketDataEventProducer : NatsEventProducer, IMarketDataEventProduc
     /// for BDD Test usage only
     /// </summary>
     public MarketDataEventProducer()
-    { 
+    {
     }
 
     /// <summary>

@@ -51,5 +51,5 @@ public static class MarketDataFeedStopped
         return false;
     }
 
- 
+
 }

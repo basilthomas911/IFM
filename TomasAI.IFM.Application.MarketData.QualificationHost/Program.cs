@@ -39,8 +39,12 @@ if (args[0] == "--parent")
     {
         ExecutablePath = Environment.ProcessPath!,
         PrefixArguments = [typeof(QualificationHostMarker).Assembly.Location, "--worker", "true"],
-        Dataset = manifest.Dataset, ValueDate = manifest.ValueDate, GenerationId = Guid.NewGuid(),
-        WorkerInstanceId = Guid.NewGuid(), Manifest = manifest, ManifestRevision = manifest.Revision
+        Dataset = manifest.Dataset,
+        ValueDate = manifest.ValueDate,
+        GenerationId = Guid.NewGuid(),
+        WorkerInstanceId = Guid.NewGuid(),
+        Manifest = manifest,
+        ManifestRevision = manifest.Revision
     });
     Console.WriteLine(JsonSerializer.Serialize(new QualificationProcessTree(
         Environment.ProcessId, started.ProcessId, int.Parse(started.Detail))));
@@ -111,10 +115,18 @@ finally { descendant?.Dispose(); }
 ValueTask WriteAsync(DatasetWorkerMessageKind kind, Guid correlation, bool healthy) =>
     DatasetWorkerFrameCodec.WriteAsync(output, new DatasetWorkerControlFrame
     {
-        Kind = kind, WorkerInstanceId = workerId, Dataset = dataset, ValueDate = date,
-        GenerationId = generation, CorrelationId = correlation, Sequence = ++sequence,
-        ProcessId = Environment.ProcessId, Healthy = healthy, Detail = descendant?.Id.ToString() ?? "0",
-        BootstrapToken = token, ManifestRevision = current?.Revision ?? 0,
+        Kind = kind,
+        WorkerInstanceId = workerId,
+        Dataset = dataset,
+        ValueDate = date,
+        GenerationId = generation,
+        CorrelationId = correlation,
+        Sequence = ++sequence,
+        ProcessId = Environment.ProcessId,
+        Healthy = healthy,
+        Detail = descendant?.Id.ToString() ?? "0",
+        BootstrapToken = token,
+        ManifestRevision = current?.Revision ?? 0,
         ManifestFingerprint = current?.Fingerprint ?? string.Empty
     }, 256 * 1024, CancellationToken.None);
 

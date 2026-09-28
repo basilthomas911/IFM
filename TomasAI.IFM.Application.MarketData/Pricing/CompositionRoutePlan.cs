@@ -34,7 +34,8 @@ public sealed record CompositionRoutePlan(int SchemaVersion, string PlanId, stri
         if (!registry.TryGet(dataset, valueDate, out var manifest)) throw new CompositionMarketSourceException("Recovering");
         return contractIds.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).Select(id =>
             (manifest.Contracts.SingleOrDefault(x => x.DomainContractId == id)
-                ?? throw new CompositionMarketSourceException("UnderlyingRouteUnavailable")) with { OnTheRun = false, Rollover = false }).ToImmutableArray();
+                ?? throw new CompositionMarketSourceException("UnderlyingRouteUnavailable")) with
+            { OnTheRun = false, Rollover = false }).ToImmutableArray();
     }
 }
 

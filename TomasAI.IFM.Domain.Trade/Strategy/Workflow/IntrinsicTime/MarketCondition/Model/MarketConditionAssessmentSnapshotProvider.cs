@@ -29,7 +29,7 @@ public sealed class MarketConditionAssessmentSnapshotProvider(IMarketDataApi mar
         {
             cancellationToken.ThrowIfCancellationRequested();
             var hasContract = marketData.TryGetOnTheRunFuturesContract(p.InstrumentRoot, out var contract);
-            var before = marketData.GetFuturesMarketHealth(hasContract?contract.ContractId:string.Empty);
+            var before = marketData.GetFuturesMarketHealth(hasContract ? contract.ContractId : string.Empty);
             var observations = p.Sources.ToDictionary(x => x.SourceId, x => Missing(x.SourceId, at), StringComparer.Ordinal);
             AssessmentReferenceQuote? quote = null;
             if (hasContract && marketData.TryGetLastTickPrice(contract.ContractId, out var price))
@@ -49,10 +49,14 @@ public sealed class MarketConditionAssessmentSnapshotProvider(IMarketDataApi mar
                         throw new InvalidOperationException("Authoritative normalized movement contains invalid numeric values.");
                     observations["NormalizedMovement"] = new()
                     {
-                        SourceId = "NormalizedMovement", ObservedAtUtc = metadata.MarketDataAsOfUtc.UtcDateTime,
-                        ReceivedAtUtc = metadata.CalculatedAtUtc.UtcDateTime, Sequence = metadata.SourceSequence,
-                        Availability = MarketSourceAvailability.Available, Validity = MarketSourceValidity.Valid,
-                        Value = (decimal)Math.Abs(atr.TrueRange / atr.AtrValue), Unit = "ATR ratio"
+                        SourceId = "NormalizedMovement",
+                        ObservedAtUtc = metadata.MarketDataAsOfUtc.UtcDateTime,
+                        ReceivedAtUtc = metadata.CalculatedAtUtc.UtcDateTime,
+                        Sequence = metadata.SourceSequence,
+                        Availability = MarketSourceAvailability.Available,
+                        Validity = MarketSourceValidity.Valid,
+                        Value = (decimal)Math.Abs(atr.TrueRange / atr.AtrValue),
+                        Unit = "ATR ratio"
                     };
                 }
             }
@@ -64,7 +68,8 @@ public sealed class MarketConditionAssessmentSnapshotProvider(IMarketDataApi mar
                 var baseline = bars.Where(x => x.BarDate <= target && x.BarValue > 0m).OrderByDescending(x => x.BarDate).FirstOrDefault();
                 if (baseline is not null)
                     observations["VolatilityChange"] = Observed("VolatilityChange", vxTrade.EventTimestamp, vxTrade.ReceiveTimestamp, vxTrade.SourceSequence)
-                        with { Value = (vxTrade.LastPrice - baseline.BarValue) / baseline.BarValue, Unit = "5 minute relative change", Reason = $"Baseline {baseline.BarDate:O}" };
+                        with
+                    { Value = (vxTrade.LastPrice - baseline.BarValue) / baseline.BarValue, Unit = "5 minute relative change", Reason = $"Baseline {baseline.BarDate:O}" };
             }
             var valueDate = calendar.GetValueDate(new DateTimeOffset(at));
             var open = false;
@@ -76,35 +81,47 @@ public sealed class MarketConditionAssessmentSnapshotProvider(IMarketDataApi mar
             observations["SessionCalendar"] = Checked("SessionCalendar", at);
             var eventState = await events.ReadOnceAsync(new MarketConditionEventRiskConfiguration
             {
-                HighImpactBeforeMinutes = p.HighImpactBeforeMinutes, HighImpactAfterMinutes = p.HighImpactAfterMinutes,
-                RateDecisionBeforeMinutes = p.RateDecisionBeforeMinutes, RateDecisionAfterMinutes = p.RateDecisionAfterMinutes,
+                HighImpactBeforeMinutes = p.HighImpactBeforeMinutes,
+                HighImpactAfterMinutes = p.HighImpactAfterMinutes,
+                RateDecisionBeforeMinutes = p.RateDecisionBeforeMinutes,
+                RateDecisionAfterMinutes = p.RateDecisionAfterMinutes,
                 RequiredEventCategories = ["HighImpact", "RateDecision"]
             }, at, cancellationToken).ConfigureAwait(false);
             var eo = eventState.Observation;
             observations["EventRiskCalendar"] = new()
             {
-                SourceId = "EventRiskCalendar", ObservedAtUtc = eo.SourceTimestampUtc, ReceivedAtUtc = eo.ReceivedAtUtc,
-                Sequence = eo.SequenceId, Availability = eo.Availability, Validity = eo.Validity,
+                SourceId = "EventRiskCalendar",
+                ObservedAtUtc = eo.SourceTimestampUtc,
+                ReceivedAtUtc = eo.ReceivedAtUtc,
+                Sequence = eo.SequenceId,
+                Availability = eo.Availability,
+                Validity = eo.Validity,
                 Reason = eventState.DownloadEvidence?.Reason ?? ""
             };
-            var after = marketData.GetFuturesMarketHealth(hasContract?contract.ContractId:string.Empty);
+            var after = marketData.GetFuturesMarketHealth(hasContract ? contract.ContractId : string.Empty);
             var stillHasContract = marketData.TryGetOnTheRunFuturesContract(p.InstrumentRoot, out var latestContract);
             if (hasContract != stillHasContract || hasContract && latestContract.ContractId != contract.ContractId || before.ValueDate != after.ValueDate || before.Running != after.Running || before.Generation != after.Generation)
                 continue;
             var healthy = after.Running && after.Healthy && (pipelineHealth is null || pipelineHealth.AllowsNewDecisions);
-            observations["FeedHealth"] = Observed("FeedHealth",after.ObservedAtUtc,after.ObservedAtUtc,after.Sequence) with
+            observations["FeedHealth"] = Observed("FeedHealth", after.ObservedAtUtc, after.ObservedAtUtc, after.Sequence) with
             {
                 Availability = healthy ? MarketSourceAvailability.Available : MarketSourceAvailability.Unavailable,
-                Reason = healthy ? "Feed and latest-value cache operational: "+after.Generation : "MC.ASSESSMENT.FEED.UNAVAILABLE"
+                Reason = healthy ? "Feed and latest-value cache operational: " + after.Generation : "MC.ASSESSMENT.FEED.UNAVAILABLE"
             };
             cancellationToken.ThrowIfCancellationRequested();
             return new MarketConditionAssessmentSnapshot
             {
-                SnapshotId = Guid.NewGuid(), MarketProfileId = p.MarketProfileId, InstrumentRoot = p.InstrumentRoot, TargetHorizon = p.TargetHorizon,
-                ReferenceInstrumentId = hasContract ? contract.ContractId : "", EvaluatedAtUtc = at, Quote = quote,
+                SnapshotId = Guid.NewGuid(),
+                MarketProfileId = p.MarketProfileId,
+                InstrumentRoot = p.InstrumentRoot,
+                TargetHorizon = p.TargetHorizon,
+                ReferenceInstrumentId = hasContract ? contract.ContractId : "",
+                EvaluatedAtUtc = at,
+                Quote = quote,
                 SessionState = open ? MarketSessionStatus.Open : MarketSessionStatus.Closed,
                 EventContext = eventState.Status switch { MarketEventRiskStatus.Clear => AssessmentEventContext.Clear, MarketEventRiskStatus.Blocked => AssessmentEventContext.Elevated, _ => AssessmentEventContext.Unknown },
-                Observations = observations.Values.ToArray(), CalendarEvidence = eventState.DownloadEvidence
+                Observations = observations.Values.ToArray(),
+                CalendarEvidence = eventState.DownloadEvidence
             }.Seal();
         }
         throw new InvalidOperationException("Market reference or feed epoch changed during every bounded snapshot capture attempt.");

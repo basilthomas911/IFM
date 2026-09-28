@@ -98,16 +98,16 @@ public class YieldCurveRateCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<YieldCurveRateCommandActor>,
         YieldCurveRateCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<YieldCurveRateCommandActor>,
         YieldCurveRateCommandState, ServiceResult<GuidResult>>>()
-    {
-        [typeof(AddYieldCurveRateCommand)] = static (command, _, state) =>
-            ((AddYieldCurveRateCommand)command).Execute(state),
-        [typeof(ChangeYieldCurveRateCommand)] = static (command, _, state) =>
-            ((ChangeYieldCurveRateCommand)command).Execute(state),
-        [typeof(RemoveYieldCurveRateCommand)] = static (command, _, state) =>
-            ((RemoveYieldCurveRateCommand)command).Execute(state),
-        [typeof(ImportYieldCurveRatesCommand)] = static (command, _, state) =>
-            ((ImportYieldCurveRatesCommand)command).Execute(state)
-    };
+        {
+            [typeof(AddYieldCurveRateCommand)] = static (command, _, state) =>
+                ((AddYieldCurveRateCommand)command).Execute(state),
+            [typeof(ChangeYieldCurveRateCommand)] = static (command, _, state) =>
+                ((ChangeYieldCurveRateCommand)command).Execute(state),
+            [typeof(RemoveYieldCurveRateCommand)] = static (command, _, state) =>
+                ((RemoveYieldCurveRateCommand)command).Execute(state),
+            [typeof(ImportYieldCurveRatesCommand)] = static (command, _, state) =>
+                ((ImportYieldCurveRatesCommand)command).Execute(state)
+        };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -133,22 +133,22 @@ public class YieldCurveRateCommandActor(
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
-    {
-        [typeof(AddYieldCurveRateCommand)] = static command =>
-            Validate((AddYieldCurveRateCommand)command, ValidationRules),
-        [typeof(ChangeYieldCurveRateCommand)] = static command =>
-            Validate((ChangeYieldCurveRateCommand)command, ValidationRules),
-        [typeof(RemoveYieldCurveRateCommand)] = static command =>
         {
-            var remove = (RemoveYieldCurveRateCommand)command;
-            return new List<ValidationError>(2)
-                .ValidateCommandId(remove.CommandId, remove.CommandName)
-                .ValidateEntityId(remove.EntityId, remove.CommandName)
-                .ValidateDateOnly(remove.ValueDate, remove.CommandName, "ValueDate");
-        },
-        [typeof(ImportYieldCurveRatesCommand)] = static command =>
-            Validate((ImportYieldCurveRatesCommand)command, ValidationRules)
-    };
+            [typeof(AddYieldCurveRateCommand)] = static command =>
+                Validate((AddYieldCurveRateCommand)command, ValidationRules),
+            [typeof(ChangeYieldCurveRateCommand)] = static command =>
+                Validate((ChangeYieldCurveRateCommand)command, ValidationRules),
+            [typeof(RemoveYieldCurveRateCommand)] = static command =>
+            {
+                var remove = (RemoveYieldCurveRateCommand)command;
+                return new List<ValidationError>(2)
+                    .ValidateCommandId(remove.CommandId, remove.CommandName)
+                    .ValidateEntityId(remove.EntityId, remove.CommandName)
+                    .ValidateDateOnly(remove.ValueDate, remove.CommandName, "ValueDate");
+            },
+            [typeof(ImportYieldCurveRatesCommand)] = static command =>
+                Validate((ImportYieldCurveRatesCommand)command, ValidationRules)
+        };
 
     static List<ValidationError> Validate(
         AddYieldCurveRateCommand command,

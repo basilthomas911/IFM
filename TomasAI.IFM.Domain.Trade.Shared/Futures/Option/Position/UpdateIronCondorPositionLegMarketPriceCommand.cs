@@ -5,4 +5,5 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
-[MessagePackObject] public sealed record UpdateIronCondorPositionLegMarketPriceCommand : UpdatePositionLegMarketPriceCommand { public const string Verb="UpdateIronCondorPositionLegMarketPrice"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesIronCondorTradePositionBoundedContext; }
+
+[MessagePackObject] public sealed record UpdateIronCondorPositionLegMarketPriceCommand : UpdatePositionLegMarketPriceCommand { public const string Verb = "UpdateIronCondorPositionLegMarketPrice"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesIronCondorTradePositionBoundedContext; }

@@ -8,10 +8,10 @@ using System.Threading.Tasks;
 
 namespace TomasAI.IFM.Framework.Storage.ScyllaDb
 {
-    internal class DateTimeToLocalDateTypeSerializer :  TypeSerializer<DateTime>
+    internal class DateTimeToLocalDateTypeSerializer : TypeSerializer<DateTime>
     {
-        static readonly TypeSerializer<LocalDate> serializer =  TypeSerializer.PrimitiveLocalDateSerializer;
-  
+        static readonly TypeSerializer<LocalDate> serializer = TypeSerializer.PrimitiveLocalDateSerializer;
+
         public override ColumnTypeCode CqlType
         {
             get { return ColumnTypeCode.Date; }

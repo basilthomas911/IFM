@@ -26,7 +26,7 @@ public interface IActorMessage : IDisposable
 
     TCommand? AsCommand<TCommand>() where TCommand : class, ICommand;
     TEvent? AsEvent<TEvent>() where TEvent : class, IEvent;
-    TQuery? AsQuery<TQuery, TResult>() 
+    TQuery? AsQuery<TQuery, TResult>()
         where TQuery : class, IQuery<TResult>
         where TResult : class;
     ValueTask ReplyAsync<TResult>(TResult result) where TResult : class;

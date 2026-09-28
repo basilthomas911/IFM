@@ -39,7 +39,7 @@ public class RunBDDTest<TBoundedContext, TboundedContextState, TEntity, TEventPr
                 {
                     var handlerType = callInfo.ArgAt<Type>(0);
                     var cmdType = handlerType.GenericTypeArguments[0];
-                    var cmdHandler =  getCommandHandler?.Invoke(cmdType);
+                    var cmdHandler = getCommandHandler?.Invoke(cmdType);
                     if (cmdHandler is not null && cmdHandler.GetType().GetInterfaces()
                         .Where(e => e.IsGenericType && e == handlerType)
                         .FirstOrDefault() is not null)
@@ -48,7 +48,7 @@ public class RunBDDTest<TBoundedContext, TboundedContextState, TEntity, TEventPr
                 });
         var aggregateFactory = Substitute.For<IBoundedContextFactory>();
         aggregateFactory
-           .CreateBoundedContext<TboundedContextState>( Arg.Any<DomainEventCollection>())
+           .CreateBoundedContext<TboundedContextState>(Arg.Any<DomainEventCollection>())
            .Returns(callInfo =>
            {
                var domainEvents = callInfo.ArgAt<DomainEventCollection>(0);
@@ -70,7 +70,8 @@ public class RunBDDTest<TBoundedContext, TboundedContextState, TEntity, TEventPr
                     denormalizerEvents.AddRange(domainEvents);
             });
         Value = new BDDTest<TBoundedContext, TboundedContextState, TEntity>(
-                        (testEvents) => {
+                        (testEvents) =>
+                        {
                             var eventRepo = Substitute.For<IEventRepository<TboundedContextState>>();
                             eventRepo
                                 .LoadBoundedContextAsync(Arg.Any<ICommand<TEntity>>())
@@ -86,7 +87,7 @@ public class RunBDDTest<TBoundedContext, TboundedContextState, TEntity, TEventPr
                                     var boundedContextState = callInfo.ArgAt<IBoundedContextState<TboundedContextState>>(0);
                                     if (getEventDenormalizer is not null)
                                         getEventDenormalizer(eventProducer, logger).DenormalizeEventsAsync(boundedContextState.Events).Wait();
-                                   return  eventDenormalizer.ExecuteAsync(boundedContextState.Events);
+                                    return eventDenormalizer.ExecuteAsync(boundedContextState.Events);
                                 });
                             return eventRepo;
                         },
@@ -205,7 +206,7 @@ public class BDDTest<TBoundedContext, TboundedContextState, TEntity>
             while (ex.InnerException is not null)
                 ex = ex.InnerException;
             IEvent[] exceptionEvent = [ _exceptionDecorator is not null
-                ? _exceptionDecorator.ConvertExceptionToErrorEventAsync(command!, ex).Result 
+                ? _exceptionDecorator.ConvertExceptionToErrorEventAsync(command!, ex).Result
                 :  new ExceptionEvent { Exception = ex }  ];
             Assert.True(assertFunction(exceptionEvent), ex.Message);
         }

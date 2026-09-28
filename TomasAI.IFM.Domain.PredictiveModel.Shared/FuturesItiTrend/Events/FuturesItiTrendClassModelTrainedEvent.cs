@@ -70,9 +70,9 @@ public record FuturesItiTrendClassModelTrainedEvent : IEvent
     {
         CommandId = CommandId,
         EntityId = this.EntityId,
-        StartDate = this.StartDate ,
+        StartDate = this.StartDate,
         EndDate = this.EndDate,
-        Statistics=this.Statistics,
+        Statistics = this.Statistics,
         TrainedOn = this.TrainedOn,
         TrainedBy = this.TrainedBy
     };

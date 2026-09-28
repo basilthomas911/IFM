@@ -225,7 +225,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     public ValueTask<IActorThread> GetThreadAsync(ActorThreadId threadId, CancellationToken ct)
         => _threadPool.GetThreadAsync(threadId, ct);
 
-   
+
     /// <summary>
     /// Starts all registered consumers asynchronously.
     /// </summary>
@@ -568,7 +568,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     /// <param name="actorType">The type of actor for which the consumer is being registered.</param>
     /// <param name="consumer">The consumer instance to associate with the specified actor type.</param>
     /// <exception cref="InvalidOperationException">Thrown if a consumer for the specified <paramref name="actorType"/> has already been registered.</exception>
-    public void AddConsumer(ActorType actorType , IActorConsumer consumer)
+    public void AddConsumer(ActorType actorType, IActorConsumer consumer)
     {
         if (!_consumers.TryAdd(actorType, consumer))
             throw new InvalidOperationException($"Consumer for actor type '{actorType}' already exists.");
@@ -698,7 +698,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
         }
     }
 
-    
+
     public async ValueTask RouteEventToAsync(NatsMsg<byte[]> routedFromMsg)
     {
         try

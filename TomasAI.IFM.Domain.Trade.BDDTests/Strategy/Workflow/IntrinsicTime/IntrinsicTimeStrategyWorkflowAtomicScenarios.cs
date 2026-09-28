@@ -122,12 +122,12 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
     [Fact]
     public async Task Available_assessment_continues_to_trade_selection()
     {
-        var selection=await TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.TradeSelection.TradeSelectionFixture.Command();
-        var view=selection.WorkflowView with {CurrentStage=StrategyWorkflowStage.MarketCondition,WorkflowRevision=2,TradeSelection=new(),MarketCondition=selection.WorkflowView.MarketCondition with {ProcessingStatus=StrategyActorProcessingStatus.Processing,Result=null,SourceEventId=Guid.Empty}};
-        var state=new IntrinsicTimeStrategyWorkflowCommandState();state.Apply(new WorkflowStrategyStateUpdatedEvent {EntityId=view.EntityId,WorkflowId=view.WorkflowId,WorkflowRevision=view.WorkflowRevision,State=view},false);
-        new CompleteMarketConditionCommand {CommandId=Guid.NewGuid(),EntityId=view.EntityId,WorkflowId=view.WorkflowId,InputWorkflowRevision=2,SourceEventId=selection.AssessmentResultEnvelope.ResultId,Result=selection.AssessmentResultEnvelope,CompletedAtUtc=selection.EvaluatedAtUtc}.Execute(Context(selection.EvaluatedAtUtc),state);
-        state.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.Started,state.CurrentView.TradeSelection.Failure?.ErrorMessage);
-        state.CurrentView.CurrentStage.Should().Be(StrategyWorkflowStage.TradeSelection);state.CurrentView.SelectionDispatch.Should().NotBeNull();
+        var selection = await TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.TradeSelection.TradeSelectionFixture.Command();
+        var view = selection.WorkflowView with { CurrentStage = StrategyWorkflowStage.MarketCondition, WorkflowRevision = 2, TradeSelection = new(), MarketCondition = selection.WorkflowView.MarketCondition with { ProcessingStatus = StrategyActorProcessingStatus.Processing, Result = null, SourceEventId = Guid.Empty } };
+        var state = new IntrinsicTimeStrategyWorkflowCommandState(); state.Apply(new WorkflowStrategyStateUpdatedEvent { EntityId = view.EntityId, WorkflowId = view.WorkflowId, WorkflowRevision = view.WorkflowRevision, State = view }, false);
+        new CompleteMarketConditionCommand { CommandId = Guid.NewGuid(), EntityId = view.EntityId, WorkflowId = view.WorkflowId, InputWorkflowRevision = 2, SourceEventId = selection.AssessmentResultEnvelope.ResultId, Result = selection.AssessmentResultEnvelope, CompletedAtUtc = selection.EvaluatedAtUtc }.Execute(Context(selection.EvaluatedAtUtc), state);
+        state.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.Started, state.CurrentView.TradeSelection.Failure?.ErrorMessage);
+        state.CurrentView.CurrentStage.Should().Be(StrategyWorkflowStage.TradeSelection); state.CurrentView.SelectionDispatch.Should().NotBeNull();
     }
 
     /// <summary>Given unavailable required market data, Market Condition completes the workflow as NoTrade.</summary>
@@ -278,22 +278,34 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
             var regimeEnvelope = view.RegimeDiscovery.Result!;
             var result = new MarketConditionAssessmentResult
             {
-                ResultId = source, CommandId = source, WorkflowId = view.WorkflowId, EntityId = view.EntityId,
+                ResultId = source,
+                CommandId = source,
+                WorkflowId = view.WorkflowId,
+                EntityId = view.EntityId,
                 InputWorkflowRevision = view.WorkflowRevision,
-                MarketProfileId = _marketConditionParameters.MarketProfileId, InstrumentRoot = "ES", TargetHorizon = _marketConditionParameters.TargetHorizon,
-                ParameterSetId = _marketConditionParameters.ParameterSetId, ParameterSetVersion = _marketConditionParameters.Version,
+                MarketProfileId = _marketConditionParameters.MarketProfileId,
+                InstrumentRoot = "ES",
+                TargetHorizon = _marketConditionParameters.TargetHorizon,
+                ParameterSetId = _marketConditionParameters.ParameterSetId,
+                ParameterSetVersion = _marketConditionParameters.Version,
                 ParameterPayloadSha256 = assessmentBinding.PayloadSha256,
-                RegimeResultId = regimeEnvelope.ResultId, RegimePayloadSha256 = regimeEnvelope.PayloadSha256,
-                SnapshotId = NextGuid(), SnapshotSha256 = new string('A', 64), EvaluatedAtUtc = evaluatedAt,
+                RegimeResultId = regimeEnvelope.ResultId,
+                RegimePayloadSha256 = regimeEnvelope.PayloadSha256,
+                SnapshotId = NextGuid(),
+                SnapshotSha256 = new string('A', 64),
+                EvaluatedAtUtc = evaluatedAt,
                 Assessment = new()
                 {
-                    Horizon = _marketConditionParameters.TargetHorizon, EvaluatedAtUtc = evaluatedAt,
-                    RegimeResultId = regimeEnvelope.ResultId, RegimePayloadSha256 = regimeEnvelope.PayloadSha256,
+                    Horizon = _marketConditionParameters.TargetHorizon,
+                    EvaluatedAtUtc = evaluatedAt,
+                    RegimeResultId = regimeEnvelope.ResultId,
+                    RegimePayloadSha256 = regimeEnvelope.PayloadSha256,
                     Availability = availability,
                     ConditionType = availability == AssessmentAvailability.Available ? AssessmentCondition.Directional : null,
                     AssessmentConfidence = availability == AssessmentAvailability.Available ? 0.8m : null,
                     ValidUntilUtc = availability == AssessmentAvailability.Available ? now.AddSeconds(validForSeconds) : null,
-                    UpstreamContext = MarketConditionAssessmentContracts.ReadRegime(regimeEnvelope, view).Decision, LimitationReasons = availability == AssessmentAvailability.Unavailable ? ["Missing feed"] : []
+                    UpstreamContext = MarketConditionAssessmentContracts.ReadRegime(regimeEnvelope, view).Decision,
+                    LimitationReasons = availability == AssessmentAvailability.Unavailable ? ["Missing feed"] : []
                 },
                 SummaryText = "BDD assessment"
             };
@@ -366,10 +378,16 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
         {
             var result = new RegimeDiscoveryResult
             {
-                ResultId = source, WorkflowId = workflowId, EntityId = _entityId,
-                TargetHorizon = _parameters.TargetHorizon, TriggerEventId = State.CurrentView!.TriggerEvent.Id,
-                RegimeDiscoveryParameterSetId = _parameters.ParameterSetId, RegimeDiscoveryParameterSetVersion = _parameters.Version,
-                ProducedAtUtc = now, MarketDataAsOfUtc = now, Decision = new() { IsComplete = true, Direction = RegimeDirection.Up }
+                ResultId = source,
+                WorkflowId = workflowId,
+                EntityId = _entityId,
+                TargetHorizon = _parameters.TargetHorizon,
+                TriggerEventId = State.CurrentView!.TriggerEvent.Id,
+                RegimeDiscoveryParameterSetId = _parameters.ParameterSetId,
+                RegimeDiscoveryParameterSetVersion = _parameters.Version,
+                ProducedAtUtc = now,
+                MarketDataAsOfUtc = now,
+                Decision = new() { IsComplete = true, Direction = RegimeDirection.Up }
             };
             return StrategyStageResultEnvelope.Create(source, nameof(RegimeDiscoveryResult), RegimeDiscoveryResult.CurrentSchemaVersion,
                 MessagePackSerializer.Serialize(result), now, now);
@@ -422,8 +440,11 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
                 RegimeDiscoveryParameterSet = _parameters,
                 RegimeDiscoveryParameterPayloadSha256 = RegimeDiscoveryParameterPayload.ComputeSha256(_parameters),
                 FundId = 1,
-                AssessmentBinding = new() { Parameters = _marketConditionParameters,
-                    PayloadSha256 = MarketConditionAssessmentHash.Parameters(_marketConditionParameters) }
+                AssessmentBinding = new()
+                {
+                    Parameters = _marketConditionParameters,
+                    PayloadSha256 = MarketConditionAssessmentHash.Parameters(_marketConditionParameters)
+                }
             };
         }
 

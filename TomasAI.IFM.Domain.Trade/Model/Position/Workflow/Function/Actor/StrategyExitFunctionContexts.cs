@@ -13,7 +13,8 @@ public interface IExitOrderCompositionFunctionContext<TActor> : IFunctionActorCo
     TimeProvider TimeProvider { get; }
     ILogger<TActor> Logger { get; }
     IEventSourceFunctionStateRepository<ExitOrderCompositionFunctionState,
-        ComposeExitOrderCommand> StateRepository { get; }
+        ComposeExitOrderCommand> StateRepository
+    { get; }
 }
 
 public abstract class ExitOrderCompositionFunctionContext<TActor> : FunctionActorContext,
@@ -42,7 +43,8 @@ public interface IPositionExitRiskFunctionContext<TActor> : IFunctionActorContex
     TimeProvider TimeProvider { get; }
     ILogger<TActor> Logger { get; }
     IEventSourceFunctionStateRepository<PositionExitRiskFunctionState,
-        EvaluatePositionExitRiskCommand> StateRepository { get; }
+        EvaluatePositionExitRiskCommand> StateRepository
+    { get; }
 }
 
 public abstract class PositionExitRiskFunctionContext<TActor> : FunctionActorContext,

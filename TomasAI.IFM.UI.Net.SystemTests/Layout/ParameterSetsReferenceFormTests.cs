@@ -43,39 +43,39 @@ public sealed class ParameterSetsReferenceFormTests
     [Fact]
     public void Shared_reference_buttons_drive_add_save_and_cancel_states()
     {
-        var service=Substitute.For<IReferenceDataService>();
+        var service = Substitute.For<IReferenceDataService>();
         service.GetReferenceDataDefinitionTypesAsync(Arg.Any<CancellationToken>()).Returns(
-            UiOperationResult<IReadOnlyList<LookupTypeUiModel>>.Success([new("Reference","LookupTypes",1,"lookup types",DateTime.UtcNow,"test")]));
+            UiOperationResult<IReadOnlyList<LookupTypeUiModel>>.Success([new("Reference", "LookupTypes", 1, "lookup types", DateTime.UtcNow, "test")]));
         service.GetLookupTypesAsync(Arg.Any<CancellationToken>()).Returns(UiOperationResult<IReadOnlyList<LookupTypeUiModel>>.Success([]));
         service.GetLookupTypeNamesAsync(Arg.Any<CancellationToken>()).Returns(UiOperationResult<IReadOnlyList<string>>.Success([]));
-        service.GetLookupTypeShortCodesAsync(Arg.Any<string>(),Arg.Any<CancellationToken>()).Returns(UiOperationResult<IReadOnlyList<LookupTypeShortCodeUiModel>>.Success([]));
-        var api=Substitute.For<IParameterSetsApi>();
+        service.GetLookupTypeShortCodesAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(UiOperationResult<IReadOnlyList<LookupTypeShortCodeUiModel>>.Success([]));
+        var api = Substitute.For<IParameterSetsApi>();
         api.ComponentsAsync(Arg.Any<CancellationToken>()).Returns(new ServiceOk<ParameterComponentSummary[]>([new RegimeDiscoveryParameterModel().Summary]));
-        api.VersionsAsync(Arg.Any<Guid?>(),Arg.Any<CancellationToken>(),Arg.Any<string>()).Returns(new ServiceOk<ParameterSetVersion[]>([]));
-        api.PreviewAsync(Arg.Any<Guid>(),Arg.Any<CancellationToken>(),Arg.Any<int>(),Arg.Any<string?>(),Arg.Any<bool>())
-            .Returns(call=>new ServiceOk<string>(System.Text.Json.JsonSerializer.Serialize(RegimeDiscoveryParameterModel.CreateExplicitSeed(call.ArgAt<Guid>(0),(Domain.MarketData.Analytics.Shared.TimeFrameType)call.ArgAt<int>(2)))));
+        api.VersionsAsync(Arg.Any<Guid?>(), Arg.Any<CancellationToken>(), Arg.Any<string>()).Returns(new ServiceOk<ParameterSetVersion[]>([]));
+        api.PreviewAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<bool>())
+            .Returns(call => new ServiceOk<string>(System.Text.Json.JsonSerializer.Serialize(RegimeDiscoveryParameterModel.CreateExplicitSeed(call.ArgAt<Guid>(0), (Domain.MarketData.Analytics.Shared.TimeFrameType)call.ArgAt<int>(2)))));
 
-        using var form=new ReferenceForm(Substitute.For<IAppRoot>(),service,api);
-        form.LoadViewModel(new ReferenceViewModel(service));form.Show();PumpUntil(()=>Selector(form).Items.Count>=3);
-        var selector=Selector(form);selector.Items.Cast<object>().Select(x=>x.ToString()).Should().Contain("parameter sets");
-        selector.SelectedItem="parameter sets";PumpUntil(()=>Field<Panel>(form,"pnlMarketData").Controls.OfType<ParameterSetsReferenceView>().Any());
-        var view=Field<Panel>(form,"pnlMarketData").Controls.OfType<ParameterSetsReferenceView>().Single();PumpUntil(()=>!view.IsBusy&&view.CanAdd);
-        var add=Field<Button>(form,"btnAdd");var change=Field<Button>(form,"btnChange");var remove=Field<Button>(form,"btnRemove");var close=Field<Button>(form,"btnClose");
-        add.Text.Should().Be("&Add");change.Enabled.Should().BeFalse();remove.Enabled.Should().BeFalse();close.Text.Should().Be("Close");
+        using var form = new ReferenceForm(Substitute.For<IAppRoot>(), service, api);
+        form.LoadViewModel(new ReferenceViewModel(service)); form.Show(); PumpUntil(() => Selector(form).Items.Count >= 3);
+        var selector = Selector(form); selector.Items.Cast<object>().Select(x => x.ToString()).Should().Contain("parameter sets");
+        selector.SelectedItem = "parameter sets"; PumpUntil(() => Field<Panel>(form, "pnlMarketData").Controls.OfType<ParameterSetsReferenceView>().Any());
+        var view = Field<Panel>(form, "pnlMarketData").Controls.OfType<ParameterSetsReferenceView>().Single(); PumpUntil(() => !view.IsBusy && view.CanAdd);
+        var add = Field<Button>(form, "btnAdd"); var change = Field<Button>(form, "btnChange"); var remove = Field<Button>(form, "btnRemove"); var close = Field<Button>(form, "btnClose");
+        add.Text.Should().Be("&Add"); change.Enabled.Should().BeFalse(); remove.Enabled.Should().BeFalse(); close.Text.Should().Be("Close");
 
-        add.PerformClick();PumpUntil(()=>view.IsAdding&&!view.IsBusy);
-        add.Text.Should().Be("Save");change.Enabled.Should().BeFalse();remove.Enabled.Should().BeFalse();close.Text.Should().Be("Cancel");selector.Enabled.Should().BeFalse();
-        api.DidNotReceive().CreateAsync(Arg.Any<CreateParameterSetCommand>(),Arg.Any<CancellationToken>());
+        add.PerformClick(); PumpUntil(() => view.IsAdding && !view.IsBusy);
+        add.Text.Should().Be("Save"); change.Enabled.Should().BeFalse(); remove.Enabled.Should().BeFalse(); close.Text.Should().Be("Cancel"); selector.Enabled.Should().BeFalse();
+        api.DidNotReceive().CreateAsync(Arg.Any<CreateParameterSetCommand>(), Arg.Any<CancellationToken>());
 
-        close.PerformClick();PumpUntil(()=>!view.IsEditing);
-        add.Text.Should().Be("&Add");close.Text.Should().Be("Close");selector.Enabled.Should().BeTrue();
+        close.PerformClick(); PumpUntil(() => !view.IsEditing);
+        add.Text.Should().Be("&Add"); close.Text.Should().Be("Close"); selector.Enabled.Should().BeTrue();
     }
-    static ComboBox Selector(ReferenceForm form)=>Field<ComboBox>(form,"ddlReferenceDataSelector");
-    static T Field<T>(object target,string name)=>(T)target.GetType().GetField(name,BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(target)!;
+    static ComboBox Selector(ReferenceForm form) => Field<ComboBox>(form, "ddlReferenceDataSelector");
+    static T Field<T>(object target, string name) => (T)target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(target)!;
     static void PumpUntil(Func<bool> condition)
     {
-        var end=DateTime.UtcNow.AddSeconds(5);
-        while(!condition()&&DateTime.UtcNow<end){System.Windows.Forms.Application.DoEvents();Thread.Sleep(10);}
+        var end = DateTime.UtcNow.AddSeconds(5);
+        while (!condition() && DateTime.UtcNow < end) { System.Windows.Forms.Application.DoEvents(); Thread.Sleep(10); }
         condition().Should().BeTrue("the asynchronous Reference Data UI operation should complete");
     }
 }

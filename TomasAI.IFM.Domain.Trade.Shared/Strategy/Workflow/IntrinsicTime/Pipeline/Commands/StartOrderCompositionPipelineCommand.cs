@@ -49,9 +49,9 @@ public sealed record StartOrderCompositionPipelineCommand : ICommand<IntrinsicTi
     [Key(12)] public DateTime RequestedAtUtc { get; init; }
     /// <summary>Gets the optional UTC pipeline completion deadline.</summary>
     [Key(13)] public DateTime? ExpectedCompletionAtUtc { get; init; }
-    [Key(14)] public StrategyStageResultEnvelope? AcceptedSelection {get;init;}
-    [Key(15)] public TradeSelectionBinding? SelectionBinding {get;init;}
-    [Key(16)] public FundCompositionReservationResult? Reservation {get;init;}
+    [Key(14)] public StrategyStageResultEnvelope? AcceptedSelection { get; init; }
+    [Key(15)] public TradeSelectionBinding? SelectionBinding { get; init; }
+    [Key(16)] public FundCompositionReservationResult? Reservation { get; init; }
     [Key(17)] public CompositionEvidenceReference? MarketEvidence { get; init; }
 
     /// <summary>Gets the concrete command contract name.</summary>
@@ -103,7 +103,7 @@ public sealed record StartOrderCompositionPipelineCommand : ICommand<IntrinsicTi
         Guid correlationId,
         Guid causationId,
         DateTime requestedAtUtc,
-        DateTime? expectedCompletionAtUtc,StrategyStageResultEnvelope? acceptedSelection=null,TradeSelectionBinding? selectionBinding=null,FundCompositionReservationResult? reservation=null,
+        DateTime? expectedCompletionAtUtc, StrategyStageResultEnvelope? acceptedSelection = null, TradeSelectionBinding? selectionBinding = null, FundCompositionReservationResult? reservation = null,
         CompositionEvidenceReference? marketEvidence = null)
     {
         CommandId = commandId;
@@ -120,7 +120,7 @@ public sealed record StartOrderCompositionPipelineCommand : ICommand<IntrinsicTi
         CausationId = causationId;
         RequestedAtUtc = requestedAtUtc;
         ExpectedCompletionAtUtc = expectedCompletionAtUtc;
-        AcceptedSelection=acceptedSelection;SelectionBinding=selectionBinding;Reservation=reservation;
+        AcceptedSelection = acceptedSelection; SelectionBinding = selectionBinding; Reservation = reservation;
         MarketEvidence = marketEvidence;
     }
 }

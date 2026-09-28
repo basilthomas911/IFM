@@ -98,7 +98,9 @@ public sealed record ExecuteTradeSelectionPipelineCommand : ICommand<TradeSelect
 
     static FuturesItiSignalGeneratedEvent NormalizeTrigger(FuturesItiSignalGeneratedEvent trigger) => trigger with
     {
-        AggregateId = trigger.AggregateId ?? "", EventSource = trigger.EventSource ?? "", CreatedBy = trigger.CreatedBy ?? "",
+        AggregateId = trigger.AggregateId ?? "",
+        EventSource = trigger.EventSource ?? "",
+        CreatedBy = trigger.CreatedBy ?? "",
         ReceivedOn = trigger.ReceivedOn.Kind == DateTimeKind.Local ? trigger.ReceivedOn.ToUniversalTime() : DateTime.SpecifyKind(trigger.ReceivedOn, DateTimeKind.Utc),
         CreatedOn = trigger.CreatedOn.Kind == DateTimeKind.Local ? trigger.CreatedOn.ToUniversalTime() : DateTime.SpecifyKind(trigger.CreatedOn, DateTimeKind.Utc)
     };

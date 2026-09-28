@@ -27,18 +27,18 @@ public class TradePlacementUIEventConsumer(INatsEventListenerOptions options, IL
     public async ValueTask StartAsync(Func<IEvent, ValueTask> eventAction)
     {
         await StartAsync(EventConsumer, _eventMap, EventHandlerAsync);
-      
+
         async ValueTask EventHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
         {
             try
             {
                 await (eventVerb switch
                 {
-                    _ when eventVerb == TradePlacementSetEvent.Verb 
+                    _ when eventVerb == TradePlacementSetEvent.Verb
                         => HandleEvent(eventMsg.AsEvent<TradePlacementSetEvent>()!, eventAction),
-                    _ when eventVerb == TradePlacementWaitEvent.Verb 
+                    _ when eventVerb == TradePlacementWaitEvent.Verb
                         => HandleEvent(eventMsg.AsEvent<TradePlacementWaitEvent>()!, eventAction),
-                    _ when eventVerb == TradePlacementClearedEvent.Verb 
+                    _ when eventVerb == TradePlacementClearedEvent.Verb
                         => HandleEvent(eventMsg.AsEvent<TradePlacementClearedEvent>()!, eventAction),
                     _ => ValueTask.CompletedTask
                 });

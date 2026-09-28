@@ -154,16 +154,16 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
             }
             else
             {
-            if (type == typeof(ExecuteRegimeDiscoveryPipelineCommand) ||
-                type == typeof(ExecuteMarketConditionPipelineCommand) || type == typeof(ExecuteMarketConditionAssessmentCommand) || type == typeof(ExecuteTradeSelectionPipelineCommand) || type == typeof(ExecuteOrderCompositionPipelineCommand))
-            {
-                type.GetProperty(nameof(ExecuteRegimeDiscoveryPipelineCommand.WorkflowView)).Should().NotBeNull();
-                type.GetProperty(nameof(ExecuteRegimeDiscoveryPipelineCommand.ExpiresAtUtc)).Should().NotBeNull();
-                type.GetProperty("WorkflowState").Should().BeNull();
-            }
-            else
-                type.GetProperty("WorkflowState").Should().NotBeNull(type.Name);
-            type.GetProperty("TriggerEvent").Should().NotBeNull(type.Name);
+                if (type == typeof(ExecuteRegimeDiscoveryPipelineCommand) ||
+                    type == typeof(ExecuteMarketConditionPipelineCommand) || type == typeof(ExecuteMarketConditionAssessmentCommand) || type == typeof(ExecuteTradeSelectionPipelineCommand) || type == typeof(ExecuteOrderCompositionPipelineCommand))
+                {
+                    type.GetProperty(nameof(ExecuteRegimeDiscoveryPipelineCommand.WorkflowView)).Should().NotBeNull();
+                    type.GetProperty(nameof(ExecuteRegimeDiscoveryPipelineCommand.ExpiresAtUtc)).Should().NotBeNull();
+                    type.GetProperty("WorkflowState").Should().BeNull();
+                }
+                else
+                    type.GetProperty("WorkflowState").Should().NotBeNull(type.Name);
+                type.GetProperty("TriggerEvent").Should().NotBeNull(type.Name);
             }
             type.GetProperty("NextPipelineStage").Should().BeNull(type.Name);
             type.GetProperty("NextPipelineActorName").Should().BeNull(type.Name);
@@ -171,7 +171,7 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
 
             var command = Activator.CreateInstance(type).Should().BeAssignableTo<ICommand>().Subject;
             command!.RouteTo.Should().NotBe(BoundedContextName.Undefined, type.Name);
-            type.GetProperty("PostEvents")!.GetValue(command).Should().Be(type!=typeof(ExecuteTradeSelectionPipelineCommand) && type!=typeof(ExecuteOrderCompositionPipelineCommand) && type!=typeof(ExecuteRiskManagementPipelineCommand), type.Name);
+            type.GetProperty("PostEvents")!.GetValue(command).Should().Be(type != typeof(ExecuteTradeSelectionPipelineCommand) && type != typeof(ExecuteOrderCompositionPipelineCommand) && type != typeof(ExecuteRiskManagementPipelineCommand), type.Name);
         }
     }
 
@@ -239,20 +239,20 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
 
     static object CreatePopulatedContract(Type type)
     {
-        if(type==typeof(ExecuteRiskManagementPipelineCommand))return RiskManager.RiskFixture.Command().GetAwaiter().GetResult();
-        if(type==typeof(RiskManagementFunctionCompletedEvent))
+        if (type == typeof(ExecuteRiskManagementPipelineCommand)) return RiskManager.RiskFixture.Command().GetAwaiter().GetResult();
+        if (type == typeof(RiskManagementFunctionCompletedEvent))
         {
             var command = RiskManager.RiskFixture.Command().GetAwaiter().GetResult();
             var result = new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Model.RiskEvaluator().Calculate(command, default);
-            return new RiskManagementFunctionCompletedEvent { Id=command.CommandId, CommandId=command.CommandId, Result=result };
+            return new RiskManagementFunctionCompletedEvent { Id = command.CommandId, CommandId = command.CommandId, Result = result };
         }
-        if(type==typeof(RiskManagementFunctionFailedEvent))return new RiskManagementFunctionFailedEvent { Id=Guid.NewGuid(), CommandId=Guid.NewGuid(), ReasonCode="RM.TEST" };
-        if(type==typeof(ExecuteOrderCompositionPipelineCommand))return OrderComposer.CompositionFixture.Command().GetAwaiter().GetResult();
-        if(type==typeof(OrderCompositionFunctionCompletedEvent))return new OrderCompositionFunctionCompletedEvent {Id=Guid.NewGuid(),CommandId=Guid.NewGuid()};
-        if(type==typeof(OrderCompositionFunctionFailedEvent))return new OrderCompositionFunctionFailedEvent {Id=Guid.NewGuid(),CommandId=Guid.NewGuid(),ReasonCode="OC.TEST"};
-        if(type==typeof(ExecuteTradeSelectionPipelineCommand))return TradeSelection.TradeSelectionFixture.Command().GetAwaiter().GetResult();
-        if(type==typeof(TradeSelectionFunctionCompletedEvent))return new TradeSelectionFunctionCompletedEvent {Id=Guid.NewGuid(),CommandId=Guid.NewGuid()};
-        if(type==typeof(TradeSelectionFunctionFailedEvent))return new TradeSelectionFunctionFailedEvent {Id=Guid.NewGuid(),CommandId=Guid.NewGuid(),ReasonCode="TS.TEST"};
+        if (type == typeof(RiskManagementFunctionFailedEvent)) return new RiskManagementFunctionFailedEvent { Id = Guid.NewGuid(), CommandId = Guid.NewGuid(), ReasonCode = "RM.TEST" };
+        if (type == typeof(ExecuteOrderCompositionPipelineCommand)) return OrderComposer.CompositionFixture.Command().GetAwaiter().GetResult();
+        if (type == typeof(OrderCompositionFunctionCompletedEvent)) return new OrderCompositionFunctionCompletedEvent { Id = Guid.NewGuid(), CommandId = Guid.NewGuid() };
+        if (type == typeof(OrderCompositionFunctionFailedEvent)) return new OrderCompositionFunctionFailedEvent { Id = Guid.NewGuid(), CommandId = Guid.NewGuid(), ReasonCode = "OC.TEST" };
+        if (type == typeof(ExecuteTradeSelectionPipelineCommand)) return TradeSelection.TradeSelectionFixture.Command().GetAwaiter().GetResult();
+        if (type == typeof(TradeSelectionFunctionCompletedEvent)) return new TradeSelectionFunctionCompletedEvent { Id = Guid.NewGuid(), CommandId = Guid.NewGuid() };
+        if (type == typeof(TradeSelectionFunctionFailedEvent)) return new TradeSelectionFunctionFailedEvent { Id = Guid.NewGuid(), CommandId = Guid.NewGuid(), ReasonCode = "TS.TEST" };
         if (type == typeof(ExecuteMarketConditionAssessmentCommand)) return MessagePackSerializer.Deserialize<ExecuteMarketConditionAssessmentCommand>(MessagePackSerializer.Serialize(MarketCondition.AssessmentFixture.Command()));
         if (type == typeof(MarketConditionAssessmentCompletedEvent)) return new MarketConditionAssessmentCompletedEvent
         { Id = Guid.NewGuid(), WorkflowId = StrategyWorkflowId.New(TimeProvider.System), InputWorkflowRevision = 2 };
@@ -374,9 +374,9 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
                 new DateTime(2026, 8, 25, 15, 59, 0, DateTimeKind.Utc),
                 new DateTime(2026, 8, 25, 16, 0, 0, DateTimeKind.Utc));
 
-        if(type==typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.TradeSelectionBinding))return TradeSelection.TradeSelectionFixture.Command().GetAwaiter().GetResult().SelectionBinding;
-        if(type==typeof(TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult))return new TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult();
-        if(type==typeof(CompositionEvidenceReference)) return new CompositionEvidenceReference(Guid.NewGuid(), 1, new('a',64), Guid.NewGuid(), new('b',64), DateTimeOffset.UtcNow);
+        if (type == typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.TradeSelectionBinding)) return TradeSelection.TradeSelectionFixture.Command().GetAwaiter().GetResult().SelectionBinding;
+        if (type == typeof(TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult)) return new TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult();
+        if (type == typeof(CompositionEvidenceReference)) return new CompositionEvidenceReference(Guid.NewGuid(), 1, new('a', 64), Guid.NewGuid(), new('b', 64), DateTimeOffset.UtcNow);
         throw new InvalidOperationException(
             $"No ITSW-4 contract-test value is defined for {type.FullName} ({parameterName}).");
     }

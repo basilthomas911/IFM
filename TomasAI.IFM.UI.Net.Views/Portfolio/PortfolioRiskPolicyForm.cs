@@ -151,9 +151,16 @@ public sealed class PortfolioRiskPolicyForm : DarkTradingForm
         var now = DateTime.UtcNow;
         BeginEdit(new PortfolioFinancialPolicyReadModel
         {
-            PortfolioId = _portfolio.PortfolioId, PolicyId = allocation.Value.Value, PolicyVersion = 1, SchemaVersion = 3, OperatingState = PortfolioFinancialPolicyState.Draft,
-            BaseCurrency = _portfolio.BaseCurrency, TradeFamilyLimits = [.. _catalog.Select(x => new TradeFamilyRiskLimitReadModel { CatalogDeployment = x.Key })],
-            EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = Environment.UserName,
+            PortfolioId = _portfolio.PortfolioId,
+            PolicyId = allocation.Value.Value,
+            PolicyVersion = 1,
+            SchemaVersion = 3,
+            OperatingState = PortfolioFinancialPolicyState.Draft,
+            BaseCurrency = _portfolio.BaseCurrency,
+            TradeFamilyLimits = [.. _catalog.Select(x => new TradeFamilyRiskLimitReadModel { CatalogDeployment = x.Key })],
+            EffectiveFromUtc = now,
+            CreatedOnUtc = now,
+            CreatedBy = Environment.UserName,
         }, false);
         _status.Text = $"Editing new policy {allocation.Value.Value}. The sequence ID is consumed even if editing is cancelled.";
     }
@@ -171,9 +178,16 @@ public sealed class PortfolioRiskPolicyForm : DarkTradingForm
         var now = DateTime.UtcNow;
         BeginEdit(_selected.DefensiveCopy() with
         {
-            PolicyVersion = _selected.PolicyVersion + 1, SchemaVersion = 3, TradeFamilyLimits = MergeDeploymentLimits(_selected.TradeFamilyLimits), OperatingState = PortfolioFinancialPolicyState.Draft,
-            EffectiveFromUtc = now, EffectiveUntilUtc = null, CreatedOnUtc = now, CreatedBy = Environment.UserName,
-            SupersededOnUtc = null, SupersededBy = string.Empty,
+            PolicyVersion = _selected.PolicyVersion + 1,
+            SchemaVersion = 3,
+            TradeFamilyLimits = MergeDeploymentLimits(_selected.TradeFamilyLimits),
+            OperatingState = PortfolioFinancialPolicyState.Draft,
+            EffectiveFromUtc = now,
+            EffectiveUntilUtc = null,
+            CreatedOnUtc = now,
+            CreatedBy = Environment.UserName,
+            SupersededOnUtc = null,
+            SupersededBy = string.Empty,
         }, true);
         _status.Text = $"Editing immutable policy version {_editingPolicy!.PolicyVersion}.";
     }
@@ -202,10 +216,18 @@ public sealed class PortfolioRiskPolicyForm : DarkTradingForm
         var limits = _families.DataSource is IEnumerable<TradeFamilyRiskLimitReadModel> rows ? rows.ToArray() : source.TradeFamilyLimits;
         return source with
         {
-            Name = _name.Text.Trim(), BaseCurrency = _portfolio.BaseCurrency, CapitalBase = _capital.Value,
-            ProtectedReserve = _reserve.Value, MaximumDeployableCapital = _deployable.Value, MaximumRiskPerTrade = _perTrade.Value,
-            MaximumAggregateRisk = _aggregate.Value, MaximumMargin = _margin.Value, MaximumGrossNotional = _notional.Value,
-            MaximumOpenPositions = (int)_positions.Value, MaximumDrawdownAmount = _drawdown.Value, TradeFamilyLimits = [.. limits]
+            Name = _name.Text.Trim(),
+            BaseCurrency = _portfolio.BaseCurrency,
+            CapitalBase = _capital.Value,
+            ProtectedReserve = _reserve.Value,
+            MaximumDeployableCapital = _deployable.Value,
+            MaximumRiskPerTrade = _perTrade.Value,
+            MaximumAggregateRisk = _aggregate.Value,
+            MaximumMargin = _margin.Value,
+            MaximumGrossNotional = _notional.Value,
+            MaximumOpenPositions = (int)_positions.Value,
+            MaximumDrawdownAmount = _drawdown.Value,
+            TradeFamilyLimits = [.. limits]
         };
     }
 

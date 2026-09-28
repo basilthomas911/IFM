@@ -13,9 +13,9 @@ public readonly record struct ActorSubject
     [Key(0)]
     public ActorType ActorType { get; init; }
     [Key(1)]
-    public string Name { get; init; } 
+    public string Name { get; init; }
     [Key(2)]
-    public string Verb { get; init; } 
+    public string Verb { get; init; }
     [Key(3)]
     public string EntityId { get; init; }
 

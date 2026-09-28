@@ -497,7 +497,9 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
         return new HistoricalProviderRecord
         {
             Kind = (HistoricalProviderRecordKind)byte.Parse(values[0], CultureInfo.InvariantCulture),
-            Symbol = values[1], InstrumentId = values[2], PublisherId = values[3],
+            Symbol = values[1],
+            InstrumentId = values[2],
+            PublisherId = values[3],
             EventTimestampUtc = FromUnixNanoseconds(long.Parse(values[4], CultureInfo.InvariantCulture)),
             SourceSequence = long.Parse(values[5], CultureInfo.InvariantCulture),
             Open = long.Parse(values[6], CultureInfo.InvariantCulture) / FixedPriceScale,

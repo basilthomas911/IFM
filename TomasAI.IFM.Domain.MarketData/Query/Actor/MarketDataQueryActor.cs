@@ -71,26 +71,26 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
     static readonly IReadOnlyDictionary<Type,
         Func<IMarketDataQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<IMarketDataQueryContext, IQuery, CancellationToken, ValueTask>>
-    {
-        [typeof(GetTradeStrategySymbolsQuery)] = static (context, query, cancellationToken) =>
-            ((GetTradeStrategySymbolsQuery)query).ExecuteAsync(context, cancellationToken),
-        [typeof(GetDatabentoOptionChainRangeQuery)] = static (context, query, cancellationToken) =>
-            ((GetDatabentoOptionChainRangeQuery)query).ExecuteAsync(context, cancellationToken),
-        [typeof(GetDatabentoOptionChainQuery)] = static (context, query, cancellationToken) =>
-            ((GetDatabentoOptionChainQuery)query).ExecuteAsync(context, cancellationToken),
-        [typeof(GetEvaluatedOptionChainQuery)] = static (context, query, cancellationToken) =>
-            ((GetEvaluatedOptionChainQuery)query).ExecuteAsync(context, cancellationToken),
-        [typeof(GetLastRateOfReturnQuery)] = static (context, query, cancellationToken) =>
-            ((GetLastRateOfReturnQuery)query).ExecuteAsync(context, cancellationToken),
-        [typeof(GetTradingDaysQuery)] = static (context, query, cancellationToken) =>
-            ((GetTradingDaysQuery)query).ExecuteAsync(context, cancellationToken),
-        [typeof(GetTradingDatesQuery)] = static (context, query, cancellationToken) =>
-            ((GetTradingDatesQuery)query).ExecuteAsync(context, cancellationToken),
-        [typeof(GetValueDateQuery)] = static (context, query, cancellationToken) =>
-            ((GetValueDateQuery)query).ExecuteAsync(context, cancellationToken),
-        [typeof(GetMarketSessionQuery)] = static (context, query, cancellationToken) =>
-            ((GetMarketSessionQuery)query).ExecuteAsync(context, cancellationToken)
-    };
+        {
+            [typeof(GetTradeStrategySymbolsQuery)] = static (context, query, cancellationToken) =>
+                ((GetTradeStrategySymbolsQuery)query).ExecuteAsync(context, cancellationToken),
+            [typeof(GetDatabentoOptionChainRangeQuery)] = static (context, query, cancellationToken) =>
+                ((GetDatabentoOptionChainRangeQuery)query).ExecuteAsync(context, cancellationToken),
+            [typeof(GetDatabentoOptionChainQuery)] = static (context, query, cancellationToken) =>
+                ((GetDatabentoOptionChainQuery)query).ExecuteAsync(context, cancellationToken),
+            [typeof(GetEvaluatedOptionChainQuery)] = static (context, query, cancellationToken) =>
+                ((GetEvaluatedOptionChainQuery)query).ExecuteAsync(context, cancellationToken),
+            [typeof(GetLastRateOfReturnQuery)] = static (context, query, cancellationToken) =>
+                ((GetLastRateOfReturnQuery)query).ExecuteAsync(context, cancellationToken),
+            [typeof(GetTradingDaysQuery)] = static (context, query, cancellationToken) =>
+                ((GetTradingDaysQuery)query).ExecuteAsync(context, cancellationToken),
+            [typeof(GetTradingDatesQuery)] = static (context, query, cancellationToken) =>
+                ((GetTradingDatesQuery)query).ExecuteAsync(context, cancellationToken),
+            [typeof(GetValueDateQuery)] = static (context, query, cancellationToken) =>
+                ((GetValueDateQuery)query).ExecuteAsync(context, cancellationToken),
+            [typeof(GetMarketSessionQuery)] = static (context, query, cancellationToken) =>
+                ((GetMarketSessionQuery)query).ExecuteAsync(context, cancellationToken)
+        };
     protected override async ValueTask ReceiveAsync(
         IQueryActorContext<MarketDataQueryActor> context,
         IQuery query,

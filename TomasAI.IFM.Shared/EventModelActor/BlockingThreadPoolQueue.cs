@@ -17,8 +17,8 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// <param name="logger"></param>
 public sealed class BlockingThreadPoolQueue(ILogger logger)
 {
-    readonly ConcurrentQueue<IActorThread> _threadPoolQueue = new ();
-    readonly SemaphoreSlim _waitSignal = new (0);
+    readonly ConcurrentQueue<IActorThread> _threadPoolQueue = new();
+    readonly SemaphoreSlim _waitSignal = new(0);
     readonly ILogger _logger = IsArgumentNull.Set(logger);
 
     /// <summary>

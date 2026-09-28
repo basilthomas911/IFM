@@ -175,7 +175,8 @@ public static class PortfolioOrderCompositionMapper
         AcceptedFundCount = receipt.FundDecisions.Count(value => value.Accepted),
         RejectedFundCount = receipt.FundDecisions.Count(value => !value.Accepted),
         PortfolioId = receipt.PortfolioId
-        ,VolatilityEvidence = receipt.VolatilityEvidence
+        ,
+        VolatilityEvidence = receipt.VolatilityEvidence
     };
 
     public static void ValidateDecision(IntrinsicTimeStrategyWorkflowView view, PortfolioRiskDecision decision)

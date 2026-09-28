@@ -39,9 +39,14 @@ internal sealed class PipeDatasetWorkerPublisher(
             var publication = Interlocked.Increment(ref sequence);
             await DatasetPublicationFrameCodec.WriteAsync(stream, new()
             {
-                Dataset = dataset, ValueDate = valueDate, WorkerInstanceId = workerInstanceId, GenerationId = generation,
-                ManifestRevision = manifestRevision, PublicationSequence = publication,
-                Kind = DatasetPublicationKind.OptionTradeEvidence, Payload = MessagePackSerializer.Serialize(evidence)
+                Dataset = dataset,
+                ValueDate = valueDate,
+                WorkerInstanceId = workerInstanceId,
+                GenerationId = generation,
+                ManifestRevision = manifestRevision,
+                PublicationSequence = publication,
+                Kind = DatasetPublicationKind.OptionTradeEvidence,
+                Payload = MessagePackSerializer.Serialize(evidence)
             }, cancellationToken).ConfigureAwait(false);
             await OptionTradeAcknowledgment.ReadAsync(retentionAcknowledgments, publication, generation, cancellationToken).ConfigureAwait(false);
         }

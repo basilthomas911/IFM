@@ -9,16 +9,28 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
 public sealed class OptionPremiumTickTests
 {
-    static OptionPricingConvention Reviewed() => Contract() with { SchemaVersion = 2, TickSize = .05m,
-        PremiumTickRule = OptionPremiumTickRule.CmeEsGlobex358A, TickRuleVersion = OptionPremiumTicks.CmeEsGlobexVersion };
+    static OptionPricingConvention Reviewed() => Contract() with
+    {
+        SchemaVersion = 2,
+        TickSize = .05m,
+        PremiumTickRule = OptionPremiumTickRule.CmeEsGlobex358A,
+        TickRuleVersion = OptionPremiumTicks.CmeEsGlobexVersion
+    };
 
     [Theory]
-    [InlineData("0", ".05")] [InlineData("5", ".05")] [InlineData("5.01", ".10")]
-    [InlineData("20", ".10")] [InlineData("20.01", ".25")]
-    [InlineData("100", ".25")] [InlineData("100.01", ".50")]
-    [InlineData("-5", ".05")] [InlineData("-5.01", ".10")]
-    [InlineData("-20", ".10")] [InlineData("-20.01", ".25")]
-    [InlineData("-100", ".25")] [InlineData("-100.01", ".50")]
+    [InlineData("0", ".05")]
+    [InlineData("5", ".05")]
+    [InlineData("5.01", ".10")]
+    [InlineData("20", ".10")]
+    [InlineData("20.01", ".25")]
+    [InlineData("100", ".25")]
+    [InlineData("100.01", ".50")]
+    [InlineData("-5", ".05")]
+    [InlineData("-5.01", ".10")]
+    [InlineData("-20", ".10")]
+    [InlineData("-20.01", ".25")]
+    [InlineData("-100", ".25")]
+    [InlineData("-100.01", ".50")]
     public void Current_rule_resolves_boundary_and_signed_net_premiums(string premium, string expected)
         => Assert.Equal(decimal.Parse(expected, CultureInfo.InvariantCulture),
             OptionPremiumTicks.GetIncrement(Reviewed(), decimal.Parse(premium, CultureInfo.InvariantCulture)));

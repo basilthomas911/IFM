@@ -146,7 +146,7 @@ SELECT
     /// <summary>
     /// SQL to get event log by max event version
     /// </summary>
- public const string GetEventLogByMaxEventVersion = """
+    public const string GetEventLogByMaxEventVersion = """
     SELECT
       el.eventStreamId as "EventStreamId",
       en.eventName as "EventName",
@@ -164,7 +164,7 @@ SELECT
       el.eventVersion;
     """;
 
-public const string GetEventLogByEventVersion = """
+    public const string GetEventLogByEventVersion = """
     SELECT
       el.eventStreamId as "EventStreamId",
       en.eventName as "EventName",
@@ -182,10 +182,10 @@ public const string GetEventLogByEventVersion = """
       el.eventVersion;
     """;
 
-/// <summary>
-/// SQL to get last N events from event log
-/// </summary>
-public const string GetEventLogLastNRange = """
+    /// <summary>
+    /// SQL to get last N events from event log
+    /// </summary>
+    public const string GetEventLogLastNRange = """
 SELECT
         el.eventStreamId as "EventStreamId",
         en.eventName as "EventName",
@@ -203,10 +203,10 @@ SELECT
         el.eventVersion DESC;
 """;
 
-/// <summary>
-/// Gets the last N events of one event type and restores chronological replay order.
-/// </summary>
-public const string GetEventLogLastNRangeByEventName = """
+    /// <summary>
+    /// Gets the last N events of one event type and restores chronological replay order.
+    /// </summary>
+    public const string GetEventLogLastNRangeByEventName = """
 WITH last_event_range AS (
     SELECT
         el.eventStreamId,
@@ -236,12 +236,12 @@ JOIN event_name_id en ON el.eventNameId = en.eventNameId
 ORDER BY el.eventVersion ASC;
 """;
 
-/// <summary>
-/// Gets the latest snapshot and the last N matching events that follow it.
-/// The inner range is selected newest-first so PostgreSQL can stop after N rows;
-/// the outer query restores chronological replay order.
-/// </summary>
-public const string GetEventLogFromSnapshotLastNRange = """
+    /// <summary>
+    /// Gets the latest snapshot and the last N matching events that follow it.
+    /// The inner range is selected newest-first so PostgreSQL can stop after N rows;
+    /// the outer query restores chronological replay order.
+    /// </summary>
+    public const string GetEventLogFromSnapshotLastNRange = """
 WITH latest_snapshot AS (
     SELECT MAX(el.eventVersion) AS snapshotVersion
     FROM event_log el
@@ -1003,10 +1003,10 @@ where el.eventStreamId = $1
 and el.eventNameId = $2
 """;
 
-/// <summary>
-/// SQL to insert an event log
-/// </summary>
-public const string InsertEventLog = """
+    /// <summary>
+    /// SQL to insert an event log
+    /// </summary>
+    public const string InsertEventLog = """
     WITH next_stream_version AS (
         UPDATE event_stream_id
         SET CurrentVersion = CurrentVersion + 1
@@ -1032,8 +1032,8 @@ public const string InsertEventLog = """
         RETURNING EventVersion;
     """;
 
-/// <summary>Inserts an event only when the stream is still at the caller's observed version.</summary>
-public const string InsertEventLogExpectedVersion = """
+    /// <summary>Inserts an event only when the stream is still at the caller's observed version.</summary>
+    public const string InsertEventLogExpectedVersion = """
     WITH next_stream_version AS (
         UPDATE event_stream_id
         SET CurrentVersion = CurrentVersion + 1
@@ -1071,7 +1071,7 @@ public const string InsertEventLogExpectedVersion = """
         WHERE ProjectorName = $1 AND EventStreamId = $2;
         """;
 
-public const string UpdateEventLog = """
+    public const string UpdateEventLog = """
     UPDATE event_log SET
         EventPayload = $1,
         CommandId = $2,

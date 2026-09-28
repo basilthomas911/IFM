@@ -41,14 +41,24 @@ public static class CompositionDispatch
             deadlines.Add(start.Reservation!.Order.ExpiresAtUtc);
         var request = new ExecuteOrderCompositionPipelineCommand
         {
-            SchemaVersion = 1, CommandId = start.CommandId, Subject = new(ActorType.Function, ExecuteOrderCompositionPipelineCommand.Actor,
-                ExecuteOrderCompositionPipelineCommand.Verb, id.Format()), EntityId = id, InputWorkflowRevision = view.WorkflowRevision,
-            WorkflowView = view with { CompositionExecution = null, CompositionDispatch = null }, TriggerEvent = view.TriggerEvent, CorrelationId = view.CorrelationId,
-            CausationId = start.CausationId, RequestedAtUtc = now, EvaluatedAtUtc = preparation.Snapshot.EvaluatedAtUtc.UtcDateTime,
+            SchemaVersion = 1,
+            CommandId = start.CommandId,
+            Subject = new(ActorType.Function, ExecuteOrderCompositionPipelineCommand.Actor,
+                ExecuteOrderCompositionPipelineCommand.Verb, id.Format()),
+            EntityId = id,
+            InputWorkflowRevision = view.WorkflowRevision,
+            WorkflowView = view with { CompositionExecution = null, CompositionDispatch = null },
+            TriggerEvent = view.TriggerEvent,
+            CorrelationId = view.CorrelationId,
+            CausationId = start.CausationId,
+            RequestedAtUtc = now,
+            EvaluatedAtUtc = preparation.Snapshot.EvaluatedAtUtc.UtcDateTime,
             ExpiresAtUtc = deadlines.Min(),
-            AcceptedSelectionEnvelope = start.AcceptedSelection!, SelectionBinding = start.SelectionBinding!,
+            AcceptedSelectionEnvelope = start.AcceptedSelection!,
+            SelectionBinding = start.SelectionBinding!,
             Reservation = neutral ? null : start.Reservation!,
-            CompositionBinding = binding, MarketSnapshot = CompositionSnapshotAdapter.From(preparation.Snapshot)
+            CompositionBinding = binding,
+            MarketSnapshot = CompositionSnapshotAdapter.From(preparation.Snapshot)
         };
         requestTrace?.Stop();
         using (WorkflowTrace.Start("composer.dispatch.fingerprint", view))

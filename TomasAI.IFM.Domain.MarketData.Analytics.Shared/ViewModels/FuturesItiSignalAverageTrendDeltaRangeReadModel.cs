@@ -10,6 +10,6 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels
         double UpTrendDelta,
         double DownTrendDelta)
     {
-        public override string ToString() =>  JsonConvert.SerializeObject(this, Formatting.None); 
+        public override string ToString() => JsonConvert.SerializeObject(this, Formatting.None);
     }
 }

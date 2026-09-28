@@ -107,17 +107,29 @@ public static class PortfolioExecutionContractMapper
 
     static PortfolioExecutionLeg ToPortfolioLeg(TradeLegDefinition value) => new()
     {
-        TradeLegId = value.TradeLegId, AssetFamily = (PortfolioExecutionAssetFamily)value.AssetFamily,
-        SignedQuantity = value.SignedQuantity, LimitPrice = value.LimitPrice, ContractKey = value.ContractKey,
-        Expiry = value.Expiry, Strike = value.Strike, PutCall = value.PutCall, ContractId = value.ContractId,
+        TradeLegId = value.TradeLegId,
+        AssetFamily = (PortfolioExecutionAssetFamily)value.AssetFamily,
+        SignedQuantity = value.SignedQuantity,
+        LimitPrice = value.LimitPrice,
+        ContractKey = value.ContractKey,
+        Expiry = value.Expiry,
+        Strike = value.Strike,
+        PutCall = value.PutCall,
+        ContractId = value.ContractId,
         CashMultiplier = value.CashMultiplier,
     };
 
     static TradeLegDefinition ToTradeLeg(PortfolioExecutionLeg value) => new()
     {
-        TradeLegId = value.TradeLegId, AssetFamily = (TradeAssetFamily)value.AssetFamily,
-        SignedQuantity = value.SignedQuantity, LimitPrice = value.LimitPrice, ContractKey = value.ContractKey,
-        Expiry = value.Expiry, Strike = value.Strike, PutCall = value.PutCall, ContractId = value.ContractId,
+        TradeLegId = value.TradeLegId,
+        AssetFamily = (TradeAssetFamily)value.AssetFamily,
+        SignedQuantity = value.SignedQuantity,
+        LimitPrice = value.LimitPrice,
+        ContractKey = value.ContractKey,
+        Expiry = value.Expiry,
+        Strike = value.Strike,
+        PutCall = value.PutCall,
+        ContractId = value.ContractId,
         CashMultiplier = value.CashMultiplier,
     };
 

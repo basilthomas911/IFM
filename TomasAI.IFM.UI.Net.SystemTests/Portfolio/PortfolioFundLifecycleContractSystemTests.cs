@@ -13,12 +13,21 @@ public sealed class PortfolioFundLifecycleContractSystemTests
     {
         var model = new FundMandateReadModel
         {
-            PortfolioId = 101, FundId = 205, FundCode = "DAILY", Name = "Daily",
-            FundMandateVersion = 1, TradingYear = 2026, OperatingState = FundOperatingState.Draft,
+            PortfolioId = 101,
+            FundId = 205,
+            FundCode = "DAILY",
+            Name = "Daily",
+            FundMandateVersion = 1,
+            TradingYear = 2026,
+            OperatingState = FundOperatingState.Draft,
             EffectiveFromUtc = new(2026, 8, 29, 14, 0, 0, DateTimeKind.Utc),
-            DecisionHorizon = "Daily", Objective = "Directional", UnderlyingUniverse = ["ES"],
-            EligibleAssetTypes = ["Futures"], PermittedTradeFamilies = ["DirectionalFuture"],
-            CreatedOnUtc = new(2026, 8, 29, 14, 0, 0, DateTimeKind.Utc), CreatedBy = "admin",
+            DecisionHorizon = "Daily",
+            Objective = "Directional",
+            UnderlyingUniverse = ["ES"],
+            EligibleAssetTypes = ["Futures"],
+            PermittedTradeFamilies = ["DirectionalFuture"],
+            CreatedOnUtc = new(2026, 8, 29, 14, 0, 0, DateTimeKind.Utc),
+            CreatedBy = "admin",
         };
 
         model.Validate().Should().BeEmpty();

@@ -25,19 +25,19 @@ public class FuturesMarketPriceRealtimeActor(IRealtimeActorContext<FuturesMarket
     /// <summary>Maps supported realtime verbs to their concrete MessagePack deserializers.</summary>
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
-    {
-        [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
+        {
+            [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
             message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!
-    };
+        };
 
     /// <summary>Maps supported realtime event types to their extension handlers.</summary>
     readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesMarketPriceRealtimeContext, ValueTask<bool>>> _receiveMap =
         new Dictionary<Type, Func<IEvent, IFuturesMarketPriceRealtimeContext, ValueTask<bool>>>
-    {
-        [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] =
+        {
+            [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] =
             (@event, context) => ((FuturesMarketPriceUpdatedRealtimeEvent)@event)
                 .ExecuteAsync(context, actorContext.Logger)
-    };
+        };
 
     /// <summary>
     /// Parses a supported futures market-price realtime event from an actor message.

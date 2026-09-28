@@ -17,6 +17,6 @@ public interface IQueryActor<TActor> : IActor<TActor>
     ValueTask OnShutdown(IQueryActorContext<TActor> context);
     ValueTask ReceiveAsync(IQueryActorContext<TActor> context, IQuery qry);
     ValueTask OnValidateAsync(IQueryActorContext<TActor> context, IQuery qry);
-    ValueTask OnExceptionAsync(IQueryActorContext<TActor> context, ActorThreadId threadId, IQuery qry, string verb,Exception ex);
+    ValueTask OnExceptionAsync(IQueryActorContext<TActor> context, ActorThreadId threadId, IQuery qry, string verb, Exception ex);
 }
 

@@ -9,7 +9,9 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 public sealed class CompositionMarketPreparationTests
 {
     [Theory]
-    [InlineData("Daily")] [InlineData("Weekly")] [InlineData("Monthly")]
+    [InlineData("Daily")]
+    [InlineData("Weekly")]
+    [InlineData("Monthly")]
     public async Task Outright_preparation_and_restart_need_neither_Treasury_nor_options(string horizon)
     {
         var clock = new Clock(At); var api = Substitute.For<ICompositionMarketDataApi>();

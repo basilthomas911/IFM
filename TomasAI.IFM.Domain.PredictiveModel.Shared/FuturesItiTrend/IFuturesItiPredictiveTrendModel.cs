@@ -6,7 +6,7 @@ namespace TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend;
 
 public interface IFuturesItiPredictiveTrendModel
 {
-    Task<(IReadOnlyList<FuturesItiTrendDeltaDataReadModel> Model, 
+    Task<(IReadOnlyList<FuturesItiTrendDeltaDataReadModel> Model,
         IReadOnlyList<FuturesItiTrendDeltaDataReadModel> Training,
         IReadOnlyList<FuturesItiTrendDeltaDataReadModel> Test)> LoadTrendDeltaDataAsync(string symbol, DateOnly startDate, DateOnly endDate);
     Task SaveTrendDeltaModelAsync(FuturesItiTrendDeltaModelReadModel trendModel);

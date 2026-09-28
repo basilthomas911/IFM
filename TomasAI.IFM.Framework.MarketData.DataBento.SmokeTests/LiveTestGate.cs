@@ -69,22 +69,22 @@ internal static class LiveTestGate
 
     internal static DatabentoFeedOptions CreateLiveOptions(
         string dataset = "GLBX.MDP3") => CreateOptions(dataset) with
-    {
-        DataSource = FeedDataSourceMode.DatabentoLive,
-        CpuAffinity = new FeedCpuAffinityOptions
         {
-            Mode = CpuAffinityMode.Unpinned,
-            RequirePerformanceCore = false
-        },
-        ThreadPriority = new FeedThreadPriorityOptions(),
-        Memory = new FeedMemoryOptions { LockRingMemory = false },
-        GarbageCollection = new FeedGcOptions { EnableSustainedLowLatency = false },
-        Numa = new FeedNumaOptions { Mode = NumaLocalityMode.Disabled },
-        CoreIsolation = new FeedCoreIsolationOptions
-        {
-            Mode = FeedCoreIsolationMode.PinnedOnly
-        }
-    };
+            DataSource = FeedDataSourceMode.DatabentoLive,
+            CpuAffinity = new FeedCpuAffinityOptions
+            {
+                Mode = CpuAffinityMode.Unpinned,
+                RequirePerformanceCore = false
+            },
+            ThreadPriority = new FeedThreadPriorityOptions(),
+            Memory = new FeedMemoryOptions { LockRingMemory = false },
+            GarbageCollection = new FeedGcOptions { EnableSustainedLowLatency = false },
+            Numa = new FeedNumaOptions { Mode = NumaLocalityMode.Disabled },
+            CoreIsolation = new FeedCoreIsolationOptions
+            {
+                Mode = FeedCoreIsolationMode.PinnedOnly
+            }
+        };
 
     internal static ulong UtcNowNanoseconds() => checked(
         (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 1_000_000UL);

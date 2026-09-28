@@ -19,15 +19,15 @@ public sealed class CommandAuditLoggerTests
     [Fact]
     public async Task Completion_hook_runs_when_cancellation_occurs_after_state_load()
     {
-        using var cancellation=new CancellationTokenSource();
-        var actorId=new ActorMailboxId(ActorType.Command,TestCommandActor.ActorName);
-        var supervisor=CreateSupervisor(actorId,new SequencedAuditLogger(true));
-        var actor=new TestCommandActor(new TestCommandContext(supervisor.Object,actorId)){AfterLoad=()=>cancellation.Cancel()};
-        var message=new TestCommandMessage(new TestCommand());
+        using var cancellation = new CancellationTokenSource();
+        var actorId = new ActorMailboxId(ActorType.Command, TestCommandActor.ActorName);
+        var supervisor = CreateSupervisor(actorId, new SequencedAuditLogger(true));
+        var actor = new TestCommandActor(new TestCommandContext(supervisor.Object, actorId)) { AfterLoad = () => cancellation.Cancel() };
+        var message = new TestCommandMessage(new TestCommand());
         await actor.StartAsync(supervisor.Object);
-        Func<Task> run=async()=>await actor.HandleMessageAsync(message,message.Subject.ThreadId,cancellation.Token);
+        Func<Task> run = async () => await actor.HandleMessageAsync(message, message.Subject.ThreadId, cancellation.Token);
         await run.Should().ThrowAsync<OperationCanceledException>();
-        actor.StateLoads.Should().Be(1);actor.Executions.Should().Be(0);actor.StateSaves.Should().Be(0);actor.Completions.Should().Be(1);
+        actor.StateLoads.Should().Be(1); actor.Executions.Should().Be(0); actor.StateSaves.Should().Be(0); actor.Completions.Should().Be(1);
         await actor.StopAsync();
     }
 
@@ -241,9 +241,9 @@ public sealed class CommandAuditLoggerTests
         public int Exceptions { get; private set; }
         public int Completions { get; private set; }
         public bool DenyAuthorization { get; set; }
-        public Action? AfterLoad {get;init;}
-        protected override ValueTask OnCommandFinishedAsync(ICommandActorContext<TestCommandActor> context,ICommand? command)
-        {Completions++;return ValueTask.CompletedTask;}
+        public Action? AfterLoad { get; init; }
+        protected override ValueTask OnCommandFinishedAsync(ICommandActorContext<TestCommandActor> context, ICommand? command)
+        { Completions++; return ValueTask.CompletedTask; }
 
         protected override ICommand ParseMessage(
             ICommandActorContext<TestCommandActor> context,

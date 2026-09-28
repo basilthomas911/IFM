@@ -22,9 +22,12 @@ public sealed class FuturesRsiDailyCollectionFeatureTests
             {
                 FuturesRsiSignal = new FuturesRsiSignalReadModel
                 {
-                    ContractId = "ESU6", ValueDate = date.AddDays(-14 + day),
-                    TimePeriod = TimeFrameType.Daily, PeriodLength = 14,
-                    Price = 6500m + day, RSI = 55d
+                    ContractId = "ESU6",
+                    ValueDate = date.AddDays(-14 + day),
+                    TimePeriod = TimeFrameType.Daily,
+                    PeriodLength = 14,
+                    Price = 6500m + day,
+                    RSI = 55d
                 }
             }, addEvent: false).Should().BeTrue();
 

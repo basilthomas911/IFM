@@ -15,6 +15,6 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared
         double LowPrice { get; }
         double ClosePrice { get; }
         long Volume { get; }
-   
+
     }
 }

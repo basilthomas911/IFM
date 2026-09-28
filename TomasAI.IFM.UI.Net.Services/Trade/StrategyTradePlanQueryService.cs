@@ -62,19 +62,19 @@ public sealed class StrategyTradePlanQueryService(IStrategyTradePlanQueryApi que
     public Task GetCurrentAsync(StrategyTradePlanSnapshot selected,
         Action<StrategyTradePlanSnapshot?> onCompleted,
         CancellationToken cancellationToken = default) => selected.Position.StrategyKind switch
-    {
-        TradeStrategyKind.IronCondor => ExecuteAsync(() =>
-            _queryApi.GetCurrentIronCondorAsync(selected.Position.Id, selected.ValueDate,
-                cancellationToken), onCompleted),
-        TradeStrategyKind.VerticalSpread => ExecuteAsync(() =>
-            _queryApi.GetCurrentVerticalSpreadAsync(selected.Position.Id, selected.ValueDate,
-                cancellationToken), onCompleted),
-        TradeStrategyKind.FuturesOutright => ExecuteAsync(() =>
-            _queryApi.GetCurrentFuturesAsync(selected.Position.Id, selected.ValueDate,
-                cancellationToken), onCompleted),
-        _ => throw new ArgumentOutOfRangeException(nameof(selected),
-            selected.Position.StrategyKind, "Unsupported Trade Plan strategy.")
-    };
+        {
+            TradeStrategyKind.IronCondor => ExecuteAsync(() =>
+                _queryApi.GetCurrentIronCondorAsync(selected.Position.Id, selected.ValueDate,
+                    cancellationToken), onCompleted),
+            TradeStrategyKind.VerticalSpread => ExecuteAsync(() =>
+                _queryApi.GetCurrentVerticalSpreadAsync(selected.Position.Id, selected.ValueDate,
+                    cancellationToken), onCompleted),
+            TradeStrategyKind.FuturesOutright => ExecuteAsync(() =>
+                _queryApi.GetCurrentFuturesAsync(selected.Position.Id, selected.ValueDate,
+                    cancellationToken), onCompleted),
+            _ => throw new ArgumentOutOfRangeException(nameof(selected),
+                selected.Position.StrategyKind, "Unsupported Trade Plan strategy.")
+        };
 
     /// <summary>Loads one bounded page of material plan history for the supplied strategy position.</summary>
     /// <param name="selected">The selected strategy position and value date.</param>
@@ -86,19 +86,19 @@ public sealed class StrategyTradePlanQueryService(IStrategyTradePlanQueryApi que
     public Task GetHistoryAsync(StrategyTradePlanSnapshot selected, int pageSize,
         byte[]? pagingState, Action<StrategyTradePlanHistoryPage> onCompleted,
         CancellationToken cancellationToken = default) => selected.Position.StrategyKind switch
-    {
-        TradeStrategyKind.IronCondor => ExecuteAsync(() =>
-            _queryApi.GetIronCondorHistoryAsync(selected.Position.Id, selected.ValueDate,
-                pageSize, pagingState, cancellationToken), onCompleted),
-        TradeStrategyKind.VerticalSpread => ExecuteAsync(() =>
-            _queryApi.GetVerticalSpreadHistoryAsync(selected.Position.Id, selected.ValueDate,
-                pageSize, pagingState, cancellationToken), onCompleted),
-        TradeStrategyKind.FuturesOutright => ExecuteAsync(() =>
-            _queryApi.GetFuturesHistoryAsync(selected.Position.Id, selected.ValueDate,
-                pageSize, pagingState, cancellationToken), onCompleted),
-        _ => throw new ArgumentOutOfRangeException(nameof(selected),
-            selected.Position.StrategyKind, "Unsupported Trade Plan strategy.")
-    };
+        {
+            TradeStrategyKind.IronCondor => ExecuteAsync(() =>
+                _queryApi.GetIronCondorHistoryAsync(selected.Position.Id, selected.ValueDate,
+                    pageSize, pagingState, cancellationToken), onCompleted),
+            TradeStrategyKind.VerticalSpread => ExecuteAsync(() =>
+                _queryApi.GetVerticalSpreadHistoryAsync(selected.Position.Id, selected.ValueDate,
+                    pageSize, pagingState, cancellationToken), onCompleted),
+            TradeStrategyKind.FuturesOutright => ExecuteAsync(() =>
+                _queryApi.GetFuturesHistoryAsync(selected.Position.Id, selected.ValueDate,
+                    pageSize, pagingState, cancellationToken), onCompleted),
+            _ => throw new ArgumentOutOfRangeException(nameof(selected),
+                selected.Position.StrategyKind, "Unsupported Trade Plan strategy.")
+        };
 
     /// <summary>Loads the current exit-workflow stage for a strategy position.</summary>
     /// <param name="selected">The selected strategy position and value date.</param>

@@ -15,16 +15,16 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Projection;
 
 /// <summary>Durably projects committed financial history and publishes completion notifications.</summary>
-public sealed class LedgerConfigurationProjector(IDurableReplayQueue queue,IEventSourceActorDbContext eventSource,IBlackboardService blackboard,
-    IFinancialHistoryProjection history,ILogger<LedgerConfigurationProjector> logger,EventProjectorReliabilityOptions? options=null)
-    :ConventionalEventProjector<LedgerConfigurationCommandActor>(queue,eventSource,blackboard,logger,options)
+public sealed class LedgerConfigurationProjector(IDurableReplayQueue queue, IEventSourceActorDbContext eventSource, IBlackboardService blackboard,
+    IFinancialHistoryProjection history, ILogger<LedgerConfigurationProjector> logger, EventProjectorReliabilityOptions? options = null)
+    : ConventionalEventProjector<LedgerConfigurationCommandActor>(queue, eventSource, blackboard, logger, options)
 {
-    static readonly ImmutableArray<Type> Types=[typeof(LedgerConfigurationCompletedEvent)];
-    readonly ImmutableArray<EventProjectionDescriptor> _descriptors=[
+    static readonly ImmutableArray<Type> Types = [typeof(LedgerConfigurationCompletedEvent)];
+    readonly ImmutableArray<EventProjectionDescriptor> _descriptors = [
         DescribeNotification<LedgerConfigurationCompletedEvent,LedgerPortfolioId>(value=>history.ApplyAsync(value)),
     ];
-    public override IReadOnlyCollection<Type> ProjectedEventTypes=>Types;
-    public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors=>_descriptors;
+    public override IReadOnlyCollection<Type> ProjectedEventTypes => Types;
+    public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;
 }
 
 

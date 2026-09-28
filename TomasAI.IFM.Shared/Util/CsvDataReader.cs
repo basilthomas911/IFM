@@ -93,7 +93,7 @@ namespace TomasAI.IFM.Shared.Util
                 throw new InvalidOperationException("No rows found in Csv Data");
             if (_rowIndex >= _rows.Count)
                 throw new IndexOutOfRangeException("Csv Data row index out of range");
-            if  (i < 0 || i >= _columns.Count)
+            if (i < 0 || i >= _columns.Count)
                 throw new IndexOutOfRangeException("Csv Data column index out of range");
             return _rows[_rowIndex][i];
         }
@@ -185,7 +185,7 @@ namespace TomasAI.IFM.Shared.Util
 
                     // Add field to list
                     fieldData.Add(value);
-    
+
                     // Eat up to and including next comma
                     while (pos < rowData.Length && rowData[pos] != ',')
                         pos++;

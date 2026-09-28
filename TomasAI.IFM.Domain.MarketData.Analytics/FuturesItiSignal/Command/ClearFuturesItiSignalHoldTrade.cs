@@ -62,14 +62,14 @@ public static class ClearFuturesItiSignalHoldTrade
         FuturesItiSignalCommandState state,
         IntrinsicTimeTradeState tradeState) =>
         state.CurrentSignal! with
-            {
-                ContractId = command.ContractId,
-                ValueDate = command.ValueDate,
-                SequenceId = 0,
-                IntrinsicTime = command.Timestamp,
-                IntrinsicTimeLength = 0,
-                IntrinsicTimeMode = IntrinsicTimeModeType.HoldTradeChanged,
-                TradeState = tradeState
-            };
+        {
+            ContractId = command.ContractId,
+            ValueDate = command.ValueDate,
+            SequenceId = 0,
+            IntrinsicTime = command.Timestamp,
+            IntrinsicTimeLength = 0,
+            IntrinsicTimeMode = IntrinsicTimeModeType.HoldTradeChanged,
+            TradeState = tradeState
+        };
 
 }

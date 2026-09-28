@@ -35,20 +35,20 @@ public class LegacyJsonEventStreamReadModel
             ? ToUnknownEvent()
             : domainEvent;
 
-          IEvent ToUnknownEvent()
-            => new UnknownEvent(
-               subject: default,
-               id: Guid.Empty,
-               entityId: default,
-               eventId: EventVersion,
-               commandId: Guid.Empty,
-               aggregateId: string.Empty,
-               eventSource: string.Empty,
-               receivedOn: DateTime.MinValue,
-               eventSourceId: 0L,
-               eventSourceVersion: 0L,
-               eventTypeName: EventTypeName,
-               eventData: EventData,
-               eventDate: DateTime.MinValue);
+        IEvent ToUnknownEvent()
+          => new UnknownEvent(
+             subject: default,
+             id: Guid.Empty,
+             entityId: default,
+             eventId: EventVersion,
+             commandId: Guid.Empty,
+             aggregateId: string.Empty,
+             eventSource: string.Empty,
+             receivedOn: DateTime.MinValue,
+             eventSourceId: 0L,
+             eventSourceVersion: 0L,
+             eventTypeName: EventTypeName,
+             eventData: EventData,
+             eventDate: DateTime.MinValue);
     }
 }

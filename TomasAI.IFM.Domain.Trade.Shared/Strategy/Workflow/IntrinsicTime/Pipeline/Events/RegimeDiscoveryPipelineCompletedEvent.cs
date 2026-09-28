@@ -63,7 +63,7 @@ public sealed record RegimeDiscoveryPipelineCompletedEvent : ICompleteEvent<Intr
     /// <summary>Gets the immutable parameters resolved by pipeline initialization.</summary>
     [Key(18)] public RegimeDiscoveryParameterSet ParameterSet { get; init; } = new();
 
-    [Key(19)] public ParameterApplicationProvenance? ParameterApplication {get;init;}
+    [Key(19)] public ParameterApplicationProvenance? ParameterApplication { get; init; }
 
     /// <summary>Gets the local pipeline event-source user for diagnostics.</summary>
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";

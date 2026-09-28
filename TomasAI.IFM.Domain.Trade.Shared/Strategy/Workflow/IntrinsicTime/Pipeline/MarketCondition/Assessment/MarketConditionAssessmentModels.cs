@@ -110,8 +110,10 @@ public sealed record MarketConditionAssessmentResult
         Assessment = Assessment is null ? null! : Assessment with
         {
             UpstreamContext = RegimeDiscoveryResultContent.Clone(Assessment.UpstreamContext),
-            EvidenceItems = Assessment.EvidenceItems, ConflictingEvidenceItems = Assessment.ConflictingEvidenceItems,
-            LimitationReasons = Assessment.LimitationReasons, InheritedRestrictions = Assessment.InheritedRestrictions
+            EvidenceItems = Assessment.EvidenceItems,
+            ConflictingEvidenceItems = Assessment.ConflictingEvidenceItems,
+            LimitationReasons = Assessment.LimitationReasons,
+            InheritedRestrictions = Assessment.InheritedRestrictions
         },
         CalendarEvidence = CalendarEvidence is null ? null : CalendarEvidence with { Attempts = CalendarEvidence.Attempts }
     };

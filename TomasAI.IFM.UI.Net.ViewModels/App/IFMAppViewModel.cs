@@ -871,10 +871,12 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             metricsChanged: PublishStatusConsoleMetrics);
         _statusConsoleChannel = channel;
         PublishStatusConsoleMetrics(channel.Metrics);
-        return _appRoot.Services.StatusConsole.ExecuteAsync(async model => {
+        return _appRoot.Services.StatusConsole.ExecuteAsync(async model =>
+        {
             model.OnError((errorCode, errorMessage) =>
                 PublishError(errorCode, errorMessage, "Status Console Log Error"));
-            await model.StartStatusConsoleLogListenerAsync(async o => {
+            await model.StartStatusConsoleLogListenerAsync(async o =>
+            {
                 if (o is not null && o.StatusConsoleLog is not null)
                     await channel.WriteAsync(o.StatusConsoleLog);
             }, _siteId);
@@ -908,7 +910,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     /// start application events listener
     /// </summary>
     Task StartApplicationEventsListener()
-        => _appRoot.Services.ApplicationEvents.ExecuteAsync(async model => {
+        => _appRoot.Services.ApplicationEvents.ExecuteAsync(async model =>
+        {
             model.OnError((errorCode, errorMessage) =>
                 _ = WriteStatusConsoleAsync(
                     $"Application lifecycle event listener error ({errorCode}): {errorMessage}"));
@@ -1179,7 +1182,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             metricsChanged: PublishTradePlacementMetrics);
         _tradePlacementChannel = channel;
         PublishTradePlacementMetrics(channel.Metrics);
-        return _appRoot.Services.TradePlacementEvents.ExecuteAsync(async model => {
+        return _appRoot.Services.TradePlacementEvents.ExecuteAsync(async model =>
+        {
             model.OnError((errorCode, errorMessage) =>
                 PublishError(errorCode, errorMessage, "Starting Trade Placement Event Consumer Error"));
             await WriteStatusConsoleAsync("Starting Trade Placement Event Consumer...");
@@ -1205,7 +1209,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         var channel = Interlocked.Exchange(ref _tradePlacementChannel, null);
         try
         {
-            await _appRoot.Services.TradePlacementEvents.ExecuteAsync(async model => {
+            await _appRoot.Services.TradePlacementEvents.ExecuteAsync(async model =>
+            {
                 model.OnError((errorCode, errorMessage) =>
                     PublishError(errorCode, errorMessage, "Stopping Trade Placement Event Consumer Error"));
                 await WriteStatusConsoleAsync("Stopping Trade Placement Event Consumer...");
@@ -1285,7 +1290,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     /// start futures bar data event consumer
     /// </summary>
     Task StartFuturesBarDataEventConsumer(CancellationToken cancellationToken)
-        => _appRoot.Services.FeedCommands.ExecuteAsync(async model => {
+        => _appRoot.Services.FeedCommands.ExecuteAsync(async model =>
+        {
             if (_futuresBarChannels is not null)
                 return;
             model.OnError((errorCode, errorMessage) =>
@@ -1312,7 +1318,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
         try
         {
-            await _appRoot.Services.FeedCommands.ExecuteAsync(async model => {
+            await _appRoot.Services.FeedCommands.ExecuteAsync(async model =>
+            {
                 model.OnError((errorCode, errorMessage) =>
                     PublishError(errorCode, errorMessage, "Stopping Futures Bar Data Event Consumer Error"));
                 await WriteStatusConsoleAsync("Stopping Futures Bar Data Event Consumer...");
@@ -1745,7 +1752,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         _marketDataFeedTerminalCorrelation.BeginAttempt();
         try
         {
-            await _appRoot.Services.FeedCommands.ExecuteAsync(async model => {
+            await _appRoot.Services.FeedCommands.ExecuteAsync(async model =>
+            {
                 model.OnError((errorCode, errorMessage) =>
                     PublishError(errorCode, errorMessage, "Enable Trade Live Feed Error"));
                 await WriteStatusConsoleAsync("Starting Trade Data Feeds...");
@@ -1781,12 +1789,14 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         _marketDataFeedTerminalCorrelation.BeginAttempt();
         try
         {
-            await _appRoot.Services.FeedCommands.ExecuteAsync(async model => {
+            await _appRoot.Services.FeedCommands.ExecuteAsync(async model =>
+            {
                 model.OnError((errorCode, errorMessage) =>
                     PublishError(errorCode, errorMessage, "Disable Trade Live Feed Error"));
                 await WriteStatusConsoleAsync("Stopping Trade Data Feeds...");
                 if (_valueDate is not null)
-                    commandId = await model.StopDataFeedAsync(_valueDate.Value, async () => {
+                    commandId = await model.StopDataFeedAsync(_valueDate.Value, async () =>
+                    {
                         if (_baseContracts == null)
                             return;
                         foreach (var contract in _baseContracts)

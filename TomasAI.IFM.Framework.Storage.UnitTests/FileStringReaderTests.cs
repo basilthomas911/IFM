@@ -29,15 +29,18 @@ public class FileStringReaderTests
     public void CreateFileStringReaderWithNullUri()
     {
         var act = () => { _ = new FileStringReader(null); };
-            act.Should().Throw<ArgumentNullException>();
+        act.Should().Throw<ArgumentNullException>();
     }
 
     [Fact]
     public void CreateFileStringReaderWithNonFileUri()
     {
-        var act = () => { var uri = new Uri("https://example.com/data.csv");
-            _ = new FileStringReader(uri); };
-            act.Should().Throw<ArgumentException>();
+        var act = () =>
+        {
+            var uri = new Uri("https://example.com/data.csv");
+            _ = new FileStringReader(uri);
+        };
+        act.Should().Throw<ArgumentException>();
     }
 
     [Fact]

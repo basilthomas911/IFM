@@ -35,7 +35,8 @@ public sealed record GetCapacityUsageQuery : IFinancialQueryMessage<GetCapacityU
     [Key(3)] public Guid CorrelationId { get; init; }
     [Key(4)] public DateTime RequestedAtUtc { get; init; }
 
-    [IgnoreMember] public GetCapacityUsageRequest Parameters
+    [IgnoreMember]
+    public GetCapacityUsageRequest Parameters
     {
         get => new();
         init

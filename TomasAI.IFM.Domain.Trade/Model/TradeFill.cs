@@ -33,7 +33,7 @@ public class TradeFill : IDataValidation, ITradeFill
         this.Validate(_validator);
     }
 
-    public TradeFill(TradeFillReadModel e):this(
+    public TradeFill(TradeFillReadModel e) : this(
         orderId: e.OrderId,
         tradeId: e.TradeId,
         fillDate: e.FillDate,

@@ -42,13 +42,13 @@ public class FuturesAdxSignalRealtimeActor(
     /// <summary>Maps supported realtime event types to their dedicated extension handlers.</summary>
     readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesAdxSignalRealtimeContext, ILogger, ValueTask<bool>>> _receiveMap =
         new Dictionary<Type, Func<IEvent, IFuturesAdxSignalRealtimeContext, ILogger, ValueTask<bool>>>
-    {
-        [typeof(FuturesTradeSessionBarClosedRealtimeEvent)] = async (@event, context, logger) =>
         {
-            var closed = (@event as FuturesTradeSessionBarClosedRealtimeEvent)!;
-            return await closed.ExecuteAsync(context, logger).ConfigureAwait(false);
-        }
-    };
+            [typeof(FuturesTradeSessionBarClosedRealtimeEvent)] = async (@event, context, logger) =>
+            {
+                var closed = (@event as FuturesTradeSessionBarClosedRealtimeEvent)!;
+                return await closed.ExecuteAsync(context, logger).ConfigureAwait(false);
+            }
+        };
 
     /// <summary>Registers the shared closed-observation route.</summary>
     protected override ValueTask OnStartup(IEventActorContext<FuturesAdxSignalRealtimeActor> context)

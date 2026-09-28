@@ -27,12 +27,12 @@ public static class EsVerticalSpreadOrderComposer
             .ThenBy(x => x.Instrument.ContractId, StringComparer.Ordinal).ToArray();
         int lower = call ? (side == "Long" ? 1 : -1) : (side == "Long" ? -1 : 1);
         for (int i = 0; i < chain.Length; i++)
-        for (int j = i + 1; j < chain.Length; j++)
-        {
-            token.ThrowIfCancellationRequested();
-            if (rules.AllowedWidths.Contains(chain[j].Instrument.Strike!.Value - chain[i].Instrument.Strike!.Value))
-                yield return [(chain[i], lower), (chain[j], -lower)];
-        }
+            for (int j = i + 1; j < chain.Length; j++)
+            {
+                token.ThrowIfCancellationRequested();
+                if (rules.AllowedWidths.Contains(chain[j].Instrument.Strike!.Value - chain[i].Instrument.Strike!.Value))
+                    yield return [(chain[i], lower), (chain[j], -lower)];
+            }
     }
 }
 
@@ -46,15 +46,15 @@ public static class EsIronCondorOrderComposer
         var calls = EsVerticalSpreadOrderComposer.Enumerate(options, true, "Short", rules, token).ToArray();
         int direction = side == "Short" ? -1 : 1;
         foreach (var put in puts)
-        foreach (var call in calls)
-        {
-            token.ThrowIfCancellationRequested();
-            if (put[1].Instrument.Instrument.Strike >= call[0].Instrument.Instrument.Strike) continue;
-            var wp = put[1].Instrument.Instrument.Strike - put[0].Instrument.Instrument.Strike;
-            var wc = call[1].Instrument.Instrument.Strike - call[0].Instrument.Instrument.Strike;
-            if (rules.RequireSymmetricWings && wp != wc) continue;
-            yield return [(put[0].Instrument, -direction), (put[1].Instrument, direction),
+            foreach (var call in calls)
+            {
+                token.ThrowIfCancellationRequested();
+                if (put[1].Instrument.Instrument.Strike >= call[0].Instrument.Instrument.Strike) continue;
+                var wp = put[1].Instrument.Instrument.Strike - put[0].Instrument.Instrument.Strike;
+                var wc = call[1].Instrument.Instrument.Strike - call[0].Instrument.Instrument.Strike;
+                if (rules.RequireSymmetricWings && wp != wc) continue;
+                yield return [(put[0].Instrument, -direction), (put[1].Instrument, direction),
                 (call[0].Instrument, direction), (call[1].Instrument, -direction)];
-        }
+            }
     }
 }

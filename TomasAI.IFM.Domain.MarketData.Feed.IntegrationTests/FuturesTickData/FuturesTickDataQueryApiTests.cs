@@ -1,20 +1,18 @@
 using FluentAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.FuturesTickData;
 
-public class FuturesTickDataQueryApiTests(WebApplicationFactory<Program> factory, MarketDataFeedFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataFeedFixture>
+public class FuturesTickDataQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory, MarketDataFeedFixture dbFixture)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<MarketDataFeedFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     [Fact]
@@ -26,9 +24,7 @@ public class FuturesTickDataQueryApiTests(WebApplicationFactory<Program> factory
         await dbFixture.MarketDataDb.InsertFuturesTickDataAsync(tickData);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedQueryApi(queryServiceApi);
+        var marketDataFeedApi = new MarketDataFeedQueryApi(_actorProducer);
         var response = await marketDataFeedApi.GetLastFuturesTickDataAsync(tickData.ContractId, tickData.ValueDate);
 
         // assert...
@@ -57,9 +53,7 @@ public class FuturesTickDataQueryApiTests(WebApplicationFactory<Program> factory
         var tickDate = tickData.ValueDate.ToDateTime(tickData.TickTime);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedQueryApi(queryServiceApi);
+        var marketDataFeedApi = new MarketDataFeedQueryApi(_actorProducer);
         var response = await marketDataFeedApi.GetLastFuturesTickDataAsync(tickData.ContractId, tickDate);
 
         // assert...

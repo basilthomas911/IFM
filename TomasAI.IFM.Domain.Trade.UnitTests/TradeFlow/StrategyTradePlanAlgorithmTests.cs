@@ -229,16 +229,16 @@ public sealed class StrategyTradePlanAlgorithmTests
 
     static UpdateIronCondorTradePlanCommand Command(
         PositionIronCondorTradePlanId entityId, StrategyPositionSnapshot position, Guid commandId) => new()
-    {
-        CommandId = commandId,
-        EntityId = entityId,
-        Subject = new ActorSubject(ActorType.Function, UpdateIronCondorTradePlanCommand.Actor,
+        {
+            CommandId = commandId,
+            EntityId = entityId,
+            Subject = new ActorSubject(ActorType.Function, UpdateIronCondorTradePlanCommand.Actor,
             UpdateIronCondorTradePlanCommand.Verb, entityId.Format()),
-        Position = position,
-        Parameters = Parameters(),
-        SourceEventId = Guid.NewGuid(),
-        RequestedAtUtc = Now
-    };
+            Position = position,
+            Parameters = Parameters(),
+            SourceEventId = Guid.NewGuid(),
+            RequestedAtUtc = Now
+        };
 
     static StrategyPositionSnapshot Position(
         TradeStrategyKind strategy, int legCount, decimal unrealizedPnl = 0m, long sequence = 1)

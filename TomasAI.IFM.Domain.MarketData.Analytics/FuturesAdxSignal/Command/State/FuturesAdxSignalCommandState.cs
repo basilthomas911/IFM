@@ -56,5 +56,5 @@ public class FuturesAdxSignalCommandState
     /// <summary>
     /// 
     /// </summary>
-    public IReadOnlyCollection< FuturesAdxSignalReadModel> AdxSignals => _adxSignals;
+    public IReadOnlyCollection<FuturesAdxSignalReadModel> AdxSignals => _adxSignals;
 }

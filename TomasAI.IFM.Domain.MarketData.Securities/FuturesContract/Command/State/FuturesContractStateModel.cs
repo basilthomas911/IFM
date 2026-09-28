@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.State
 internal class FuturesContractStateModel
 {
     readonly HashSet<FuturesContractId> _contractIds = [];
-    
+
     /// <summary>
     /// Determines whether the specified futures contract ID exists in the collection.
     /// </summary>

@@ -126,7 +126,7 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
         result.OptionLegs.Length.Should().Be(SampleData.OptionTrade.OptionLegs.Length);
         foreach (var leg in result.OptionLegs)
         {
-            var expectedLeg = SampleData.OptionTrade.OptionLegs.First(e => e.Id.TradeId == leg.Id.TradeId && e.ContractId == leg.Id.ContractId );
+            var expectedLeg = SampleData.OptionTrade.OptionLegs.First(e => e.Id.TradeId == leg.Id.TradeId && e.ContractId == leg.Id.ContractId);
             leg.OptionLegType.Should().Be(expectedLeg.OptionLegType);
             leg.Quantity.Should().Be(expectedLeg.Quantity);
             leg.StrikePrice.Should().Be(expectedLeg.StrikePrice);
@@ -195,7 +195,7 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
         result.TradeTypeLimits.Length.Should().Be(SampleData.OptionTrade.TradeTypeLimits.Length);
         foreach (var limit in result.TradeTypeLimits)
         {
-            var expectedLimit = SampleData.OptionTrade.TradeTypeLimits.First(e =>e.TradeId == limit.TradeId &&  e.TradeType == limit.TradeType);
+            var expectedLimit = SampleData.OptionTrade.TradeTypeLimits.First(e => e.TradeId == limit.TradeId && e.TradeType == limit.TradeType);
             limit.TradeType.Should().Be(expectedLimit.TradeType);
             limit.MaxLossLimit.Should().Be(expectedLimit.MaxLossLimit);
             limit.MinProfitLimit.Should().Be(expectedLimit.MinProfitLimit);
@@ -382,8 +382,8 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
         await db.InsertOptionTradeSpreadBarDataAsync(outOfRangeBarData);
 
         // Define date range that should only include the first record
-        var startDate =new DateTime(2025, 3, 14);
-        var endDate =new DateTime(2025, 3, 16);
+        var startDate = new DateTime(2025, 3, 14);
+        var endDate = new DateTime(2025, 3, 16);
 
         // Act
         var result = await db.GetOptionTradeSpreadBarDataAsync(orderId, tradeId, valueDate, tradeType, startDate, endDate);
@@ -813,7 +813,7 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
 
         // Insert sample data
         await db.InsertTradePlanAsync(SampleData.TradePlan);
-        
+
         // Act
         var result = await db.GetTradePlanForwardLossRatiosAsync(startDate, endDate);
 
@@ -822,7 +822,7 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
         result.Count.Should().Be(1);
 
         var forwardLossRatio = result.First();
-        forwardLossRatio.ForwardLossRatio .Should().Be(SampleData.TradePlan.ForwardLossRatio);
+        forwardLossRatio.ForwardLossRatio.Should().Be(SampleData.TradePlan.ForwardLossRatio);
     }
 
     [Fact]
@@ -864,7 +864,7 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
 
         // Create sample forward loss ratio data
         var tradePlan = SampleData.TradePlan;
-       
+
         // Insert the test data
         await db.InsertTradePlanAsync(tradePlan);
 

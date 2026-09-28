@@ -11,8 +11,8 @@ public static class CapacityAdmissionModel
         FinancialBookConfiguration book, decimal availableCash, IReadOnlyList<CapacityUsed> usage, DateTime nowUtc)
     {
         var fund = book.Funds.SingleOrDefault(x => x.FundId == request.FundId);
-        var deployment=fund?.Deployments.SingleOrDefault(x=>x.Reference.DeploymentKey==request.Authority.DeploymentKey);
-        var reference=fund?.Deployments.Length>0?deployment?.Reference:fund?.Reference;
+        var deployment = fund?.Deployments.SingleOrDefault(x => x.Reference.DeploymentKey == request.Authority.DeploymentKey);
+        var reference = fund?.Deployments.Length > 0 ? deployment?.Reference : fund?.Reference;
         Require(fund is not null && assessment.Eligible && assessment.PortfolioId == book.PortfolioId &&
             assessment.FundId == request.FundId && assessment.InvocationId == request.RiskInvocationId &&
             assessment.ResultId == request.RiskResultId && assessment.ResultHash == request.RiskAssessmentHash &&
@@ -32,33 +32,33 @@ public static class CapacityAdmissionModel
             FinancialReasons.AuthorityDenied, "Qualified margin evidence must cover the complete reservation lifetime.");
         Require(request.TradeIds.Length > 0 && request.TradeIds.All(x => x > 0) && request.TradeIds.Distinct().Count() == request.TradeIds.Length,
             FinancialReasons.InvalidContract, "Reservation requires unique allocated trade identities.");
-        if(deployment is not null)
+        if (deployment is not null)
         {
-            Require(deployment.MaximumRiskPerTrade>0 && request.Requirements.LossCharge<=deployment.MaximumRiskPerTrade,
-                FinancialReasons.InsufficientCapacity,"Trade loss exceeds its exact deployment per-trade cap.");
-            ValidateScopeVector(request.Requirements,CapacityScopeKind.Portfolio,FinancialScopeKeys.Portfolio(book.PortfolioId),false);
-            ValidateScopeVector(request.Requirements,CapacityScopeKind.Fund,FinancialScopeKeys.Fund(request.FundId),true);
-            ValidateScopeVector(request.Requirements,CapacityScopeKind.Deployment,FinancialScopeKeys.Deployment(request.Authority.DeploymentKey),true);
+            Require(deployment.MaximumRiskPerTrade > 0 && request.Requirements.LossCharge <= deployment.MaximumRiskPerTrade,
+                FinancialReasons.InsufficientCapacity, "Trade loss exceeds its exact deployment per-trade cap.");
+            ValidateScopeVector(request.Requirements, CapacityScopeKind.Portfolio, FinancialScopeKeys.Portfolio(book.PortfolioId), false);
+            ValidateScopeVector(request.Requirements, CapacityScopeKind.Fund, FinancialScopeKeys.Fund(request.FundId), true);
+            ValidateScopeVector(request.Requirements, CapacityScopeKind.Deployment, FinancialScopeKeys.Deployment(request.Authority.DeploymentKey), true);
         }
         Validate(request, assessment.Requirements, availableCash, 0, 0,
-            deployment is null?fund!.Limits:[..fund!.Limits,..deployment.Limits], usage, nowUtc);
+            deployment is null ? fund!.Limits : [.. fund!.Limits, .. deployment.Limits], usage, nowUtc);
     }
 
     public static decimal Funding(CapacityRequirements value) => checked(value.SettlementCash + value.MarginFunding + value.FeeReserve + value.VariationReserve);
 
     /// <summary>Prevents an otherwise valid requirement hash from omitting an aggregate cap or charging a different amount.</summary>
-    public static void ValidateScopeVector(CapacityRequirements requirements,CapacityScopeKind scope,string key,bool contracts)
+    public static void ValidateScopeVector(CapacityRequirements requirements, CapacityScopeKind scope, string key, bool contracts)
     {
-        Check(CapacityMeasure.SettlementCash,CapacityUnit.Usd,Funding(requirements));
-        Check(CapacityMeasure.LossCharge,CapacityUnit.Usd,requirements.LossCharge);
-        Check(CapacityMeasure.Margin,CapacityUnit.Usd,requirements.MarginRequirement);
-        Check(CapacityMeasure.GrossNotional,CapacityUnit.Usd,requirements.GrossNotional);
-        Check(CapacityMeasure.PositionSlots,CapacityUnit.Positions,requirements.PositionSlots);
-        if(contracts) Check(CapacityMeasure.GrossContracts,CapacityUnit.Contracts,requirements.GrossContracts);
-        void Check(CapacityMeasure measure,CapacityUnit unit,decimal amount)
+        Check(CapacityMeasure.SettlementCash, CapacityUnit.Usd, Funding(requirements));
+        Check(CapacityMeasure.LossCharge, CapacityUnit.Usd, requirements.LossCharge);
+        Check(CapacityMeasure.Margin, CapacityUnit.Usd, requirements.MarginRequirement);
+        Check(CapacityMeasure.GrossNotional, CapacityUnit.Usd, requirements.GrossNotional);
+        Check(CapacityMeasure.PositionSlots, CapacityUnit.Positions, requirements.PositionSlots);
+        if (contracts) Check(CapacityMeasure.GrossContracts, CapacityUnit.Contracts, requirements.GrossContracts);
+        void Check(CapacityMeasure measure, CapacityUnit unit, decimal amount)
         {
-            var values=requirements.Exposures.Where(x=>x.ScopeKind==scope && x.ScopeKey==key && x.Measure==measure && x.Unit==unit).ToArray();
-            Require(values.Length==1 && values[0].Amount==amount,FinancialReasons.InvalidContract,$"Incomplete or inconsistent {scope}/{measure} exposure.");
+            var values = requirements.Exposures.Where(x => x.ScopeKind == scope && x.ScopeKey == key && x.Measure == measure && x.Unit == unit).ToArray();
+            Require(values.Length == 1 && values[0].Amount == amount, FinancialReasons.InvalidContract, $"Incomplete or inconsistent {scope}/{measure} exposure.");
         }
     }
 
@@ -104,9 +104,9 @@ public static class CapacityAdmissionModel
         }
     }
 
-    static (CapacityScopeKind, string, CapacityMeasure, CapacityUnit) Key(CapacityExposure x) => (x.ScopeKind,x.ScopeKey,x.Measure,x.Unit);
-    static (CapacityScopeKind, string, CapacityMeasure, CapacityUnit) Key(CapacityLimit x) => (x.ScopeKind,x.ScopeKey,x.Measure,x.Unit);
-    static (CapacityScopeKind, string, CapacityMeasure, CapacityUnit) Key(CapacityUsed x) => (x.ScopeKind,x.ScopeKey,x.Measure,x.Unit);
+    static (CapacityScopeKind, string, CapacityMeasure, CapacityUnit) Key(CapacityExposure x) => (x.ScopeKind, x.ScopeKey, x.Measure, x.Unit);
+    static (CapacityScopeKind, string, CapacityMeasure, CapacityUnit) Key(CapacityLimit x) => (x.ScopeKind, x.ScopeKey, x.Measure, x.Unit);
+    static (CapacityScopeKind, string, CapacityMeasure, CapacityUnit) Key(CapacityUsed x) => (x.ScopeKind, x.ScopeKey, x.Measure, x.Unit);
     static void Require(bool condition, int code, string message)
     { if (!condition) throw new FinancialOperationException(code, message); }
 }

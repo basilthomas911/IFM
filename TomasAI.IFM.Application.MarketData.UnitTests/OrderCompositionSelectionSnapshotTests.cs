@@ -18,7 +18,7 @@ public sealed partial class OrderCompositionWorkerTests
         feed.Push(QuoteRecord(1));
         await Until(() => runtime.ReadSelection("ES-option-call") is { Delta: not null });
         var capture = new CompositionSnapshotRequest(Guid.NewGuid(), request.ScopeId, "Daily", Generation, At, At.AddSeconds(2), true)
-            { SelectionOnly = true };
+        { SelectionOnly = true };
         var result = await new MarketCompositionSnapshotProvider(runtime, clock).CaptureAsync(capture, default);
         Assert.Null(result.Failure);
         Assert.Equal(2, result.Snapshot!.SchemaVersion);
@@ -30,9 +30,15 @@ public sealed partial class OrderCompositionWorkerTests
         Assert.Equal(At, item.Instrument.Selection.IvCalculatedAtUtc);
         var frame = new DatasetWorkerControlFrame
         {
-            Kind = DatasetWorkerMessageKind.CompositionSnapshotResult, WorkerInstanceId = Guid.NewGuid(),
-            Dataset = "GLBX.MDP3", ValueDate = Date, GenerationId = Generation, CorrelationId = Guid.NewGuid(),
-            Sequence = 1, BootstrapToken = new('a', 64), CompositionResult = result
+            Kind = DatasetWorkerMessageKind.CompositionSnapshotResult,
+            WorkerInstanceId = Guid.NewGuid(),
+            Dataset = "GLBX.MDP3",
+            ValueDate = Date,
+            GenerationId = Generation,
+            CorrelationId = Guid.NewGuid(),
+            Sequence = 1,
+            BootstrapToken = new('a', 64),
+            CompositionResult = result
         };
         using var stream = new MemoryStream();
         await DatasetWorkerFrameCodec.WriteAsync(stream, frame, 1024 * 1024, default);

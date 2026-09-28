@@ -7,14 +7,15 @@ namespace TomasAI.IFM.Application.Actor.IntegrationTests;
 /// Deterministic provider boundary used by actor integration tests. The application
 /// market-data API, catalog, aggregation service, actors, and transports remain real.
 /// </summary>
-internal sealed class IntegrationDatabentoFeedFactory : IDatabentoFeedFactory
+public sealed class IntegrationDatabentoFeedFactory : IDatabentoFeedFactory
 {
     private static readonly IReadOnlyList<ContractDetail> Details =
     [
-        Future("ESZ5", 101),
+        Future("ESZ6", 101),
         VixFuture("VXZ6", 107),
+        VixFuture("VXF7", 108),
         Option("EW1K6 C5000", 102, ContractKind.CallOption, 5000),
-        Option("ESZ5 P5400", 103, ContractKind.PutOption, 5400),
+        Option("ESZ6 P5400", 103, ContractKind.PutOption, 5400),
         Option("ESZ5 P5300", 104, ContractKind.PutOption, 5300),
         Option("ESZ5 C5500", 105, ContractKind.CallOption, 5500),
         Option("ESZ5 C5600", 106, ContractKind.CallOption, 5600)
@@ -43,7 +44,7 @@ internal sealed class IntegrationDatabentoFeedFactory : IDatabentoFeedFactory
         Underlying = rawSymbol,
         Instrument = new InstrumentKey(1, instrumentId),
         ContractKind = ContractKind.Future,
-        MaturityDate = new DateOnly(2025, 12, 19),
+        MaturityDate = new DateOnly(2026, 12, 18),
         ContractMultiplier = 50,
         Currency = "USD",
         SettlementCurrency = "USD",
@@ -76,23 +77,23 @@ internal sealed class IntegrationDatabentoFeedFactory : IDatabentoFeedFactory
         uint instrumentId,
         ContractKind kind,
         long strike) => new()
-    {
-        Dataset = "GLBX.MDP3",
-        RawSymbol = rawSymbol,
-        Ticker = "ES",
-        Underlying = "ESZ5",
-        Instrument = new InstrumentKey(1, instrumentId),
-        ContractKind = kind,
-        StrikePrice = checked(strike * 1_000_000_000L),
-        MaturityDate = new DateOnly(2025, 12, 19),
-        ContractMultiplier = 50,
-        Currency = "USD",
-        SettlementCurrency = "USD",
-        Exchange = "CME",
-        SecurityType = "FOP",
-        Cfi = string.Empty,
-        UnitOfMeasure = "USD"
-    };
+        {
+            Dataset = "GLBX.MDP3",
+            RawSymbol = rawSymbol,
+            Ticker = "ES",
+            Underlying = "ESZ6",
+            Instrument = new InstrumentKey(1, instrumentId),
+            ContractKind = kind,
+            StrikePrice = checked(strike * 1_000_000_000L),
+            MaturityDate = new DateOnly(2026, 12, 18),
+            ContractMultiplier = 50,
+            Currency = "USD",
+            SettlementCurrency = "USD",
+            Exchange = "CME",
+            SecurityType = "FOP",
+            Cfi = string.Empty,
+            UnitOfMeasure = "USD"
+        };
 
     private sealed class IntegrationQueries(
         IReadOnlyDictionary<string, ContractDetail> details) : IDatabentoMarketDataQueries

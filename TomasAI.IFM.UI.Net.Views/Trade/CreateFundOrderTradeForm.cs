@@ -16,8 +16,11 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
     readonly Dictionary<string, FuturesContractV3ReadModel> _baseContractMap = [];
     readonly ComboBox _tradeStrategySelector = new()
     {
-        Name = "ddlTradeStrategy", DropDownStyle = ComboBoxStyle.DropDownList,
-        Font = new Font("Microsoft Sans Serif", 10.2F), Dock = DockStyle.Left, Width = 311
+        Name = "ddlTradeStrategy",
+        DropDownStyle = ComboBoxStyle.DropDownList,
+        Font = new Font("Microsoft Sans Serif", 10.2F),
+        Dock = DockStyle.Left,
+        Width = 311
     };
     bool _loadingTradeSelectors;
 
@@ -107,8 +110,11 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
         }
         var label = new Label
         {
-            Name = "lblTradeStrategy", Text = "Trade Strategy:", Dock = DockStyle.Fill,
-            ForeColor = SystemColors.ControlLightLight, Font = new Font("Microsoft Sans Serif", 10.2F),
+            Name = "lblTradeStrategy",
+            Text = "Trade Strategy:",
+            Dock = DockStyle.Fill,
+            ForeColor = SystemColors.ControlLightLight,
+            Font = new Font("Microsoft Sans Serif", 10.2F),
             TextAlign = ContentAlignment.MiddleRight
         };
         tableLayoutPanel1.Controls.Add(label, 0, 1);
@@ -281,7 +287,8 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
         if (ddlTradeType.SelectedItem is null)
             return;
         var tradeType = Enum.Parse<TradeType>($"{ddlTradeType.SelectedItem}");
-        txtTradeAction.Text = tradeType switch {
+        txtTradeAction.Text = tradeType switch
+        {
             TradeType.ShortIronCondor => $"{TradeAction.Sell}",
             TradeType.LongIronCondor => $"{TradeAction.Buy}",
             TradeType.PutCreditSpread or TradeType.CallCreditSpread => $"{TradeAction.Sell}",

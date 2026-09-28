@@ -8,8 +8,8 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.OptionPricer.IntegrationTests.SpreadDistribution;
 
-public class SpreadDistributionQueryApiTests(WebApplicationFactory<Program> factory, OptionPricerFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<OptionPricerFixture>
+public class SpreadDistributionQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory, OptionPricerFixture dbFixture)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<OptionPricerFixture>
 {
     readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
 

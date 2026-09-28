@@ -102,8 +102,10 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
             {
                 Subject = new(ActorType.Event, FuturesAnalyticsHistoricalDataLoaderEventActor.ActorName,
                     FuturesAnalyticsHistoricalDataLoaderCompletedEvent.Verb, requested.EntityId.Format()),
-                Id = Guid.NewGuid(), EntityId = requested.EntityId,
-                CommandId = requested.CommandId, AggregateId = requested.EntityId.Format(),
+                Id = Guid.NewGuid(),
+                EntityId = requested.EntityId,
+                CommandId = requested.CommandId,
+                AggregateId = requested.EntityId.Format(),
                 EventSource = nameof(FuturesAnalyticsHistoricalDataLoaderEventActor),
                 ReceivedOn = DateTime.UtcNow,
                 ManifestId = state.Manifest?.ManifestId ?? Guid.Empty,
@@ -140,10 +142,13 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
             {
                 Subject = new(ActorType.Event, FuturesAnalyticsHistoricalDataLoaderEventActor.ActorName,
                     FuturesAnalyticsHistoricalDataLoaderFailedEvent.Verb, requested.EntityId.Format()),
-                Id = Guid.NewGuid(), EntityId = requested.EntityId,
-                CommandId = requested.CommandId, AggregateId = requested.EntityId.Format(),
+                Id = Guid.NewGuid(),
+                EntityId = requested.EntityId,
+                CommandId = requested.CommandId,
+                AggregateId = requested.EntityId.Format(),
                 EventSource = nameof(FuturesAnalyticsHistoricalDataLoaderEventActor),
-                ReceivedOn = DateTime.UtcNow, ErrorMessage = exception.Message,
+                ReceivedOn = DateTime.UtcNow,
+                ErrorMessage = exception.Message,
                 LastCompletedBatchOrdinal = checked((int)(state?.Checkpoint.BatchOrdinal ?? -1)),
                 LastCompletedRecordOrdinal = ParseRecordOrdinal(state?.Checkpoint.SourcePosition)
             };
@@ -156,29 +161,29 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
     /// <summary>Maps the durable acquisition request to the provider-neutral application request.</summary>
     static MarketDataHistoricalRequest ToApplicationRequest(
         FuturesAnalyticsHistoricalDataLoaderRequestedEvent requested) => new()
-    {
-        DataLoadAttemptId = requested.EntityId.Value,
-        Series = requested.Parameters.Series.Select(value => new MarketDataHistoricalSeriesRequest
         {
-            SeriesIdentity = value.MarketSeriesIdentity,
-            ContractId = value.ContractId,
-            Schema = value.Schema switch
+            DataLoadAttemptId = requested.EntityId.Value,
+            Series = requested.Parameters.Series.Select(value => new MarketDataHistoricalSeriesRequest
             {
-                FuturesAnalyticsHistoricalSchema.OhlcvOneMinute => HistoricalDataSchema.OhlcvOneMinute,
-                FuturesAnalyticsHistoricalSchema.Trades => HistoricalDataSchema.Trades,
-                FuturesAnalyticsHistoricalSchema.OhlcvDaily => HistoricalDataSchema.OhlcvDaily,
-                _ => throw new InvalidOperationException($"Unsupported historical schema {value.Schema}.")
-            },
-            ExactTradesRequired = value.ExactTradesRequired || requested.Parameters.ExactVwapRequired
-        }).ToArray(),
-        StartDate = requested.Parameters.StartDate,
-        EndDate = requested.Parameters.EndDate,
-        MaximumCostUsd = requested.Parameters.MaximumCostUsd,
-        MaximumBytes = requested.Parameters.MaximumBytes,
-        NormalizationVersion = requested.Parameters.NormalizationVersion,
-        RequestedBy = requested.Parameters.RequestedBy,
-        AnalyticsTargetContractId = requested.Parameters.AnalyticsTargetContractId
-    };
+                SeriesIdentity = value.MarketSeriesIdentity,
+                ContractId = value.ContractId,
+                Schema = value.Schema switch
+                {
+                    FuturesAnalyticsHistoricalSchema.OhlcvOneMinute => HistoricalDataSchema.OhlcvOneMinute,
+                    FuturesAnalyticsHistoricalSchema.Trades => HistoricalDataSchema.Trades,
+                    FuturesAnalyticsHistoricalSchema.OhlcvDaily => HistoricalDataSchema.OhlcvDaily,
+                    _ => throw new InvalidOperationException($"Unsupported historical schema {value.Schema}.")
+                },
+                ExactTradesRequired = value.ExactTradesRequired || requested.Parameters.ExactVwapRequired
+            }).ToArray(),
+            StartDate = requested.Parameters.StartDate,
+            EndDate = requested.Parameters.EndDate,
+            MaximumCostUsd = requested.Parameters.MaximumCostUsd,
+            MaximumBytes = requested.Parameters.MaximumBytes,
+            NormalizationVersion = requested.Parameters.NormalizationVersion,
+            RequestedBy = requested.Parameters.RequestedBy,
+            AnalyticsTargetContractId = requested.Parameters.AnalyticsTargetContractId
+        };
 
     /// <summary>Parses a source record ordinal, returning minus one when it is unavailable.</summary>
     static long ParseRecordOrdinal(string? sourcePosition) =>

@@ -14,7 +14,8 @@ public sealed class FuturesRsiEventApplicationTests
         var signalEvent = new FuturesRsiDailySignalGeneratedEvent { FuturesRsiSignal = signal };
         var collectionEvent = new FuturesRsiDailySignalsGeneratedEvent
         {
-            FuturesRsiSignals = [signal], PeriodLength = 14
+            FuturesRsiSignals = [signal],
+            PeriodLength = 14
         };
         var state = new FuturesRsiSignalCommandState();
 
@@ -35,7 +36,8 @@ public sealed class FuturesRsiEventApplicationTests
         var checkpoint = new FuturesRsiAccumulatorCheckpoint();
         var invalid = new FuturesRsiSignalGeneratedEvent
         {
-            FuturesRsiSignal = null!, AccumulatorCheckpoint = checkpoint
+            FuturesRsiSignal = null!,
+            AccumulatorCheckpoint = checkpoint
         };
 
         Assert.False(state.Update(invalid));

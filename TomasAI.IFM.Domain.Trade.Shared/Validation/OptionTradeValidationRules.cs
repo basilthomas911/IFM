@@ -38,7 +38,7 @@ public class OptionTradeValidationRules : BaseValidationRules, IValidationRules<
         // validate option legs...
         if (optionTrade.OptionLegs is not null)
         {
-            foreach(var optionLeg in optionTrade.OptionLegs)
+            foreach (var optionLeg in optionTrade.OptionLegs)
             {
                 ruleErrors = Validate(optionLeg, OptionLeg);
                 if (ruleErrors is not null)
@@ -49,7 +49,7 @@ public class OptionTradeValidationRules : BaseValidationRules, IValidationRules<
         // validate trade positions...
         if (optionTrade.TradePositions is not null)
         {
-            foreach(var tradePosition in optionTrade.TradePositions)
+            foreach (var tradePosition in optionTrade.TradePositions)
             {
                 ruleErrors = Validate(tradePosition, TradePosition);
                 if (ruleErrors is not null)
@@ -90,7 +90,7 @@ public class OptionTradeValidationRules : BaseValidationRules, IValidationRules<
         {
             foreach (var optionLeg in optionTrade.OptionLegs!)
                 if (optionLeg.TradeId != optionTrade.TradeId)
-                    validationErrors.Add(new ValidationError($"OptionLeg.TradeId: {optionLeg.TradeId} != {optionTrade.TradeId}") );
+                    validationErrors.Add(new ValidationError($"OptionLeg.TradeId: {optionLeg.TradeId} != {optionTrade.TradeId}"));
 
             foreach (var tradePosition in optionTrade.TradePositions!)
                 if (tradePosition.TradeId != optionTrade.TradeId)
@@ -125,7 +125,7 @@ public class OptionTradeValidationRules : BaseValidationRules, IValidationRules<
             {
                 ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
             }
-            catch 
+            catch
             {
                 var validationResult = new ValidationResult();
                 validationResult.Errors.Add(new ValidationFailure("OptionTrade", InstanceErrorMessage));
@@ -185,7 +185,7 @@ public class OptionTradeValidationRules : BaseValidationRules, IValidationRules<
         {
             try
             {
-                ArgumentNullException.ThrowIfNull(context.InstanceToValidate);  
+                ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
             }
             catch
             {

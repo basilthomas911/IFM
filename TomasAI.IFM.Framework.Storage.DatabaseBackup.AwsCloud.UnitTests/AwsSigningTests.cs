@@ -69,7 +69,9 @@ public sealed class AwsSigningTests
         var trusted = Trust(key, arn, signedUtc.AddDays(-1), signedUtc.AddDays(1));
         var wrongIdentity = new AwsRecoveryTrustBundle
         {
-            Environment = "development", Revision = 1, CreatedUtc = signedUtc,
+            Environment = "development",
+            Revision = 1,
+            CreatedUtc = signedUtc,
             Keys = [trusted with { KeyArn = arn + "-other" }]
         };
         var badFingerprint = wrongIdentity with

@@ -86,19 +86,19 @@ public static class ActorRuntimeStartup
                 switch (actorType.GetDeliveryType())
                 {
                     case ActorDeliveryType.NatsCore:
-                    {
-                        var consumer = supervisor.Container.Resolve<IActorConsumer>();
-                        if (consumer is not null)
-                            supervisor.AddConsumer(actorType, consumer);
-                        break;
-                    }
+                        {
+                            var consumer = supervisor.Container.Resolve<IActorConsumer>();
+                            if (consumer is not null)
+                                supervisor.AddConsumer(actorType, consumer);
+                            break;
+                        }
                     case ActorDeliveryType.NatsJetStream:
-                    {
-                        var consumer = supervisor.Container.Resolve<IJSActorConsumer>();
-                        if (consumer is not null)
-                            supervisor.AddConsumer(actorType, consumer);
-                        break;
-                    }
+                        {
+                            var consumer = supervisor.Container.Resolve<IJSActorConsumer>();
+                            if (consumer is not null)
+                                supervisor.AddConsumer(actorType, consumer);
+                            break;
+                        }
                     default:
                         throw new InvalidOperationException(
                             $"Actor type '{actorType}' does not have a supported backend delivery type.");

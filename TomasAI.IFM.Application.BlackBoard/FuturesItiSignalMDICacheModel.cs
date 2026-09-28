@@ -36,7 +36,7 @@ public class FuturesItiSignalMDICacheModel
     /// <param name="valueDate"></param>
     /// <param name="getFuturesItiSignalMDI"></param>
     /// <returns></returns>
-    public virtual async ValueTask<FuturesItiSignalMDIV2ReadModel[]> GetAsync(string contractId, DateOnly valueDate, 
+    public virtual async ValueTask<FuturesItiSignalMDIV2ReadModel[]> GetAsync(string contractId, DateOnly valueDate,
         Func<string, DateOnly, Task<FuturesItiSignalMDIV2ReadModel[]>> getFuturesItiSignalMDI)
     {
         var key = $"{CacheName}:{contractId}. {valueDate:yyyyMMdd}";

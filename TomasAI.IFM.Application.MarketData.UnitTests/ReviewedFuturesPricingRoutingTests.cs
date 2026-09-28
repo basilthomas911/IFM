@@ -12,8 +12,11 @@ public sealed class ReviewedFuturesPricingRoutingTests
     {
         var contract = Contract() with
         {
-            SchemaVersion = 3, ExerciseStyle = style, PremiumStyle = premium,
-            UnderlyingKind = PricingUnderlyingKind.Futures, Strike = 5000,
+            SchemaVersion = 3,
+            ExerciseStyle = style,
+            PremiumStyle = premium,
+            UnderlyingKind = PricingUnderlyingKind.Futures,
+            Strike = 5000,
             Right = call ? PricingOptionRight.Call : PricingOptionRight.Put,
             PremiumTickRule = OptionPremiumTickRule.Fixed
         };
@@ -48,13 +51,13 @@ public sealed class ReviewedFuturesPricingRoutingTests
         OptionPricingPassResult Price(OptionPricingContext c) => Black76PricingModel.Calculate(c,
             Quote("ES-future", 5000), Quote("ES-option-call", 100), 5000, true, At);
         Assert.Equal("ContractMetadataUnavailable", Price(context with
-            { Contract = context.Contract with { PremiumStyle = OptionPremiumStyle.Unknown } }).Failure!.Code);
+        { Contract = context.Contract with { PremiumStyle = OptionPremiumStyle.Unknown } }).Failure!.Code);
         Assert.Equal("ContractMetadataUnavailable", Price(context with
-            { Contract = context.Contract with { Strike = 5000.5m } }).Failure!.Code);
+        { Contract = context.Contract with { Strike = 5000.5m } }).Failure!.Code);
         Assert.Equal("ContractMetadataUnavailable", Price(context with
-            { Contract = context.Contract with { Right = PricingOptionRight.Put } }).Failure!.Code);
+        { Contract = context.Contract with { Right = PricingOptionRight.Put } }).Failure!.Code);
         Assert.Equal("PricingModelUnsupported", Price(context with { PricerVersion = "Black76.Managed/v1" }).Failure!.Code);
         Assert.Equal("PricingModelUnsupported", Price(context with
-            { Contract = context.Contract with { UnderlyingKind = PricingUnderlyingKind.Equity } }).Failure!.Code);
+        { Contract = context.Contract with { UnderlyingKind = PricingUnderlyingKind.Equity } }).Failure!.Code);
     }
 }

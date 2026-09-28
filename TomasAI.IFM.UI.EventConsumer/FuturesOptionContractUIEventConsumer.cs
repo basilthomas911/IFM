@@ -16,17 +16,17 @@ public class FuturesOptionContractUIEventConsumer(INatsEventListenerOptions opti
     readonly ILogger _logger = logger;
     readonly Dictionary<ActorMailboxId, List<string>> _eventMap = new()
     {
-        [new ActorMailboxId(ActorType.Event, FuturesOptionContractAddedCompleteEvent.Actor)] 
+        [new ActorMailboxId(ActorType.Event, FuturesOptionContractAddedCompleteEvent.Actor)]
             = [FuturesOptionContractAddedCompleteEvent.Verb,
                 FuturesOptionContractAddedFailEvent.Verb,
-                FuturesOptionContractChangedCompleteEvent.Verb, 
+                FuturesOptionContractChangedCompleteEvent.Verb,
                 FuturesOptionContractChangedFailEvent.Verb,
                 FuturesOptionContractRemovedCompleteEvent.Verb,
                 FuturesOptionContractRemovedFailEvent.Verb,
             ]
     };
 
-    public async ValueTask StartAsync( Func<IEvent, ValueTask> eventAction)
+    public async ValueTask StartAsync(Func<IEvent, ValueTask> eventAction)
     {
         await StartAsync(EventConsumer, _eventMap, EventHandlerAsync);
 

@@ -19,7 +19,7 @@ public interface IRiskQueryContext : IQueryActorContext<RiskQueryActor>
     IPortfolioEventStore Funds { get; }
     IFinancialQueryStore Financial { get; }
     IDbContextFactory DbFactory { get; }
-    IPortfolioQueryApi PortfolioQueries {get;}
+    IPortfolioQueryApi PortfolioQueries { get; }
     ILogger<RiskQueryActor> Logger { get; }
 }
 public sealed class RiskQueryContext : QueryActorContext,
@@ -30,7 +30,7 @@ public sealed class RiskQueryContext : QueryActorContext,
         : base(supervisor, new ActorMailboxId(ActorType.Query, RiskQueryActor.ActorName))
     { DbFactory = IsArgumentNull.Set(dbFactory); Logger = IsArgumentNull.Set(logger); }
     public IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState> WorkflowRepository => Container.Resolve<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>();
-    public IPortfolioQueryApi PortfolioQueries=>Container.Resolve<IPortfolioQueryApi>();
+    public IPortfolioQueryApi PortfolioQueries => Container.Resolve<IPortfolioQueryApi>();
     public RiskHistoryJournal Journal => Container.Resolve<RiskHistoryJournal>();
     public IPortfolioEventStore Funds => Container.Resolve<IPortfolioEventStore>();
     public IFinancialQueryStore Financial => Container.Resolve<IFinancialQueryStore>();

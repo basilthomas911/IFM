@@ -51,7 +51,7 @@ public sealed record CompleteRegimeDiscoveryCommand : ICommand<IntrinsicTimeStra
     /// <summary>Gets the canonical parameter payload hash resolved by initialization.</summary>
     [Key(14)] public string ParameterPayloadSha256 { get; init; } = string.Empty;
 
-    [Key(15)] public ParameterApplicationProvenance? ParameterApplication {get;init;}
+    [Key(15)] public ParameterApplicationProvenance? ParameterApplication { get; init; }
 
     /// <summary>Gets the concrete command contract name.</summary>
     [IgnoreMember] public string CommandName => nameof(CompleteRegimeDiscoveryCommand);

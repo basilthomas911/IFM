@@ -26,9 +26,13 @@ public sealed class DownloadLogRecoveryTests(MarketDataFixture fixture) : IClass
 {
     static readonly EventProjectorReliabilityOptions Options = new()
     {
-        BoundedRecoveryEnabled = true, FencedExecutionEnabled = true, TransactionalOutboxEnabled = true,
-        InitialReplayDelay = TimeSpan.FromMilliseconds(100), ClaimLeaseDuration = TimeSpan.FromSeconds(2),
-        OutboxPollingInterval = TimeSpan.FromMilliseconds(100), MaximumReplayAttempts = 3
+        BoundedRecoveryEnabled = true,
+        FencedExecutionEnabled = true,
+        TransactionalOutboxEnabled = true,
+        InitialReplayDelay = TimeSpan.FromMilliseconds(100),
+        ClaimLeaseDuration = TimeSpan.FromSeconds(2),
+        OutboxPollingInterval = TimeSpan.FromMilliseconds(100),
+        MaximumReplayAttempts = 3
     };
 
     [Fact]
@@ -57,20 +61,31 @@ public sealed class DownloadLogRecoveryTests(MarketDataFixture fixture) : IClass
         public DurableProjectionRequirement RequiredProjection => new("DownloadLogCommandActor", "DownloadLogEventProjector", EventProjectorStageType.Completed);
     }
 
-    [Theory] [InlineData("before-enqueue")] [InlineData("storage-outage")] [InlineData("after-upsert")]
-    [InlineData("notification-outage")] [InlineData("exhausted")]
+    [Theory]
+    [InlineData("before-enqueue")]
+    [InlineData("storage-outage")]
+    [InlineData("after-upsert")]
+    [InlineData("notification-outage")]
+    [InlineData("exhausted")]
     public async Task Committed_outcome_survives_restart_and_repeat_application_without_reimport(string fault)
     {
-        var settings = new DbConnectionSettings().Add("EventSourceActorDbConnection", "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres");
+        var settings = new DbConnectionSettings().Add("EventSourceActorDbConnection", Environment.GetEnvironmentVariable("IFM_TEST_POSTGRES_CONNECTION") ?? throw new InvalidOperationException("The isolated PostgreSQL fixture is not running."), "System.Data.Postgres");
         var schema = new EventSourceSchemaDb(settings, NullLogger<DbProvider>.Instance);
         await schema.CreateAsync(schema.ManagedObjects);
         var outcome = new MarketDataDownloadOutcome
         {
-            Dataset = MarketDataDownloadDataset.TreasuryCurve, Scope = "US", ValueDate = new(8994, 9, 5),
-            ImportCommandId = Guid.NewGuid(), SourceTerminalEventId = Guid.NewGuid(),
-            RequestedAtUtc = new(2026, 9, 5, 12, 0, 0, DateTimeKind.Utc), StartedAtUtc = new(2026, 9, 5, 12, 0, 1, DateTimeKind.Utc),
-            FinishedAtUtc = new(2026, 9, 5, 12, 0, 2, DateTimeKind.Utc), Status = MarketDataDownloadStatus.Completed,
-            DownloadedRecordCount = 1, PersistedRecordCount = 1, ElapsedMilliseconds = 1000
+            Dataset = MarketDataDownloadDataset.TreasuryCurve,
+            Scope = "US",
+            ValueDate = new(8994, 9, 5),
+            ImportCommandId = Guid.NewGuid(),
+            SourceTerminalEventId = Guid.NewGuid(),
+            RequestedAtUtc = new(2026, 9, 5, 12, 0, 0, DateTimeKind.Utc),
+            StartedAtUtc = new(2026, 9, 5, 12, 0, 1, DateTimeKind.Utc),
+            FinishedAtUtc = new(2026, 9, 5, 12, 0, 2, DateTimeKind.Utc),
+            Status = MarketDataDownloadStatus.Completed,
+            DownloadedRecordCount = 1,
+            PersistedRecordCount = 1,
+            ElapsedMilliseconds = 1000
         };
         var command = new InsertMarketDataDownloadLogCommand(outcome); var state = new DownloadLogCommandState(); command.Execute(state);
         var events = await fixture.ActorEventSourceDb.SaveEventsAsync(command.StreamId, command.CommandId, state.Events, 0, CancellationToken.None);
@@ -173,7 +188,7 @@ public sealed class DownloadLogRecoveryTests(MarketDataFixture fixture) : IClass
     // Isolate test transport resources while exercising the unchanged production projector identity and engine.
     sealed class ScopedQueue(string scope) : IDurableReplayQueue, IAsyncDisposable
     {
-        readonly NatsJSDurableReplayQueue inner = new(new NatsJetStreamConsumerOptions { Url = Environment.GetEnvironmentVariable("IFM_DOWNLOADLOG_TEST_NATS_URL") ?? "nats://127.0.0.1:14222" });
+        readonly NatsJSDurableReplayQueue inner = new(new NatsJetStreamConsumerOptions { Url = Environment.GetEnvironmentVariable("IFM_DOWNLOADLOG_TEST_NATS_URL") ?? DomainActorIntegrationInfrastructureFixture.NatsUrl });
         public Task PrepareAsync(string name, TimeSpan delay, CancellationToken ct = default) => inner.PrepareAsync(scope, delay, ct);
         public Task StartAsync(string name, TimeSpan delay, CancellationToken ct = default) => inner.StartAsync(scope, delay, ct);
         public Task StopAsync(string name, CancellationToken ct = default) => inner.StopAsync(scope, ct);

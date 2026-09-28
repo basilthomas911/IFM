@@ -38,17 +38,33 @@ public static class FailTradeSelectionPipeline
     }
 
     /// <summary>Constructs failure metadata for valid or malformed ingress.</summary>
-    static TradeSelectionFunctionFailedEvent CreateFailedEvent(ExecuteTradeSelectionPipelineCommand? c,string reason,TimeProvider clock)
+    static TradeSelectionFunctionFailedEvent CreateFailedEvent(ExecuteTradeSelectionPipelineCommand? c, string reason, TimeProvider clock)
     {
-        var now=clock.GetUtcNow().UtcDateTime;
+        var now = clock.GetUtcNow().UtcDateTime;
         return new()
         {
-            Subject=new(ActorType.Function,ExecuteTradeSelectionPipelineCommand.Actor,TradeSelectionFunctionFailedEvent.Verb,c?.EntityId.Format()??string.Empty),
-            Id=Guid.NewGuid(),EntityId=c?.WorkflowEntityId??default,WorkflowId=c?.WorkflowId??default,CommandId=c?.CommandId??Guid.Empty,InputWorkflowRevision=c?.InputWorkflowRevision??0,
-            ErrorDate=now,ReceivedOn=now,ErrorCode=TradeSelectionFunctionFailedEvent.ErrorId,ErrorType=ErrorType.Command,ErrorData=reason,ErrorMessage="Trade selection failed: "+reason,
-            EventSource=c?.EventSource??ExecuteTradeSelectionPipelineCommand.Actor,AggregateId=c?.EntityId.Format()??string.Empty,CommandName=nameof(ExecuteTradeSelectionPipelineCommand),RouteTo=c?.RouteTo.ToString()??string.Empty,
-            CorrelationId=c?.CorrelationId??Guid.Empty,CausationId=c?.CausationId??Guid.Empty,PipelineStage=StrategyWorkflowStage.TradeSelection,ExpiresAtUtc=c?.ExpiresAtUtc??default,
-            ReasonCode=reason,InputPayloadSha256=c?.SelectionBinding?.PayloadSha256??string.Empty
+            Subject = new(ActorType.Function, ExecuteTradeSelectionPipelineCommand.Actor, TradeSelectionFunctionFailedEvent.Verb, c?.EntityId.Format() ?? string.Empty),
+            Id = Guid.NewGuid(),
+            EntityId = c?.WorkflowEntityId ?? default,
+            WorkflowId = c?.WorkflowId ?? default,
+            CommandId = c?.CommandId ?? Guid.Empty,
+            InputWorkflowRevision = c?.InputWorkflowRevision ?? 0,
+            ErrorDate = now,
+            ReceivedOn = now,
+            ErrorCode = TradeSelectionFunctionFailedEvent.ErrorId,
+            ErrorType = ErrorType.Command,
+            ErrorData = reason,
+            ErrorMessage = "Trade selection failed: " + reason,
+            EventSource = c?.EventSource ?? ExecuteTradeSelectionPipelineCommand.Actor,
+            AggregateId = c?.EntityId.Format() ?? string.Empty,
+            CommandName = nameof(ExecuteTradeSelectionPipelineCommand),
+            RouteTo = c?.RouteTo.ToString() ?? string.Empty,
+            CorrelationId = c?.CorrelationId ?? Guid.Empty,
+            CausationId = c?.CausationId ?? Guid.Empty,
+            PipelineStage = StrategyWorkflowStage.TradeSelection,
+            ExpiresAtUtc = c?.ExpiresAtUtc ?? default,
+            ReasonCode = reason,
+            InputPayloadSha256 = c?.SelectionBinding?.PayloadSha256 ?? string.Empty
         };
     }
 }

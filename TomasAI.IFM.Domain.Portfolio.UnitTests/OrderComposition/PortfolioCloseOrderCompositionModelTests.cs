@@ -76,8 +76,11 @@ public sealed class PortfolioCloseOrderCompositionModelTests
         var legId = Guid.Parse("20000000-0000-0000-0000-000000000001");
         var openLeg = new TradeLegDefinition
         {
-            TradeLegId = legId, ContractId = "ESZ6", ContractKey = "ESZ6",
-            AssetFamily = TradeAssetFamily.Futures, SignedQuantity = 2
+            TradeLegId = legId,
+            ContractId = "ESZ6",
+            ContractKey = "ESZ6",
+            AssetFamily = TradeAssetFamily.Futures,
+            SignedQuantity = 2
         };
         var component = new TradeOrderComponentDefinition
         {
@@ -88,26 +91,39 @@ public sealed class PortfolioCloseOrderCompositionModelTests
         };
         var openingOrder = new TradeOrderDefinition
         {
-            Id = new(trade.PortfolioId, trade.FundId, trade.OrderId), Revision = 1,
-            Status = TradeOrderStatus.Completed, PositionType = TradeOrderPositionType.Opening,
-            ValueDate = DateOnly.FromDateTime(Now), ValidUntilUtc = Now.AddDays(1),
-            Origin = "Strategy", DefinitionHash = new('a', 64), Components = [component]
+            Id = new(trade.PortfolioId, trade.FundId, trade.OrderId),
+            Revision = 1,
+            Status = TradeOrderStatus.Completed,
+            PositionType = TradeOrderPositionType.Opening,
+            ValueDate = DateOnly.FromDateTime(Now),
+            ValidUntilUtc = Now.AddDays(1),
+            Origin = "Strategy",
+            DefinitionHash = new('a', 64),
+            Components = [component]
         };
         var workflowId = new ExitPositionWorkflowId(
             positionId, DateOnly.FromDateTime(Now), Guid.Parse("40000000-0000-0000-0000-000000000001"));
         var operationId = Guid.Parse("50000000-0000-0000-0000-000000000001");
         var request = new EvaluatePortfolioCloseOrderCompositionCommand
         {
-            CommandId = operationId, OperationId = operationId, PortfolioId = trade.PortfolioId,
-            EntityId = new(trade.PortfolioId, operationId), RequestedAtUtc = Now,
-            ExpiresAtUtc = Now.AddMinutes(1), InputSha256 = new('b', 64),
+            CommandId = operationId,
+            OperationId = operationId,
+            PortfolioId = trade.PortfolioId,
+            EntityId = new(trade.PortfolioId, operationId),
+            RequestedAtUtc = Now,
+            ExpiresAtUtc = Now.AddMinutes(1),
+            InputSha256 = new('b', 64),
             Body = new PortfolioCloseOrderCandidate
             {
-                CompositionId = workflowId.ExitDecisionId, WorkflowId = workflowId.ToPortfolioWorkflow(),
+                CompositionId = workflowId.ExitDecisionId,
+                WorkflowId = workflowId.ToPortfolioWorkflow(),
                 Position = new StrategyPositionSnapshot
                 {
-                    Id = positionId, StrategyKind = TradeStrategyKind.FuturesOutright,
-                    PositionSequence = 4, IsOpen = true, AsOfUtc = Now,
+                    Id = positionId,
+                    StrategyKind = TradeStrategyKind.FuturesOutright,
+                    PositionSequence = 4,
+                    IsOpen = true,
+                    AsOfUtc = Now,
                     Legs =
                     [
                         new StrategyPositionLeg
@@ -120,8 +136,10 @@ public sealed class PortfolioCloseOrderCompositionModelTests
                     ]
                 }.ToPortfolioPosition(),
                 StrategyKind = PortfolioExecutionStrategyKind.FuturesOutright,
-                ValueDate = DateOnly.FromDateTime(Now), ValidUntilUtc = Now.AddMinutes(1),
-                Origin = "FuturesExitPositionWorkflow", PositionType = PortfolioExecutionPositionType.Closing,
+                ValueDate = DateOnly.FromDateTime(Now),
+                ValidUntilUtc = Now.AddMinutes(1),
+                Origin = "FuturesExitPositionWorkflow",
+                PositionType = PortfolioExecutionPositionType.Closing,
                 EvidenceHash = new('c', 64),
                 Component = (component with
                 {
@@ -134,7 +152,10 @@ public sealed class PortfolioCloseOrderCompositionModelTests
 
     static FinancialBookConfiguration Book() => new()
     {
-        PortfolioId = 11, BookId = 1, AccountingEntityId = Guid.NewGuid(), Currency = "USD",
+        PortfolioId = 11,
+        BookId = 1,
+        AccountingEntityId = Guid.NewGuid(),
+        Currency = "USD",
         Funds = [new FinancialFundAuthority { FundId = 12 }]
     };
 

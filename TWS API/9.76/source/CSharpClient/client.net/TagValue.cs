@@ -23,7 +23,7 @@ namespace IBApi
             get { return tag; }
             set { tag = value; }
         }
-        
+
 
         public string Value
         {

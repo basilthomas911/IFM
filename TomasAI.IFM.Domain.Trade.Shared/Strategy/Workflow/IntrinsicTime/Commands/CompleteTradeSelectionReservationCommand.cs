@@ -45,7 +45,7 @@ public sealed record CompleteTradeSelectionReservationCommand : ICommand<Intrins
     [Key(11)] public Guid CausationId { get; init; }
     /// <summary>Gets the UTC pipeline completion timestamp.</summary>
     [Key(12)] public DateTime CompletedAtUtc { get; init; }
-    [Key(13)] public string ReservationRequestSha256 {get;init;} = string.Empty;
+    [Key(13)] public string ReservationRequestSha256 { get; init; } = string.Empty;
 
     /// <summary>Gets the concrete command contract name.</summary>
     [IgnoreMember] public string CommandName => nameof(CompleteTradeSelectionReservationCommand);

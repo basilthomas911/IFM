@@ -16,7 +16,7 @@ public static class GetFuturesEodDataParameters
 
         async ValueTask<FuturesEodDataParametersReadModel> GetFuturesEodDataParametersAsync(
             IMarketDataDbContext db, string contractId, DateOnly valueDate)
-            => new (
+            => new(
                 FuturesEodDataToday: await db.GetFuturesEodDataAsync(contractId, valueDate),
                 FuturesEodDataRange: [.. await db.GetFuturesEodDataByDateRangeAsync(contractId, valueDate.AddMonths(-2), valueDate.AddDays(-1))],
                 NormalCurveTable: await db.GetNormalCurveTableAsync());

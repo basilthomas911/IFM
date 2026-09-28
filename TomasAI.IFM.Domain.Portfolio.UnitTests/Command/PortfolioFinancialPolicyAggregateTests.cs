@@ -69,8 +69,11 @@ public sealed class PortfolioFinancialPolicyAggregateTests
         };
         var envelope = Envelope() with
         {
-            MaximumRiskPerTrade = 750, MaximumAggregateRisk = 6_000, MaximumMargin = 15_000,
-            MaximumGrossNotional = 250_000, MaximumOpenPositions = 4
+            MaximumRiskPerTrade = 750,
+            MaximumAggregateRisk = 6_000,
+            MaximumMargin = 15_000,
+            MaximumGrossNotional = 250_000,
+            MaximumOpenPositions = 4
         };
 
         var effective = policy.ResolveEffectiveCaps(1, 1, envelope, Now);
@@ -94,7 +97,9 @@ public sealed class PortfolioFinancialPolicyAggregateTests
         history.Add(aggregate.Activate(Guid.NewGuid(), 1, 1, Now.AddMinutes(1), "risk-admin"));
         history.Add(aggregate.AddVersion(Guid.NewGuid(), 2, ValidPolicy() with
         {
-            PolicyVersion = 2, Name = "Core limits v2", OperatingState = PortfolioFinancialPolicyState.Draft,
+            PolicyVersion = 2,
+            Name = "Core limits v2",
+            OperatingState = PortfolioFinancialPolicyState.Draft,
             CreatedOnUtc = Now.AddMinutes(2)
         }, Now.AddMinutes(2), "risk-admin"));
         history.Add(aggregate.Activate(Guid.NewGuid(), 3, 2, Now.AddMinutes(3), "risk-admin"));
@@ -145,30 +150,62 @@ public sealed class PortfolioFinancialPolicyAggregateTests
 
     internal static PortfolioFinancialPolicyReadModel ValidPolicy() => new()
     {
-        PortfolioId = 101, PolicyId = 9001, PolicyVersion = 1, Name = "Core limits",
-        OperatingState = PortfolioFinancialPolicyState.Draft, BaseCurrency = "USD", CapitalBase = 1_000_000m,
-        ProtectedReserve = 100_000m, MaximumDeployableCapital = 900_000m,
-        MaximumRiskPerTrade = 10_000m, MaximumAggregateRisk = 100_000m, MaximumMargin = 500_000m,
-        MaximumGrossNotional = 5_000_000m, MaximumOpenPositions = 100, MaximumDrawdownAmount = 200_000m,
+        PortfolioId = 101,
+        PolicyId = 9001,
+        PolicyVersion = 1,
+        Name = "Core limits",
+        OperatingState = PortfolioFinancialPolicyState.Draft,
+        BaseCurrency = "USD",
+        CapitalBase = 1_000_000m,
+        ProtectedReserve = 100_000m,
+        MaximumDeployableCapital = 900_000m,
+        MaximumRiskPerTrade = 10_000m,
+        MaximumAggregateRisk = 100_000m,
+        MaximumMargin = 500_000m,
+        MaximumGrossNotional = 5_000_000m,
+        MaximumOpenPositions = 100,
+        MaximumDrawdownAmount = 200_000m,
         TradeFamilyLimits = [Family(1), Family(2), Family(3)],
-        EffectiveFromUtc = Now.AddMinutes(-1), CreatedOnUtc = Now, CreatedBy = "risk-admin"
+        EffectiveFromUtc = Now.AddMinutes(-1),
+        CreatedOnUtc = Now,
+        CreatedBy = "risk-admin"
     };
 
     static TradeFamilyRiskLimitReadModel Family(int id) => new()
     {
-        TradeStrategyFamilyId = id, DefinitionVersion = 1, Enabled = true,
-        MaximumRiskPerTrade = 5_000m, MaximumAggregateRisk = 50_000m, MaximumMargin = 250_000m,
-        MaximumGrossNotional = 2_500_000m, MaximumOpenPositions = 50
+        TradeStrategyFamilyId = id,
+        DefinitionVersion = 1,
+        Enabled = true,
+        MaximumRiskPerTrade = 5_000m,
+        MaximumAggregateRisk = 50_000m,
+        MaximumMargin = 250_000m,
+        MaximumGrossNotional = 2_500_000m,
+        MaximumOpenPositions = 50
     };
 
     static FundRiskEnvelopeReadModel Envelope() => new()
     {
-        PortfolioId = 101, PortfolioVersion = 1, FundId = 201, FundMandateVersion = 1,
-        EnvelopeId = Guid.NewGuid(), EnvelopeVersion = 1, CapacityState = FundCapacityState.Available,
-        AllocatedCapital = 100_000m, AvailableCapital = 90_000m, MaximumRiskPerTrade = 2_000m,
-        MaximumAggregateRisk = 10_000m, MaximumMargin = 50_000m, MaximumGrossNotional = 500_000m,
-        MaximumContracts = 10, MaximumOpenPositions = 10, RemainingLossBudget = 20_000m,
-        EffectiveFromUtc = Now.AddMinutes(-1), ExpiresAtUtc = Now.AddHours(1),
-        SourcePolicyId = 9001, SourcePolicyVersion = 1, CreatedOnUtc = Now, CreatedBy = "risk-admin"
+        PortfolioId = 101,
+        PortfolioVersion = 1,
+        FundId = 201,
+        FundMandateVersion = 1,
+        EnvelopeId = Guid.NewGuid(),
+        EnvelopeVersion = 1,
+        CapacityState = FundCapacityState.Available,
+        AllocatedCapital = 100_000m,
+        AvailableCapital = 90_000m,
+        MaximumRiskPerTrade = 2_000m,
+        MaximumAggregateRisk = 10_000m,
+        MaximumMargin = 50_000m,
+        MaximumGrossNotional = 500_000m,
+        MaximumContracts = 10,
+        MaximumOpenPositions = 10,
+        RemainingLossBudget = 20_000m,
+        EffectiveFromUtc = Now.AddMinutes(-1),
+        ExpiresAtUtc = Now.AddHours(1),
+        SourcePolicyId = 9001,
+        SourcePolicyVersion = 1,
+        CreatedOnUtc = Now,
+        CreatedBy = "risk-admin"
     };
 }

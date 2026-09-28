@@ -111,7 +111,7 @@ public class TradeQueryService(ITradeQueryApi queryApi) : UiServiceBase<TradeQue
     /// <param name="orderId"></param>
     /// <param name="valueDate"></param>
     /// <param name="onCompleted"></param>
-    public async Task GetTradePlanActionAsync( int orderId, int tradeId, DateOnly valueDate, Action<TradePlanActionReadModel[]> onCompleted)
+    public async Task GetTradePlanActionAsync(int orderId, int tradeId, DateOnly valueDate, Action<TradePlanActionReadModel[]> onCompleted)
         => await ExecuteAsync(() => _queryApi.GetTradePlanSummaryAsync(orderId, tradeId, valueDate), onCompleted);
 
     /// <summary>
@@ -148,7 +148,7 @@ public class TradeQueryService(ITradeQueryApi queryApi) : UiServiceBase<TradeQue
         DateOnly valueDate,
         int daysToExpiry,
         TradeStatus tradeStatus)
-     {
+    {
         var pcsServiceResult = await _queryApi.GetTradePositionAsync(orderId, tradeId, putSpreadTradeType, valueDate, daysToExpiry, tradeStatus);
         var ccsServiceResult = await _queryApi.GetTradePositionAsync(orderId, tradeId, callSpreadTradeType, valueDate, daysToExpiry, tradeStatus);
         if (pcsServiceResult.Success && ccsServiceResult.Success)
@@ -172,7 +172,7 @@ public class TradeQueryService(ITradeQueryApi queryApi) : UiServiceBase<TradeQue
     /// get trade history for selected trade order
     /// </summary>
     /// <param name="orderId"></param>
-    public async Task< List<TradeHistoryReadModel>> GetTradeHistoryAsync(int orderId)
+    public async Task<List<TradeHistoryReadModel>> GetTradeHistoryAsync(int orderId)
     {
         var tradeHistory = new List<TradeHistoryReadModel>();
         var serviceResult = await _queryApi.GetTradeHistoryAsync(orderId);
@@ -195,13 +195,13 @@ public class TradeQueryService(ITradeQueryApi queryApi) : UiServiceBase<TradeQue
             if (!queryResult1.Success)
             {
                 RaiseError(queryResult1.ErrorCode, queryResult1.ErrorMessage);
-             }
+            }
             var optionLegContractIds = queryResult1.Value;
             var queryResult2 = await _queryApi.GetTradeQuantityAsync(e.TradeId);
             if (!queryResult2.Success)
             {
                 RaiseError(queryResult2.ErrorCode, queryResult2.ErrorMessage);
-             }
+            }
 
             var tradeQuantity = queryResult2.Value!.Value;
             tradeInfo.Add(new TradeInfoReadModel

@@ -204,7 +204,7 @@ public class FuturesTdiSignalReadModelValidationRules : BaseValidationRules, IVa
     /// </summary>
     /// <param name="futuresTdiSignal">The TDI signal read model to validate.</param>
     /// <returns>An array of validation errors, or an empty array if validation passes.</returns>
-    public ValidationError[] Execute(FuturesTdiSignalReadModel futuresTdiSignal) 
+    public ValidationError[] Execute(FuturesTdiSignalReadModel futuresTdiSignal)
         => Validate(futuresTdiSignal, Validator);
 
     /// <summary>
@@ -284,7 +284,7 @@ public class FuturesTdiSignalReadModelValidationRules : BaseValidationRules, IVa
             {
                 ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
             }
-            catch 
+            catch
             {
                 var validationResult = new ValidationResult();
                 validationResult.Errors.Add(new ValidationFailure("FuturesTdiSignal", "FuturesTdiSignal instance is null"));

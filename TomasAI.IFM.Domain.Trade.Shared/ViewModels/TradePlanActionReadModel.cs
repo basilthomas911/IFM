@@ -40,7 +40,7 @@ public record TradePlanActionReadModel(
     string CreatedBy)
 {
     [JsonIgnore]
-    public TradePlanEntityId Id => new (OrderId, TradeId, ValueDate);
+    public TradePlanEntityId Id => new(OrderId, TradeId, ValueDate);
 
     [JsonIgnore]
     public bool IsValid => OrderId > 0 && TradeId > 0 && ValueDate > DateOnly.MinValue;

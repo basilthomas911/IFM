@@ -20,14 +20,14 @@ namespace TomasAI.IFM.Domain.Reference.Services;
 /// thread-safe for concurrent existence checks.</remarks>
 /// <param name="actorService">The actor service used to query reference data from external sources.</param>
 /// <param name="blackboardService">The blackboard service used to cache and retrieve reference lookup data.</param>
-public class ReferenceLookupActorService(IActorService actorService,  IBlackboardService blackboardService)
+public class ReferenceLookupActorService(IActorService actorService, IBlackboardService blackboardService)
     : IReferenceLookupService
 {
     const long LocalCacheLifetimeMilliseconds = 30_000;
     static readonly FrozenDictionary<string, FrozenSet<string>> EmptyLookupIndex =
         new Dictionary<string, FrozenSet<string>>(StringComparer.Ordinal)
             .ToFrozenDictionary(StringComparer.Ordinal);
-    readonly IActorService _actorService = IsArgumentNull.Set( actorService);
+    readonly IActorService _actorService = IsArgumentNull.Set(actorService);
     readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService);
     readonly SemaphoreSlim _refreshGate = new(1, 1);
     FrozenDictionary<string, FrozenSet<string>>? _lookupIndex;

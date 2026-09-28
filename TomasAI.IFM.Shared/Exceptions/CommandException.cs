@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Shared.Exceptions
         public int ErrorCode => _errorCode;
 
         public CommandException(int errorCode, string errorMessage)
-            :base(errorMessage)
+            : base(errorMessage)
         {
             _errorCode = errorCode;
         }

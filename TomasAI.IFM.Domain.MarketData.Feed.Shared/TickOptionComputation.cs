@@ -79,7 +79,7 @@ public static class TickOptionComputationExtensions
         return delta;
     }
 
-    public static double GetGamma(this TickOptionComputation optionGreeks, 
+    public static double GetGamma(this TickOptionComputation optionGreeks,
         double strikePrice, double timeValue, double riskFreeRate, double dividendYield = 0.0)
     {
         var underlyingPrice = optionGreeks.UnderlyingPrice;
@@ -87,7 +87,7 @@ public static class TickOptionComputationExtensions
         return NdOne(underlyingPrice, strikePrice, timeValue, riskFreeRate, impliedVol, dividendYield) / (strikePrice * (impliedVol * Math.Sqrt(timeValue)));
     }
 
-    public static double SetVega(this TickOptionComputation optionGreeks, 
+    public static double SetVega(this TickOptionComputation optionGreeks,
         double strikePrice, double timeValue, double riskFreeRate, double dividendYield = 0.0)
     {
         var underlyingPrice = optionGreeks.UnderlyingPrice;
@@ -96,7 +96,7 @@ public static class TickOptionComputationExtensions
             * NdOne(underlyingPrice, strikePrice, timeValue, riskFreeRate, impliedVol, dividendYield);
     }
 
-    public static double SetTheta(this TickOptionComputation optionGreeks, 
+    public static double SetTheta(this TickOptionComputation optionGreeks,
         string optionType, double strikePrice, double timeValue, double riskFreeRate, double dividendYield = 0.0)
     {
         var theta = default(double);
@@ -121,7 +121,7 @@ public static class TickOptionComputationExtensions
         return theta;
     }
 
-    public static double SetRho(this TickOptionComputation optionGreeks, 
+    public static double SetRho(this TickOptionComputation optionGreeks,
         string optionType, double strikePrice, double timeValue, double riskFreeRate, double dividendYield = 0.0)
     {
         var rho = default(double);

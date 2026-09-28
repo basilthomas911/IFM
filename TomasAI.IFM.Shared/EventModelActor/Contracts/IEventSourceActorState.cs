@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 /// </summary>
 /// <typeparam name="TState">The type of the actor's state, which must implement <see cref="IActorState"/>.</typeparam>
 public interface IEventSourceActorState<TState> : IActorState<TState>
-    where TState :  IActorState
+    where TState : IActorState
 {
     DomainEventCollection Events { get; }
     long CommittedStreamVersion { get; }
@@ -25,4 +25,4 @@ public interface IEventSourceActorState<TState> : IActorState<TState>
 
 
 
-    
+

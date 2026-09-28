@@ -18,7 +18,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
-public partial class TradeOrderEditorForm 
+public partial class TradeOrderEditorForm
     : DarkTradingForm, IForm<TradeOrderEditorForm>, IFormControl
 {
     const int LeftLabelLeft = 30;
@@ -491,7 +491,7 @@ public partial class TradeOrderEditorForm
     {
         _lastTradeId = null;
         _lastTradeOrderId = null;
-        
+
         var easternToday = EasternTime.GetNow(TimeProvider.System);
         dtpTradeDate.Value = _viewModel!.ValueDate.HasValue ? _viewModel.ValueDate.Value.ToDateTime(TimeOnly.MinValue) : easternToday.Date;
         btnLoadOrder.Enabled = false;
@@ -794,43 +794,43 @@ public partial class TradeOrderEditorForm
             var tradeType = fundOrderTrade!.TradeType;
             switch (tradeType)
             {
-               case TradeType.ShortIronCondor:
-               case TradeType.LongIronCondor:
+                case TradeType.ShortIronCondor:
+                case TradeType.LongIronCondor:
                     var orderActionType = GetOrderActionType(fundOrderTrade.TradeState);
                     var valueDate = fundOrderTrade.RequestedTradeDate;
                     var baseContract = FindBaseContract(_viewModel.BaseContracts,
                         fundOrderTrade.BaseContractId, fundOrderTrade.BaseContractSymbol);
-                   baseContract = baseContract ?? _viewModel.BaseContracts.ElementAt(0);
-                   var viewModel = new IronCondorTradeOrderViewModel(
-                       _appRoot,
-                       valueDate,
-                       fundId,
-                       baseContract,
-                       fundOrder!,
-                       fundOrderTrade,
-                       orderActionType,
-                       _referenceDataService,
-                       portfolioId: _viewModel.SelectedPortfolio?.PortfolioId ?? 0);
-                   workflowControl = new IronCondorTradeOrderView(this, viewModel);
-                   break;
-               case TradeType.FuturesOutright:
-               case TradeType.PutCreditSpread:
-               case TradeType.PutDebitSpread:
-               case TradeType.CallCreditSpread:
-               case TradeType.CallDebitSpread:
+                    baseContract = baseContract ?? _viewModel.BaseContracts.ElementAt(0);
+                    var viewModel = new IronCondorTradeOrderViewModel(
+                        _appRoot,
+                        valueDate,
+                        fundId,
+                        baseContract,
+                        fundOrder!,
+                        fundOrderTrade,
+                        orderActionType,
+                        _referenceDataService,
+                        portfolioId: _viewModel.SelectedPortfolio?.PortfolioId ?? 0);
+                    workflowControl = new IronCondorTradeOrderView(this, viewModel);
+                    break;
+                case TradeType.FuturesOutright:
+                case TradeType.PutCreditSpread:
+                case TradeType.PutDebitSpread:
+                case TradeType.CallCreditSpread:
+                case TradeType.CallDebitSpread:
                     var brokerBaseContract = FindBaseContract(_viewModel.BaseContracts,
                         fundOrderTrade.BaseContractId, fundOrderTrade.BaseContractSymbol)
                        ?? _viewModel.BaseContracts.FirstOrDefault()
                        ?? throw new InvalidOperationException(
                            $"No Futures contract is available for {fundOrderTrade.BaseContractSymbol}.");
-                   var brokerViewModel = new BrokerManualTradeOrderViewModel(
-                       _appRoot,
-                       _viewModel.SelectedPortfolio?.PortfolioId ?? 0,
-                       fundOrder!,
-                       fundOrderTrade,
-                       brokerBaseContract);
-                   workflowControl = new BrokerManualTradeOrderView(brokerViewModel);
-                   break;
+                    var brokerViewModel = new BrokerManualTradeOrderViewModel(
+                        _appRoot,
+                        _viewModel.SelectedPortfolio?.PortfolioId ?? 0,
+                        fundOrder!,
+                        fundOrderTrade,
+                        brokerBaseContract);
+                    workflowControl = new BrokerManualTradeOrderView(brokerViewModel);
+                    break;
             }
             if (workflowControl != null)
             {
@@ -863,7 +863,7 @@ public partial class TradeOrderEditorForm
                 btnRemoveTrade.Enabled = false;
             }
             UpdateButtons();
-        
+
         }
         finally { pnlTradeBlotter.ResumeLayout(true); }
     }
@@ -1163,7 +1163,7 @@ public partial class TradeOrderEditorForm
         if (pnlTradeBlotter.Controls.Count > 0)
         {
             var tradeOrderControl = pnlTradeBlotter.Controls[0] as ITradeOrderControl;
-            txtDaysToExpiry.Text =$"{ tradeOrderControl!.MaturityDate.DayNumber - DateOnly.FromDateTime(dtpTradeDate.Value).DayNumber }";
+            txtDaysToExpiry.Text = $"{tradeOrderControl!.MaturityDate.DayNumber - DateOnly.FromDateTime(dtpTradeDate.Value).DayNumber}";
         }
     }
 
@@ -1272,7 +1272,7 @@ public partial class TradeOrderEditorForm
     {
         if (pnlTradeBlotter.Controls.Count == 0) return;
         var orderActionType = Enum.Parse<OrderActionType>(ddlOrderActionType.SelectedItem!.ToString()!);
-        _viewModel.OrderActionType = orderActionType;   
+        _viewModel.OrderActionType = orderActionType;
         var tradeOrderControl = pnlTradeBlotter.Controls[0] as ITradeOrderControl;
         if (tradeOrderControl is not null)
             await ObserveAsync(() => tradeOrderControl.OrderActionTypeChangedAsync(orderActionType));
@@ -1281,7 +1281,7 @@ public partial class TradeOrderEditorForm
     void dtpFrom_ValueChanged(object sender, EventArgs e)
     {
         if (!dtpFrom.Enabled) return;
-        dtpTo.Value = new DateTime(dtpFrom.Value.Year, dtpFrom.Value.Month, DateTime.DaysInMonth(dtpFrom.Value.Year, dtpFrom.Value.Month), 23,59,59);
+        dtpTo.Value = new DateTime(dtpFrom.Value.Year, dtpFrom.Value.Month, DateTime.DaysInMonth(dtpFrom.Value.Year, dtpFrom.Value.Month), 23, 59, 59);
     }
 
     void dtpTo_ValueChanged(object sender, EventArgs e)

@@ -37,8 +37,8 @@ public sealed class RiskCalculationTests
     {
         var command = await CompositionFixture.Command("BullCallDebit");
         var candidate = new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.OrderComposer(new Black76ComposerPricer()).Calculate(command).Candidate!;
-        candidate = candidate with { Legs=candidate.Legs.SetItem(0,candidate.Legs[0] with { Valuation=candidate.Legs[0].Valuation! with { Delta=999 } }) };
-        candidate = candidate with { CandidateHash=CompositionHash.Candidate(candidate) };
+        candidate = candidate with { Legs = candidate.Legs.SetItem(0, candidate.Legs[0] with { Valuation = candidate.Legs[0].Valuation! with { Delta = 999 } }) };
+        candidate = candidate with { CandidateHash = CompositionHash.Candidate(candidate) };
         var action = () => RiskUnitModel.ReadLegs(candidate, command.MarketSnapshot, command.EvaluatedAtUtc);
         action.Should().Throw<RiskCalculationException>().Which.ReasonCode.Should().Be("RM.INPUT.VALUATION_MISMATCH");
     }
@@ -74,8 +74,8 @@ public sealed class RiskCalculationTests
         int premium, int expected)
     {
         int sign = isLong ? -1 : 1;
-        var legs = ImmutableArray.Create(Option("P0", false, 4990-putWidth, sign), Option("P1", false, 4990, -sign),
-            Option("C0", true, 5010, -sign), Option("C1", true, 5010+callWidth, sign));
+        var legs = ImmutableArray.Create(Option("P0", false, 4990 - putWidth, sign), Option("P1", false, 4990, -sign),
+            Option("C0", true, 5010, -sign), Option("C1", true, 5010 + callWidth, sign));
         RiskUnitModel.Calculate(legs, premium, 10, 0, null, null).MaximumLoss.Should().Be(expected, bias);
     }
 
@@ -96,9 +96,9 @@ public sealed class RiskCalculationTests
     [Fact]
     public void Greek_units_are_multiplier_adjusted_vega_per_point_and_theta_per_day()
     {
-        var a = Option("L", true, 4990, 1) with { Delta=.6m, Gamma=.004m, Vega=100, Theta=-365 };
-        var b = Option("H", true, 5000, -1) with { Delta=.4m, Gamma=.003m, Vega=80, Theta=-292 };
-        var result = RiskUnitModel.Calculate([a,b], 4, 10, 0, null, null);
+        var a = Option("L", true, 4990, 1) with { Delta = .6m, Gamma = .004m, Vega = 100, Theta = -365 };
+        var b = Option("H", true, 5000, -1) with { Delta = .4m, Gamma = .003m, Vega = 80, Theta = -292 };
+        var result = RiskUnitModel.Calculate([a, b], 4, 10, 0, null, null);
         result.Delta.Should().Be(10); result.Gamma.Should().Be(.05m);
         result.VegaPerPoint.Should().Be(10); result.ThetaPerDay.Should().Be(-10);
     }
@@ -108,7 +108,7 @@ public sealed class RiskCalculationTests
     {
         var unbounded = () => RiskUnitModel.Calculate([Option("L", true, 4990, 2), Option("H", true, 5000, -1)], 4, 10, 0, null, null);
         unbounded.Should().Throw<RiskCalculationException>().Which.ReasonCode.Should().Be("RM.CALCULATION.UNBOUNDED_OPTIONS");
-        var mixed = () => RiskUnitModel.Calculate([Option("L", true, 4990, 1), Option("H", true, 5000, -1) with { UnderlyingId="NQ" }], 4, 10, 0, null, null);
+        var mixed = () => RiskUnitModel.Calculate([Option("L", true, 4990, 1), Option("H", true, 5000, -1) with { UnderlyingId = "NQ" }], 4, 10, 0, null, null);
         mixed.Should().Throw<RiskCalculationException>();
     }
 
@@ -124,8 +124,8 @@ public sealed class RiskCalculationTests
     public void Quantity_specific_margin_selects_largest_feasible_quantity_without_monotonic_assumption()
     {
         var (authority, funding) = SizingFixture();
-        funding = [funding[0] with { MarginFunding=100 }, funding[1] with { MarginFunding=900 }, funding[2] with { MarginFunding=200 }];
-        var result = RiskSizingModel.Calculate(Unit, new(TimeFrameType.Daily, 3), authority with { AvailableCash=500 }, 3, funding, 1);
+        funding = [funding[0] with { MarginFunding = 100 }, funding[1] with { MarginFunding = 900 }, funding[2] with { MarginFunding = 200 }];
+        var result = RiskSizingModel.Calculate(Unit, new(TimeFrameType.Daily, 3), authority with { AvailableCash = 500 }, 3, funding, 1);
         result.StrategyUnits.Should().Be(3);
         result.Requirements!.PositionSlots.Should().Be(1);
         result.Requirements.MarginFunding.Should().Be(200);
@@ -148,11 +148,11 @@ public sealed class RiskCalculationTests
         var limited = authority with
         {
             Limits = authority.Limits.Select(x => x.ScopeKind == CapacityScopeKind.Deployment && x.Measure == CapacityMeasure.GrossContracts
-                ? x with { Maximum=4 } : x).ToImmutableArray()
+                ? x with { Maximum = 4 } : x).ToImmutableArray()
         };
         RiskSizingModel.Calculate(Unit, new(TimeFrameType.Daily, 3), limited, 3, funding, 1).StrategyUnits.Should().Be(2);
-        RiskSizingModel.Calculate(Unit, new(TimeFrameType.Daily, 3), authority with { PerTradeLossBudget=100 }, 3, funding, 1).StrategyUnits.Should().Be(1);
-        var rejected = RiskSizingModel.Calculate(Unit, new(TimeFrameType.Daily, 3), authority with { AvailableCash=0 }, 3, funding, 1);
+        RiskSizingModel.Calculate(Unit, new(TimeFrameType.Daily, 3), authority with { PerTradeLossBudget = 100 }, 3, funding, 1).StrategyUnits.Should().Be(1);
+        var rejected = RiskSizingModel.Calculate(Unit, new(TimeFrameType.Daily, 3), authority with { AvailableCash = 0 }, 3, funding, 1);
         rejected.StrategyUnits.Should().Be(0); rejected.Requirements.Should().BeNull();
     }
 
@@ -162,7 +162,7 @@ public sealed class RiskCalculationTests
         var (authority, funding) = SizingFixture();
         authority = authority with
         {
-            Limits = authority.Limits.Select(x => x.Measure == CapacityMeasure.Delta ? x with { Maximum=30 } : x).ToImmutableArray(),
+            Limits = authority.Limits.Select(x => x.Measure == CapacityMeasure.Delta ? x with { Maximum = 30 } : x).ToImmutableArray(),
             Usage = [new(CapacityScopeKind.Underlying, "ES", CapacityMeasure.Delta, CapacityUnit.NormalizedDelta, 10, -10, 0)]
         };
         RiskSizingModel.Calculate(Unit, new(TimeFrameType.Daily, 3), authority, 3, funding, 1).StrategyUnits.Should().Be(1);
@@ -185,22 +185,30 @@ public sealed class RiskCalculationTests
     [Fact]
     public void Quantity_fee_quote_adds_only_the_shortfall_above_already_included_composer_fees()
     {
-        var (authority,funding)=SizingFixture();
-        var unchanged=RiskSizingModel.Requirements(Unit,authority,funding[1]);
+        var (authority, funding) = SizingFixture();
+        var unchanged = RiskSizingModel.Requirements(Unit, authority, funding[1]);
         unchanged.LossCharge.Should().Be(200); unchanged.FeeReserve.Should().Be(4);
-        var higher=RiskSizingModel.Requirements(Unit,authority,funding[1] with { EntryFees=10 });
+        var higher = RiskSizingModel.Requirements(Unit, authority, funding[1] with { EntryFees = 10 });
         higher.LossCharge.Should().Be(206); higher.FeeReserve.Should().Be(10);
     }
 
     static (RiskSizingAuthority, ImmutableArray<RiskQuantityFunding>) SizingFixture()
     {
-        var now = new DateTime(2026,9,8,14,0,0,DateTimeKind.Utc);
-        var evidence = new FinancialEvidenceReference { EvidenceId=Guid.NewGuid(), Version=1, ContentHash=new('A',64),
-            Source="EmulatorMarginFixture/v1", Environment="Test", ObservedAtUtc=now, ValidUntilUtc=now.AddSeconds(1) };
-        var authority = new RiskSizingAuthority(1,2,new CatalogKey(default,Guid.NewGuid(),1),"ES",10000,100000,10000,[],[],now,now.AddSeconds(1),"Test");
-        var funding = Enumerable.Range(1,3).Select(q => new RiskQuantityFunding(q,100*q,100*q,2*q,0,evidence)).ToImmutableArray();
-        var template = RiskSizingModel.Requirements(Unit,authority,funding[0]);
-        authority = authority with { Limits = template.Exposures.Select(x => new CapacityLimit(x.ScopeKind,x.ScopeKey,x.Measure,x.Unit,100000000)).ToImmutableArray() };
-        return (authority,funding);
+        var now = new DateTime(2026, 9, 8, 14, 0, 0, DateTimeKind.Utc);
+        var evidence = new FinancialEvidenceReference
+        {
+            EvidenceId = Guid.NewGuid(),
+            Version = 1,
+            ContentHash = new('A', 64),
+            Source = "EmulatorMarginFixture/v1",
+            Environment = "Test",
+            ObservedAtUtc = now,
+            ValidUntilUtc = now.AddSeconds(1)
+        };
+        var authority = new RiskSizingAuthority(1, 2, new CatalogKey(default, Guid.NewGuid(), 1), "ES", 10000, 100000, 10000, [], [], now, now.AddSeconds(1), "Test");
+        var funding = Enumerable.Range(1, 3).Select(q => new RiskQuantityFunding(q, 100 * q, 100 * q, 2 * q, 0, evidence)).ToImmutableArray();
+        var template = RiskSizingModel.Requirements(Unit, authority, funding[0]);
+        authority = authority with { Limits = template.Exposures.Select(x => new CapacityLimit(x.ScopeKind, x.ScopeKey, x.Measure, x.Unit, 100000000)).ToImmutableArray() };
+        return (authority, funding);
     }
 }

@@ -21,8 +21,11 @@ public static class ExecuteCompositionFunction
 {
     public static async ValueTask DispatchAsync(this ExecuteOrderCompositionPipelineCommand execute, IIntrinsicTimeStrategyWorkflowRealtimeContext context)
     {
-        var read = new RedispatchCurrentStrategyPipelineCommand { EntityId = execute.WorkflowEntityId,
-            Subject = new(ActorType.Command, RedispatchCurrentStrategyPipelineCommand.Actor, RedispatchCurrentStrategyPipelineCommand.Verb, execute.WorkflowEntityId.Format()) };
+        var read = new RedispatchCurrentStrategyPipelineCommand
+        {
+            EntityId = execute.WorkflowEntityId,
+            Subject = new(ActorType.Command, RedispatchCurrentStrategyPipelineCommand.Actor, RedispatchCurrentStrategyPipelineCommand.Verb, execute.WorkflowEntityId.Format())
+        };
         var current = (await context.WorkflowRepository.LoadStateAsync(read).ConfigureAwait(false)).CurrentView;
         if (current is not { Status: WorkflowStrategyMachineStatus.Started, CurrentStage: StrategyWorkflowStage.OrderComposition }
             || current.WorkflowId != execute.WorkflowId || current.WorkflowRevision != execute.InputWorkflowRevision
@@ -58,10 +61,17 @@ public static class ExecuteCompositionFunction
             var result = OrderCompositionContracts.ReadResult(completed.Result);
             var command = new CompleteOrderCompositionCommand
             {
-                CommandId = Id(CompleteOrderCompositionCommand.Verb), Subject = new(ActorType.Command, CompleteOrderCompositionCommand.Actor,
-                    CompleteOrderCompositionCommand.Verb, execute.WorkflowEntityId.Format()), EntityId = execute.WorkflowEntityId,
-                WorkflowId = execute.WorkflowId, InputWorkflowRevision = execute.InputWorkflowRevision, SourceEventId = completed.Id,
-                Result = completed.Result, CorrelationId = execute.CorrelationId, CausationId = completed.Id, CompletedAtUtc = completed.CompletedAtUtc,
+                CommandId = Id(CompleteOrderCompositionCommand.Verb),
+                Subject = new(ActorType.Command, CompleteOrderCompositionCommand.Actor,
+                    CompleteOrderCompositionCommand.Verb, execute.WorkflowEntityId.Format()),
+                EntityId = execute.WorkflowEntityId,
+                WorkflowId = execute.WorkflowId,
+                InputWorkflowRevision = execute.InputWorkflowRevision,
+                SourceEventId = completed.Id,
+                Result = completed.Result,
+                CorrelationId = execute.CorrelationId,
+                CausationId = completed.Id,
+                CompletedAtUtc = completed.CompletedAtUtc,
                 SelectedContracts = result.Candidate is null ? null : new(execute.MarketSnapshot.ScopeId,
                     result.Candidate.Legs.Select(x => x.InstrumentId).Order(StringComparer.Ordinal).ToImmutableArray())
             };
@@ -74,22 +84,38 @@ public static class ExecuteCompositionFunction
             {
                 var timeout = new TimeoutOrderCompositionCommand
                 {
-                    CommandId = Id(TimeoutOrderCompositionCommand.Verb), EntityId = execute.WorkflowEntityId,
+                    CommandId = Id(TimeoutOrderCompositionCommand.Verb),
+                    EntityId = execute.WorkflowEntityId,
                     Subject = new(ActorType.Command, TimeoutOrderCompositionCommand.Actor, TimeoutOrderCompositionCommand.Verb, execute.WorkflowEntityId.Format()),
-                    WorkflowId = execute.WorkflowId, ExpectedWorkflowRevision = execute.InputWorkflowRevision,
-                    ExpectedStage = StrategyWorkflowStage.OrderComposition, TimeoutId = execute.CommandId, TimedOutAtUtc = failure.ErrorDate
+                    WorkflowId = execute.WorkflowId,
+                    ExpectedWorkflowRevision = execute.InputWorkflowRevision,
+                    ExpectedStage = StrategyWorkflowStage.OrderComposition,
+                    TimeoutId = execute.CommandId,
+                    TimedOutAtUtc = failure.ErrorDate
                 };
                 await context.SendAsync<TimeoutOrderCompositionCommand, IntrinsicTimeStrategyWorkflowEntityId>(timeout, timeout.EntityId).ConfigureAwait(false);
                 return;
             }
             var command = new FailOrderCompositionCommand
             {
-                CommandId = Id(FailOrderCompositionCommand.Verb), Subject = new(ActorType.Command, FailOrderCompositionCommand.Actor,
-                    FailOrderCompositionCommand.Verb, execute.WorkflowEntityId.Format()), EntityId = execute.WorkflowEntityId,
-                WorkflowId = execute.WorkflowId, InputWorkflowRevision = execute.InputWorkflowRevision, SourceEventId = execute.CommandId,
-                CorrelationId = execute.CorrelationId, CausationId = execute.CommandId, FailedAtUtc = failure.ErrorDate,
-                Failure = new() { ErrorCode = failure.ErrorCode, ErrorMessage = failure.ErrorMessage, ErrorData = failure.ReasonCode,
-                    ErrorType = "OrderCompositionFailed", FailedAtUtc = failure.ErrorDate }
+                CommandId = Id(FailOrderCompositionCommand.Verb),
+                Subject = new(ActorType.Command, FailOrderCompositionCommand.Actor,
+                    FailOrderCompositionCommand.Verb, execute.WorkflowEntityId.Format()),
+                EntityId = execute.WorkflowEntityId,
+                WorkflowId = execute.WorkflowId,
+                InputWorkflowRevision = execute.InputWorkflowRevision,
+                SourceEventId = execute.CommandId,
+                CorrelationId = execute.CorrelationId,
+                CausationId = execute.CommandId,
+                FailedAtUtc = failure.ErrorDate,
+                Failure = new()
+                {
+                    ErrorCode = failure.ErrorCode,
+                    ErrorMessage = failure.ErrorMessage,
+                    ErrorData = failure.ReasonCode,
+                    ErrorType = "OrderCompositionFailed",
+                    FailedAtUtc = failure.ErrorDate
+                }
             };
             await context.SendAsync<FailOrderCompositionCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
         }

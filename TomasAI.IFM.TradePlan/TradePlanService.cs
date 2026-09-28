@@ -11,7 +11,7 @@ namespace TomasAI.IFM.TradePlan
     {
         public TradePlanService(
             IEventServiceHandlerResolver eventHandlerResolver,
-            ILogger<ITradePlanService> logger):base(eventHandlerResolver, logger)
+            ILogger<ITradePlanService> logger) : base(eventHandlerResolver, logger)
         {
             logger.LogInformation("TradePlanService started");
         }

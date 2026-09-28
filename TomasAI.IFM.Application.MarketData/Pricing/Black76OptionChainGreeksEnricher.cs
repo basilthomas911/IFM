@@ -91,24 +91,36 @@ public sealed class Black76OptionChainGreeksEnricher(OptionChainPricingInputStor
         var g = result.Value!;
         return new OptionGreeksSnapshot
         {
-            IsValid = true, PriceSource = OptionGreeksPriceSource.QuoteMidpoint,
+            IsValid = true,
+            PriceSource = OptionGreeksPriceSource.QuoteMidpoint,
             FuturesContractId = c.Contract.UnderlyingContractId,
             FuturesPrice = input.Underlying.Bid / 2m + input.Underlying.Ask / 2m,
             OptionMarkPrice = quote.Bid / 2m + quote.Ask / 2m,
-            RiskFreeRate = c.Rate.AnnualContinuousRate, TimeToExpiryYears = g.TimeToExpiry,
-            ImpliedVolatility = g.ImpliedVolatility, TheoreticalPrice = g.TheoreticalPrice,
-            Delta = g.Delta, Gamma = g.Gamma, Vega = g.Vega, Theta = g.Theta, Rho = g.Rho,
-            FuturesPriceSourceSequence = input.Underlying.Sequence, OptionPriceSourceSequence = quote.Sequence,
-            FuturesPriceTimestamp = input.Underlying.EventAtUtc, OptionPriceTimestamp = quote.EventAtUtc,
-            CalculatedAtUtc = at, PricingContextDigest = g.ContextDigest
+            RiskFreeRate = c.Rate.AnnualContinuousRate,
+            TimeToExpiryYears = g.TimeToExpiry,
+            ImpliedVolatility = g.ImpliedVolatility,
+            TheoreticalPrice = g.TheoreticalPrice,
+            Delta = g.Delta,
+            Gamma = g.Gamma,
+            Vega = g.Vega,
+            Theta = g.Theta,
+            Rho = g.Rho,
+            FuturesPriceSourceSequence = input.Underlying.Sequence,
+            OptionPriceSourceSequence = quote.Sequence,
+            FuturesPriceTimestamp = input.Underlying.EventAtUtc,
+            OptionPriceTimestamp = quote.EventAtUtc,
+            CalculatedAtUtc = at,
+            PricingContextDigest = g.ContextDigest
         };
     }
 
     static OptionGreeksSnapshot Failed(DatabentoOptionChainRoute route, string code, DateTimeOffset at) => new()
     {
-        IsValid = false, IsStale = code is "StaleData" or "TreasuryStale",
+        IsValid = false,
+        IsStale = code is "StaleData" or "TreasuryStale",
         FailureReason = OptionGreeksFailureReason.PricingContextUnavailable,
-        FuturesContractId = route.Definition.Underlying, CalculatedAtUtc = at,
+        FuturesContractId = route.Definition.Underlying,
+        CalculatedAtUtc = at,
         PricingFailure = new(code, "PricingContext/Quote", route.FuturesOptionContractId, "A qualified quote and pricing context are required.")
     };
 }

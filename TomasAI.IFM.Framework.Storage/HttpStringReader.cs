@@ -47,7 +47,7 @@ public class HttpStringReader : IStringReader
     /// <exception cref="NotImplementedException">This method is not yet implemented.</exception>
     async IAsyncEnumerable<string> IStringReader.ReadLinesAsync()
     {
-        foreach(var line in await ReadLinesAsync())
+        foreach (var line in await ReadLinesAsync())
         {
             yield return line;
         }

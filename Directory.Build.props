@@ -20,4 +20,13 @@
          CopyToOutputDirectory="PreserveNewest"
          CopyToPublishDirectory="PreserveNewest" />
  </ItemGroup>
+
+ <ItemGroup Condition="'$(MSBuildProjectName)' == 'TomasAI.IFM.Domain.MarketData.IntegrationTests' Or '$(MSBuildProjectName)' == 'TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests' Or '$(MSBuildProjectName)' == 'TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests' Or '$(MSBuildProjectName)' == 'TomasAI.IFM.Domain.MarketData.Securities.IntegrationTests' Or '$(MSBuildProjectName)' == 'TomasAI.IFM.Domain.OptionPricer.IntegrationTests' Or '$(MSBuildProjectName)' == 'TomasAI.IFM.Domain.Portfolio.IntegrationTests' Or '$(MSBuildProjectName)' == 'TomasAI.IFM.Domain.Trade.IntegratedTests'">
+   <Compile Include="$(MSBuildThisFileDirectory)DomainActorIntegrationInfrastructureFixture.cs"
+            Link="DomainActorIntegrationInfrastructureFixture.cs" />
+   <AssemblyAttribute Include="Xunit.TestFrameworkAttribute">
+     <_Parameter1>DomainActorIntegrationTestFramework</_Parameter1>
+     <_Parameter2>$(AssemblyName)</_Parameter2>
+   </AssemblyAttribute>
+ </ItemGroup>
 </Project>

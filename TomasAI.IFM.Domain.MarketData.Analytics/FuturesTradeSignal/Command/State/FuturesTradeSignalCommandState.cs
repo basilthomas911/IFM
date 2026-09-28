@@ -99,5 +99,5 @@ public class FuturesTradeSignalCommandState
             _ => false
         };
 
-    
+
 }

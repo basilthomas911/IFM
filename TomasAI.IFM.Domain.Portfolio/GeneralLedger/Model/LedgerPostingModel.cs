@@ -27,7 +27,7 @@ public static class LedgerPostingModel
         var lines = new List<PlannedLedgerLine>();
         var kind = request.TransactionKind;
         Require(kind is not (LedgerTransactionKind.Adjustment or LedgerTransactionKind.OpeningBalance) || allowRawAdjustment,
-            FinancialReasons.AuthorityDenied,"Adjustments and opening balances require privileged posting permission.");
+            FinancialReasons.AuthorityDenied, "Adjustments and opening balances require privileged posting permission.");
         var magnitudeRequired = kind is LedgerTransactionKind.DepositConfirmed or LedgerTransactionKind.WithdrawalRequested
             or LedgerTransactionKind.WithdrawalSettled or LedgerTransactionKind.WithdrawalCancelled or LedgerTransactionKind.FundTransfer;
         Require(!magnitudeRequired || request.Amount > 0, FinancialReasons.InvalidContract, "Business amount must be positive.");
@@ -87,9 +87,9 @@ public static class LedgerPostingModel
                 FinancialReasons.InvalidContract, "A transfer requires a different owned destination Fund.");
             Pair(rule.Debit, rule.Credit, amount, otherFund, request.FundId);
         }
-        if(lines.Count>0) ValidateBalanced(lines);
+        if (lines.Count > 0) ValidateBalanced(lines);
         else Require(kind is LedgerTransactionKind.Valuation or LedgerTransactionKind.RealizedPnl,
-            FinancialReasons.UnbalancedJournal,"Only a confirmed unchanged valuation/realization can have no journal effect.");
+            FinancialReasons.UnbalancedJournal, "Only a confirmed unchanged valuation/realization can have no journal effect.");
         return new(lines, kind == LedgerTransactionKind.WithdrawalSettled ? -request.Amount : 0,
             kind == LedgerTransactionKind.FundTransfer,
             kind is LedgerTransactionKind.TradeSettlement or LedgerTransactionKind.Commission or LedgerTransactionKind.RealizedPnl or LedgerTransactionKind.Valuation,

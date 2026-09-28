@@ -84,14 +84,24 @@ public sealed class TradeStrategyFamilyReferenceView : DarkTradingView, IControl
 
     static ListBox List(string name) => new()
     {
-        Name = name.Replace(" ", ""), AccessibleName = name, Dock = DockStyle.Fill,
-        BackColor = Color.Black, ForeColor = Color.White,
-        BorderStyle = BorderStyle.FixedSingle, IntegralHeight = false, HorizontalScrollbar = true, Margin = Padding.Empty
+        Name = name.Replace(" ", ""),
+        AccessibleName = name,
+        Dock = DockStyle.Fill,
+        BackColor = Color.Black,
+        ForeColor = Color.White,
+        BorderStyle = BorderStyle.FixedSingle,
+        IntegralHeight = false,
+        HorizontalScrollbar = true,
+        Margin = Padding.Empty
     };
     static Label Header(string caption) => new()
     {
-        Text = caption, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter,
-        BackColor = Color.Gray, ForeColor = Color.Black, Margin = Padding.Empty
+        Text = caption,
+        Dock = DockStyle.Fill,
+        TextAlign = ContentAlignment.MiddleCenter,
+        BackColor = Color.Gray,
+        ForeColor = Color.Black,
+        Margin = Padding.Empty
     };
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)

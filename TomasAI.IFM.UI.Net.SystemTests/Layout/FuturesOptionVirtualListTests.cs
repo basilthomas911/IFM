@@ -37,7 +37,8 @@ public sealed class FuturesOptionVirtualListTests
                 finally { context.ExitThread(); }
             }));
             System.Windows.Forms.Application.Run(context);
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         await completion.Task.WaitAsync(TimeSpan.FromSeconds(30));
@@ -69,8 +70,14 @@ public sealed class FuturesOptionVirtualListTests
         await using var vm = new FuturesOptionContractEditorViewModel(app, reference);
         var marketVm = new MarketDataViewModel(reference);
         using var editor = new FuturesOptionContractEditorControl(vm, marketVm);
-        using var host = new DarkTradingForm { ClientSize = new Size(1100, 500), ShowInTaskbar = false,
-            StartPosition = FormStartPosition.Manual, Location = Point.Empty, Opacity = 0 };
+        using var host = new DarkTradingForm
+        {
+            ClientSize = new Size(1100, 500),
+            ShowInTaskbar = false,
+            StartPosition = FormStartPosition.Manual,
+            Location = Point.Empty,
+            Opacity = 0
+        };
         editor.Dock = DockStyle.Fill;
         host.Controls.Add(editor);
         host.Show();

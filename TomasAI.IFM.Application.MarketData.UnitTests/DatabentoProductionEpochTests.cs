@@ -258,23 +258,23 @@ public sealed class DatabentoProductionEpochTests
         string underlying,
         string dataset = "GLBX.MDP3",
         string exchange = "CME") => new()
-    {
-        Dataset = dataset,
-        RawSymbol = rawSymbol,
-        Ticker = ticker,
-        Underlying = underlying,
-        Instrument = instrument,
-        ContractKind = kind,
-        StrikePrice = strike,
-        MaturityDate = maturity,
-        ContractMultiplier = 50,
-        Currency = "USD",
-        SettlementCurrency = "USD",
-        Exchange = exchange,
-        SecurityType = kind == ContractKind.Future ? "FUT" : "FOP",
-        Cfi = string.Empty,
-        UnitOfMeasure = "USD"
-    };
+        {
+            Dataset = dataset,
+            RawSymbol = rawSymbol,
+            Ticker = ticker,
+            Underlying = underlying,
+            Instrument = instrument,
+            ContractKind = kind,
+            StrikePrice = strike,
+            MaturityDate = maturity,
+            ContractMultiplier = 50,
+            Currency = "USD",
+            SettlementCurrency = "USD",
+            Exchange = exchange,
+            SecurityType = kind == ContractKind.Future ? "FUT" : "FOP",
+            Cfi = string.Empty,
+            UnitOfMeasure = "USD"
+        };
 
     private sealed class FakeFeedFactory(IReadOnlyList<ContractDetail> details)
         : IDatabentoFeedFactory
@@ -322,14 +322,14 @@ public sealed class DatabentoProductionEpochTests
         public OptionChainDefinitions GetChainDefinitions(
             OptionChainDefinitionRequest request,
             TimeSpan? timeout = null) => new()
-        {
-            Dataset = "GLBX.MDP3",
-            Underlying = request.Underlying,
-            MaturityDate = request.MaturityDate,
-            UniversePolicy = request.UniversePolicy,
-            Rights = request.Rights,
-            Contracts = []
-        };
+            {
+                Dataset = "GLBX.MDP3",
+                Underlying = request.Underlying,
+                MaturityDate = request.MaturityDate,
+                UniversePolicy = request.UniversePolicy,
+                Rights = request.Rights,
+                Contracts = []
+            };
 
         public uint ContractIdToInstrumentId(string contractId, TimeSpan? timeout = null) =>
             throw new InvalidOperationException(

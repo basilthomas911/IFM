@@ -27,12 +27,12 @@ namespace TomasAI.IFM.TradePlan.HostedService
             _siteId = Guid.NewGuid();
         }
 
-        protected override void ConnectEvents() 
-            => Subscribe($"{_siteId}", 
+        protected override void ConnectEvents()
+            => Subscribe($"{_siteId}",
                 new IEvent[] { new TradePlanUpdatedEvent { }.SetEventSource($"{EventTopic.TradeEvents}"),
                                new TradePlanForwardLossLimitWarningUpdatedEvent { }.SetEventSource($"{EventTopic.TradeEvents}"),
                                new TradePlanForwardLossLimitReachedUpdatedEvent { }.SetEventSource($"{EventTopic.TradeEvents}"),
-                               new TradePlanForwardLossLimitClearedEvent { }.SetEventSource($"{EventTopic.TradeEvents}") } , 
+                               new TradePlanForwardLossLimitClearedEvent { }.SetEventSource($"{EventTopic.TradeEvents}") },
                 async e => await _tradePlanService.ExecuteAsync(e));
     }
 }

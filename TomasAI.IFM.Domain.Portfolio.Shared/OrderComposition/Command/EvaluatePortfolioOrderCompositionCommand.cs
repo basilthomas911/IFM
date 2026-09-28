@@ -11,10 +11,10 @@ namespace TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 /// <summary>Typed request boundary for the atomic Portfolio order-composition Function actor.</summary>
 public interface IPortfolioOrderCompositionApi
 {
-    ValueTask<ServiceResult<FunctionResult<PortfolioOrderCompositionCompletedEvent,PortfolioOrderCompositionFailedEvent>>> EvaluateAsync(
-        EvaluatePortfolioOrderCompositionCommand request,CancellationToken cancellationToken=default);
-    ValueTask<ServiceResult<FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,PortfolioCloseOrderCompositionFailedEvent>>> EvaluateCloseAsync(
-        EvaluatePortfolioCloseOrderCompositionCommand request,CancellationToken cancellationToken=default);
+    ValueTask<ServiceResult<FunctionResult<PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent>>> EvaluateAsync(
+        EvaluatePortfolioOrderCompositionCommand request, CancellationToken cancellationToken = default);
+    ValueTask<ServiceResult<FunctionResult<PortfolioCloseOrderCompositionCompletedEvent, PortfolioCloseOrderCompositionFailedEvent>>> EvaluateCloseAsync(
+        EvaluatePortfolioCloseOrderCompositionCommand request, CancellationToken cancellationToken = default);
 }
 
 [MessagePackObject]

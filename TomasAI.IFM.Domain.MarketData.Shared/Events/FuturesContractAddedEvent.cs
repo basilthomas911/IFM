@@ -81,7 +81,7 @@ public record FuturesContractAddedEvent :
 
         var completed = new FuturesContractAddedCompleteEvent
         {
-            Subject = new ActorSubject( ActorType.Event, FuturesContractAddedCompleteEvent.Actor, FuturesContractAddedCompleteEvent.Verb, this.Subject.EntityId),
+            Subject = new ActorSubject(ActorType.Event, FuturesContractAddedCompleteEvent.Actor, FuturesContractAddedCompleteEvent.Verb, this.Subject.EntityId),
             EntityId = this.EntityId,
             Id = this.Id,
             EventId = this.EventId,

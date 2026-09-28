@@ -31,12 +31,12 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
           PRIMARY KEY(projection_name,event_id));
         """;
 
-    public Task<long> LoadCursorAsync(CancellationToken token=default,string projectionName=HistoryProjection)
-        =>transactions.ExecuteAsync(async(db,ct)=>
+    public Task<long> LoadCursorAsync(CancellationToken token = default, string projectionName = HistoryProjection)
+        => transactions.ExecuteAsync(async (db, ct) =>
         {
-            await db.ExecuteAsync(CreateTables,[],ct);
-            var value=await db.ScalarAsync("SELECT after_event_version FROM risk_history_projection_progress WHERE projection_name=$1;",[projectionName],ct);
-            var cursor=value is null?0:Convert.ToInt64(value);
+            await db.ExecuteAsync(CreateTables, [], ct);
+            var value = await db.ScalarAsync("SELECT after_event_version FROM risk_history_projection_progress WHERE projection_name=$1;", [projectionName], ct);
+            var cursor = value is null ? 0 : Convert.ToInt64(value);
             // Compatible migration: the old cursor proves these events were previously projected.
             await db.ExecuteAsync("""
                 INSERT INTO risk_history_projection_receipt(projection_name,event_id)
@@ -44,23 +44,23 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
                 FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid
                 WHERE n.eventname='WorkflowStrategyStateUpdatedEvent' AND e.eventversion<=$2
                 ON CONFLICT DO NOTHING;
-                """,[projectionName,cursor],ct);
+                """, [projectionName, cursor], ct);
             return cursor;
-        },token);
+        }, token);
 
-    public Task SaveCursorAsync(long after,CancellationToken token=default,string projectionName=HistoryProjection)
-        =>transactions.ExecuteAsync(async(db,ct)=>
+    public Task SaveCursorAsync(long after, CancellationToken token = default, string projectionName = HistoryProjection)
+        => transactions.ExecuteAsync(async (db, ct) =>
         {
             await db.ExecuteAsync("""
                 INSERT INTO risk_history_projection_progress(projection_name,after_event_version) VALUES($2,$1)
                 ON CONFLICT(projection_name) DO UPDATE
                 SET after_event_version=GREATEST(risk_history_projection_progress.after_event_version,EXCLUDED.after_event_version);
-                """,[after,projectionName],ct);
+                """, [after, projectionName], ct);
             return true;
-        },token);
+        }, token);
 
     public Task<IReadOnlyList<WorkflowStrategyStateUpdatedEvent>> PageAsync(long after, CancellationToken token = default,
-        string projectionName=HistoryProjection)
+        string projectionName = HistoryProjection)
         => transactions.ExecuteAsync(async (db, ct) =>
         {
             var rows = await db.QueryAsync("""
@@ -75,29 +75,29 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
             return (IReadOnlyList<WorkflowStrategyStateUpdatedEvent>)rows.Select(x => (WorkflowStrategyStateUpdatedEvent)x.ToDomainEvent()).ToArray();
         }, token);
 
-    public Task AcknowledgeAsync(string projectionName,long eventId,CancellationToken token=default)
-        =>transactions.ExecuteAsync(async(db,ct)=>
+    public Task AcknowledgeAsync(string projectionName, long eventId, CancellationToken token = default)
+        => transactions.ExecuteAsync(async (db, ct) =>
         {
-            await db.ExecuteAsync("INSERT INTO risk_history_projection_receipt(projection_name,event_id) VALUES($1,$2) ON CONFLICT DO NOTHING;",[projectionName,eventId],ct);
+            await db.ExecuteAsync("INSERT INTO risk_history_projection_receipt(projection_name,event_id) VALUES($1,$2) ON CONFLICT DO NOTHING;", [projectionName, eventId], ct);
             return true;
-        },token);
+        }, token);
 
-    public Task QuarantineConflictAsync(long eventId,RiskHistoryProjectionResult result,CancellationToken token=default)
-        =>transactions.ExecuteAsync(async(db,ct)=>
+    public Task QuarantineConflictAsync(long eventId, RiskHistoryProjectionResult result, CancellationToken token = default)
+        => transactions.ExecuteAsync(async (db, ct) =>
         {
-            if(result.Disposition!=RiskHistoryProjectionDisposition.Conflict || result.WorkflowId==Guid.Empty || result.InvocationId==Guid.Empty)
-                throw new ArgumentException("A complete Risk history conflict result is required.",nameof(result));
+            if (result.Disposition != RiskHistoryProjectionDisposition.Conflict || result.WorkflowId == Guid.Empty || result.InvocationId == Guid.Empty)
+                throw new ArgumentException("A complete Risk history conflict result is required.", nameof(result));
             await db.ExecuteAsync("""
                 INSERT INTO risk_history_projection_issue(
                   projection_name,event_id,workflow_id,invocation_id,source_revision,issue_code,stored_hash,incoming_hash)
                 VALUES($1,$2,$3,$4,$5,'ImmutableRevisionConflict',$6,$7)
                 ON CONFLICT DO NOTHING;
-                """,[HistoryProjection,eventId,result.WorkflowId,result.InvocationId,result.Revision,result.StoredHash!,result.IncomingHash!],ct);
+                """, [HistoryProjection, eventId, result.WorkflowId, result.InvocationId, result.Revision, result.StoredHash!, result.IncomingHash!], ct);
             await db.ExecuteAsync(
                 "INSERT INTO risk_history_projection_receipt(projection_name,event_id) VALUES($1,$2) ON CONFLICT DO NOTHING;",
-                [HistoryProjection,eventId],ct);
+                [HistoryProjection, eventId], ct);
             return true;
-        },token);
+        }, token);
 
     public Task<IEvent?> ByCommandAsync(Guid command, CancellationToken token = default)
         => transactions.ExecuteAsync(async (db, ct) =>
@@ -111,6 +111,6 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
             return rows.FirstOrDefault()?.ToDomainEvent();
         }, token);
 
-    static EventLogReadModel Read(System.Data.Common.DbDataReader r) => new(r.GetInt64(0),r.GetString(1),r.GetString(2),
-        r.GetInt64(3),r.GetFieldValue<byte[]>(4),r.GetGuid(5),r.GetString(6),r.GetInt64(7));
+    static EventLogReadModel Read(System.Data.Common.DbDataReader r) => new(r.GetInt64(0), r.GetString(1), r.GetString(2),
+        r.GetInt64(3), r.GetFieldValue<byte[]>(4), r.GetGuid(5), r.GetString(6), r.GetInt64(7));
 }

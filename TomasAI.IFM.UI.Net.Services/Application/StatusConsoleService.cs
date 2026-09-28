@@ -35,7 +35,7 @@ public class StatusConsoleService : UiServiceBase<StatusConsoleService>
         {
             await _statusConsoleEventConsumer.StartAsync(listenerAction);
         }
-        catch{ }
+        catch { }
     }
 
     /// <summary>

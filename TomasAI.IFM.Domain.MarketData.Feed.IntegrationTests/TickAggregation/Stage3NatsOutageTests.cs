@@ -48,8 +48,12 @@ public sealed class Stage3NatsOutageTests
             var supervisor = Substitute.For<IActorSupervisor>();
             supervisor.GetProducer(Arg.Any<ActorMailboxId>()).Returns(producer);
             await using var publisher = new TickAggregationEventPublisher(supervisor,
-                policy: new() { Capacity = 4, SendTimeout = TimeSpan.FromMilliseconds(500),
-                    CancellationGracePeriod = TimeSpan.FromSeconds(1) });
+                policy: new()
+                {
+                    Capacity = 4,
+                    SendTimeout = TimeSpan.FromMilliseconds(500),
+                    CancellationGracePeriod = TimeSpan.FromSeconds(1)
+                });
             try
             {
                 await publisher.StartAsync();
@@ -90,8 +94,12 @@ public sealed class Stage3NatsOutageTests
         {
             Subject = new ActorSubject(ActorType.Realtime, FuturesMarketPriceUpdatedRealtimeEvent.Actor,
                 FuturesMarketPriceUpdatedRealtimeEvent.Verb, entity.Format()),
-            Id = Guid.NewGuid(), CommandId = Guid.NewGuid(), EntityId = entity, AggregateId = entity.Format(),
-            EventSource = nameof(Stage3NatsOutageTests), ReceivedOn = DateTime.UtcNow,
+            Id = Guid.NewGuid(),
+            CommandId = Guid.NewGuid(),
+            EntityId = entity,
+            AggregateId = entity.Format(),
+            EventSource = nameof(Stage3NatsOutageTests),
+            ReceivedOn = DateTime.UtcNow,
             Price = new(entity.ContractId, 42, 1, AssetTypeId.Futures, entity.ValueDate, null, null)
         };
     }

@@ -12,6 +12,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
+
 using OrderComposition;
 [MessagePackObject(AllowPrivate = true)]
 public sealed record ExecuteOrderCompositionPipelineCommand : ICommand<OrderCompositionExecutionId>
@@ -86,7 +87,8 @@ public sealed record ExecuteOrderCompositionPipelineCommand : ICommand<OrderComp
     [Key(16)] public TradeSelectionBinding SelectionBinding { get; init; } = new();
     [IgnoreMember, Newtonsoft.Json.JsonIgnore, System.Text.Json.Serialization.JsonIgnore]
     FundCompositionReservationResult _reservation = default!;
-    [Key(17)] public FundCompositionReservationResult? Reservation
+    [Key(17)]
+    public FundCompositionReservationResult? Reservation
     {
         get => _reservation is null ? null : _reservation with { Trades = _reservation.Trades is null ? null! : [.. _reservation.Trades] };
         init => _reservation = value is null ? null! : value with { Trades = value.Trades is null ? null! : [.. value.Trades] };

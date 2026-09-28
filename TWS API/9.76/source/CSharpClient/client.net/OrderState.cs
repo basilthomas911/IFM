@@ -148,7 +148,7 @@ namespace IBApi
         public double MaxCommission
         {
             get { return maxCommission; }
-            set { maxCommission = value;  }
+            set { maxCommission = value; }
         }
 
         /**
@@ -167,7 +167,7 @@ namespace IBApi
         public string WarningText
         {
             get { return warningText; }
-            set { warningText = value;  }
+            set { warningText = value; }
         }
 
         public string CompletedTime

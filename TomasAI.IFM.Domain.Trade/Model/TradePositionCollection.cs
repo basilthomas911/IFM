@@ -7,7 +7,7 @@ public class TradePositionCollection : ITradePositionCollection
 {
     readonly List<ITradePosition> _tradePosition;
 
-    public TradePositionCollection() =>  _tradePosition = new List<ITradePosition>();
+    public TradePositionCollection() => _tradePosition = new List<ITradePosition>();
 
     public int Count => _tradePosition.Count;
 

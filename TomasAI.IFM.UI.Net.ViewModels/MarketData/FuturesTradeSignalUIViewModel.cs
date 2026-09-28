@@ -91,7 +91,8 @@ public class FuturesTradeSignalUIViewModel
         PresentationColorRole GetTrendForeColor() => PresentationColorRole.DarkText;
 
         PresentationColorRole GetTrendBackColor()
-            => e.TrendType switch {
+            => e.TrendType switch
+            {
                 FuturesTrendType.UpTrend => PresentationColorRole.Positive,
                 FuturesTrendType.UpTrending => PresentationColorRole.Positive,
                 FuturesTrendType.DownTrending => PresentationColorRole.Negative,
@@ -122,7 +123,7 @@ public class FuturesTradeSignalUIViewModel
         PresentationColorRole GetMDITrendBackColor()
             => e.MDITrend switch
             {
-                FuturesMDITrendType.UpTrending  => PresentationColorRole.Positive,
+                FuturesMDITrendType.UpTrending => PresentationColorRole.Positive,
                 FuturesMDITrendType.DownTrending => PresentationColorRole.Negative,
                 _ => PresentationColorRole.Caution
             };

@@ -62,7 +62,7 @@ public class EconomicCalendarStateRepository(
     /// <param name="context">The command actor context that provides access to the actor's container and state required for denormalization.</param>
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
-    protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context,  DomainEventCollection domainEvents)
+    protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
     {
         var db = actorContext.DbFactory.MarketDataDb;
         foreach (var domainEvent in domainEvents)
@@ -70,10 +70,10 @@ public class EconomicCalendarStateRepository(
             _ = domainEvent switch
             {
                 EconomicCalendarAddedEvent e => await UpdateReadModelAsync<EconomicCalendarAddedEvent, EconomicCalendarAddedCompleteEvent, EconomicCalendarAddedFailEvent, EconomicCalendarId>(
-                    context, e, () =>InsertEconomicCalendarAsync(db, e.EconomicCalendar!)),
+                    context, e, () => InsertEconomicCalendarAsync(db, e.EconomicCalendar!)),
                 EconomicCalendarsImportedEvent e => await PostEventAsync<EconomicCalendarsImportedEvent, EconomicCalendarId>(context, e),
                 EconomicCalendarChangedEvent e => await UpdateReadModelAsync<EconomicCalendarChangedEvent, EconomicCalendarChangedCompleteEvent, EconomicCalendarChangedFailEvent, EconomicCalendarId>(
-                    context, e, () =>UpdateEconomicCalendarAsync(db, e.EntityId!, e.EconomicCalendar!)),
+                    context, e, () => UpdateEconomicCalendarAsync(db, e.EntityId!, e.EconomicCalendar!)),
                 EconomicCalendarRemovedEvent e => await UpdateReadModelAsync<EconomicCalendarRemovedEvent, EconomicCalendarRemovedCompleteEvent, EconomicCalendarRemovedFailEvent, EconomicCalendarId>(
                     context, e, () => DeleteEconomicCalendarAsync(db, e.EntityId!)),
                 _ => false

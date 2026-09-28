@@ -38,7 +38,8 @@ public sealed record GetFundRiskAuthorizationQuery : IFinancialQueryMessage<GetF
     [Key(4)] public Guid CorrelationId { get; init; }
     [Key(5)] public DateTime RequestedAtUtc { get; init; }
 
-    [IgnoreMember] public GetFundRiskAuthorizationRequest Parameters
+    [IgnoreMember]
+    public GetFundRiskAuthorizationRequest Parameters
     {
         get => new(CommandId);
         init

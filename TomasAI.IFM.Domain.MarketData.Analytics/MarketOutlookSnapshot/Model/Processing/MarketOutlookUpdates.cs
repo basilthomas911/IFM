@@ -544,38 +544,38 @@ public sealed class MarketOutlookUpdateProcessor(
     static MarketOutlookInputState Hydrate(
         MarketOutlookInputState state,
         MarketOutlookReadModel snapshot) => state with
-    {
-        FuturesEodData = snapshot.FuturesEodData.IsValid ? snapshot.FuturesEodData : state.FuturesEodData,
-        FuturesTradeSignal = snapshot.FuturesTradeSignal ?? state.FuturesTradeSignal,
-        FuturesRsiSignal = snapshot.FuturesRsiSignal ?? state.FuturesRsiSignal,
-        FuturesTdiSignal = snapshot.FuturesTdiSignal ?? state.FuturesTdiSignal,
-        TrendDirectionChange = snapshot.TrendDirectionChange ?? state.TrendDirectionChange,
-        TrendExtremeChange = snapshot.TrendExtremeChange ?? state.TrendExtremeChange,
-        TrendReversalChange = snapshot.TrendReversalChange ?? state.TrendReversalChange,
-        LatestItiTrendSignal = snapshot.LatestItiTrendSignal ?? state.LatestItiTrendSignal,
-        VixFuturesPrice = snapshot.VixFuturesPrice is > 0m ? snapshot.VixFuturesPrice : state.VixFuturesPrice,
-        VixFuturesSessionOpenPrice = snapshot.VixFuturesPrice is > 0m
+        {
+            FuturesEodData = snapshot.FuturesEodData.IsValid ? snapshot.FuturesEodData : state.FuturesEodData,
+            FuturesTradeSignal = snapshot.FuturesTradeSignal ?? state.FuturesTradeSignal,
+            FuturesRsiSignal = snapshot.FuturesRsiSignal ?? state.FuturesRsiSignal,
+            FuturesTdiSignal = snapshot.FuturesTdiSignal ?? state.FuturesTdiSignal,
+            TrendDirectionChange = snapshot.TrendDirectionChange ?? state.TrendDirectionChange,
+            TrendExtremeChange = snapshot.TrendExtremeChange ?? state.TrendExtremeChange,
+            TrendReversalChange = snapshot.TrendReversalChange ?? state.TrendReversalChange,
+            LatestItiTrendSignal = snapshot.LatestItiTrendSignal ?? state.LatestItiTrendSignal,
+            VixFuturesPrice = snapshot.VixFuturesPrice is > 0m ? snapshot.VixFuturesPrice : state.VixFuturesPrice,
+            VixFuturesSessionOpenPrice = snapshot.VixFuturesPrice is > 0m
             ? snapshot.VixFuturesPrice
             : state.VixFuturesSessionOpenPrice,
-        FuturesEmaSignal = snapshot.FuturesEmaSignal ?? state.FuturesEmaSignal,
-        FuturesBbSignal = snapshot.FuturesBbSignal ?? state.FuturesBbSignal,
-        FuturesVwapSignal = snapshot.FuturesVwapSignal ?? state.FuturesVwapSignal,
-        FuturesAdxSignal = snapshot.FuturesAdxSignal ?? state.FuturesAdxSignal,
-        FuturesAtrSignal = snapshot.FuturesAtrSignal ?? state.FuturesAtrSignal,
-        FuturesMacdSignal = snapshot.FuturesMacdSignal ?? state.FuturesMacdSignal,
-        CurrentEsPrice = snapshot.FuturesTradeSignal?.FuturesPrice is > 0d
+            FuturesEmaSignal = snapshot.FuturesEmaSignal ?? state.FuturesEmaSignal,
+            FuturesBbSignal = snapshot.FuturesBbSignal ?? state.FuturesBbSignal,
+            FuturesVwapSignal = snapshot.FuturesVwapSignal ?? state.FuturesVwapSignal,
+            FuturesAdxSignal = snapshot.FuturesAdxSignal ?? state.FuturesAdxSignal,
+            FuturesAtrSignal = snapshot.FuturesAtrSignal ?? state.FuturesAtrSignal,
+            FuturesMacdSignal = snapshot.FuturesMacdSignal ?? state.FuturesMacdSignal,
+            CurrentEsPrice = snapshot.FuturesTradeSignal?.FuturesPrice is > 0d
             ? (decimal)snapshot.FuturesTradeSignal.FuturesPrice
             : snapshot.FuturesEodData.ClosePrice is > 0m
                 ? snapshot.FuturesEodData.ClosePrice
                 : state.CurrentEsPrice,
-        MarketDataAsOfUtc = snapshot.MarketDataAsOfUtc > state.MarketDataAsOfUtc
+            MarketDataAsOfUtc = snapshot.MarketDataAsOfUtc > state.MarketDataAsOfUtc
             ? snapshot.MarketDataAsOfUtc
             : state.MarketDataAsOfUtc,
-        FeedHealth = string.IsNullOrWhiteSpace(snapshot.FeedHealth) ? state.FeedHealth : snapshot.FeedHealth,
-        FeedHealthReason = string.IsNullOrWhiteSpace(snapshot.FeedHealthReason)
+            FeedHealth = string.IsNullOrWhiteSpace(snapshot.FeedHealth) ? state.FeedHealth : snapshot.FeedHealth,
+            FeedHealthReason = string.IsNullOrWhiteSpace(snapshot.FeedHealthReason)
             ? state.FeedHealthReason
             : snapshot.FeedHealthReason
-    };
+        };
 
     static IReadOnlyCollection<MarketOutlookComponentWrite> HydratedComponents(
         MarketOutlookReadModel snapshot,
@@ -655,15 +655,15 @@ public sealed class MarketOutlookUpdateProcessor(
     static MarketOutlookInputState MergeIti(
         MarketOutlookInputState state,
         FuturesItiSignalV2ReadModel signal) => state with
-    {
-        LatestItiTrendSignal = signal,
-        TrendDirectionChange = signal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendDirectionChanged
+        {
+            LatestItiTrendSignal = signal,
+            TrendDirectionChange = signal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendDirectionChanged
             ? signal : state.TrendDirectionChange,
-        TrendExtremeChange = signal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendExtremeChanged
+            TrendExtremeChange = signal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendExtremeChanged
             ? signal : state.TrendExtremeChange,
-        TrendReversalChange = signal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendReversalChanged
+            TrendReversalChange = signal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendReversalChanged
             ? signal : state.TrendReversalChange
-    };
+        };
 
     static DateTime NormalizeUtc(DateTime value) => value.Kind switch
     {

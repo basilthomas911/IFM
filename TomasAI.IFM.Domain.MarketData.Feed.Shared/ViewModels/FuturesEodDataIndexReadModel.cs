@@ -8,6 +8,6 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 public record FuturesEodDataIndexReadModel(
     DateOnly ValueDate,
-    string ContractId )
+    string ContractId)
 {
 }

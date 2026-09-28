@@ -13,7 +13,7 @@ namespace TomasAI.IFM.Shared.StatusConsole.Model;
 /// status console writer constructor
 /// </remarks>
 /// <param name="statusConsole"></param>
-public class StatusConsoleWriter(IStatusConsoleEventProducer statusConsole) 
+public class StatusConsoleWriter(IStatusConsoleEventProducer statusConsole)
     : IStatusConsoleWriter
 {
 
@@ -54,7 +54,7 @@ public class StatusConsoleWriter(IStatusConsoleEventProducer statusConsole)
     /// <param name="errorCode"></param>
     /// <param name="errorMsg"></param>
     /// <returns></returns>
-    public async Task WriteConsoleAsync(LogSourceType logSourceType, int errorCode, string errorMsg, string dataType="", string data="")
+    public async Task WriteConsoleAsync(LogSourceType logSourceType, int errorCode, string errorMsg, string dataType = "", string data = "")
     {
         var logEvent = new StatusConsoleLoggedEvent
         {

@@ -26,10 +26,12 @@ public static class FailPortfolioCloseOrderComposition
                     request?.EntityId.Format() ?? string.Empty),
                 EntityId = request?.EntityId ?? new(0, Guid.Empty),
                 CommandId = request?.CommandId ?? Guid.Empty,
-                ErrorDate = now, ReceivedOn = now,
+                ErrorDate = now,
+                ReceivedOn = now,
                 ErrorCode = request?.ErrorCode ?? 34131,
                 ErrorMessage = input.Exception?.Message ?? "Portfolio close-order composition failed.",
-                ErrorType = ErrorType.Command, ErrorData = detail,
+                ErrorType = ErrorType.Command,
+                ErrorData = detail,
                 CommandName = nameof(EvaluatePortfolioCloseOrderCompositionCommand),
                 AggregateId = request?.EntityId.Format() ?? string.Empty
             });

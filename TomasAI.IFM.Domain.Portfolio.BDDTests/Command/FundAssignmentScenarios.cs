@@ -16,18 +16,44 @@ public sealed class FundAssignmentScenarios
         var aggregate = new PortfolioFundAggregate();
         aggregate.Create(Guid.NewGuid(), new FundMandateReadModel
         {
-            PortfolioId = 101, FundId = 205, FundCode = "DAILY", Name = "Daily", FundMandateVersion = 1,
-            TradingYear = 2026, OperatingState = FundOperatingState.Draft, EffectiveFromUtc = now,
-            DecisionHorizon = "Daily", Objective = "Directional", UnderlyingUniverse = ["ES"],
-            EligibleAssetTypes = ["Futures"], PermittedTradeFamilies = ["DirectionalFuture"], CreatedOnUtc = now, CreatedBy = "admin",
+            PortfolioId = 101,
+            FundId = 205,
+            FundCode = "DAILY",
+            Name = "Daily",
+            FundMandateVersion = 1,
+            TradingYear = 2026,
+            OperatingState = FundOperatingState.Draft,
+            EffectiveFromUtc = now,
+            DecisionHorizon = "Daily",
+            Objective = "Directional",
+            UnderlyingUniverse = ["ES"],
+            EligibleAssetTypes = ["Futures"],
+            PermittedTradeFamilies = ["DirectionalFuture"],
+            CreatedOnUtc = now,
+            CreatedBy = "admin",
         }, now, "admin");
         var assignment = new FundTradeTemplateAssignmentReadModel
         {
-            PortfolioId = 101, PortfolioVersion = 1, FundId = 205, FundMandateVersion = 1, AssignmentVersion = 1,
-            TradeTemplateId = Guid.NewGuid(), TradeTemplateVersion = 3, Enabled = true, DecisionHorizon = "Daily",
-            UnderlyingUniverse = ["ES"], AssetType = "Futures", TradeFamily = "DirectionalFuture", Priority = 1,
-            EffectiveFromUtc = now, TradeSelectionHintProfileId = Guid.NewGuid(), TradeSelectionHintProfileVersion = 2,
-            OrderCompositionProfileId = Guid.NewGuid(), OrderCompositionProfileVersion = 4, CreatedOnUtc = now, CreatedBy = "admin",
+            PortfolioId = 101,
+            PortfolioVersion = 1,
+            FundId = 205,
+            FundMandateVersion = 1,
+            AssignmentVersion = 1,
+            TradeTemplateId = Guid.NewGuid(),
+            TradeTemplateVersion = 3,
+            Enabled = true,
+            DecisionHorizon = "Daily",
+            UnderlyingUniverse = ["ES"],
+            AssetType = "Futures",
+            TradeFamily = "DirectionalFuture",
+            Priority = 1,
+            EffectiveFromUtc = now,
+            TradeSelectionHintProfileId = Guid.NewGuid(),
+            TradeSelectionHintProfileVersion = 2,
+            OrderCompositionProfileId = Guid.NewGuid(),
+            OrderCompositionProfileVersion = 4,
+            CreatedOnUtc = now,
+            CreatedBy = "admin",
         };
 
         aggregate.AssignTradeTemplate(Guid.NewGuid(), 1, assignment, now, "admin");

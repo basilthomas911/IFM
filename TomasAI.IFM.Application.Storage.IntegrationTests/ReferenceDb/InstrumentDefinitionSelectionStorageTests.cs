@@ -38,9 +38,16 @@ public sealed class InstrumentDefinitionSelectionStorageTests
             for (uint id = 1; id <= 5; ++id)
                 await store.IndexSelectionAsync(new()
                 {
-                    SnapshotId = snapshot, Dataset = "GLBX.MDP3", Root = "ES", InstrumentClass = "C",
-                    PublisherId = 1, InstrumentId = id, RawSymbol = "fixture/" + id,
-                    ExpirationUtc = DateTimeOffset.UtcNow.AddDays(10), DefinitionDigest = new('a', 64), Strike = 6500 + id
+                    SnapshotId = snapshot,
+                    Dataset = "GLBX.MDP3",
+                    Root = "ES",
+                    InstrumentClass = "C",
+                    PublisherId = 1,
+                    InstrumentId = id,
+                    RawSymbol = "fixture/" + id,
+                    ExpirationUtc = DateTimeOffset.UtcNow.AddDays(10),
+                    DefinitionDigest = new('a', 64),
+                    Strike = 6500 + id
                 }, token);
             await db.Use("Selection.Snapshot", $"""
                 INSERT INTO instrument_definition_snapshot(catalog,snapshot_id,completed_utc,record_count,datasets_json)

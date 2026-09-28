@@ -146,40 +146,45 @@ public class SpreadDistributionJobCommandActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
-    {
-        [typeof(SubmitSpreadDistributionJobCommand)] = cmd => {
-            var e = cmd as SubmitSpreadDistributionJobCommand; return new List<ValidationError>()
-                .ValidateCommandId(e!.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateSpreadDistributionJob(e.SpreadDistributionJob);
-        },
-        [typeof(CompleteSpreadDistributionJobCommand)] = cmd => {
-            var e = cmd as CompleteSpreadDistributionJobCommand; return new List<ValidationError>()
-                .ValidateCommandId(e!.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateOptionTradeId(new OptionTradeEntityId(e.EntityId.OrderId, e.EntityId.TradeId), e.CommandName)
-                .ValidateJobCompleted(e.JobCompleted, e.CommandName);
-        },
-        [typeof(FailSpreadDistributionJobCommand)] = cmd => {
-            var e = cmd as FailSpreadDistributionJobCommand; return new List<ValidationError>()
-                .ValidateCommandId(e!.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateOptionTradeId(new OptionTradeEntityId(e.EntityId.OrderId, e.EntityId.TradeId), e.CommandName)
-                .ValidateJobFailed(e.JobFailed, e.CommandName);
-        },
-        [typeof(ClearSpreadDistributionJobCommand)] = cmd => {
-            var e = cmd as ClearSpreadDistributionJobCommand; return new List<ValidationError>()
-                .ValidateCommandId(e!.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateOptionTradeId(new OptionTradeEntityId(e.EntityId.OrderId, e.EntityId.TradeId), e.CommandName);
-        },
-        [typeof(DeleteSpreadDistributionJobsInProgressCommand)] = cmd => {
-            var e = cmd as DeleteSpreadDistributionJobsInProgressCommand; return new List<ValidationError>()
-                .ValidateCommandId(e!.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateOptionTradeId(new OptionTradeEntityId(e.EntityId.OrderId, e.EntityId.TradeId), e.CommandName);
-        }
-    };
+        {
+            [typeof(SubmitSpreadDistributionJobCommand)] = cmd =>
+            {
+                var e = cmd as SubmitSpreadDistributionJobCommand; return new List<ValidationError>()
+                    .ValidateCommandId(e!.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateSpreadDistributionJob(e.SpreadDistributionJob);
+            },
+            [typeof(CompleteSpreadDistributionJobCommand)] = cmd =>
+            {
+                var e = cmd as CompleteSpreadDistributionJobCommand; return new List<ValidationError>()
+                    .ValidateCommandId(e!.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateOptionTradeId(new OptionTradeEntityId(e.EntityId.OrderId, e.EntityId.TradeId), e.CommandName)
+                    .ValidateJobCompleted(e.JobCompleted, e.CommandName);
+            },
+            [typeof(FailSpreadDistributionJobCommand)] = cmd =>
+            {
+                var e = cmd as FailSpreadDistributionJobCommand; return new List<ValidationError>()
+                    .ValidateCommandId(e!.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateOptionTradeId(new OptionTradeEntityId(e.EntityId.OrderId, e.EntityId.TradeId), e.CommandName)
+                    .ValidateJobFailed(e.JobFailed, e.CommandName);
+            },
+            [typeof(ClearSpreadDistributionJobCommand)] = cmd =>
+            {
+                var e = cmd as ClearSpreadDistributionJobCommand; return new List<ValidationError>()
+                    .ValidateCommandId(e!.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateOptionTradeId(new OptionTradeEntityId(e.EntityId.OrderId, e.EntityId.TradeId), e.CommandName);
+            },
+            [typeof(DeleteSpreadDistributionJobsInProgressCommand)] = cmd =>
+            {
+                var e = cmd as DeleteSpreadDistributionJobsInProgressCommand; return new List<ValidationError>()
+                    .ValidateCommandId(e!.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateOptionTradeId(new OptionTradeEntityId(e.EntityId.OrderId, e.EntityId.TradeId), e.CommandName);
+            }
+        };
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.

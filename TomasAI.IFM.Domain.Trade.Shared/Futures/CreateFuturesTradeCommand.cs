@@ -8,4 +8,4 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Futures;
 
 [MessagePackObject]
 public sealed record CreateFuturesTradeCommand : CreateEstablishedTradeCommand
-{ public const string Verb="CreateFuturesTrade"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesTradeBoundedContext; }
+{ public const string Verb = "CreateFuturesTrade"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesTradeBoundedContext; }

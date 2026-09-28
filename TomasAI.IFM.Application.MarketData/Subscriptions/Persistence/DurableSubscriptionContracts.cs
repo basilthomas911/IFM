@@ -160,12 +160,31 @@ public static class DurableSubscriptionContract
 
     /// <summary>Transport operation/correlation/revision do not change the identity of a source fact.</summary>
     public static string FactDigest(DurableAuthorityMutation frozen) => frozen.CompleteSourceSnapshot
-        ? Digest(new { Mode = "CommittedSnapshot/v1", frozen.Scope, frozen.Dataset, frozen.SourceId, frozen.SourceVersion,
-            frozen.SourceEventId, frozen.Owner, frozen.Status, frozen.ReasonCode, frozen.Adds }) : Digest(new
-    {
-        frozen.Scope, frozen.Dataset, frozen.SourceId, frozen.SourceVersion, frozen.SourceEventId,
-        frozen.Owner, frozen.Status, frozen.ReasonCode, frozen.Adds, frozen.Releases
-    });
+        ? Digest(new
+        {
+            Mode = "CommittedSnapshot/v1",
+            frozen.Scope,
+            frozen.Dataset,
+            frozen.SourceId,
+            frozen.SourceVersion,
+            frozen.SourceEventId,
+            frozen.Owner,
+            frozen.Status,
+            frozen.ReasonCode,
+            frozen.Adds
+        }) : Digest(new
+        {
+            frozen.Scope,
+            frozen.Dataset,
+            frozen.SourceId,
+            frozen.SourceVersion,
+            frozen.SourceEventId,
+            frozen.Owner,
+            frozen.Status,
+            frozen.ReasonCode,
+            frozen.Adds,
+            frozen.Releases
+        });
 
     public static string Digest<T>(T value) => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(value)));
 

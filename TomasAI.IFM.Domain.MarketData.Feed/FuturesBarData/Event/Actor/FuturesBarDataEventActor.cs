@@ -42,7 +42,7 @@ public class FuturesBarDataEventActor(IEventActorContext<FuturesBarDataEventActo
             var e = (evt as FuturesBarDataStreamingStartedEvent)!;
             return await e.ExecuteAsync(context, commandApi, eventApi, eventParams, logger);
         },
-       
+
         [typeof(FuturesBarDataStreamingStoppedEvent)] = async (evt, context, _, eventApi, eventParams, logger) =>
         {
             var e = (evt as FuturesBarDataStreamingStoppedEvent)!;

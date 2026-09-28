@@ -95,19 +95,19 @@ public static class FuturesAdxSignalIdExtensions
     public static List<ValidationError> ValidateFuturesAdxSignalId(this List<ValidationError> validationErrors, FuturesAdxSignalId futuresAdxSignalId, string commandName)
     {
         if (string.IsNullOrEmpty(futuresAdxSignalId.ContractId))
-            validationErrors.Add(new ($"{commandName}.ContractId is required"));
+            validationErrors.Add(new($"{commandName}.ContractId is required"));
         if (futuresAdxSignalId.ValueDate == DateOnly.MinValue)
-            validationErrors.Add(new ($"{commandName}.ValueDate must be greater than DateOnly.MinValue"));
+            validationErrors.Add(new($"{commandName}.ValueDate must be greater than DateOnly.MinValue"));
         if (futuresAdxSignalId.ValueDate == DateOnly.MaxValue)
-            validationErrors.Add(new ($"{commandName}.ValueDate must be less than DateOnly.MaxValue"));
+            validationErrors.Add(new($"{commandName}.ValueDate must be less than DateOnly.MaxValue"));
         if (futuresAdxSignalId.TimePeriod == TimeFrameType.None)
-            validationErrors.Add(new ($"{commandName}.TimePeriod is invalid"));
+            validationErrors.Add(new($"{commandName}.TimePeriod is invalid"));
         if (futuresAdxSignalId.PeriodLength <= 0)
-            validationErrors.Add(new ($"{commandName}.PeriodLength must be a positive integer   "));
+            validationErrors.Add(new($"{commandName}.PeriodLength must be a positive integer   "));
         if (futuresAdxSignalId.Timestamp == TimeOnly.MinValue)
-            validationErrors.Add(new ($"{commandName}.Timestamp must be greater than TimeOnly.MinValue"));
+            validationErrors.Add(new($"{commandName}.Timestamp must be greater than TimeOnly.MinValue"));
         if (futuresAdxSignalId.Timestamp == TimeOnly.MaxValue)
-            validationErrors.Add(new ($"{commandName}.Timestamp must be less than TimeOnly.MaxValue"));
+            validationErrors.Add(new($"{commandName}.Timestamp must be less than TimeOnly.MaxValue"));
         return validationErrors;
     }
 }

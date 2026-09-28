@@ -25,23 +25,31 @@ public class DatabaseBackupActorBenchmarks
         _state = new DatabaseBackupCommandState();
         _state.Execute(new RequestDatabaseBackupCommand
         {
-            CommandId = request.RequestId, EntityId = operationId, Request = request,
-            Source = BackupSource.LocalWorkstation, ProtectionSetId = new DatabaseProtectionSetId("core"),
+            CommandId = request.RequestId,
+            EntityId = operationId,
+            Request = request,
+            Source = BackupSource.LocalWorkstation,
+            ProtectionSetId = new DatabaseProtectionSetId("core"),
             ConsistencyMode = DatabaseConsistencyMode.EngineConsistent,
             RequiredDestinations = [new DatabaseLogicalDestination("vault", true)]
         });
         var source = Source(operationId, 1, DatabaseRecoveryPhase.Admitted);
         _duplicate = new RecordDatabaseOperationAdmissionCommand
         {
-            CommandId = source.SourceEventId, EntityId = operationId, Source = source,
+            CommandId = source.SourceEventId,
+            EntityId = operationId,
+            Source = source,
             Subject = new ActorSubject(ActorType.Command, DatabaseBackupCommandRoute.Actor, "RecordAdmission", operationId.Format())
         };
         _state.Execute(_duplicate);
         var progressSource = Source(operationId, 2, DatabaseRecoveryPhase.Capturing);
         _progress = new DatabaseBackupServiceProgressEvent
         {
-            Id = progressSource.SourceEventId, EntityId = operationId, CommandId = progressSource.CorrelationId,
-            Source = progressSource, ProgressPercent = 50,
+            Id = progressSource.SourceEventId,
+            EntityId = operationId,
+            CommandId = progressSource.CorrelationId,
+            Source = progressSource,
+            ProgressPercent = 50,
             Subject = new ActorSubject(ActorType.Event, "DatabaseBackupEvent", "BackupProgress", operationId.Format()),
             ReceivedOn = progressSource.ObservedUtc.UtcDateTime
         };
@@ -55,16 +63,28 @@ public class DatabaseBackupActorBenchmarks
 
     static DatabaseRequestEnvelope Request(Guid id) => new()
     {
-        RequestId = id, CallerIdentity = "benchmark", AuthorizationReference = "benchmark",
-        CallerRoles = ["DatabaseRecoveryOperator"], Origin = DatabaseRequestOrigin.Console,
-        CorrelationId = Guid.NewGuid(), EnvironmentIdentity = "benchmark", CreatedUtc = DateTimeOffset.UtcNow
+        RequestId = id,
+        CallerIdentity = "benchmark",
+        AuthorizationReference = "benchmark",
+        CallerRoles = ["DatabaseRecoveryOperator"],
+        Origin = DatabaseRequestOrigin.Console,
+        CorrelationId = Guid.NewGuid(),
+        EnvironmentIdentity = "benchmark",
+        CreatedUtc = DateTimeOffset.UtcNow
     };
 
     static DatabaseSourceEnvelope Source(DatabaseRecoveryOperationId operationId, long sequence, DatabaseRecoveryPhase phase) => new()
     {
-        SourceEventId = Guid.NewGuid(), OperationId = operationId, Source = BackupSource.LocalWorkstation,
-        ProtectionSetId = new DatabaseProtectionSetId("core"), OperationKind = DatabaseRecoveryOperationKind.Backup,
-        Phase = phase, ProducingHostId = new DatabaseBackupHostId("benchmark-host"), SourceRevisionOrSequence = sequence,
-        CorrelationId = Guid.NewGuid(), CausationId = Guid.NewGuid(), ObservedUtc = DateTimeOffset.UtcNow
+        SourceEventId = Guid.NewGuid(),
+        OperationId = operationId,
+        Source = BackupSource.LocalWorkstation,
+        ProtectionSetId = new DatabaseProtectionSetId("core"),
+        OperationKind = DatabaseRecoveryOperationKind.Backup,
+        Phase = phase,
+        ProducingHostId = new DatabaseBackupHostId("benchmark-host"),
+        SourceRevisionOrSequence = sequence,
+        CorrelationId = Guid.NewGuid(),
+        CausationId = Guid.NewGuid(),
+        ObservedUtc = DateTimeOffset.UtcNow
     };
 }

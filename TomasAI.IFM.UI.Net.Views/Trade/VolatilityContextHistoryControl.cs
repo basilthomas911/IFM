@@ -20,11 +20,19 @@ public sealed class VolatilityContextHistoryControl : UserControl
     readonly Label _entry = ValueLabel("volatilityEntrySnapshotLabel");
     readonly DataGridView _history = new()
     {
-        Name = "volatilityHistoryGrid", Dock = DockStyle.Fill, ReadOnly = true,
-        AllowUserToAddRows = false, AllowUserToDeleteRows = false, AllowUserToOrderColumns = false,
-        RowHeadersVisible = false, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-        BackgroundColor = Color.Black, ForeColor = Color.White, GridColor = Color.FromArgb(70, 70, 70),
-        EnableHeadersVisualStyles = false, SelectionMode = DataGridViewSelectionMode.FullRowSelect
+        Name = "volatilityHistoryGrid",
+        Dock = DockStyle.Fill,
+        ReadOnly = true,
+        AllowUserToAddRows = false,
+        AllowUserToDeleteRows = false,
+        AllowUserToOrderColumns = false,
+        RowHeadersVisible = false,
+        AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+        BackgroundColor = Color.Black,
+        ForeColor = Color.White,
+        GridColor = Color.FromArgb(70, 70, 70),
+        EnableHeadersVisualStyles = false,
+        SelectionMode = DataGridViewSelectionMode.FullRowSelect
     };
 
     public VolatilityContextHistoryControl()
@@ -35,8 +43,13 @@ public sealed class VolatilityContextHistoryControl : UserControl
         ForeColor = Color.White;
         var summary = new FlowLayoutPanel
         {
-            Name = "volatilitySummary", Dock = DockStyle.Top, Height = 94, AutoScroll = true,
-            FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.FromArgb(32, 32, 32)
+            Name = "volatilitySummary",
+            Dock = DockStyle.Top,
+            Height = 94,
+            AutoScroll = true,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            BackColor = Color.FromArgb(32, 32, 32)
         };
         summary.Controls.AddRange([_mode, _series, _current, _quality, _entry]);
         _history.Columns.Add("ValueDate", "Value Date");

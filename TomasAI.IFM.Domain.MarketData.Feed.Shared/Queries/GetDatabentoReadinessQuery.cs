@@ -18,6 +18,7 @@ public sealed class GetDatabentoReadinessQuery : IQuery<DatabentoReadinessReadMo
     [IgnoreMember] public int ErrorCode { get; set; } = ErrorId;
     [IgnoreMember] public string? QueryParams { get; set; }
     public GetDatabentoReadinessQuery() { }
-    [SerializationConstructor] public GetDatabentoReadinessQuery(ActorSubject subject, IActorEntityId entityId)
+    [SerializationConstructor]
+    public GetDatabentoReadinessQuery(ActorSubject subject, IActorEntityId entityId)
     { Subject = subject; EntityId = new GetDatabentoReadinessParameter(); }
 }

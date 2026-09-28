@@ -11,7 +11,7 @@ namespace TomasAI.IFM.UI.Net.Services.Analytics
     {
         readonly IFuturesItiSignalUIEventConsumer _futuresItiSignalEventConsumer;
         readonly IFuturesTradeSignalUIEventConsumer _futuresTradeSignalEventConsumer;
- 
+
         /// <summary>Executes or exposes a documented UI service operation.</summary>
         public MarketDataAnalyticsEventService(
             IFuturesItiSignalUIEventConsumer futuresItiSignalEventConsumer,
@@ -56,6 +56,6 @@ namespace TomasAI.IFM.UI.Net.Services.Analytics
                 await _futuresItiSignalEventConsumer.StopAsync(siteId);
             }
         }
-        
+
     }
 }

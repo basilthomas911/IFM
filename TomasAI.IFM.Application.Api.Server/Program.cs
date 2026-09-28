@@ -49,29 +49,21 @@ try
     var app = builder.Build();
     var deploymentIdentity = app.Services.GetRequiredService<DeploymentIdentityMonitor>()
         .EnsureStartupValid();
-    var apiHost = app.Services.GetRequiredService<ApiHostOptions>();
     Log.Information("Deployment identity verified: {BuildId}", deploymentIdentity.BuildId);
     app.ConfigureRequestPipeline(logger);
-    if (apiHost.HostsGateway)
-    {
-        app.MapApiCommands(logger);
-        app.MapApiQueries(logger);
-    }
-    if (apiHost.HostsRuntime)
-    {
-        app.MapGet("/api/market-data/operations-health",
-            (MarketDataOperationsHealthService health, LivePipelineMonitor monitor) => Results.Ok(LivePipelineEndpoints.OperationsSnapshot(health, monitor)))
-            .CacheOutput(ApiOutputCachePolicies.OperationalSnapshot);
-        app.MapGet("/api/actor-health",
-            (IActorSupervisor supervisor, DateTime? fromUtc, DateTime? toUtc) =>
-                fromUtc > toUtc
-                    ? Results.BadRequest(new { Error = "fromUtc must be before toUtc." })
-                    : Results.Ok(supervisor.RuntimeContext.CaptureSnapshot(fromUtc, toUtc)))
-            .CacheOutput(ApiOutputCachePolicies.OperationalSnapshot);
-        app.MapLivePipelineHealth();
-    }
+    app.MapGet("/api/market-data/operations-health",
+        (MarketDataOperationsHealthService health, LivePipelineMonitor monitor) => Results.Ok(LivePipelineEndpoints.OperationsSnapshot(health, monitor)))
+        .CacheOutput(ApiOutputCachePolicies.OperationalSnapshot);
+    app.MapGet("/api/actor-health",
+        (IActorSupervisor supervisor, DateTime? fromUtc, DateTime? toUtc) =>
+            fromUtc > toUtc
+                ? Results.BadRequest(new { Error = "fromUtc must be before toUtc." })
+                : Results.Ok(supervisor.RuntimeContext.CaptureSnapshot(fromUtc, toUtc)))
+        .CacheOutput(ApiOutputCachePolicies.OperationalSnapshot);
+    app.MapLivePipelineHealth();
     if (verifyStartupOnly)
     {
+        Console.WriteLine("IFM startup verification completed; no schemas, actors, feeds or HTTP listeners started.");
         // Run the real composition root/container checks, then exit before any schema,
         // seed, HTTP listener, hosted service, actor or feed startup. This takes precedence
         // over bootstrap mode so a verification request cannot accidentally write data.
@@ -86,15 +78,15 @@ try
         Log.Information("Canonical schemas and catalogs initialized; no HTTP listener or actor runtime started.");
         await app.DisposeAsync();
     }
-    else if (args.Contains("--backfill-risk-history-only",StringComparer.OrdinalIgnoreCase))
+    else if (args.Contains("--backfill-risk-history-only", StringComparer.OrdinalIgnoreCase))
     {
-        using var deadline=new CancellationTokenSource(TimeSpan.FromMinutes(30));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(30));
         await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.TradeDb.Schema.TradeSchemaDb>().CreateAllAsync();
-        var cursorText=args.SingleOrDefault(x=>x.StartsWith("--risk-after=",StringComparison.OrdinalIgnoreCase))?.Split('=',2)[1];
-        long cursor=cursorText is null ? 0 : long.Parse(cursorText,System.Globalization.CultureInfo.InvariantCulture);
-        if(cursor<0)throw new ArgumentException("Risk cursor must be nonnegative.");
-        var recovery=app.Services.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>();
-        do { cursor=await recovery.ProjectPageAsync(cursor,false,deadline.Token);Console.WriteLine($"Risk history next cursor: {cursor}"); } while(cursor!=0);
+        var cursorText = args.SingleOrDefault(x => x.StartsWith("--risk-after=", StringComparison.OrdinalIgnoreCase))?.Split('=', 2)[1];
+        long cursor = cursorText is null ? 0 : long.Parse(cursorText, System.Globalization.CultureInfo.InvariantCulture);
+        if (cursor < 0) throw new ArgumentException("Risk cursor must be nonnegative.");
+        var recovery = app.Services.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>();
+        do { cursor = await recovery.ProjectPageAsync(cursor, false, deadline.Token); Console.WriteLine($"Risk history next cursor: {cursor}"); } while (cursor != 0);
         await app.DisposeAsync();
     }
     else if (migrateStrategyCatalogOnly)
@@ -121,8 +113,7 @@ try
             await qualification.InitializeCandidateAsync(CancellationToken.None);
         }
         var workflowOptions = app.Services.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor.IntrinsicTimeStrategyWorkflowOptions>();
-        if (apiHost.HostsRuntime
-            && app.Environment.IsDevelopment()
+        if (app.Environment.IsDevelopment()
             && workflowOptions.ProvisionDevelopmentMarketConditionAssessmentDefaults)
         {
             var defaults = await app.Services
@@ -141,49 +132,41 @@ try
         // duplicate API host owns the port), no actor can consume messages from
         // a service provider that is immediately torn down.
         await app.StartAsync();
-        if (!apiHost.HostsRuntime)
+        var actorSupervisor = app.Services.GetRequiredService<IActorSupervisor>();
+        var actorStartupSignal = app.Services.GetRequiredService<ActorRuntimeStartupSignal>();
+        var actorsStarted = false;
+        try
         {
-            Log.Information("IFM API gateway started without embedded actors, feeds, projectors, or domain hosted services.");
-            await app.WaitForShutdownAsync();
-        }
-        else
-        {
-            var actorSupervisor = app.Services.GetRequiredService<IActorSupervisor>();
-            var actorStartupSignal = app.Services.GetRequiredService<ActorRuntimeStartupSignal>();
-            var actorsStarted = false;
             try
             {
-                try
-                {
-                    var orchestration = app.Services.GetRequiredService<StartupOrchestrationOptions>();
-                    using var actorStartupDeadline = CancellationTokenSource.CreateLinkedTokenSource(
-                        app.Lifetime.ApplicationStopping);
-                    actorStartupDeadline.CancelAfter(orchestration.ActorStartupTimeout);
-                    await app.MapEventModelActorsAsync(logger, actorStartupDeadline.Token);
-                    actorStartupSignal.Complete();
-                }
-                catch (Exception exception)
-                {
-                    actorStartupSignal.Fail(exception);
-                    throw;
-                }
-                actorsStarted = true;
-                var developmentPortfolio = app.Services.GetRequiredService<DevelopmentTradingPortfolioOptions>();
-                if (app.Environment.IsDevelopment()
-                    && developmentPortfolio.Enabled
-                    && string.IsNullOrWhiteSpace(app.Configuration["IFM_TEST_ACTOR_DOMAIN"]))
-                {
-                    using var provisioningDeadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
-                    await app.Services.GetRequiredService<DevelopmentTradingPortfolioProvisioner>()
-                        .EnsureAsync(provisioningDeadline.Token);
-                }
-                await app.WaitForShutdownAsync();
+                var orchestration = app.Services.GetRequiredService<StartupOrchestrationOptions>();
+                using var actorStartupDeadline = CancellationTokenSource.CreateLinkedTokenSource(
+                    app.Lifetime.ApplicationStopping);
+                actorStartupDeadline.CancelAfter(orchestration.ActorStartupTimeout);
+                await app.MapEventModelActorsAsync(logger, actorStartupDeadline.Token);
+                actorStartupSignal.Complete();
             }
-            finally
+            catch (Exception exception)
             {
-                if (actorsStarted)
-                    await actorSupervisor.ShutdownAsync(CancellationToken.None);
+                actorStartupSignal.Fail(exception);
+                throw;
             }
+            actorsStarted = true;
+            var developmentPortfolio = app.Services.GetRequiredService<DevelopmentTradingPortfolioOptions>();
+            if (app.Environment.IsDevelopment()
+                && developmentPortfolio.Enabled
+                && string.IsNullOrWhiteSpace(app.Configuration["IFM_TEST_ACTOR_DOMAIN"]))
+            {
+                using var provisioningDeadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+                await app.Services.GetRequiredService<DevelopmentTradingPortfolioProvisioner>()
+                    .EnsureAsync(provisioningDeadline.Token);
+            }
+            await app.WaitForShutdownAsync();
+        }
+        finally
+        {
+            if (actorsStarted)
+                await actorSupervisor.ShutdownAsync(CancellationToken.None);
         }
     }
 }
@@ -201,55 +184,14 @@ catch (Exception ex)
     if (args.Contains("--refresh-instrument-definitions-only", StringComparer.OrdinalIgnoreCase))
         Console.Error.WriteLine("Instrument definition refresh failed: " + ex.Message);
     Log.Fatal(ex, "IFM WebApiServer: startup failed");
+    if (args.Contains("--verify-startup-only", StringComparer.OrdinalIgnoreCase))
+        Console.Error.WriteLine("IFM startup verification failed: " + ex.Message);
+    if (!args.Contains("--verify-startup-only", StringComparer.OrdinalIgnoreCase)
+        && !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("IFM_TEST_NATS_URL")))
+        throw;
+
 }
 finally
 {
     Log.CloseAndFlush();
 }
-
-/*
-var builder = WebApplication.CreateBuilder(args);
-
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
-var app = builder.Build();
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
-app.UseHttpsRedirection();
-
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", (HttpRequest request) =>
-{
-    var forecast = Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
-
-app.Run();
-
-internal record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
-*/

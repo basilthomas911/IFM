@@ -61,31 +61,46 @@ public sealed class FuturesEodAnalyticsAssemblerTests
         MarketSeriesIdentity series,
         DateOnly valueDate,
         FuturesTradeSessionBarId observationId) => new()
-    {
-        MarketSeriesIdentity = series, ContractId = "ESZ26", ValueDate = valueDate,
-        SessionStartUtc = new DateTimeOffset(2026, 8, 24, 22, 0, 0, TimeSpan.Zero),
-        SessionEndUtc = new DateTimeOffset(2026, 8, 25, 21, 0, 0, TimeSpan.Zero),
-        Open = 6400m, High = 6425m, Low = 6375m, Close = 6410m,
-        Volume = 1000m, TradeCount = 10, PriceVolumeSum = 6_410_000m,
-        ObservationId = observationId, FirstSourceSequence = 1, LastSourceSequence = 42,
-        FirstMarketEventUtc = new DateTimeOffset(2026, 8, 24, 22, 0, 1, TimeSpan.Zero),
-        LastMarketEventUtc = new DateTimeOffset(2026, 8, 25, 20, 59, 59, TimeSpan.Zero),
-        IsComplete = true, IsValid = true
-    };
+        {
+            MarketSeriesIdentity = series,
+            ContractId = "ESZ26",
+            ValueDate = valueDate,
+            SessionStartUtc = new DateTimeOffset(2026, 8, 24, 22, 0, 0, TimeSpan.Zero),
+            SessionEndUtc = new DateTimeOffset(2026, 8, 25, 21, 0, 0, TimeSpan.Zero),
+            Open = 6400m,
+            High = 6425m,
+            Low = 6375m,
+            Close = 6410m,
+            Volume = 1000m,
+            TradeCount = 10,
+            PriceVolumeSum = 6_410_000m,
+            ObservationId = observationId,
+            FirstSourceSequence = 1,
+            LastSourceSequence = 42,
+            FirstMarketEventUtc = new DateTimeOffset(2026, 8, 24, 22, 0, 1, TimeSpan.Zero),
+            LastMarketEventUtc = new DateTimeOffset(2026, 8, 25, 20, 59, 59, TimeSpan.Zero),
+            IsComplete = true,
+            IsValid = true
+        };
 
     static MarketAnalyticsSignalMetadata Metadata(
         MarketSeriesIdentity series,
         DateOnly valueDate,
         FuturesTradeSessionBarId observationId) => new()
-    {
-        SignalKey = new(series, MarketAnalyticsSignalKind.Ema, TimeFrameType.Daily, "ema-v1"),
-        ContractId = "ESZ26", ValueDate = valueDate, ObservationId = observationId,
-        MarketDataAsOfUtc = new DateTimeOffset(2026, 8, 25, 20, 59, 59, TimeSpan.Zero),
-        CalculatedAtUtc = new DateTimeOffset(2026, 8, 25, 21, 0, 0, TimeSpan.Zero),
-        SourceSequence = 42, SchemaVersion = 1, CalculationVersion = "ema-v1",
-        CalculationMethod = MarketSignalCalculationMethod.ClosedObservation,
-        IsValid = true, ValidationIssues = []
-    };
+        {
+            SignalKey = new(series, MarketAnalyticsSignalKind.Ema, TimeFrameType.Daily, "ema-v1"),
+            ContractId = "ESZ26",
+            ValueDate = valueDate,
+            ObservationId = observationId,
+            MarketDataAsOfUtc = new DateTimeOffset(2026, 8, 25, 20, 59, 59, TimeSpan.Zero),
+            CalculatedAtUtc = new DateTimeOffset(2026, 8, 25, 21, 0, 0, TimeSpan.Zero),
+            SourceSequence = 42,
+            SchemaVersion = 1,
+            CalculationVersion = "ema-v1",
+            CalculationMethod = MarketSignalCalculationMethod.ClosedObservation,
+            IsValid = true,
+            ValidationIssues = []
+        };
 
     sealed class ObservationStore(FuturesEodObservationReadModel raw) : IHistoricalObservationStore
     {

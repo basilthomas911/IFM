@@ -71,31 +71,31 @@ public sealed class StrategySelectionUniverseResolver(IConfigurationDbContext co
             _ = SelectionConstructionProfileReference.FromFrozen(policies[(composed.Kind, composed.Id, composed.Version)], composed, key, nodes, frozenAtUtc);
 
             foreach (var product in deployment.Products.Where(x => x.Symbol == selectionPolicy.InstrumentRoot))
-            foreach (var variantKey in deployment.Variants)
-            {
-                var variant = nodes[variantKey];
-                var structure = nodes[variant.Parent!];
-                var classes = structure.Legs.Select(x => x.InstrumentClass).Distinct().ToArray();
-                Require(classes.Length == 1 && classes[0] is "Futures" or "FuturesOption",
-                    "TS.CONFIG.CAPABILITY_UNSUPPORTED", "Unsupported traded instrument class.");
-                var candidate = new SelectionCandidateBinding
+                foreach (var variantKey in deployment.Variants)
                 {
-                    SchemaVersion = 1,
-                    AssignmentVersion = deploymentIndex + 1,
-                    AssignmentPriority = deploymentIndex,
-                    DeploymentKey = key,
-                    StrategyKey = strategy.Key,
-                    StructureKey = structure.Key,
-                    VariantKey = variantKey,
-                    Product = product,
-                    SelectionPolicyReference = selected,
-                    CompositionPolicyReference = composed,
-                    SpecializedParameterBindings = deployment.Parameters,
-                    FamilyKeys = strategy.Families
-                };
-                candidates.Add(candidate with { CandidateHash = CandidateHash(candidate, frozenGraph) });
-                Require(candidates.Count <= selectionPolicy.MaximumCandidates, "TS.CONFIG.CANDIDATE_LIMIT", "Too many candidates; no truncation is permitted.");
-            }
+                    var variant = nodes[variantKey];
+                    var structure = nodes[variant.Parent!];
+                    var classes = structure.Legs.Select(x => x.InstrumentClass).Distinct().ToArray();
+                    Require(classes.Length == 1 && classes[0] is "Futures" or "FuturesOption",
+                        "TS.CONFIG.CAPABILITY_UNSUPPORTED", "Unsupported traded instrument class.");
+                    var candidate = new SelectionCandidateBinding
+                    {
+                        SchemaVersion = 1,
+                        AssignmentVersion = deploymentIndex + 1,
+                        AssignmentPriority = deploymentIndex,
+                        DeploymentKey = key,
+                        StrategyKey = strategy.Key,
+                        StructureKey = structure.Key,
+                        VariantKey = variantKey,
+                        Product = product,
+                        SelectionPolicyReference = selected,
+                        CompositionPolicyReference = composed,
+                        SpecializedParameterBindings = deployment.Parameters,
+                        FamilyKeys = strategy.Families
+                    };
+                    candidates.Add(candidate with { CandidateHash = CandidateHash(candidate, frozenGraph) });
+                    Require(candidates.Count <= selectionPolicy.MaximumCandidates, "TS.CONFIG.CANDIDATE_LIMIT", "Too many candidates; no truncation is permitted.");
+                }
         }
 
         var validUntilUtc = policies.Values.Select(value => value.RetiredAtUtc ?? workflowExpiresAtUtc)

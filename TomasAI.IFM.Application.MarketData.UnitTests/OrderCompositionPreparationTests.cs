@@ -80,8 +80,11 @@ public sealed class OrderCompositionPreparationTests
     {
         var request = Request();
         var value = new CompositionPreparation(1, Key(), "GLBX.MDP3", request, Snapshot(request), At, "");
-        value = value with { Digest = PricingSemanticHash.Compute(new
-        { value.SchemaVersion, value.Key, value.Dataset, value.Request, value.Snapshot, value.PreparedAtUtc, Digest = "" }) };
+        value = value with
+        {
+            Digest = PricingSemanticHash.Compute(new
+            { value.SchemaVersion, value.Key, value.Dataset, value.Request, value.Snapshot, value.PreparedAtUtc, Digest = "" })
+        };
         CompositionPreparationService.Validate(value);
         Assert.Throws<InvalidDataException>(() => CompositionPreparationService.Validate(value with { SchemaVersion = 2 }));
         Assert.Throws<InvalidDataException>(() => CompositionPreparationService.Validate(value with { Key = Key() }));

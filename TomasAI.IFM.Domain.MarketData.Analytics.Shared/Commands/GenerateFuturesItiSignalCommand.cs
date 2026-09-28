@@ -21,9 +21,9 @@ public record GenerateFuturesItiSignalCommand : ICommand<FuturesItiSignalEntityI
 
     // Base command members (keys 0..5)
     [Key(0)] public Guid CommandId { get; init; }
-    [Key(1)] public ActorSubject Subject { get; init; } 
+    [Key(1)] public ActorSubject Subject { get; init; }
     [Key(2)] public bool PostEvents { get; init; }
-    [Key(3)] public FuturesItiSignalEntityId EntityId { get; init; } 
+    [Key(3)] public FuturesItiSignalEntityId EntityId { get; init; }
     [Key(4)] public int ErrorCode { get; init; }
     [Key(5)] public BoundedContextName RouteTo { get; init; }
 
@@ -43,7 +43,7 @@ public record GenerateFuturesItiSignalCommand : ICommand<FuturesItiSignalEntityI
     public DateOnly ValueDate { get; init; }
 
     [Key(8)]
-    public TimeFrameType TimePeriod { get; init; }    
+    public TimeFrameType TimePeriod { get; init; }
 
     /// <summary>The timestamp of the source data used to generate the signal.</summary>
     [Key(9)]

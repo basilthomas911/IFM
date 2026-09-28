@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Domain.Application.Shared.Commands;
 /// application. The <see cref="EntityId"/> is automatically initialized based on the command type, and the <see
 /// cref="RouteTo"/>  property is set to the application bounded context.</remarks>
 [MessagePackObject(AllowPrivate = true)]
-public record StartApplicationCommand 
+public record StartApplicationCommand
     : ICommand<ApplicationEntityId>
 {
     public const string Actor = "ApplicationCommand";

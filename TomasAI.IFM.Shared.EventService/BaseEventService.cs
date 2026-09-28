@@ -28,9 +28,9 @@ public abstract class BaseEventService(IEventServiceHandlerResolver eventHandler
             var eventType = e.GetType();
             var eventTypeName = eventType.Name;
             var sw = new Stopwatch();
-            sw.Start(); 
+            sw.Start();
             dynamic eventHandler = eventHandlerResolver.ResolveEventHandler(eventType, this.GetType())!;
-            if (! await ExecuteAsync(eventHandler, e))
+            if (!await ExecuteAsync(eventHandler, e))
                 await eventHandler?.ExecuteAsync((dynamic)e);
             sw.Stop();
             var queryElapsedTime = sw.Elapsed.ToString(@"ss\.fff");
@@ -79,7 +79,7 @@ public abstract class BaseEventService(IEventServiceHandlerResolver eventHandler
         }
     }
 
-    protected virtual async Task<bool> ExecuteAsync(object handler, IEvent e) 
+    protected virtual async Task<bool> ExecuteAsync(object handler, IEvent e)
         => await Task.FromResult(false);
 
 }

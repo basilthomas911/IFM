@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 
 [MessagePackObject(AllowPrivate = true)]
-public sealed record GetParameterStartupRunsQuery:IQuery<ParameterStartupRun[]>
+public sealed record GetParameterStartupRunsQuery : IQuery<ParameterStartupRun[]>
 {
 
     /// <summary>Creates an empty query for serialization.</summary>
@@ -26,12 +26,12 @@ public sealed record GetParameterStartupRunsQuery:IQuery<ParameterStartupRun[]>
         AfterCreatedAtUtc = afterCreatedAtUtc;
         AfterRunId = afterRunId;
     }
- public const string Actor="ParameterSetQuery";public const string Verb="GetParameterStartupRuns";
- [Key(0)]public ActorSubject Subject{get;init;}
- [Key(1)]public IActorEntityId EntityId{get;init;}=ActorEntityId.Default;
- [Key(2)]public int Limit{get;init;}=20;
- [Key(3)]public DateTime? AfterCreatedAtUtc{get;init;}
- [Key(4)]public Guid? AfterRunId{get;init;}
- [IgnoreMember]public int ErrorCode{get;init;}=33101;
- [IgnoreMember]public string? QueryParams{get;init;}
+    public const string Actor = "ParameterSetQuery"; public const string Verb = "GetParameterStartupRuns";
+    [Key(0)] public ActorSubject Subject { get; init; }
+    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
+    [Key(2)] public int Limit { get; init; } = 20;
+    [Key(3)] public DateTime? AfterCreatedAtUtc { get; init; }
+    [Key(4)] public Guid? AfterRunId { get; init; }
+    [IgnoreMember] public int ErrorCode { get; init; } = 33101;
+    [IgnoreMember] public string? QueryParams { get; init; }
 }

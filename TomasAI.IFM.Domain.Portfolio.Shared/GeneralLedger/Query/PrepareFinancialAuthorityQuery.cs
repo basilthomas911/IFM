@@ -38,7 +38,8 @@ public sealed record PrepareFinancialAuthorityQuery : IFinancialQueryMessage<Pre
     [Key(4)] public Guid CorrelationId { get; init; }
     [Key(5)] public DateTime RequestedAtUtc { get; init; }
 
-    [IgnoreMember] public PrepareFinancialAuthorityRequest Parameters
+    [IgnoreMember]
+    public PrepareFinancialAuthorityRequest Parameters
     {
         get => new(PermitNewSpending);
         init

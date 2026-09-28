@@ -35,14 +35,18 @@ public static class FailRiskManagement
         {
             Status = timedOut ? WorkflowStrategyMachineStatus.TimedOut : WorkflowStrategyMachineStatus.Failed,
             Outcome = timedOut ? StrategyWorkflowOutcome.TimedOut : StrategyWorkflowOutcome.PipelineFailed,
-            WorkflowRevision = current.WorkflowRevision + 1, CausationId = command.CausationId,
-            UpdatedAtUtc = now, TerminalAtUtc = now,
+            WorkflowRevision = current.WorkflowRevision + 1,
+            CausationId = command.CausationId,
+            UpdatedAtUtc = now,
+            TerminalAtUtc = now,
             StopReasonCode = timedOut ? "PipelineTimedOut" : command.Failure.ErrorCode.ToString(
                 System.Globalization.CultureInfo.InvariantCulture),
             RiskManagement = current.RiskManagement with
             {
                 ProcessingStatus = timedOut ? StrategyActorProcessingStatus.TimedOut : StrategyActorProcessingStatus.Failed,
-                FailedAtUtc = now, Failure = command.Failure, SourceEventId = command.SourceEventId
+                FailedAtUtc = now,
+                Failure = command.Failure,
+                SourceEventId = command.SourceEventId
             }
         };
         AppendSnapshot(state, command, current.Status, updated, now);
@@ -61,11 +65,19 @@ public static class FailRiskManagement
         {
             Subject = new ActorSubject(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor,
                 WorkflowStrategyStateUpdatedEvent.Verb, command.EntityId.Format()),
-            Id = Guid.CreateVersion7(new DateTimeOffset(now, TimeSpan.Zero)), EntityId = command.EntityId,
-            CommandId = command.CommandId, AggregateId = command.EntityId.Format(), EventSource = command.EventSource,
-            ReceivedOn = now, WorkflowId = view.WorkflowId, WorkflowRevision = view.WorkflowRevision,
-            CorrelationId = view.CorrelationId, CausationId = view.CausationId, PreviousStatus = previousStatus,
-            State = view, UpdatedAtUtc = now
+            Id = Guid.CreateVersion7(new DateTimeOffset(now, TimeSpan.Zero)),
+            EntityId = command.EntityId,
+            CommandId = command.CommandId,
+            AggregateId = command.EntityId.Format(),
+            EventSource = command.EventSource,
+            ReceivedOn = now,
+            WorkflowId = view.WorkflowId,
+            WorkflowRevision = view.WorkflowRevision,
+            CorrelationId = view.CorrelationId,
+            CausationId = view.CausationId,
+            PreviousStatus = previousStatus,
+            State = view,
+            UpdatedAtUtc = now
         }, command);
 
     static void LogStale(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,

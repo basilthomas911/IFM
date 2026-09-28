@@ -19,7 +19,7 @@ public static class SampleData
     static readonly DateTime _jobCreatedOn = new DateTime(2025, 01, 01, 0, 0, 0);
     static readonly DateTime _jobUpdatedOn = new DateTime(2025, 01, 01, 0, 0, 0);
     static readonly DateTime _mdiCreatedOn = new DateTime(2025, 01, 01, 0, 0, 0);
-    
+
     static SampleData()
     {
 

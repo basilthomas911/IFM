@@ -1,6 +1,6 @@
 ﻿namespace TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend;
 
-public record FuturesItiTrendDelta (
+public record FuturesItiTrendDelta(
     string Symbol,
     DateOnly ValueDate,
     DateTime Timestamp,
@@ -9,4 +9,4 @@ public record FuturesItiTrendDelta (
     float TrendDirectionMode,
     float FuturesPrice,
     float TrendExtreme,
-    float FuturesRSI );
+    float FuturesRSI);

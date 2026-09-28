@@ -60,12 +60,12 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
-    {
-        [GetPortfolioQuery.Verb] = static message => message.AsQuery<GetPortfolioQuery, PortfolioReadModel>()!,
-        [GetPortfolioRevisionQuery.Verb] = static message => message.AsQuery<GetPortfolioRevisionQuery, PortfolioAggregateRevision>()!,
-        [GetPortfoliosQuery.Verb] = static message => message.AsQuery<GetPortfoliosQuery, PortfolioPage<PortfolioReadModel>>()!,
-        [AllocatePortfolioBusinessIdQuery.Verb] = static message => message.AsQuery<AllocatePortfolioBusinessIdQuery, PortfolioBusinessIdAllocation>()!,
-    };
+        {
+            [GetPortfolioQuery.Verb] = static message => message.AsQuery<GetPortfolioQuery, PortfolioReadModel>()!,
+            [GetPortfolioRevisionQuery.Verb] = static message => message.AsQuery<GetPortfolioRevisionQuery, PortfolioAggregateRevision>()!,
+            [GetPortfoliosQuery.Verb] = static message => message.AsQuery<GetPortfoliosQuery, PortfolioPage<PortfolioReadModel>>()!,
+            [AllocatePortfolioBusinessIdQuery.Verb] = static message => message.AsQuery<AllocatePortfolioBusinessIdQuery, PortfolioBusinessIdAllocation>()!,
+        };
 
     static readonly IReadOnlyDictionary<Type, Func<PortfolioQueryParameters, IQueryActorContext<PortfolioQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<PortfolioQueryParameters, IQueryActorContext<PortfolioQueryActor>, IQuery, CancellationToken, ValueTask>>

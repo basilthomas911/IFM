@@ -24,7 +24,7 @@ public interface ITradeQueryApi
         int daysToExpiry,
         TradeStatus tradeStatus);
     Task<ServiceResult<TradePriceReadModel>> GetIronCondorTradePriceAsync(int tradeId, DateOnly valueDate);
-    Task<ServiceResult<TradePlanActionReadModel[]>> GetTradePlanSummaryAsync( int orderId, int tradeId, DateOnly valueDate);
+    Task<ServiceResult<TradePlanActionReadModel[]>> GetTradePlanSummaryAsync(int orderId, int tradeId, DateOnly valueDate);
     Task<ServiceResult<string[]>> GetTradePositionTradeTypesAsync(
         int orderId,
         int tradeId,

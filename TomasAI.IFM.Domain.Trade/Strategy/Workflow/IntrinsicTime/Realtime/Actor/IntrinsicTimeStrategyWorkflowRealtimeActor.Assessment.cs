@@ -32,12 +32,21 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
         {
             CommandId = DeterministicPipelineCommandId(view.WorkflowId, view.CurrentStage, view.WorkflowRevision),
             Subject = new(ActorType.Function, ExecuteMarketConditionAssessmentCommand.Actor, ExecuteMarketConditionAssessmentCommand.Verb, id.Format()),
-            EntityId = id, InputWorkflowRevision = view.WorkflowRevision, WorkflowView = view, TriggerEvent = view.TriggerEvent,
-            CorrelationId = view.CorrelationId, CausationId = snapshot.Id, RequestedAtUtc = view.UpdatedAtUtc,
+            EntityId = id,
+            InputWorkflowRevision = view.WorkflowRevision,
+            WorkflowView = view,
+            TriggerEvent = view.TriggerEvent,
+            CorrelationId = view.CorrelationId,
+            CausationId = snapshot.Id,
+            RequestedAtUtc = view.UpdatedAtUtc,
             ExpiresAtUtc = configuredDeadline < view.ExpiresAtUtc ? configuredDeadline : view.ExpiresAtUtc,
-            ParameterSet = binding.Parameters, ParameterPayloadSha256 = binding.PayloadSha256,
-            RegimeResultEnvelope = regime, RegimePayloadSha256 = regime.PayloadSha256, MarketProfileId = binding.Parameters.MarketProfileId,
-            InstrumentRoot = binding.Parameters.InstrumentRoot, TargetHorizon = binding.Parameters.TargetHorizon
+            ParameterSet = binding.Parameters,
+            ParameterPayloadSha256 = binding.PayloadSha256,
+            RegimeResultEnvelope = regime,
+            RegimePayloadSha256 = regime.PayloadSha256,
+            MarketProfileId = binding.Parameters.MarketProfileId,
+            InstrumentRoot = binding.Parameters.InstrumentRoot,
+            TargetHorizon = binding.Parameters.TargetHorizon
         };
         MarketConditionAssessmentContracts.ValidateRequest(command);
         return command;
@@ -82,7 +91,9 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
                     var error = selectionStart.Error!;
                     selectionFailure = new StrategyPipelineFailure
                     {
-                        ErrorCode = 23023, ErrorType = error.ErrorType, ErrorMessage = error.Message,
+                        ErrorCode = 23023,
+                        ErrorType = error.ErrorType,
+                        ErrorMessage = error.Message,
                         ErrorData = string.Join(';', error.ReasonCodes.Concat(error.DiagnosticData.Select(pair => $"{pair.Key}={pair.Value}"))),
                         FailedAtUtc = clock.GetUtcNow().UtcDateTime
                     };
@@ -91,9 +102,15 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
             var complete = new CompleteMarketConditionCommand
             {
                 CommandId = DeterministicTerminalCommandId(completed.EntityId, completed.WorkflowId, completed.InputWorkflowRevision, completed.Id, CompleteMarketConditionCommand.Verb),
-                Subject = WorkflowSubject(CompleteMarketConditionCommand.Verb, completed.EntityId), EntityId = completed.EntityId, WorkflowId = completed.WorkflowId,
-                InputWorkflowRevision = completed.InputWorkflowRevision, SourceEventId = completed.Id, Result = completed.Result,
-                CorrelationId = completed.CorrelationId, CausationId = completed.Id, CompletedAtUtc = completed.CompletedAtUtc,
+                Subject = WorkflowSubject(CompleteMarketConditionCommand.Verb, completed.EntityId),
+                EntityId = completed.EntityId,
+                WorkflowId = completed.WorkflowId,
+                InputWorkflowRevision = completed.InputWorkflowRevision,
+                SourceEventId = completed.Id,
+                Result = completed.Result,
+                CorrelationId = completed.CorrelationId,
+                CausationId = completed.Id,
+                CompletedAtUtc = completed.CompletedAtUtc,
                 AssessmentBinding = execute.WorkflowView.AssessmentBinding,
                 SelectionBinding = selection?.Binding,
                 FundId = 0,
@@ -107,10 +124,16 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
             var fail = new FailMarketConditionCommand
             {
                 CommandId = DeterministicTerminalCommandId(failed.EntityId, failed.WorkflowId, failed.InputWorkflowRevision, failed.Id, FailMarketConditionCommand.Verb),
-                Subject = WorkflowSubject(FailMarketConditionCommand.Verb, failed.EntityId), EntityId = failed.EntityId, WorkflowId = failed.WorkflowId,
-                InputWorkflowRevision = failed.InputWorkflowRevision, SourceEventId = failed.Id, FailureCategory = failed.FailureCategory,
+                Subject = WorkflowSubject(FailMarketConditionCommand.Verb, failed.EntityId),
+                EntityId = failed.EntityId,
+                WorkflowId = failed.WorkflowId,
+                InputWorkflowRevision = failed.InputWorkflowRevision,
+                SourceEventId = failed.Id,
+                FailureCategory = failed.FailureCategory,
                 Failure = new() { ErrorCode = failed.ErrorCode, ErrorMessage = failed.ErrorMessage, ErrorType = failed.FailureCategory.ToString(), ErrorData = failed.ErrorData, FailedAtUtc = failed.ErrorDate },
-                CorrelationId = failed.CorrelationId, CausationId = failed.Id, FailedAtUtc = failed.ErrorDate
+                CorrelationId = failed.CorrelationId,
+                CausationId = failed.Id,
+                FailedAtUtc = failed.ErrorDate
             };
             await context.SendAsync<FailMarketConditionCommand, IntrinsicTimeStrategyWorkflowEntityId>(fail, fail.EntityId).ConfigureAwait(false);
         }

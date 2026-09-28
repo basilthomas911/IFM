@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Framework.Storage.ScyllaDb
 {
     public class ScyllaDbObjectDataQueuedCommand : IObjectDataQueuedCommandMetadata
     {
-        const string ClassName = nameof(ScyllaDbObjectDataQueuedCommand);   
+        const string ClassName = nameof(ScyllaDbObjectDataQueuedCommand);
 
         readonly string _commandName;
         CommandType _commandType;

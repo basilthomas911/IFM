@@ -43,15 +43,26 @@ public static class CompositionPreparationAcceptance
         var revision = checked(view.WorkflowRevision + 1);
         var legacy = new IntrinsicTimeStrategyWorkflowState
         {
-            EntityId = view.EntityId, WorkflowId = view.WorkflowId, TriggerEventId = view.TriggerEventId,
-            CorrelationId = view.CorrelationId, WorkflowDefinitionVersion = view.WorkflowDefinitionVersion,
-            Status = StrategyWorkflowStatus.Running, CurrentStage = StrategyWorkflowStage.OrderComposition,
-            WorkflowRevision = revision, StartedAtUtc = view.StartedAtUtc, Outcome = view.Outcome,
-            RegimeDiscovery = view.RegimeDiscovery, MarketCondition = view.MarketCondition, TradeSelection = view.TradeSelection,
-            OrderComposition = view.OrderComposition with { InputWorkflowRevision = revision }, RiskManagement = view.RiskManagement,
-            SelectionBinding = view.SelectionBinding, SelectionDispatch = view.SelectionDispatch,
+            EntityId = view.EntityId,
+            WorkflowId = view.WorkflowId,
+            TriggerEventId = view.TriggerEventId,
+            CorrelationId = view.CorrelationId,
+            WorkflowDefinitionVersion = view.WorkflowDefinitionVersion,
+            Status = StrategyWorkflowStatus.Running,
+            CurrentStage = StrategyWorkflowStage.OrderComposition,
+            WorkflowRevision = revision,
+            StartedAtUtc = view.StartedAtUtc,
+            Outcome = view.Outcome,
+            RegimeDiscovery = view.RegimeDiscovery,
+            MarketCondition = view.MarketCondition,
+            TradeSelection = view.TradeSelection,
+            OrderComposition = view.OrderComposition with { InputWorkflowRevision = revision },
+            RiskManagement = view.RiskManagement,
+            SelectionBinding = view.SelectionBinding,
+            SelectionDispatch = view.SelectionDispatch,
             CompositionHandoff = neutral ? null : handoff,
-            AssessmentBinding = view.AssessmentBinding, FundId = neutral ? 0 : view.FundId,
+            AssessmentBinding = view.AssessmentBinding,
+            FundId = neutral ? 0 : view.FundId,
             MarketConditionParameterSet = view.MarketConditionParameterSet,
             MarketConditionParameterPayloadSha256 = view.MarketConditionParameterPayloadSha256,
             RegimeDiscoveryParameterSet = view.RegimeDiscoveryParameterSet,
@@ -59,13 +70,22 @@ public static class CompositionPreparationAcceptance
         };
         var dispatch = new StartOrderCompositionPipelineCommand
         {
-            CommandId = commandId, Subject = new(ActorType.Command, StartOrderCompositionPipelineCommand.Actor,
+            CommandId = commandId,
+            Subject = new(ActorType.Command, StartOrderCompositionPipelineCommand.Actor,
                 StartOrderCompositionPipelineCommand.Verb, view.EntityId.Format()),
-            EntityId = view.EntityId, WorkflowId = view.WorkflowId, InputWorkflowRevision = revision,
-            WorkflowState = legacy, TriggerEvent = view.TriggerEvent, CorrelationId = view.CorrelationId,
-            CausationId = commandId, RequestedAtUtc = now, ExpectedCompletionAtUtc = compositionDeadline,
-            AcceptedSelection = view.TradeSelection.Result, SelectionBinding = view.SelectionBinding,
-            Reservation = neutral ? null : handoff!.Reservation, MarketEvidence = expected
+            EntityId = view.EntityId,
+            WorkflowId = view.WorkflowId,
+            InputWorkflowRevision = revision,
+            WorkflowState = legacy,
+            TriggerEvent = view.TriggerEvent,
+            CorrelationId = view.CorrelationId,
+            CausationId = commandId,
+            RequestedAtUtc = now,
+            ExpectedCompletionAtUtc = compositionDeadline,
+            AcceptedSelection = view.TradeSelection.Result,
+            SelectionBinding = view.SelectionBinding,
+            Reservation = neutral ? null : handoff!.Reservation,
+            MarketEvidence = expected
         };
         TradeSelectionHandoff.ValidateStart(dispatch, now);
         return dispatch;

@@ -136,38 +136,41 @@ public class FuturesItiSignalCommandActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
-    {
-        [typeof(GenerateFuturesItiSignalCommand)] = cmd => {
-            var e = (GenerateFuturesItiSignalCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateContractId(e.ContractId, e.CommandName)
-                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
-                .ValidateDateOnly(e.TimeFrameStartValueDate, e.CommandName, "ValueDate")
-                .ValidateTimePeriod(e.TimePeriod, e.CommandName)
-                .ValidateTimestamp(e.Timestamp, e.CommandName)
-                .ValidateFuturesPrice(e.FuturesPrice, e.CommandName)
-                .ValidateVixFuturesPrice(e.VixFuturesPrice, e.CommandName);
-        },
-        [typeof(ClearFuturesItiSignalHoldTradeCommand)] = cmd => {
-            var e = (ClearFuturesItiSignalHoldTradeCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateContractId(e.ContractId, e.CommandName)
-                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
-                .ValidateTimePeriod(e.TimePeriod, e.CommandName)
-                .ValidateTimestamp(e.Timestamp, e.CommandName);
-        },
-        [typeof(SetFuturesItiSignalHoldTradeCommand)] = cmd => {
-            var e = (SetFuturesItiSignalHoldTradeCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateContractId(e.ContractId, e.CommandName)
-                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
-                .ValidateTimePeriod(e.TimePeriod, e.CommandName)
-                .ValidateTimestamp(e.Timestamp, e.CommandName);
-        }
-    };
+        {
+            [typeof(GenerateFuturesItiSignalCommand)] = cmd =>
+            {
+                var e = (GenerateFuturesItiSignalCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateContractId(e.ContractId, e.CommandName)
+                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
+                    .ValidateDateOnly(e.TimeFrameStartValueDate, e.CommandName, "ValueDate")
+                    .ValidateTimePeriod(e.TimePeriod, e.CommandName)
+                    .ValidateTimestamp(e.Timestamp, e.CommandName)
+                    .ValidateFuturesPrice(e.FuturesPrice, e.CommandName)
+                    .ValidateVixFuturesPrice(e.VixFuturesPrice, e.CommandName);
+            },
+            [typeof(ClearFuturesItiSignalHoldTradeCommand)] = cmd =>
+            {
+                var e = (ClearFuturesItiSignalHoldTradeCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateContractId(e.ContractId, e.CommandName)
+                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
+                    .ValidateTimePeriod(e.TimePeriod, e.CommandName)
+                    .ValidateTimestamp(e.Timestamp, e.CommandName);
+            },
+            [typeof(SetFuturesItiSignalHoldTradeCommand)] = cmd =>
+            {
+                var e = (SetFuturesItiSignalHoldTradeCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateContractId(e.ContractId, e.CommandName)
+                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
+                    .ValidateTimePeriod(e.TimePeriod, e.CommandName)
+                    .ValidateTimestamp(e.Timestamp, e.CommandName);
+            }
+        };
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.

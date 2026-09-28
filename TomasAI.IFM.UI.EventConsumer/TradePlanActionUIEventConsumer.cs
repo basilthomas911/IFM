@@ -29,7 +29,7 @@ public class TradePlanActionUIEventConsumer(INatsEventListenerOptions options, I
             {
                 _ = eventVerb switch
                 {
-                    _ when eventVerb == TradePlanActionUpdatedEvent.Verb 
+                    _ when eventVerb == TradePlanActionUpdatedEvent.Verb
                         => HandleEvent(eventMsg.AsEvent<TradePlanActionUpdatedEvent>()!, e => eventAction?.Invoke(e)),
                     _ => default!
                 };

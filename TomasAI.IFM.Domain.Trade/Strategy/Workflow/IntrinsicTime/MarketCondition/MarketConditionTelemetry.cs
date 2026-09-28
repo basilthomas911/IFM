@@ -24,15 +24,15 @@ public static class MarketConditionTelemetry
         "ifm.market_condition.source_age", "s");
     public static Activity? Start(string operation) => Activities.StartActivity(operation, ActivityKind.Internal);
 
-    public static void RecordAssessment(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.MarketConditionAssessmentResult result,double elapsedMilliseconds)
+    public static void RecordAssessment(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.MarketConditionAssessmentResult result, double elapsedMilliseconds)
     {
-        var horizon=Horizon(result.TargetHorizon);
-        AssessmentAvailability.Add(1,new("horizon",horizon),new("availability",result.Assessment.Availability.ToString()));
-        Duration.Record(elapsedMilliseconds,new("mode","assessment"),new("horizon",horizon));
-        foreach(var source in result.Assessment.EvidenceItems.Where(x=>x.Feature=="SourceObservation"))
+        var horizon = Horizon(result.TargetHorizon);
+        AssessmentAvailability.Add(1, new("horizon", horizon), new("availability", result.Assessment.Availability.ToString()));
+        Duration.Record(elapsedMilliseconds, new("mode", "assessment"), new("horizon", horizon));
+        foreach (var source in result.Assessment.EvidenceItems.Where(x => x.Feature == "SourceObservation"))
         {
-            AssessmentSources.Add(1,new("horizon",horizon),new("source",source.SourceId),new("availability",source.Availability.ToString()));
-            RecordSourceAge(source.SourceId,source.AgeSeconds,result.TargetHorizon);
+            AssessmentSources.Add(1, new("horizon", horizon), new("source", source.SourceId), new("availability", source.Availability.ToString()));
+            RecordSourceAge(source.SourceId, source.AgeSeconds, result.TargetHorizon);
         }
     }
 

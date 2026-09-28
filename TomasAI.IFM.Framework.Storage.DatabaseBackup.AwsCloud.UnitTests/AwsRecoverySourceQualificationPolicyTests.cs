@@ -136,20 +136,20 @@ public sealed class AwsRecoverySourceQualificationPolicyTests
 
     static AwsImmutableObjectVersion Object(
         string bucket, string region, string keyArn, string objectKey, DateTimeOffset publishedUtc) => new()
-    {
-        BucketName = bucket,
-        Region = region,
-        ObjectKey = objectKey,
-        VersionId = "version-1",
-        Length = 16,
-        Sha256 = new string('A', 64),
-        S3ChecksumSha256 = "checksum",
-        EncryptionKeyArn = keyArn,
-        EncryptionContextBase64 = "e30=",
-        ObjectLockMode = "Governance",
-        RetainUntilUtc = publishedUtc.AddDays(35),
-        PublishedUtc = publishedUtc
-    };
+        {
+            BucketName = bucket,
+            Region = region,
+            ObjectKey = objectKey,
+            VersionId = "version-1",
+            Length = 16,
+            Sha256 = new string('A', 64),
+            S3ChecksumSha256 = "checksum",
+            EncryptionKeyArn = keyArn,
+            EncryptionContextBase64 = "e30=",
+            ObjectLockMode = "Governance",
+            RetainUntilUtc = publishedUtc.AddDays(35),
+            PublishedUtc = publishedUtc
+        };
 
     static AwsCloudDatabaseBackupOptions Options() => new()
     {

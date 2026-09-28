@@ -61,8 +61,12 @@ public sealed class PortfolioLifecycleScenarios
 
     static PortfolioReadModel Draft() => new()
     {
-        PortfolioId = 101, Name = "Core", PortfolioVersion = 1,
-        OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = Now,
-        CreatedOnUtc = Now, CreatedBy = "portfolio-admin",
+        PortfolioId = 101,
+        Name = "Core",
+        PortfolioVersion = 1,
+        OperatingState = PortfolioOperatingState.Draft,
+        EffectiveFromUtc = Now,
+        CreatedOnUtc = Now,
+        CreatedBy = "portfolio-admin",
     };
 }

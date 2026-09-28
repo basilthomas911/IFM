@@ -30,7 +30,8 @@ public sealed class OrderCompositionDiscoveryTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
     public async Task Incomplete_or_known_american_only_scope_never_allocates_worker_feed(bool complete, bool empty)
     {
         var c = Contract() with { ExerciseStyle = OptionExerciseStyle.American };

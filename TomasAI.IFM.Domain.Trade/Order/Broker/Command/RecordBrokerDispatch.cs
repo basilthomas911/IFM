@@ -49,15 +49,20 @@ public static class RecordBrokerDispatch
             return command.UpdateFailed("BO.DISPATCH.CONFLICTS_WITH_AUTHORITATIVE_OBSERVATION");
         var next = current with
         {
-            Status = status, Revision = current.Revision + 1, DispatchCategory = command.Category,
-            DispatchDetail = command.Detail, ChangedAtUtc = command.RecordedAtUtc, LastObservation = null,
+            Status = status,
+            Revision = current.Revision + 1,
+            DispatchCategory = command.Category,
+            DispatchDetail = command.Detail,
+            ChangedAtUtc = command.RecordedAtUtc,
+            LastObservation = null,
             PendingMutation = command.Outcome == BrokerDispatchResult.OutcomeUnknown
                 ? current.PendingMutation : BrokerMutationKind.Unknown
         };
         var applied = state.Update(new BrokerOrderChangedEvent
         {
             Subject = new(ActorType.Event, BrokerOrderChangedEvent.Actor, BrokerOrderChangedEvent.Verb, command.EntityId.Format()),
-            EntityId = command.EntityId, State = next
+            EntityId = command.EntityId,
+            State = next
         }, command);
         return applied ? new ServiceOk<GuidResult>(new(command.CommandId)) : command.UpdateFailed("BO.STATE.APPLY_FAILED");
     }

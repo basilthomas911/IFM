@@ -35,7 +35,7 @@ public record GetRolloverFuturesContractsQuery : IQuery<FuturesContractV3ReadMod
     [Key(2)] public string Symbol { get; init; }
 
     public GetRolloverFuturesContractsQuery()
-    { 
+    {
     }
 
     /// <summary>

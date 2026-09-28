@@ -12,7 +12,7 @@ public class TradeLiveFeed : IDataValidation, ITradeLiveFeed
         int orderId,
         int tradeId,
         bool liveFeed)
-   {
+    {
         OrderId = orderId;
         TradeId = tradeId;
         LiveFeed = liveFeed;
@@ -25,7 +25,7 @@ public class TradeLiveFeed : IDataValidation, ITradeLiveFeed
     public bool LiveFeed { get; private set; }
 
     public TradeLiveFeedReadModel ToViewModel()
-        => new 
+        => new
         (
             orderId: OrderId,
             tradeId: TradeId,

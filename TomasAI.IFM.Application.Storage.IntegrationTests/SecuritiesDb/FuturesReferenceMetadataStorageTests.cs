@@ -61,19 +61,37 @@ public sealed class FuturesReferenceMetadataStorageTests
             var future = new FuturesContractV3ReadModel("ES20260918", "fixture", "ES", "ESU6", "FUT", "USD", "CME", "50",
                 new(2026, 9, 18), false)
             {
-                SchemaVersion = 1, ReviewState = ReferenceReviewState.Draft, Dataset = "GLBX.MDP3",
-                PublisherId = 1, InstrumentId = 99, RawSymbol = "ESU6", MultiplierValue = 50,
-                PriceScale = 1, TickSize = .25m, DefinitionDigest = new('a', 64), MappingVersion = "fixture/v1"
+                SchemaVersion = 1,
+                ReviewState = ReferenceReviewState.Draft,
+                Dataset = "GLBX.MDP3",
+                PublisherId = 1,
+                InstrumentId = 99,
+                RawSymbol = "ESU6",
+                MultiplierValue = 50,
+                PriceScale = 1,
+                TickSize = .25m,
+                DefinitionDigest = new('a', 64),
+                MappingVersion = "fixture/v1"
             };
             var option = new FuturesOptionContractReadModel("ES20260918C6500.1234567890123456789012345",
                 "fixture", "ES", "fractional", "FOP", "USD", "CME", "50", new(2026, 9, 18), (double)strike, "Call")
             {
-                SchemaVersion = 1, ReviewState = ReferenceReviewState.Draft, StrikePriceDecimal = strike,
-                Dataset = "GLBX.MDP3", PublisherId = 1, InstrumentId = 42, RawSymbol = "fractional",
-                UnderlyingContractId = future.ContractId, UnderlyingAssetType = ReferenceAssetType.Futures,
-                UnderlyingInstrumentId = 99, UnderlyingPublisherId = 1,
-                OptionRight = ReferenceOptionRight.Call, ExerciseStyle = ReferenceExerciseStyle.American,
-                PremiumStyle = ReferencePremiumStyle.PremiumPaid, DefinitionDigest = new('b', 64), MappingVersion = "fixture/v1"
+                SchemaVersion = 1,
+                ReviewState = ReferenceReviewState.Draft,
+                StrikePriceDecimal = strike,
+                Dataset = "GLBX.MDP3",
+                PublisherId = 1,
+                InstrumentId = 42,
+                RawSymbol = "fractional",
+                UnderlyingContractId = future.ContractId,
+                UnderlyingAssetType = ReferenceAssetType.Futures,
+                UnderlyingInstrumentId = 99,
+                UnderlyingPublisherId = 1,
+                OptionRight = ReferenceOptionRight.Call,
+                ExerciseStyle = ReferenceExerciseStyle.American,
+                PremiumStyle = ReferencePremiumStyle.PremiumPaid,
+                DefinitionDigest = new('b', 64),
+                MappingVersion = "fixture/v1"
             };
             await db.InsertFuturesContractAsync(future);
             await db.InsertFuturesOptionContractAsync(option);
@@ -95,21 +113,37 @@ public sealed class FuturesReferenceMetadataStorageTests
             var expiry = new DateTimeOffset(2026, 9, 18, 20, 0, 0, TimeSpan.Zero);
             var reviewedFuture = future with
             {
-                ReviewState = ReferenceReviewState.Reviewed, DefinitionTimestampUtc = start,
-                RawDefinitionReference = "fixture/future", ExpirationUtc = expiry, LastTradingUtc = expiry,
-                ExchangeTimeZoneId = "America/New_York", CalendarVersion = "fixture/calendar",
-                SettlementStyle = ReferenceSettlementStyle.Cash, EvidenceId = "fixture/review",
-                EffectiveFromUtc = start, EffectiveUntilUtc = expiry
+                ReviewState = ReferenceReviewState.Reviewed,
+                DefinitionTimestampUtc = start,
+                RawDefinitionReference = "fixture/future",
+                ExpirationUtc = expiry,
+                LastTradingUtc = expiry,
+                ExchangeTimeZoneId = "America/New_York",
+                CalendarVersion = "fixture/calendar",
+                SettlementStyle = ReferenceSettlementStyle.Cash,
+                EvidenceId = "fixture/review",
+                EffectiveFromUtc = start,
+                EffectiveUntilUtc = expiry
             };
             await db.UpdateFuturesContractAsync(future.Id, reviewedFuture);
             var reviewedOption = option with
             {
-                ReviewState = ReferenceReviewState.Reviewed, DefinitionTimestampUtc = start,
-                RawDefinitionReference = "fixture/option", ExpirationUtc = expiry, LastTradingUtc = expiry,
-                ExchangeTimeZoneId = "America/New_York", CalendarVersion = "fixture/calendar",
-                SettlementStyle = ReferenceSettlementStyle.DeliveryOfFuture, EvidenceId = "fixture/review",
-                EffectiveFromUtc = start, EffectiveUntilUtc = expiry, MultiplierValue = 50, PriceScale = 1,
-                TickSize = .25m, PremiumTickRule = ReferencePremiumTickRule.Fixed, TickRuleVersion = "fixture/ticks",
+                ReviewState = ReferenceReviewState.Reviewed,
+                DefinitionTimestampUtc = start,
+                RawDefinitionReference = "fixture/option",
+                ExpirationUtc = expiry,
+                LastTradingUtc = expiry,
+                ExchangeTimeZoneId = "America/New_York",
+                CalendarVersion = "fixture/calendar",
+                SettlementStyle = ReferenceSettlementStyle.DeliveryOfFuture,
+                EvidenceId = "fixture/review",
+                EffectiveFromUtc = start,
+                EffectiveUntilUtc = expiry,
+                MultiplierValue = 50,
+                PriceScale = 1,
+                TickSize = .25m,
+                PremiumTickRule = ReferencePremiumTickRule.Fixed,
+                TickRuleVersion = "fixture/ticks",
                 DayCount = ReferenceDayCount.Actual365Fixed
             };
             await db.UpdateFuturesOptionContractAsync(option.ContractId, reviewedOption);
@@ -173,8 +207,13 @@ public sealed class FuturesReferenceMetadataStorageTests
                 row => row.Version == "fixture/v1" && row.Published);
             await Assert.ThrowsAsync<InvalidOperationException>(() => db.UpdateFuturesOptionContractAsync(
                 option.ContractId, second with { MappingVersion = "wrong-underlying", UnderlyingInstrumentId = 999 }));
-            var concurrent = reviewedFuture with { ContractId = "ES20260919", LastTradeDate = new(2026, 9, 19),
-                InstrumentId = 999, MappingVersion = "concurrent/v1" };
+            var concurrent = reviewedFuture with
+            {
+                ContractId = "ES20260919",
+                LastTradeDate = new(2026, 9, 19),
+                InstrumentId = 999,
+                MappingVersion = "concurrent/v1"
+            };
             async Task<bool> TryClaim(uint instrument)
             {
                 try { await versions.StageReferenceVersionAsync(concurrent with { InstrumentId = instrument }, token); return true; }

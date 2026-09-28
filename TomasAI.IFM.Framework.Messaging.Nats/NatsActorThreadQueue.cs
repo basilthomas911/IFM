@@ -1,4 +1,4 @@
-using  NATS.Client.Core;
+using NATS.Client.Core;
 using System.Runtime.CompilerServices;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -105,7 +105,7 @@ public class NatsActorThreadQueue(IActorSupervisor actorSupervisor)
     /// message processing. Ensure that the necessary dependencies are resolved before calling this method.</remarks>
     public void Start()
     {
-       _buffer = _actorSupervisor.Container.Resolve<IActorSpscRingBuffer<IActorMessage>>();
+        _buffer = _actorSupervisor.Container.Resolve<IActorSpscRingBuffer<IActorMessage>>();
         _buffer.Start();
     }
 

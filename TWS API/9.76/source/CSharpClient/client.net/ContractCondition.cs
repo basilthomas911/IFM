@@ -8,7 +8,7 @@ using System.Text;
 
 namespace IBApi
 {
-	public abstract class ContractCondition : OperatorCondition
+    public abstract class ContractCondition : OperatorCondition
     {
         public int ConId { get; set; }
         public string Exchange { get; set; }

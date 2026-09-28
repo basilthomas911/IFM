@@ -12,7 +12,8 @@ public sealed class DatabentoCompositionLiveTests(ITestOutputHelper output)
     {
         var symbol = Environment.GetEnvironmentVariable("IFM_DATABENTO_QUALIFICATION_FUTURE")!;
         var options = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3")
-            with { DataSource = FeedDataSourceMode.DatabentoLive };
+            with
+        { DataSource = FeedDataSourceMode.DatabentoLive };
         using var feed = new DatabentoFeedFactory().CreateTickerFeed(options);
         feed.Subscribe([new TickerSubscription(symbol, DatabentoInputSymbology.RawSymbol,
             MarketDataKinds.Quote | MarketDataKinds.Trade | MarketDataKinds.Statistics | MarketDataKinds.SessionVolume)],
@@ -47,13 +48,17 @@ public sealed class DatabentoCompositionLiveTests(ITestOutputHelper output)
         var root = Environment.GetEnvironmentVariable("IFM_DATABENTO_QUALIFICATION_OPTION_ROOT")!;
         var expiry = DateOnly.ParseExact(Environment.GetEnvironmentVariable("IFM_DATABENTO_QUALIFICATION_EXPIRY")!, "yyyy-MM-dd");
         var options = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3")
-            with { DataSource = FeedDataSourceMode.DatabentoLive };
+            with
+        { DataSource = FeedDataSourceMode.DatabentoLive };
         var factory = new DatabentoFeedFactory();
         var definitions = factory.CreateMarketDataQueries(options).GetChainDefinitions(new()
         {
-            Dataset = "GLBX.MDP3", Underlying = root, MaturityDate = expiry,
+            Dataset = "GLBX.MDP3",
+            Underlying = root,
+            MaturityDate = expiry,
             UniversePolicy = OptionUniversePolicy.ExplicitOptionRoots,
-            ExplicitOptionRoots = [root], Rights = OptionRightSelection.Both
+            ExplicitOptionRoots = [root],
+            Rights = OptionRightSelection.Both
         }, TimeSpan.FromSeconds(30));
         var centre = decimal.Parse(Environment.GetEnvironmentVariable("IFM_DATABENTO_WINDOW_CENTER") ?? "7820", CultureInfo.InvariantCulture);
         var strikeLimit = int.TryParse(Environment.GetEnvironmentVariable("IFM_DATABENTO_STRIKE_LIMIT"), out var requested)
@@ -65,8 +70,11 @@ public sealed class DatabentoCompositionLiveTests(ITestOutputHelper output)
         using var feed = factory.CreateOptionChainFeed(options);
         feed.Subscribe(new()
         {
-            Underlying = selected[0].Underlying, MaturityDate = expiry, Strikes = strikes,
-            Rights = OptionRightSelection.Both, ResolvedContracts = selected,
+            Underlying = selected[0].Underlying,
+            MaturityDate = expiry,
+            Strikes = strikes,
+            Rights = OptionRightSelection.Both,
+            ResolvedContracts = selected,
             DataKinds = MarketDataKinds.Quote | MarketDataKinds.Trade
         }, TimeSpan.FromSeconds(20));
         feed.Start(TimeSpan.FromSeconds(20), _ => { });
@@ -86,13 +94,17 @@ public sealed class DatabentoCompositionLiveTests(ITestOutputHelper output)
         var lower = centre - 2.5m * sigma;
         var upper = centre + 2.5m * sigma;
         var options = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3")
-            with { DataSource = FeedDataSourceMode.DatabentoLive };
+            with
+        { DataSource = FeedDataSourceMode.DatabentoLive };
         var factory = new DatabentoFeedFactory();
         var definitions = factory.CreateMarketDataQueries(options).GetChainDefinitions(new()
         {
-            Dataset = "GLBX.MDP3", Underlying = optionRoot, MaturityDate = expiry,
+            Dataset = "GLBX.MDP3",
+            Underlying = optionRoot,
+            MaturityDate = expiry,
             UniversePolicy = OptionUniversePolicy.ExplicitOptionRoots,
-            ExplicitOptionRoots = [optionRoot], Rights = OptionRightSelection.Both
+            ExplicitOptionRoots = [optionRoot],
+            Rights = OptionRightSelection.Both
         }, TimeSpan.FromSeconds(30));
         var selected = definitions.Contracts.Where(x => x.StrikePrice >= lower && x.StrikePrice <= upper)
             .OrderBy(x => x.StrikePrice).ThenBy(x => x.Right).ToArray();
@@ -102,9 +114,12 @@ public sealed class DatabentoCompositionLiveTests(ITestOutputHelper output)
         using var feed = factory.CreateOptionChainFeed(options);
         feed.Subscribe(new()
         {
-            Underlying = selected[0].Underlying, MaturityDate = expiry,
-            Strikes = strikes, Rights = OptionRightSelection.Both,
-            ResolvedContracts = selected, DataKinds = MarketDataKinds.Quote
+            Underlying = selected[0].Underlying,
+            MaturityDate = expiry,
+            Strikes = strikes,
+            Rights = OptionRightSelection.Both,
+            ResolvedContracts = selected,
+            DataKinds = MarketDataKinds.Quote
         }, TimeSpan.FromSeconds(20));
         var quoted = new HashSet<uint>();
         var fresh = new HashSet<uint>();
@@ -158,12 +173,15 @@ public sealed class DatabentoCompositionLiveTests(ITestOutputHelper output)
             var profile = Environment.GetEnvironmentVariable("IFM_DATABENTO_QUALIFICATION_STRICT") == "true"
                 ? FeedDeploymentProfile.Production : FeedDeploymentProfile.Development;
             var options = DatabentoFeedOptions.ForProfile(profile, "GLBX.MDP3")
-                with { DataSource = FeedDataSourceMode.DatabentoLive };
+                with
+            { DataSource = FeedDataSourceMode.DatabentoLive };
             Assert.Equal(FeedDataSourceMode.DatabentoLive, options.DataSource);
             var latest = factory.CreateLatestPriceClient(options);
             var futureRequest = new LatestPriceRequest
             {
-                Dataset = "GLBX.MDP3", Symbol = futureSymbol, PricePolicy = LatestPricePolicy.QuoteMidpoint,
+                Dataset = "GLBX.MDP3",
+                Symbol = futureSymbol,
+                PricePolicy = LatestPricePolicy.QuoteMidpoint,
                 FreshnessPolicy = LatestPriceFreshnessPolicy.NextObserved
             };
             var futureUntil = DateTimeOffset.UtcNow.AddSeconds(20);
@@ -178,8 +196,12 @@ public sealed class DatabentoCompositionLiveTests(ITestOutputHelper output)
             Fresh(future.EventTimestampNanoseconds);
             var chain = factory.CreateMarketDataQueries(options).GetChainDefinitions(new()
             {
-                Dataset = "GLBX.MDP3", Underlying = optionRoot, MaturityDate = expiry,
-                UniversePolicy = OptionUniversePolicy.ExplicitOptionRoots, ExplicitOptionRoots = [optionRoot], Rights = OptionRightSelection.Call
+                Dataset = "GLBX.MDP3",
+                Underlying = optionRoot,
+                MaturityDate = expiry,
+                UniversePolicy = OptionUniversePolicy.ExplicitOptionRoots,
+                ExplicitOptionRoots = [optionRoot],
+                Rights = OptionRightSelection.Call
             }, TimeSpan.FromSeconds(20));
             Assert.NotEmpty(chain.Contracts);
             var definition = chain.Contracts.OrderBy(x => Math.Abs(x.StrikePrice - future.SelectedPrice / 1_000_000_000m)).First();
@@ -187,8 +209,12 @@ public sealed class DatabentoCompositionLiveTests(ITestOutputHelper output)
             using var feed = factory.CreateOptionChainFeed(options);
             feed.Subscribe(new()
             {
-                Underlying = definition.Underlying, MaturityDate = expiry, Strikes = [definition.StrikePrice],
-                Rights = OptionRightSelection.Call, ResolvedContracts = [definition], DataKinds = MarketDataKinds.Quote
+                Underlying = definition.Underlying,
+                MaturityDate = expiry,
+                Strikes = [definition.StrikePrice],
+                Rights = OptionRightSelection.Call,
+                ResolvedContracts = [definition],
+                DataKinds = MarketDataKinds.Quote
             }, TimeSpan.FromSeconds(10));
             var observed = false;
             var quoteCount = 0;

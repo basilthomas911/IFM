@@ -32,7 +32,7 @@ public interface IParameterAssignmentCommandContext
     IEventSourceActorStateFactory StateFactory { get; }
     /// <summary>Gets actor infrastructure.</summary>
     IActorService ActorService { get; }
-    IEventSourceActorStateRepository<ParameterSetCommandState> ParameterSets {get;}
+    IEventSourceActorStateRepository<ParameterSetCommandState> ParameterSets { get; }
     /// <summary>Gets the logger.</summary>
     ILogger<ParameterAssignmentCommandActor> Logger { get; }
 }

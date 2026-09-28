@@ -118,8 +118,8 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
 
         var resolvedGroups = await Task.WhenAll(groupTasks).ConfigureAwait(false);
         foreach (var group in resolvedGroups)
-        foreach (var item in group)
-            resolved[item.Index] = item.Contract;
+            foreach (var item in group)
+                resolved[item.Index] = item.Contract;
 
         return new DatabentoMarketDataCatalog(resolved, operationsByDataset, options);
     }
@@ -361,41 +361,41 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
         var rootFamilies = OptionExpiryCalendarPolicy.GetRoots(normalized);
 
         foreach (var (family, roots) in rootFamilies)
-        foreach (var root in roots)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            IReadOnlyList<ContractDetail> definitions;
-            try
+            foreach (var root in roots)
             {
-                definitions = await operations.RunAsync(queries =>
-                    queries.GetContractDetails($"{root}.OPT", _options.ProviderQueryTimeout)).ConfigureAwait(false);
-            }
-            catch (DatabentoFeedException exception) when (
-                exception.Message.Contains("Could not resolve smart symbols", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            foreach (var group in definitions
-                         .Where(detail => detail.ContractKind is ContractKind.CallOption or ContractKind.PutOption)
-                         .Where(detail => detail.MaturityDate >= fromExpiry && detail.MaturityDate <= throughExpiry)
-                         .GroupBy(detail => detail.MaturityDate!.Value))
-            {
-                var representative = group.First();
-                var contractId = ResolveUnderlyingDomainId(dataset, representative.Underlying)
-                    ?? underlyings.FirstOrDefault(value => value.Futures!.LastTradeDate >= group.Key)?.Futures!.ContractId
-                    ?? underlyings[^1].Futures!.ContractId;
-                rows.Add(new()
+                cancellationToken.ThrowIfCancellationRequested();
+                IReadOnlyList<ContractDetail> definitions;
+                try
                 {
-                    Symbol = normalized,
-                    ContractId = contractId,
-                    ExpiryDate = group.Key,
-                    ProviderRoot = root,
-                    OptionFamily = family,
-                    RefreshedAtUtc = DateTime.UtcNow
-                });
+                    definitions = await operations.RunAsync(queries =>
+                        queries.GetContractDetails($"{root}.OPT", _options.ProviderQueryTimeout)).ConfigureAwait(false);
+                }
+                catch (DatabentoFeedException exception) when (
+                    exception.Message.Contains("Could not resolve smart symbols", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                foreach (var group in definitions
+                             .Where(detail => detail.ContractKind is ContractKind.CallOption or ContractKind.PutOption)
+                             .Where(detail => detail.MaturityDate >= fromExpiry && detail.MaturityDate <= throughExpiry)
+                             .GroupBy(detail => detail.MaturityDate!.Value))
+                {
+                    var representative = group.First();
+                    var contractId = ResolveUnderlyingDomainId(dataset, representative.Underlying)
+                        ?? underlyings.FirstOrDefault(value => value.Futures!.LastTradeDate >= group.Key)?.Futures!.ContractId
+                        ?? underlyings[^1].Futures!.ContractId;
+                    rows.Add(new()
+                    {
+                        Symbol = normalized,
+                        ContractId = contractId,
+                        ExpiryDate = group.Key,
+                        ProviderRoot = root,
+                        OptionFamily = family,
+                        RefreshedAtUtc = DateTime.UtcNow
+                    });
+                }
             }
-        }
 
         return rows
             .DistinctBy(row => (row.ExpiryDate, row.ProviderRoot, row.ContractId))

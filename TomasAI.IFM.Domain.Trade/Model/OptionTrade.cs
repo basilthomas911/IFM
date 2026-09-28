@@ -139,7 +139,7 @@ public class OptionTrade(
                 _tradeFills.Add(new TradeFill(o));
     }
 
- 
+
     /// <summary>
     /// return trade pnl
     /// </summary>
@@ -304,7 +304,7 @@ public class OptionTrade(
             orderId: OrderId,
             tradeId: TradeId,
             tradeStrategy: TradeStrategy,
-            tradeDate: TradeDate, 
+            tradeDate: TradeDate,
             maturityDate: MaturityDate,
             tradeType: TradeType,
             tradeState: TradeState,

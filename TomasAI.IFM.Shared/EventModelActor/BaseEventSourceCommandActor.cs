@@ -41,7 +41,7 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     protected ICommandActorContext<TActor> Context => _context;
     protected ILogger Logger => _logger;
 
-    public IActorMailbox Mailbox { get; private set; } 
+    public IActorMailbox Mailbox { get; private set; }
     public bool IsRunning
     {
         get => Volatile.Read(ref _lifecycle) == 2;
@@ -361,7 +361,7 @@ public abstract class BaseEventSourceCommandActor<TActor>(
             }
         }
 
-        Reply:
+    Reply:
         /// reply with the result...
         activeStage = ActorRuntimeMetrics.ReplyStage;
         var replyStarted = ActorRuntimeMetrics.StartStage();
@@ -519,7 +519,7 @@ public abstract class BaseEventSourceCommandActor<TActor>(
         cancellationToken.ThrowIfCancellationRequested();
         return OnValidateAsync(context, threadId, command);
     }
-    protected virtual ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command )
+    protected virtual ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command)
     {
         return ValueTask.FromResult<IActorState>(default!);
     }
@@ -602,11 +602,11 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     /// derived from the provided exception.</returns>
     protected ServiceFailed<GuidResult> CommandFailed(Exception ex, ICommand? cmd = default!)
         => new(new Events.CommandExceptionEvent
-            {
-                CommandId = cmd is null ? Guid.NewGuid() : cmd.CommandId,
-                EntityId = ActorEntityId.Default,
-                ErrorMessage = ex.Message,
-                ErrorType = ErrorType.Command,
-                ErrorCode = cmd?.ErrorCode ?? 0
-            });
+        {
+            CommandId = cmd is null ? Guid.NewGuid() : cmd.CommandId,
+            EntityId = ActorEntityId.Default,
+            ErrorMessage = ex.Message,
+            ErrorType = ErrorType.Command,
+            ErrorCode = cmd?.ErrorCode ?? 0
+        });
 }

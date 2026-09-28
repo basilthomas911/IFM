@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Shared.Domain;
 /// systems that require reliable error reporting and recovery mechanisms.</remarks>
 /// <typeparam name="TState">The type of the bounded context state associated with the command execution. Must implement <see
 /// cref="IBoundedContextState"/>.</typeparam>
-public interface IExceptionCommandDecorator<TState>where TState : IBoundedContextState
+public interface IExceptionCommandDecorator<TState> where TState : IBoundedContextState
 {
     Task<IErrorEvent> ConvertExceptionToErrorEventAsync(ICommand command, Exception ex);
 }

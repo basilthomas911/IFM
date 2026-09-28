@@ -72,7 +72,7 @@ public class FuturesBarDataIdValidationRules : BaseValidationRules, IValidationR
     /// </summary>
     /// <param name="futuresBarDataId">The FuturesBarDataId to validate.</param>
     /// <returns>An array of validation errors, or an empty array if validation passes.</returns>
-    public ValidationError[] Execute(FuturesBarDataId futuresBarDataId) 
+    public ValidationError[] Execute(FuturesBarDataId futuresBarDataId)
         => Validate(futuresBarDataId, new FuturesBarDataIdValidator());
 
     /// <summary>
@@ -109,7 +109,7 @@ public class FuturesBarDataIdValidationRules : BaseValidationRules, IValidationR
             {
                 ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
             }
-            catch 
+            catch
             {
                 var validationResult = new ValidationResult();
                 validationResult.Errors.Add(new ValidationFailure("FuturesBarDataId", "FuturesBarDataId instance is null"));

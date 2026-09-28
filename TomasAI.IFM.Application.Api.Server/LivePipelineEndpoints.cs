@@ -13,10 +13,13 @@ public static class LivePipelineEndpoints
         var pipeline = monitor.Current;
         var rows = pipeline.Checks.Select(check => new MarketDataOperationStageReadModel
         {
-            Stage = check.Component + "/" + check.Scope, Status = Map(check.Status), Required = check.Required,
+            Stage = check.Component + "/" + check.Scope,
+            Status = Map(check.Status),
+            Required = check.Required,
             ReasonCode = check.RecoveryState,
             Reason = check.Reason + (check.RecoveryAttempts > 0 ? $" Recovery attempts: {check.RecoveryAttempts}/3; {check.RecoveryState}." : ""),
-            LastObservedUtc = check.ObservedUtc, LastSucceededUtc = check.LastProgressUtc
+            LastObservedUtc = check.ObservedUtc,
+            LastSucceededUtc = check.LastProgressUtc
         });
         return current with
         {

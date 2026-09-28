@@ -33,7 +33,7 @@ public record MarketDataFeedStartedApiEvent : ServiceApiEvent
         ErrorCode = ErrorCode
     };
 
-   
+
 }
 
 public record MarketDataFeedStartedCompleteApiEvent : CompleteEvent

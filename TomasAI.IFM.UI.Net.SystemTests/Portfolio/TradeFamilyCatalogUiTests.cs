@@ -44,10 +44,22 @@ public sealed class TradeFamilyCatalogUiTests
     }
     static FundMandateReadModel Fund(params string[] families) => new()
     {
-        PortfolioId = 1, FundId = 2, FundMandateVersion = 1, TradingYear = 2026,
-        FundCode = "ES", Name = "ES Fund", Objective = "Test", OperatingState = FundOperatingState.Draft,
-        DecisionHorizon = "Weekly", UnderlyingUniverse = ["ES"], EligibleAssetTypes = ["FuturesOption"],
-        PermittedTradeFamilies = families, PermittedTradeStrategyFamilies = Catalog().Where(x => families.Contains(x.Code)).Select(x => x.Reference).ToArray(), SchemaVersion = 3, CreatedOnUtc = DateTime.UtcNow, CreatedBy = "test"
+        PortfolioId = 1,
+        FundId = 2,
+        FundMandateVersion = 1,
+        TradingYear = 2026,
+        FundCode = "ES",
+        Name = "ES Fund",
+        Objective = "Test",
+        OperatingState = FundOperatingState.Draft,
+        DecisionHorizon = "Weekly",
+        UnderlyingUniverse = ["ES"],
+        EligibleAssetTypes = ["FuturesOption"],
+        PermittedTradeFamilies = families,
+        PermittedTradeStrategyFamilies = Catalog().Where(x => families.Contains(x.Code)).Select(x => x.Reference).ToArray(),
+        SchemaVersion = 3,
+        CreatedOnUtc = DateTime.UtcNow,
+        CreatedBy = "test"
     };
 
     [Fact]

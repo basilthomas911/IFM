@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Application.Storage.SequenceIdDb;
 /// <param name="connectionSettings"></param>
 /// <param name="dbFactory"></param>
 /// <param name="logger"></param>
-public class SequenceIdDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ILogger<DbProvider> logger) 
+public class SequenceIdDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ILogger<DbProvider> logger)
     : ObjectDataRepository<SequenceIdDbContext>(connectionSettings[SequenceIdDbConnection], logger), ISequenceIdDbContext
 {
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
@@ -62,5 +62,5 @@ public class SequenceIdDbContext(IDbConnectionSettings connectionSettings, IDbCo
                 .SetParameters(new GetNextSequenceId(sequenceName.ToStringFast()))
                 .ExecuteScalarAsync(MapToSequenceId, cancellationToken)
                 .ConfigureAwait(false);
-    
+
 }

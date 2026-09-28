@@ -40,7 +40,7 @@ public record RemoveScheduledJobCommand
     /// Gets or sets the identifier for the scheduled job.
     /// </summary>
     [Key(6)]
-    public ScheduledJobId ScheduledJobId { get; init; } 
+    public ScheduledJobId ScheduledJobId { get; init; }
 
     /// <summary>
     /// Parameterless constructor required for MessagePack deserialization.
@@ -51,7 +51,7 @@ public record RemoveScheduledJobCommand
     /// Creates a new command to remove the specified scheduled job.
     /// </summary>
     /// <param name="scheduledJobName">Scheduled job name (cannot be null or empty).</param>
-    public RemoveScheduledJobCommand(ScheduledJobId scheduledJobId  )
+    public RemoveScheduledJobCommand(ScheduledJobId scheduledJobId)
     {
         EntityId = scheduledJobId;
         RouteTo = BoundedContextName.SystemAdminBoundedContext;

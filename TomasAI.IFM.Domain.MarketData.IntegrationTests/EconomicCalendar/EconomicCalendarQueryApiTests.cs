@@ -1,6 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
 using FluentAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -14,8 +13,8 @@ using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.IntegrationTests;
 
-public class EconomicCalendarQueryApiTests(WebApplicationFactory<Program> factory, MarketDataFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataFixture>
+public class EconomicCalendarQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory, MarketDataFixture dbFixture)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<MarketDataFixture>
 {
     readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
@@ -57,7 +56,7 @@ public class EconomicCalendarQueryApiTests(WebApplicationFactory<Program> factor
 
         // act...
         var marketDataApi = new MarketDataQueryApi(_actorProducer);
-        var response = await marketDataApi.GetEconomicCalendarsAsync(todaysDate,EconomicCalendarViewType.Today, economicCalendar.CountryCode);
+        var response = await marketDataApi.GetEconomicCalendarsAsync(todaysDate, EconomicCalendarViewType.Today, economicCalendar.CountryCode);
 
         // assert...
         response.Should().NotBeNull();

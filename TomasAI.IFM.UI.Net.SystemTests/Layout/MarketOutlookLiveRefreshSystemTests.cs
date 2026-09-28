@@ -38,7 +38,8 @@ public sealed class MarketOutlookLiveRefreshSystemTests
             {
                 completion.SetException(exception);
             }
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
 

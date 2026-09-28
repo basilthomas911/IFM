@@ -34,7 +34,9 @@ public class OptionPricerFixture : IDisposable
     void SetOptionPricerDatabase()
     {
         var dbConn = new DbConnectionSettings()
-                         .Add("OptionPricerDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=option_pricer_test_db", "System.Data.ScyllaDb");
+                         .Add("OptionPricerDbConnection",
+                             Environment.GetEnvironmentVariable("IFM_TEST_OPTION_PRICER_CONNECTION") ?? throw new InvalidOperationException("The assembly integration fixture did not set IFM_TEST_OPTION_PRICER_CONNECTION."),
+                             "System.Data.ScyllaDb");
 
         var diContainer = new Dictionary<Type, OptionPricerDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
@@ -49,7 +51,9 @@ public class OptionPricerFixture : IDisposable
     void SetSeqIdDatabase()
     {
         var dbConn = new DbConnectionSettings()
-             .Add("SequenceIdDbConnection", "Host=localhost;Port=5432;Database=sequence-id-test-db", "System.Data.Postgres");
+             .Add("SequenceIdDbConnection",
+                 Environment.GetEnvironmentVariable("IFM_TEST_POSTGRES_CONNECTION") ?? throw new InvalidOperationException("The assembly integration fixture did not set IFM_TEST_POSTGRES_CONNECTION."),
+                 "System.Data.Postgres");
         var diContainer = new Dictionary<Type, SequenceIdDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
@@ -64,12 +68,15 @@ public class OptionPricerFixture : IDisposable
     void SetEventSourceDatabase()
     {
         var dbConn = new DbConnectionSettings()
-                    .Add("EventSourceActorDbConnection", "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres");
+                    .Add("EventSourceActorDbConnection",
+                        Environment.GetEnvironmentVariable("IFM_TEST_POSTGRES_CONNECTION") ?? throw new InvalidOperationException("The assembly integration fixture did not set IFM_TEST_POSTGRES_CONNECTION."),
+                        "System.Data.Postgres");
         var diContainer = new Dictionary<Type, EventSourceActorDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
-        var redisUri = "localhost:6379";
+        var redisUri = Environment.GetEnvironmentVariable("IFM_TEST_REDIS_URL")
+            ?? throw new InvalidOperationException("The assembly integration fixture did not set IFM_TEST_REDIS_URL.");
         var connMultiplexer = ConnectionMultiplexer.Connect(redisUri);
         var redisCache = new RedisCache(connMultiplexer);
         BlackboardService = new BlackboardService(redisCache, new SystemTextJsonSerializer());

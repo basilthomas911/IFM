@@ -19,9 +19,12 @@ public sealed class HistoricalDataLoaderTests
         {
             DataLoadAttemptId = Guid.NewGuid(),
             Series = [new() { SeriesIdentity = series, Schema = TomasAI.IFM.Framework.MarketData.Contracts.Historical.HistoricalDataSchema.OhlcvOneMinute }],
-            StartDate = new(2024, 1, 2), EndDate = new(2024, 12, 31),
-            MaximumCostUsd = 1, MaximumBytes = 10_000_000,
-            NormalizationVersion = "fixture-v1", RequestedBy = "test"
+            StartDate = new(2024, 1, 2),
+            EndDate = new(2024, 12, 31),
+            MaximumCostUsd = 1,
+            MaximumBytes = 10_000_000,
+            NormalizationVersion = "fixture-v1",
+            RequestedBy = "test"
         };
         var api = new FixtureHistoricalApi(calendar);
         var states = new MemoryDataLoaderStore();
@@ -53,9 +56,12 @@ public sealed class HistoricalDataLoaderTests
         {
             DataLoadAttemptId = Guid.NewGuid(),
             Series = [new() { SeriesIdentity = series, Schema = TomasAI.IFM.Framework.MarketData.Contracts.Historical.HistoricalDataSchema.OhlcvDaily }],
-            StartDate = new(2024, 1, 2), EndDate = new(2024, 12, 31),
-            MaximumCostUsd = 1, MaximumBytes = 10_000_000,
-            NormalizationVersion = "fixture-v1", RequestedBy = "test"
+            StartDate = new(2024, 1, 2),
+            EndDate = new(2024, 12, 31),
+            MaximumCostUsd = 1,
+            MaximumBytes = 10_000_000,
+            NormalizationVersion = "fixture-v1",
+            RequestedBy = "test"
         };
         var states = new MemoryDataLoaderStore();
         var coordinator = new HistoricalDataLoader(
@@ -118,38 +124,53 @@ public sealed class HistoricalDataLoaderTests
             AcquireCount++;
             long ordinal = 0;
             foreach (var series in request.Series)
-            for (var date = request.StartDate; date <= request.EndDate; date = date.AddDays(1))
-            {
-                if (!calendar.IsTradingDate(date)) continue;
-                var bounds = calendar.GetSession(date);
-                var end = bounds.StartUtc.AddMinutes(1);
-                var observation = new FuturesTradeSessionBarReadModel
+                for (var date = request.StartDate; date <= request.EndDate; date = date.AddDays(1))
                 {
-                    MarketSeriesIdentity = series.SeriesIdentity,
-                    ObservationId = FuturesTradeSessionBarId.Create(
-                        series.SeriesIdentity, TimeFrameType.OneMinute, end, ordinal),
-                    ContractId = date < new DateOnly(2024, 6, 14) ? "ESM4" : "ESU4",
-                    ValueDate = date, TimeFrame = TimeFrameType.OneMinute,
-                    IntervalStartUtc = bounds.StartUtc, IntervalEndUtc = end,
-                    Open = 5000, High = 5002, Low = 4998, Close = 5001,
-                    Volume = 10, TradeCount = 1, PriceVolumeSum = 50_010,
-                    FirstSourceSequence = ordinal, LastSourceSequence = ordinal,
-                    FirstMarketEventUtc = bounds.StartUtc, LastMarketEventUtc = bounds.StartUtc,
-                    CalculatedAtUtc = DateTimeOffset.UtcNow, CalculationVersion = "fixture-v1",
-                    IsComplete = true, IsValid = true,
-                    CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate
-                };
-                await sink.AcceptAsync(new(
-                    request.DataLoadAttemptId, "fixture", ordinal, ordinal.ToString(),
-                    [observation], [], $"{ordinal:X64}", true), cancellationToken);
-                ordinal++;
-            }
+                    if (!calendar.IsTradingDate(date)) continue;
+                    var bounds = calendar.GetSession(date);
+                    var end = bounds.StartUtc.AddMinutes(1);
+                    var observation = new FuturesTradeSessionBarReadModel
+                    {
+                        MarketSeriesIdentity = series.SeriesIdentity,
+                        ObservationId = FuturesTradeSessionBarId.Create(
+                            series.SeriesIdentity, TimeFrameType.OneMinute, end, ordinal),
+                        ContractId = date < new DateOnly(2024, 6, 14) ? "ESM4" : "ESU4",
+                        ValueDate = date,
+                        TimeFrame = TimeFrameType.OneMinute,
+                        IntervalStartUtc = bounds.StartUtc,
+                        IntervalEndUtc = end,
+                        Open = 5000,
+                        High = 5002,
+                        Low = 4998,
+                        Close = 5001,
+                        Volume = 10,
+                        TradeCount = 1,
+                        PriceVolumeSum = 50_010,
+                        FirstSourceSequence = ordinal,
+                        LastSourceSequence = ordinal,
+                        FirstMarketEventUtc = bounds.StartUtc,
+                        LastMarketEventUtc = bounds.StartUtc,
+                        CalculatedAtUtc = DateTimeOffset.UtcNow,
+                        CalculationVersion = "fixture-v1",
+                        IsComplete = true,
+                        IsValid = true,
+                        CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate
+                    };
+                    await sink.AcceptAsync(new(
+                        request.DataLoadAttemptId, "fixture", ordinal, ordinal.ToString(),
+                        [observation], [], $"{ordinal:X64}", true), cancellationToken);
+                    ordinal++;
+                }
             return new MarketDataHistoricalManifest
             {
-                ManifestId = Guid.NewGuid(), DataLoadAttemptId = request.DataLoadAttemptId,
-                ProviderJobId = "fixture-job", RequestSha256 = "ONE-YEAR-FIXTURE",
-                NormalizedSha256 = "FIXTURE", ObservationCount = ordinal,
-                FirstValueDate = request.StartDate, LastValueDate = request.EndDate,
+                ManifestId = Guid.NewGuid(),
+                DataLoadAttemptId = request.DataLoadAttemptId,
+                ProviderJobId = "fixture-job",
+                RequestSha256 = "ONE-YEAR-FIXTURE",
+                NormalizedSha256 = "FIXTURE",
+                ObservationCount = ordinal,
+                FirstValueDate = request.StartDate,
+                LastValueDate = request.EndDate,
                 CompletedAtUtc = DateTimeOffset.UtcNow
             };
         }

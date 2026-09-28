@@ -34,8 +34,8 @@ public record DeleteSpreadDistributionCommand : ICommand<SpreadDistributionEntit
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
 
-    [Key(6)] public int TradeId { get; init; } 
-    [Key(7)] public DateOnly ValueDate { get; init; } 
+    [Key(6)] public int TradeId { get; init; }
+    [Key(7)] public DateOnly ValueDate { get; init; }
     [Key(8)] public TradeStatus TradeStatus { get; init; }
     [Key(9)] public int DaysToExpiry { get; init; }
 
@@ -61,7 +61,7 @@ public record DeleteSpreadDistributionCommand : ICommand<SpreadDistributionEntit
         int daysToExpiry)
     {
 
-        EntityId = new SpreadDistributionEntityId(tradeId,valueDate);
+        EntityId = new SpreadDistributionEntityId(tradeId, valueDate);
 
         TradeId = tradeId;
         ValueDate = valueDate;

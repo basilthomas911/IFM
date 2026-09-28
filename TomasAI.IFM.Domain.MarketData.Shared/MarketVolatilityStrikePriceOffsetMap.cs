@@ -19,7 +19,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared
         }
 
         public bool Exists(StrikePriceOffsetKey key) => _strikePriceOffsetMap.ContainsKey(key);
-        
+
         public decimal this[MarketDirectionType marketTrend, MarketVolatilityType marketVolatility]
         {
             get

@@ -27,7 +27,7 @@ public class ReferenceQueryActorTests : IClassFixture<ReferenceTestFixture>
     // Test helper to expose protected ParseMessage and ReceiveAsync for unit testing.
     public class TestableReferenceQueryActor : ReferenceQueryActor
     {
-        public TestableReferenceQueryActor(IDbContextFactory dbFactory,ILogger<ReferenceQueryActor> logger)
+        public TestableReferenceQueryActor(IDbContextFactory dbFactory, ILogger<ReferenceQueryActor> logger)
             : this(CreateContext(dbFactory, logger))
         {
         }
@@ -63,5 +63,5 @@ public class ReferenceQueryActorTests : IClassFixture<ReferenceTestFixture>
 
     }
 
-    
+
 }

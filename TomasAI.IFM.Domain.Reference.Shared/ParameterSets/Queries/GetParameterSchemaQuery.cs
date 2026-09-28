@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 
 [MessagePackObject(AllowPrivate = true)]
-public sealed record GetParameterSchemaQuery:IQuery<ParameterSchemaDefinition>
+public sealed record GetParameterSchemaQuery : IQuery<ParameterSchemaDefinition>
 {
 
     /// <summary>Creates an empty query for serialization.</summary>
@@ -24,11 +24,11 @@ public sealed record GetParameterSchemaQuery:IQuery<ParameterSchemaDefinition>
         ComponentCode = componentCode;
         SchemaVersion = schemaVersion;
     }
- public const string Actor="ParameterSetQuery";public const string Verb="GetParameterSchema";
- [Key(0)]public ActorSubject Subject{get;init;}
- [Key(1)]public IActorEntityId EntityId{get;init;}=ActorEntityId.Default;
- [Key(2)]public string ComponentCode{get;init;}="strategy-workflow.regime-discovery";
- [Key(3)]public int SchemaVersion{get;init;}=ParameterSchemaRegistry.CurrentRegimeSchemaVersion;
- [IgnoreMember]public int ErrorCode{get;init;}=33101;
- [IgnoreMember]public string? QueryParams{get;init;}
+    public const string Actor = "ParameterSetQuery"; public const string Verb = "GetParameterSchema";
+    [Key(0)] public ActorSubject Subject { get; init; }
+    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
+    [Key(2)] public string ComponentCode { get; init; } = "strategy-workflow.regime-discovery";
+    [Key(3)] public int SchemaVersion { get; init; } = ParameterSchemaRegistry.CurrentRegimeSchemaVersion;
+    [IgnoreMember] public int ErrorCode { get; init; } = 33101;
+    [IgnoreMember] public string? QueryParams { get; init; }
 }

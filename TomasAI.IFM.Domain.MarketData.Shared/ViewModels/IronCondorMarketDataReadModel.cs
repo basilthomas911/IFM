@@ -13,7 +13,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ViewModels
         FuturesOptionContractReadModel ShortCallOptionContract,
         FuturesOptionContractReadModel LongCallOptionContract,
         double RiskFreeRate,
-        int TradingDays 
+        int TradingDays
        )
     {
     }

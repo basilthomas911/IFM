@@ -32,13 +32,18 @@ public static class TimeoutTradeSelection
         var failure = TimeoutFailure(now);
         var updated = current with
         {
-            Status = WorkflowStrategyMachineStatus.TimedOut, WorkflowRevision = current.WorkflowRevision + 1,
-            CausationId = command.TimeoutId, UpdatedAtUtc = now, TerminalAtUtc = now,
+            Status = WorkflowStrategyMachineStatus.TimedOut,
+            WorkflowRevision = current.WorkflowRevision + 1,
+            CausationId = command.TimeoutId,
+            UpdatedAtUtc = now,
+            TerminalAtUtc = now,
             StopReasonCode = "PipelineTimedOut",
             TradeSelection = current.TradeSelection with
             {
-                ProcessingStatus = StrategyActorProcessingStatus.TimedOut, FailedAtUtc = now,
-                Failure = failure, SourceEventId = command.TimeoutId
+                ProcessingStatus = StrategyActorProcessingStatus.TimedOut,
+                FailedAtUtc = now,
+                Failure = failure,
+                SourceEventId = command.TimeoutId
             }
         };
         AppendSnapshot(state, command, current.Status, updated, now);
@@ -54,17 +59,27 @@ public static class TimeoutTradeSelection
         {
             Subject = new ActorSubject(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor,
                 WorkflowStrategyStateUpdatedEvent.Verb, command.EntityId.Format()),
-            Id = Guid.CreateVersion7(new DateTimeOffset(now, TimeSpan.Zero)), EntityId = command.EntityId,
-            CommandId = command.CommandId, AggregateId = command.EntityId.Format(), EventSource = command.EventSource,
-            ReceivedOn = now, WorkflowId = view.WorkflowId, WorkflowRevision = view.WorkflowRevision,
-            CorrelationId = view.CorrelationId, CausationId = view.CausationId, PreviousStatus = previousStatus,
-            State = view, UpdatedAtUtc = now
+            Id = Guid.CreateVersion7(new DateTimeOffset(now, TimeSpan.Zero)),
+            EntityId = command.EntityId,
+            CommandId = command.CommandId,
+            AggregateId = command.EntityId.Format(),
+            EventSource = command.EventSource,
+            ReceivedOn = now,
+            WorkflowId = view.WorkflowId,
+            WorkflowRevision = view.WorkflowRevision,
+            CorrelationId = view.CorrelationId,
+            CausationId = view.CausationId,
+            PreviousStatus = previousStatus,
+            State = view,
+            UpdatedAtUtc = now
         }, command);
 
     static StrategyPipelineFailure TimeoutFailure(DateTime now) => new()
     {
-        ErrorCode = 23103, ErrorMessage = "The fixed workflow execution deadline was reached.",
-        ErrorType = "RegimeDiscoveryTimedOut", FailedAtUtc = now
+        ErrorCode = 23103,
+        ErrorMessage = "The fixed workflow execution deadline was reached.",
+        ErrorType = "RegimeDiscoveryTimedOut",
+        FailedAtUtc = now
     };
 
     static void LogStale(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,

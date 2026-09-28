@@ -34,7 +34,7 @@ public record ChangeFuturesContractCommand : ICommand<FuturesContractId>
     [Key(3)] public FuturesContractId EntityId { get; init; }
     [Key(4)] public int ErrorCode { get; init; }
     [Key(5)] public BoundedContextName RouteTo { get; init; }
-    [Key(6)] public FuturesContractId ContractId { get; init; }   
+    [Key(6)] public FuturesContractId ContractId { get; init; }
     [Key(7)] public FuturesContractV3ReadModel Contract { get; init; }
     [Key(8)] public bool Overwrite { get; init; }
 

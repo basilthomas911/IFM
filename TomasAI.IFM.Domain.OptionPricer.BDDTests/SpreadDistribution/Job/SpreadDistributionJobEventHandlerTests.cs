@@ -21,5 +21,5 @@ namespace TomasAI.IFM.Domain.OptionPricer.BDDTests.SpreadDistribution.Job;
 
 public class SpreadDistributionJobEventHandlerTests
 {
-   
+
 }

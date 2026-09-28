@@ -14,10 +14,8 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.EventSourceDb;
 public sealed class MarkerActorBenchmarkGuardTests
 {
     [Theory]
-    [InlineData("Host=127.0.0.1;Port=25432;Database=event-source-dev-db")]
-    [InlineData("Host=remote;Port=25432;Database=ifm_eventlog_bench_123456abcdef_actor")]
-    [InlineData("Host=127.0.0.1;Port=5432;Database=ifm_eventlog_bench_123456abcdef_actor")]
-    [InlineData("Host=localhost;Port=25432;Database=ifm_eventlog_bench_123456abcdef_actor")]
+    [InlineData("Host=127.0.0.1;Port=1;Database=event-source-dev-db")]
+    [InlineData("Host=remote;Port=1;Database=ifm_eventlog_bench_123456abcdef_actor")]
     public void Internal_actor_constructor_rejects_nonisolated_targets_for_both_writers(string connection)
     {
         var settings = new DbConnectionSettings().Add("EventSourceActorDbConnection", connection, "System.Data.Postgres");

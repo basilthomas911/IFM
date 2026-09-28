@@ -14,7 +14,7 @@ internal static class EventLogTestCutover
         await connection.OpenAsync();
         await using var command = new Npgsql.NpgsqlCommand("SELECT pid,state,coalesce(wait_event_type,'none'),coalesce(wait_event,'none'),clock_timestamp()-query_start FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()", connection);
         await using var reader = await command.ExecuteReaderAsync();
-        while(await reader.ReadAsync()) Console.WriteLine($"pid={reader.GetInt32(0)} {reader.GetString(1)} {reader.GetString(2)} {reader.GetString(3)} {reader.GetTimeSpan(4)}");
+        while (await reader.ReadAsync()) Console.WriteLine($"pid={reader.GetInt32(0)} {reader.GetString(1)} {reader.GetString(2)} {reader.GetString(3)} {reader.GetTimeSpan(4)}");
     }
 
     internal static async Task ResetAsync()
@@ -28,7 +28,7 @@ internal static class EventLogTestCutover
             connection.Notice += (_, e) => Console.WriteLine(e.Notice.MessageText);
             await connection.OpenAsync();
             await using var command = new Npgsql.NpgsqlCommand(File.ReadAllText("scripts/Reset-TestEventLogToBinary.sql"), connection)
-                { CommandTimeout = 600 };
+            { CommandTimeout = 600 };
             await command.ExecuteNonQueryAsync();
         }
         await InspectAsync();

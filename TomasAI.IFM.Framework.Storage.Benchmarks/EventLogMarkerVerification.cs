@@ -26,12 +26,15 @@ public static class EventLogMarkerVerification
         var entries = names.Select((name, index) => new EventLogAppendEntry(eventNameId,
             new EventLogV2Benchmark.BenchmarkEvent
             {
-                CommandId = commandId, AggregateId = streamName, Value = index + 1,
-                RequiresDurableProjection = name != "NoMarker", ProjectionName = name,
+                CommandId = commandId,
+                AggregateId = streamName,
+                Value = index + 1,
+                RequiresDurableProjection = name != "NoMarker",
+                ProjectionName = name,
                 InitialStage = index == 3 ? EventProjectorStageType.PublishProcessingEvent : EventProjectorStageType.ApplyProjection
             })).ToArray();
         var envelope = CommandAuditEnvelope.Create(new EventLogV2Benchmark.BenchmarkCommand
-            { CommandId = commandId, StreamId = streamName, Value = 6 }, new CommandAuditMessagePackCodec());
+        { CommandId = commandId, StreamId = streamName, Value = 6 }, new CommandAuditMessagePackCodec());
         var request = new EventLogAppendRequest(streamName, streamId, commandId, entries, 0, DateTime.UtcNow,
             appender.WriteMode == EventLogWriteMode.BinaryCopy ? envelope : null);
         var result = await appender.AppendAsync(request);
@@ -68,7 +71,8 @@ public static class EventLogMarkerVerification
         var missingId = Guid.NewGuid();
         var invalid = request with
         {
-            CommandId = missingId, ExpectedStreamVersion = 6,
+            CommandId = missingId,
+            ExpectedStreamVersion = 6,
             Events = [
                 new EventLogAppendEntry(eventNameId, ((EventLogV2Benchmark.BenchmarkEvent)entries[0].DomainEvent)
                     with { EventId = 0, CommandId = missingId, Value = 7 }),

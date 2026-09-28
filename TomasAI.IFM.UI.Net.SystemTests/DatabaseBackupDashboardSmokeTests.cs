@@ -55,7 +55,8 @@ public sealed class DatabaseBackupDashboardSmokeTests
                 uiFailure = exception;
                 ready.TrySetException(exception);
             }
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         var (form, view, formHandle) = await ready.Task.WaitAsync(TimeSpan.FromSeconds(10));

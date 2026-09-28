@@ -105,61 +105,61 @@ public sealed class ScheduleValidationService(
             switch (input.Kind)
             {
                 case ScheduleKind.Cron:
-                {
-                    var cron = new CronExpression(input.ScheduleExpression) { TimeZone = timeZone };
-                    var cursor = DateTimeOffset.UtcNow;
-                    for (var index = 0; index < 10; index++)
                     {
-                        var next = cron.GetNextValidTimeAfter(cursor);
-                        if (next is null)
+                        var cron = new CronExpression(input.ScheduleExpression) { TimeZone = timeZone };
+                        var cursor = DateTimeOffset.UtcNow;
+                        for (var index = 0; index < 10; index++)
                         {
+                            var next = cron.GetNextValidTimeAfter(cursor);
+                            if (next is null)
+                            {
+                                break;
+                            }
+
+                            previews.Add(new ScheduleFirePreviewDto(
+                                next.Value,
+                                TimeZoneInfo.ConvertTime(next.Value, timeZone),
+                                timeZone.Id));
+                            cursor = next.Value;
+                        }
+
+                        break;
+                    }
+                case ScheduleKind.SimpleInterval:
+                    {
+                        if (!int.TryParse(input.ScheduleExpression, NumberStyles.None, CultureInfo.InvariantCulture, out var seconds)
+                            || seconds < 60 || seconds > 31_536_000)
+                        {
+                            errors.Add("Simple interval must be an integer from 60 through 31536000 seconds.");
                             break;
                         }
 
-                        previews.Add(new ScheduleFirePreviewDto(
-                            next.Value,
-                            TimeZoneInfo.ConvertTime(next.Value, timeZone),
-                            timeZone.Id));
-                        cursor = next.Value;
-                    }
+                        var cursor = DateTimeOffset.UtcNow;
+                        for (var index = 1; index <= 10; index++)
+                        {
+                            var next = cursor.AddSeconds((long)seconds * index);
+                            previews.Add(new ScheduleFirePreviewDto(next, TimeZoneInfo.ConvertTime(next, timeZone), timeZone.Id));
+                        }
 
-                    break;
-                }
-                case ScheduleKind.SimpleInterval:
-                {
-                    if (!int.TryParse(input.ScheduleExpression, NumberStyles.None, CultureInfo.InvariantCulture, out var seconds)
-                        || seconds < 60 || seconds > 31_536_000)
-                    {
-                        errors.Add("Simple interval must be an integer from 60 through 31536000 seconds.");
                         break;
                     }
-
-                    var cursor = DateTimeOffset.UtcNow;
-                    for (var index = 1; index <= 10; index++)
-                    {
-                        var next = cursor.AddSeconds((long)seconds * index);
-                        previews.Add(new ScheduleFirePreviewDto(next, TimeZoneInfo.ConvertTime(next, timeZone), timeZone.Id));
-                    }
-
-                    break;
-                }
                 case ScheduleKind.OneTime:
-                {
-                    if (!DateTimeOffset.TryParse(input.ScheduleExpression, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var instant))
                     {
-                        errors.Add("One-time expression must be an ISO-8601 timestamp with an explicit offset.");
-                    }
-                    else if (instant <= DateTimeOffset.UtcNow)
-                    {
-                        errors.Add("One-time schedule must be in the future.");
-                    }
-                    else
-                    {
-                        previews.Add(new ScheduleFirePreviewDto(instant.ToUniversalTime(), TimeZoneInfo.ConvertTime(instant, timeZone), timeZone.Id));
-                    }
+                        if (!DateTimeOffset.TryParse(input.ScheduleExpression, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var instant))
+                        {
+                            errors.Add("One-time expression must be an ISO-8601 timestamp with an explicit offset.");
+                        }
+                        else if (instant <= DateTimeOffset.UtcNow)
+                        {
+                            errors.Add("One-time schedule must be in the future.");
+                        }
+                        else
+                        {
+                            previews.Add(new ScheduleFirePreviewDto(instant.ToUniversalTime(), TimeZoneInfo.ConvertTime(instant, timeZone), timeZone.Id));
+                        }
 
-                    break;
-                }
+                        break;
+                    }
                 default:
                     errors.Add($"Schedule kind '{input.Kind}' is unsupported.");
                     break;

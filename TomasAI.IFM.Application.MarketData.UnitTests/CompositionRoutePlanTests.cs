@@ -15,9 +15,14 @@ public sealed class CompositionRoutePlanTests
         var c = Contract();
         var candidate = new OptionDefinitionCandidate(c.ContractId, c.MappingVersion, c.DefinitionDigest, new()
         {
-            Dataset = c.Dataset, RawSymbol = c.RawSymbol, Ticker = c.Root, Underlying = c.UnderlyingContractId,
-            Instrument = new(c.PublisherId, c.InstrumentId), Right = OptionRightSelection.Call,
-            StrikePrice = 5000, MaturityDate = new(2026, 10, 2),
+            Dataset = c.Dataset,
+            RawSymbol = c.RawSymbol,
+            Ticker = c.Root,
+            Underlying = c.UnderlyingContractId,
+            Instrument = new(c.PublisherId, c.InstrumentId),
+            Right = OptionRightSelection.Call,
+            StrikePrice = 5000,
+            MaturityDate = new(2026, 10, 2),
             ExpirationTimestampNanoseconds = checked((ulong)(c.ExpirationUtc.UtcTicks - DateTimeOffset.UnixEpoch.UtcTicks) * 100)
         });
         var plan = new CompositionRoutePlan(1, "", "GLBX.MDP3", new(2026, 10, 2), [candidate], [],
@@ -59,7 +64,10 @@ public sealed class CompositionRoutePlanTests
 
     static DatasetSubscriptionContract Route(string id, string symbol) => new()
     {
-        Dataset = "GLBX.MDP3", DomainContractId = id, ProviderContractName = symbol,
-        AssetTypeId = AssetTypeId.Futures, RootSymbol = "ES"
+        Dataset = "GLBX.MDP3",
+        DomainContractId = id,
+        ProviderContractName = symbol,
+        AssetTypeId = AssetTypeId.Futures,
+        RootSymbol = "ES"
     };
 }

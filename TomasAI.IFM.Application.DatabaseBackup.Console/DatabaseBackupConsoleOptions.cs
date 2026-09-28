@@ -16,11 +16,11 @@ internal sealed record DatabaseBackupConsoleOptions(
 
     internal BackupSource Source => (GetOptional("source") ?? "local")
         .ToLowerInvariant() switch
-        {
-            "local" or "localworkstation" => BackupSource.LocalWorkstation,
-            "aws" or "awscloud" => BackupSource.AwsCloud,
-            var value => throw new ArgumentException($"Unsupported backup source '{value}'.")
-        };
+    {
+        "local" or "localworkstation" => BackupSource.LocalWorkstation,
+        "aws" or "awscloud" => BackupSource.AwsCloud,
+        var value => throw new ArgumentException($"Unsupported backup source '{value}'.")
+    };
 
     internal int PageSize => GetInt32("page-size", 50, 1, DatabaseBackupContractLimits.MaximumPageSize);
 

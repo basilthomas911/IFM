@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model;
 /// <summary>Ordered List validation extensions shared by financial actor maps.</summary>
 public static class FinancialRequestValidation
 {
-    public static List<ValidationError> ValidateFinancialRequest<TRequest,TBody>(this List<ValidationError> errors,
+    public static List<ValidationError> ValidateFinancialRequest<TRequest, TBody>(this List<ValidationError> errors,
         TRequest request, ActorType actorType, string actorName, string verb)
         where TRequest : class, IFinancialRequest<TBody>
     {
@@ -42,15 +42,18 @@ public static class FinancialRequestValidation
         var permission = request switch
         {
             SubmitEmulatorOrderCommand => "EmulatorSubmit",
-            ReservePortfolioTradeRiskCommand => "CapacityReserve", ConsumeCapacityReservationCommand => "CapacityConsume",
+            ReservePortfolioTradeRiskCommand => "CapacityReserve",
+            ConsumeCapacityReservationCommand => "CapacityConsume",
             TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.EvaluatePortfolioOrderCompositionCommand => "OrderCompositionEvaluate",
             TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.EvaluatePortfolioCloseOrderCompositionCommand => "OrderCompositionClose",
-            ChangeCapacityReservationCommand => "CapacityLifecycle", ConfigureLedgerCommand => "LedgerConfigure", _ => "LedgerPost"
+            ChangeCapacityReservationCommand => "CapacityLifecycle",
+            ConfigureLedgerCommand => "LedgerConfigure",
+            _ => "LedgerPost"
         };
         Add(request.Access?.Roles is { } roles && (roles.Contains("PortfolioAdministrator", StringComparer.Ordinal) || roles.Contains(permission, StringComparer.Ordinal)),
             "Caller lacks financial operation permission.");
-        Add(request.Access?.Roles?.Contains("PortfolioAdministrator", StringComparer.Ordinal)==true ||
-            request.Access?.PortfolioIds?.Contains(request.PortfolioId)==true,"Caller is not authorized for this Portfolio.");
+        Add(request.Access?.Roles?.Contains("PortfolioAdministrator", StringComparer.Ordinal) == true ||
+            request.Access?.PortfolioIds?.Contains(request.PortfolioId) == true, "Caller is not authorized for this Portfolio.");
         if (errors.Count == 0)
         {
             Add(request.InputSha256 == FinancialCanonicalHash.Request(request), "Input fingerprint does not match the canonical request.");
@@ -71,17 +74,17 @@ public static class FinancialRequestValidation
             throw new FinancialOperationException(FinancialReasons.TimeExpired, "Financial request deadline expired.");
     }
 
-    public static bool DemandPosting(IFinancialRequest request,LedgerPostingRequest body,DateTime nowUtc)
+    public static bool DemandPosting(IFinancialRequest request, LedgerPostingRequest body, DateTime nowUtc)
     {
-        Demand(request,"LedgerPost",nowUtc);
-        var permission=body.TransactionKind switch
+        Demand(request, "LedgerPost", nowUtc);
+        var permission = body.TransactionKind switch
         {
-            LedgerTransactionKind.OpeningBalance=>"LedgerImport",
-            LedgerTransactionKind.Adjustment=>"LedgerAdjust",
-            LedgerTransactionKind.Reversal=>"LedgerReverse",
-            _=>null
+            LedgerTransactionKind.OpeningBalance => "LedgerImport",
+            LedgerTransactionKind.Adjustment => "LedgerAdjust",
+            LedgerTransactionKind.Reversal => "LedgerReverse",
+            _ => null
         };
-        if(permission is not null) Demand(request,permission,nowUtc);
+        if (permission is not null) Demand(request, permission, nowUtc);
         return body.TransactionKind is LedgerTransactionKind.OpeningBalance or LedgerTransactionKind.Adjustment;
     }
 }

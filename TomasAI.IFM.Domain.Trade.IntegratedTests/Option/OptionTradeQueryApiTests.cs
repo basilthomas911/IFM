@@ -9,8 +9,8 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Option;
 
-public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, TradeDatabaseFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<TradeDatabaseFixture>
+public class OptionTradeQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory, TradeDatabaseFixture dbFixture)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<TradeDatabaseFixture>
 {
     readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
 
@@ -106,7 +106,7 @@ public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, Tr
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBeNull();
     }
 
@@ -142,7 +142,7 @@ public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, Tr
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBeNull();
     }
 
@@ -202,7 +202,7 @@ public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, Tr
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
     }
 
     [Fact]
@@ -217,7 +217,7 @@ public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, Tr
 
         // act...
         var tradeApi = new OptionTradeQueryApi(_actorProducer);
-        var response = await tradeApi.GetTradePlanSummaryAsync( optionTrade.OrderId, optionTrade.TradeId, valueDate);
+        var response = await tradeApi.GetTradePlanSummaryAsync(optionTrade.OrderId, optionTrade.TradeId, valueDate);
 
         // assert...
         response.Should().NotBeNull();

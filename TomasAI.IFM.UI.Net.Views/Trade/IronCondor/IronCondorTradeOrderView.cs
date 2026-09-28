@@ -59,16 +59,22 @@ public partial class IronCondorTradeOrderView : DarkTradingView, IAsyncFormContr
         // Keep the measured editor hidden until both data and initial order action are ready.
         _initialContent = new Panel
         {
-            Name = "blotterContent", Dock = DockStyle.Top,
+            Name = "blotterContent",
+            Dock = DockStyle.Top,
             Size = new Size(ClientSize.Width, tableLayoutPanel1.Bottom),
-            BackColor = BackColor, Visible = false,
+            BackColor = BackColor,
+            Visible = false,
         };
         _initialLoading = new Label
         {
-            Name = "blotterLoading", Text = "Loading trade blotter...",
+            Name = "blotterLoading",
+            Text = "Loading trade blotter...",
             AccessibleName = "Trade blotter loading status",
-            Dock = DockStyle.Top, Height = 32, TextAlign = ContentAlignment.MiddleCenter,
-            BackColor = BackColor, ForeColor = Color.White,
+            Dock = DockStyle.Top,
+            Height = 32,
+            TextAlign = ContentAlignment.MiddleCenter,
+            BackColor = BackColor,
+            ForeColor = Color.White,
         };
         SuspendLayout();
         _initialContent.SuspendLayout();
@@ -132,10 +138,14 @@ public partial class IronCondorTradeOrderView : DarkTradingView, IAsyncFormContr
         // Fixed designer X coordinates can put Asset Price outside a narrower host.
         var row = new TableLayoutPanel
         {
-            Name = "orderInputs", Location = new Point(0, ddlOrderType.Top),
-            Size = new Size(ClientSize.Width, 32), ColumnCount = 11, RowCount = 1,
+            Name = "orderInputs",
+            Location = new Point(0, ddlOrderType.Top),
+            Size = new Size(ClientSize.Width, 32),
+            ColumnCount = 11,
+            RowCount = 1,
             Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-            Margin = Padding.Empty, Padding = Padding.Empty
+            Margin = Padding.Empty,
+            Padding = Padding.Empty
         };
         row.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         Control[] controls = [lblOrderType, ddlOrderType, lblQuantity, nudQuantity,
@@ -637,9 +647,9 @@ public partial class IronCondorTradeOrderView : DarkTradingView, IAsyncFormContr
     {
         var readOnly = _viewModel.IsHistoricalReadOnly
             || _viewModel.FundOrderTrade.TradeState != TradeState.NewTrade;
-        var controls = new Control[] { 
+        var controls = new Control[] {
             txtLeg1BidPrice, txtLeg1AskPrice, txtLeg1ActualOTMProbability,txtLeg1MaxLossLimit, txtLeg1ExpectedOTMProbability, txtLeg1MinProfitLimit, txtLeg1NetSpread, txtLeg1TradeValue,
-            txtLeg2BidPrice, txtLeg2AskPrice, 
+            txtLeg2BidPrice, txtLeg2AskPrice,
             txtLeg3BidPrice, txtLeg3AskPrice, txtLeg3ActualOTMProbability, txtLeg3MaxLossLimit, txtLeg3ExpectedOTMProbability, txtLeg3MinProfitLimit, txtLeg3NetSpread, txtLeg3TradeValue,
             txtLeg4BidPrice, txtLeg4AskPrice,
             txtFundBalance, txtRiskMargin, txtMaxLossLimit, txtMaxProfit, txtMaxProfitLimit, txtMaxReturn, txtMinProfitTarget, txtAssetPrice};
@@ -990,7 +1000,7 @@ public partial class IronCondorTradeOrderView : DarkTradingView, IAsyncFormContr
     {
         if (_preparingInitialContent || _closed || _viewModel.IsHistoricalReadOnly) return;
         var optionLeg = _viewModel.GetOptionLeg(_viewModel.OptionLeg1Action, OptionType.Put);
-        optionLeg = optionLeg with { OptionLegAction = ParseForOptionLegAction(ddlLeg1Action)};
+        optionLeg = optionLeg with { OptionLegAction = ParseForOptionLegAction(ddlLeg1Action) };
         _viewModel.SetOptionLeg(_viewModel.OptionLeg1Action, OptionType.Put, optionLeg);
     }
 
@@ -1059,14 +1069,14 @@ public partial class IronCondorTradeOrderView : DarkTradingView, IAsyncFormContr
             _viewModel.OptionLegs[index] = optionLeg;
 
             var optionLegData = _viewModel.GetOptionLegData(
-                optionLeg.OptionLegType == OptionType.Put ? _viewModel.PutSpreadTradeType: _viewModel.CallSpreadTradeType,
+                optionLeg.OptionLegType == OptionType.Put ? _viewModel.PutSpreadTradeType : _viewModel.CallSpreadTradeType,
                 _viewModel.TradeStatus, optionLeg.OptionLegAction, optionLeg.OptionLegType);
             optionLeg = optionLegData!.OptionLeg! with { Quantity = quantity };
 
             for (var legIndex = 0; legIndex < _viewModel.OptionLegData.Length; legIndex++)
             {
                 var o = _viewModel.OptionLegData[legIndex];
-                if (o.TradeType == optionLegData.TradeType 
+                if (o.TradeType == optionLegData.TradeType
                     && o.TradeStatus == optionLegData.TradeStatus
                     && o.OptionLegId == optionLeg.ContractId)
                 {
@@ -1114,7 +1124,7 @@ public partial class IronCondorTradeOrderView : DarkTradingView, IAsyncFormContr
         var optionLegData = _viewModel.GetOptionLegData(_viewModel.PutSpreadTradeType, _viewModel.TradeStatus, _viewModel.OptionLeg2Action, OptionType.Put);
         if (optionLegData is not null && optionLegData.BidPrice != bidPrice)
         {
-            optionLegData = optionLegData with { BidPrice = bidPrice};
+            optionLegData = optionLegData with { BidPrice = bidPrice };
             _viewModel.SetOptionLegData(_viewModel.PutSpreadTradeType, _viewModel.TradeStatus, _viewModel.OptionLeg2Action, OptionType.Put, optionLegData);
             _viewModel.UpdatePutCreditSpreadLiveFeedValues();
             ShowTradeValues();
@@ -1279,7 +1289,7 @@ public partial class IronCondorTradeOrderView : DarkTradingView, IAsyncFormContr
 
     void ddlRiskPosition_SelectedIndexChanged(object sender, EventArgs e)
     {
-     }
+    }
 
     async void btnSetRiskProfit_Click(object sender, EventArgs e)
     {

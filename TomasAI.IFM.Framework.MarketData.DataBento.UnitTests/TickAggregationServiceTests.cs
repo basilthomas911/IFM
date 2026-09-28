@@ -1291,23 +1291,23 @@ public sealed class TickAggregationServiceTests
     private static TickerContractDetails CreateDetails(
         DateOnly valueDate,
         InstrumentKey instrument) => new()
-    {
-        ContractId = "ESU6",
-        InstrumentId = instrument.InstrumentId,
-        PublisherId = instrument.PublisherId,
-        AssetTypeId = AssetTypeId.Futures,
-        Dataset = "GLBX.MDP3",
-        DefinitionDate = valueDate,
-        ProviderContractId = "ESU6",
-        Ticker = "ES",
-        LocalSymbol = "ESU6",
-        SecurityType = "FUT",
-        Currency = "USD",
-        Exchange = "CME",
-        ContractMultiplier = 50m,
-        MaturityDate = new DateOnly(2026, 9, 18),
-        IsOnTheRun = true
-    };
+        {
+            ContractId = "ESU6",
+            InstrumentId = instrument.InstrumentId,
+            PublisherId = instrument.PublisherId,
+            AssetTypeId = AssetTypeId.Futures,
+            Dataset = "GLBX.MDP3",
+            DefinitionDate = valueDate,
+            ProviderContractId = "ESU6",
+            Ticker = "ES",
+            LocalSymbol = "ESU6",
+            SecurityType = "FUT",
+            Currency = "USD",
+            Exchange = "CME",
+            ContractMultiplier = 50m,
+            MaturityDate = new DateOnly(2026, 9, 18),
+            IsOnTheRun = true
+        };
 
     private sealed class CapturingStreamRoutes : ITickerStreamRouteController
     {

@@ -86,8 +86,10 @@ public sealed class S3DatabaseRestoreSourceCapability(
         {
             using var response = await vaultS3.GetObjectAsync(new GetObjectRequest
             {
-                BucketName = artifact.Object.BucketName, Key = artifact.Object.ObjectKey,
-                VersionId = artifact.Object.VersionId, ChecksumMode = ChecksumMode.ENABLED
+                BucketName = artifact.Object.BucketName,
+                Key = artifact.Object.ObjectKey,
+                VersionId = artifact.Object.VersionId,
+                ChecksumMode = ChecksumMode.ENABLED
             }, cancellationToken).ConfigureAwait(false);
             await sink.WriteAsync(engine, restorePointId, artifact.LogicalRelativePath,
                 response.ResponseStream, artifact.Object.Length, artifact.Object.Sha256, cancellationToken).ConfigureAwait(false);
@@ -129,8 +131,10 @@ public sealed class S3DatabaseRestoreSourceCapability(
             var target = Path.Combine(root, record.SegmentName);
             using var response = await context.S3.GetObjectAsync(new GetObjectRequest
             {
-                BucketName = record.Object.BucketName, Key = record.Object.ObjectKey,
-                VersionId = record.Object.VersionId, ChecksumMode = ChecksumMode.ENABLED
+                BucketName = record.Object.BucketName,
+                Key = record.Object.ObjectKey,
+                VersionId = record.Object.VersionId,
+                ChecksumMode = ChecksumMode.ENABLED
             }, cancellationToken).ConfigureAwait(false);
             await using var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None,
                 128 * 1024, FileOptions.Asynchronous | FileOptions.WriteThrough);

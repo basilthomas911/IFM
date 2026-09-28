@@ -13,15 +13,24 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProviderTests
     [Fact]
     public async Task Rsi13_cannot_satisfy_an_rsi14_requirement()
     {
-        var contract=$"ES-{Guid.NewGuid():N}";var now=DateTime.UtcNow.AddSeconds(-1);
-        var signal=new FuturesRsiSignalReadModel{ContractId=contract,ValueDate=DateOnly.FromDateTime(now),TimePeriod=TimeFrameType.OneHour,
-            Timestamp=TimeOnly.FromDateTime(now),PeriodLength=13,RSI=60,RSISlope=1,IsWarm=true};
-        var provider=new RegimeDiscoveryMarketSignalSnapshotProvider();
+        var contract = $"ES-{Guid.NewGuid():N}"; var now = DateTime.UtcNow.AddSeconds(-1);
+        var signal = new FuturesRsiSignalReadModel
+        {
+            ContractId = contract,
+            ValueDate = DateOnly.FromDateTime(now),
+            TimePeriod = TimeFrameType.OneHour,
+            Timestamp = TimeOnly.FromDateTime(now),
+            PeriodLength = 13,
+            RSI = 60,
+            RSISlope = 1,
+            IsWarm = true
+        };
+        var provider = new RegimeDiscoveryMarketSignalSnapshotProvider();
         RegimeDiscoverySignalCacheAdapter.Publish(signal);
-        var missing=await provider.CaptureAsync(SingleMetricRequest(contract,RegimeDiscoverySignalMetric.Rsi14,TimeFrameType.OneHour));
+        var missing = await provider.CaptureAsync(SingleMetricRequest(contract, RegimeDiscoverySignalMetric.Rsi14, TimeFrameType.OneHour));
         missing.IsSuccess.Should().BeFalse();
-        RegimeDiscoverySignalCacheAdapter.Publish(signal with {PeriodLength=14});
-        var available=await provider.CaptureAsync(SingleMetricRequest(contract,RegimeDiscoverySignalMetric.Rsi14,TimeFrameType.OneHour));
+        RegimeDiscoverySignalCacheAdapter.Publish(signal with { PeriodLength = 14 });
+        var available = await provider.CaptureAsync(SingleMetricRequest(contract, RegimeDiscoverySignalMetric.Rsi14, TimeFrameType.OneHour));
         available.IsSuccess.Should().BeTrue();
     }
     [Fact]
@@ -117,14 +126,14 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProviderTests
         source = expected switch
         {
             RegimeDiscoverySignalAvailability.Stale => source with
-                { MarketDataAsOfUtc = DateTime.UtcNow.AddHours(-2) },
+            { MarketDataAsOfUtc = DateTime.UtcNow.AddHours(-2) },
             RegimeDiscoverySignalAvailability.NotWarm => source with { IsWarm = false },
             RegimeDiscoverySignalAvailability.Invalid => source with { IsValid = false },
             RegimeDiscoverySignalAvailability.FutureTimestamp => source with
-                { MarketDataAsOfUtc = DateTime.UtcNow.AddMinutes(5) },
+            { MarketDataAsOfUtc = DateTime.UtcNow.AddMinutes(5) },
             RegimeDiscoverySignalAvailability.SchemaUnsupported => source with { SchemaVersion = 2 },
             RegimeDiscoverySignalAvailability.CalculationVersionMismatch => source with
-                { CalculationVersion = "2" },
+            { CalculationVersion = "2" },
             _ => source
         };
         provider.Upsert(source);
@@ -219,10 +228,10 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProviderTests
         RegimeDiscoverySignalMetric metric,
         TimeFrameType timeFrame,
         bool isRequired = true) => new()
-    {
-        MarketSeriesIdentity = MarketSeriesIdentity.ForContract(contract),
-        TargetHorizon = TimeFrameType.Daily,
-        Requirements =
+        {
+            MarketSeriesIdentity = MarketSeriesIdentity.ForContract(contract),
+            TargetHorizon = TimeFrameType.Daily,
+            Requirements =
         [
             new RegimeDiscoverySignalRequirement
             {
@@ -234,11 +243,11 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProviderTests
                 Weight = 1m
             }
         ],
-        FutureClockSkewSeconds = 1,
-        SupportedSchemaVersions = [1],
-        ApprovedCalculationVersions = ["1"],
-        CaptureAttempts = 3
-    };
+            FutureClockSkewSeconds = 1,
+            SupportedSchemaVersions = [1],
+            ApprovedCalculationVersions = ["1"],
+            CaptureAttempts = 3
+        };
 
     static RegimeDiscoverySignalObservation Observation(string contract)
     {

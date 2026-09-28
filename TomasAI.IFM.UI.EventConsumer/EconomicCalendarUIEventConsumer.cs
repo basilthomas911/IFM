@@ -54,19 +54,19 @@ public class EconomicCalendarUIEventConsumer(INatsEventListenerOptions options, 
             {
                 _ = eventVerb switch
                 {
-                    _ when eventVerb == EconomicCalendarAddedCompleteEvent.Verb 
+                    _ when eventVerb == EconomicCalendarAddedCompleteEvent.Verb
                         => HandleEvent(eventMsg.AsEvent<EconomicCalendarAddedCompleteEvent>()!, e => addedAction(e as EconomicCalendarAddedCompleteEvent)),
                     _ when eventVerb == EconomicCalendarAddedFailEvent.Verb
                         => HandleEvent(eventMsg.AsEvent<EconomicCalendarAddedFailEvent>()!, e => addFailedAction(e as EconomicCalendarAddedFailEvent)),
-                    _ when eventVerb == EconomicCalendarChangedCompleteEvent.Verb 
+                    _ when eventVerb == EconomicCalendarChangedCompleteEvent.Verb
                         => HandleEvent(eventMsg.AsEvent<EconomicCalendarChangedCompleteEvent>()!, e => changedAction(e as EconomicCalendarChangedCompleteEvent)),
                     _ when eventVerb == EconomicCalendarChangedFailEvent.Verb
                         => HandleEvent(eventMsg.AsEvent<EconomicCalendarChangedFailEvent>()!, e => changeFailedAction(e as EconomicCalendarChangedFailEvent)),
-                    _ when eventVerb == EconomicCalendarRemovedCompleteEvent.Verb 
+                    _ when eventVerb == EconomicCalendarRemovedCompleteEvent.Verb
                         => HandleEvent(eventMsg.AsEvent<EconomicCalendarRemovedCompleteEvent>()!, e => removedAction(e as EconomicCalendarRemovedCompleteEvent)),
                     _ when eventVerb == EconomicCalendarRemovedFailEvent.Verb
                         => HandleEvent(eventMsg.AsEvent<EconomicCalendarRemovedFailEvent>()!, e => removeFailedAction(e as EconomicCalendarRemovedFailEvent)),
-                    _ when eventVerb == EconomicCalendarsImportedCompleteEvent.Verb 
+                    _ when eventVerb == EconomicCalendarsImportedCompleteEvent.Verb
                         => HandleEvent(eventMsg.AsEvent<EconomicCalendarsImportedCompleteEvent>()!, e => importedAction(e as EconomicCalendarsImportedCompleteEvent)),
                     _ when eventVerb == EconomicCalendarsImportedFailEvent.Verb
                         => HandleEvent(eventMsg.AsEvent<EconomicCalendarsImportedFailEvent>()!, e => importFailedAction(e as EconomicCalendarsImportedFailEvent)),
@@ -85,8 +85,8 @@ public class EconomicCalendarUIEventConsumer(INatsEventListenerOptions options, 
                 return e;
             }
         }
-     }
- } 
+    }
+}
 
 public interface IEconomicCalendarUIEventConsumer
 {

@@ -5,12 +5,12 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
 
 [MessagePackObject]
-public sealed record RiskLimitCheck([property:Key(0)] int LimitIndex, [property:Key(1)] decimal Proposed,
-    [property:Key(2)] decimal Existing, [property:Key(3)] bool Fits);
+public sealed record RiskLimitCheck([property: Key(0)] int LimitIndex, [property: Key(1)] decimal Proposed,
+    [property: Key(2)] decimal Existing, [property: Key(3)] bool Fits);
 [MessagePackObject]
-public sealed record RiskQuantityCheck([property:Key(0)] int Units, [property:Key(1)] decimal Cash,
-    [property:Key(2)] decimal Loss, [property:Key(3)] bool CashFits, [property:Key(4)] bool LossFits,
-    [property:Key(5)] ImmutableArray<RiskLimitCheck> Limits);
+public sealed record RiskQuantityCheck([property: Key(0)] int Units, [property: Key(1)] decimal Cash,
+    [property: Key(2)] decimal Loss, [property: Key(3)] bool CashFits, [property: Key(4)] bool LossFits,
+    [property: Key(5)] ImmutableArray<RiskLimitCheck> Limits);
 
 /// <summary>Versioned sidecar created from the accepted immutable invocation, without changing historic result hashes.</summary>
 [MessagePackObject]

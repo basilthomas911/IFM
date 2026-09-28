@@ -30,11 +30,11 @@ public interface IIntrinsicTimeStrategyWorkflowRealtimeContext
 
     /// <summary>Gets the immutable strategy-configuration store.</summary>
     IConfigurationDbContext ConfigurationDb { get; }
-    TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterRuntimeSnapshot? ParameterRuntime=>null;
+    TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterRuntimeSnapshot? ParameterRuntime => null;
     IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState> WorkflowRepository { get; }
     Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi FinancialApi => throw new InvalidOperationException("Financial API is not configured.");
-    IPortfolioQueryApi PortfolioQueries {get;}
-    IPortfolioFundCommandApi PortfolioCommands {get;}
+    IPortfolioQueryApi PortfolioQueries { get; }
+    IPortfolioFundCommandApi PortfolioCommands { get; }
     IPortfolioOrderCompositionApi PortfolioOrderComposition { get; }
     Application.MarketData.Pricing.ICompositionPreparationStore CompositionPreparations
         => throw new InvalidOperationException("Composition preparation storage is not configured.");
@@ -92,7 +92,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext
     public RegimeDiscoveryExecutionOptions RegimeDiscoveryExecutionOptions { get; }
 
     /// <inheritdoc />
-    public TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterRuntimeSnapshot ParameterRuntime=>Container.Resolve<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterRuntimeSnapshot>();
+    public TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterRuntimeSnapshot ParameterRuntime => Container.Resolve<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterRuntimeSnapshot>();
     public IConfigurationDbContext ConfigurationDb => _configurationDb.Value;
 
     /// <inheritdoc />
@@ -124,7 +124,7 @@ public sealed class IntrinsicTimeStrategyWorkflowOptions : TomasAI.IFM.Domain.Tr
     public int FundId { get; set; } = 1;
     /// <summary>Portfolio authority consulted only at the RiskManager boundary.</summary>
     public int PortfolioId { get; set; } = 1;
-    public WorkflowActivationReference[] Activations {get;set;} = [];
+    public WorkflowActivationReference[] Activations { get; set; } = [];
 }
 
-public sealed record WorkflowActivationReference(TimeFrameType Horizon,Guid Id,int Version,string PayloadSha256);
+public sealed record WorkflowActivationReference(TimeFrameType Horizon, Guid Id, int Version, string PayloadSha256);

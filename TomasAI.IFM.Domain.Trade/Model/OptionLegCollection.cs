@@ -17,7 +17,7 @@ public class OptionLegCollection(int tradeId) : IOptionLegCollection
     /// count of option legs
     /// </summary>
     public int Count => _optionLegs!.Count;
-    
+
     /// <summary>
     /// return selected option leg with collection
     /// </summary>

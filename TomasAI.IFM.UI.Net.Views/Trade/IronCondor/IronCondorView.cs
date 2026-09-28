@@ -82,8 +82,11 @@ public partial class IronCondorView : DarkTradingView, IAsyncFormControl
         _viewModel.PropertyChanged += ViewModelPropertyChanged;
         _initialLoading = new Label
         {
-            Name = "tradeDetailsLoading", Text = "Loading trade details...",
-            Dock = DockStyle.Fill, BackColor = Color.Black, ForeColor = Color.White,
+            Name = "tradeDetailsLoading",
+            Text = "Loading trade details...",
+            Dock = DockStyle.Fill,
+            BackColor = Color.Black,
+            ForeColor = Color.White,
             TextAlign = ContentAlignment.MiddleCenter,
         };
         Controls.Add(_initialLoading);
@@ -330,14 +333,14 @@ public partial class IronCondorView : DarkTradingView, IAsyncFormControl
         _ = ((IAsyncFormControl)this).CloseAsync().AsTask();
     }
 
-      async ValueTask IAsyncFormControl.CloseAsync()
-      {
-          if (_closed)
-              return;
-          _closed = true;
-          _viewModel.PropertyChanged -= ViewModelPropertyChanged;
-          await _viewModel.DisposeAsync();
-      }
+    async ValueTask IAsyncFormControl.CloseAsync()
+    {
+        if (_closed)
+            return;
+        _closed = true;
+        _viewModel.PropertyChanged -= ViewModelPropertyChanged;
+        await _viewModel.DisposeAsync();
+    }
 
     /// <summary>
     /// Initializes the Iron Condor control and sets up event handlers for loading trade data and updating the UI.
@@ -744,7 +747,7 @@ public partial class IronCondorView : DarkTradingView, IAsyncFormControl
     /// <param name="fundBalance">The fund balance value.</param>
     void ShowIronCondorTradePosition(TradePositionEntityId key, (TradePositionReadModel PutCreditSpread, TradePositionReadModel CallCreditSpread) ironCondorTradeData, TradeLimitReadModel tradeLimit, decimal openingNetSpread, decimal fundBalance)
     {
-       // if (_viewModel.IsLiveFeedEnabled && key.TradeStatus != TradeStatus.IntraDay) return;
+        // if (_viewModel.IsLiveFeedEnabled && key.TradeStatus != TradeStatus.IntraDay) return;
         var pcs = ironCondorTradeData.PutCreditSpread;
         txtPutSpreadType.Text = $"{ironCondorTradeData.PutCreditSpread.TradeType}";
         txtPutSpreadType.ForeColor = Color.Magenta;
@@ -801,7 +804,7 @@ public partial class IronCondorView : DarkTradingView, IAsyncFormControl
             SetBGColor(txtCallLongDelta, longCallOptionLeg.Delta, txtCallLongDelta.Text, "0.###0");
             SetBGColor(txtCallLongGamma, longCallOptionLeg.Gamma, txtCallLongGamma.Text, "0.####0");
             SetBGColor(txtCallLongTheta, longCallOptionLeg.Theta, txtCallLongTheta.Text, "0.###0");
-            SetBGColor(txtCallLongImpliedVol, longCallOptionLeg.ImpliedVolatility, $"{ToDoublePercent(txtCallLongImpliedVol.Text.Replace("%", ""))}" , "P");
+            SetBGColor(txtCallLongImpliedVol, longCallOptionLeg.ImpliedVolatility, $"{ToDoublePercent(txtCallLongImpliedVol.Text.Replace("%", ""))}", "P");
             SetBGColor(txtCallNetSpread, Math.Abs(ccs.NetSpread), txtCallNetSpread.Text.Replace("$", "").Replace(",", ""), "C");
             SetBGColor(txtCallTradeValue, Math.Abs(ccs.TradeValue), txtCallTradeValue.Text.Replace("$", "").Replace(",", ""), "C");
             SetBGColor(txtCallTradePnl, ccs.TradePnl, txtCallTradePnl.Text.Replace("$", "").Replace(",", ""), "C");
@@ -815,9 +818,9 @@ public partial class IronCondorView : DarkTradingView, IAsyncFormControl
         txtRtValueDate.Text = $"{key.ValueDate:yyyy-MMM-dd}";
         txtRtTradeStatus.Text = $"{key.TradeStatus}";
         txtRtDaysToExpiry.Text = $"{key.DaysToExpiry}";
-        txtRtTradePnl.Text =  $"{dailyPnl:C}";
+        txtRtTradePnl.Text = $"{dailyPnl:C}";
         txtRtTradePnl.BackColor = dailyPnl >= 0.0m ? Color.LimeGreen : Color.Red;
-        txtRtNetSpread.Text =  $"{Math.Abs(netSpread):C}";
+        txtRtNetSpread.Text = $"{Math.Abs(netSpread):C}";
         txtRtNetSpread.BackColor = netSpread > openingNetSpread && openingNetSpread > 0.0m ? Color.Red : Color.LimeGreen;
 
         //var tradePnl = _viewModel.GetTradePnl(pcs, ccs, pcs.TradeStatus == TradeStatus.Close ? -1 : 1);
@@ -832,14 +835,14 @@ public partial class IronCondorView : DarkTradingView, IAsyncFormControl
         else if (tradePnlValue < 0m)
         {
             var maxLoss = Convert.ToInt32(tradeLimit.MaxLoss);
-            tradePnlValue = tradePnlValue > maxLoss ? tradePnlValue :maxLoss ;
+            tradePnlValue = tradePnlValue > maxLoss ? tradePnlValue : maxLoss;
             DisplayPercentLoss(maxLoss);
         }
         ddlLiveFeed.Enabled = !_viewModel.IsHistoricalReadOnly && _viewModel.ValueDate.HasValue;
         return;
 
         double ToDoublePercent(string percentText)
-            =>string.IsNullOrWhiteSpace(percentText)
+            => string.IsNullOrWhiteSpace(percentText)
                 ? 0.0
                 : Convert.ToDouble(percentText.Replace("%", "")) / 100;
 
@@ -847,9 +850,9 @@ public partial class IronCondorView : DarkTradingView, IAsyncFormControl
         {
             pbPercentProfit.SetState(1);
             pbPercentProfit.Visible = true;
-            pbPercentProfit.Maximum = (int )fundBalance;
+            pbPercentProfit.Maximum = (int)fundBalance;
             pbPercentProfit.Value = tradePnlValue;
-             var percent = (((double)pbPercentProfit.Value / (double)pbPercentProfit.Maximum));
+            var percent = (((double)pbPercentProfit.Value / (double)pbPercentProfit.Maximum));
             if (percent < 0.0)
                 percent = 0.0;
             txtTradePnl.Text = $"{tradePnl:C} @ {percent:P2} profit";
@@ -866,7 +869,7 @@ public partial class IronCondorView : DarkTradingView, IAsyncFormControl
             var percent = (((double)pbPercentProfit.Value / (double)pbPercentProfit.Maximum));
             if (percent < 0.0)
                 percent = 0.0;
-            txtTradePnl.Text =$"{tradePnl:C} @ {percent:P2} loss";
+            txtTradePnl.Text = $"{tradePnl:C} @ {percent:P2} loss";
             txtTradePnl.BackColor = Color.Red;
             pbPercentProfit.Refresh();
         }
@@ -937,15 +940,19 @@ public partial class IronCondorView : DarkTradingView, IAsyncFormControl
     void ShowTradePlan(TradePlanReadModel e)
     {
         var bgColor = e.TradeType == TradeType.ShortIronCondor
-            ? e.MScore switch {
+            ? e.MScore switch
+            {
                 >= 0.9 => Color.Red,
                 >= 0.8 => Color.Yellow,
-                _ => Color.LimeGreen }
-            : e.MScore switch {
+                _ => Color.LimeGreen
+            }
+            : e.MScore switch
+            {
                 >= 0.9 => Color.LimeGreen,
                 >= 0.8 => Color.Yellow,
-                _ => Color.Red };
-        txtRtMscore.BackColor =  bgColor;
+                _ => Color.Red
+            };
+        txtRtMscore.BackColor = bgColor;
         txtRtMscore.Text = $"{e.MScore:P2}";
         pnlTradePlanAction.BackColor = _tradePlanStateMap[e.ActionState];
         DisplayTradePlan(e);

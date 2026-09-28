@@ -128,7 +128,8 @@ public sealed partial class TradeSelectionRuntimeTests
                 var frozenProfile = call.Arg<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.MarketConditionAssessmentParameterSet>();
                 var input = AssessmentFixture.Command(horizon, call.Arg<DateTime>()) with
                 {
-                    ParameterSet = frozenProfile, MarketProfileId = frozenProfile.MarketProfileId
+                    ParameterSet = frozenProfile,
+                    MarketProfileId = frozenProfile.MarketProfileId
                 };
                 var snapshot = TradeSelectionFixture.Snapshot(input);
                 return ValueTask.FromResult((snapshot with { Observations = snapshot.Observations.Select(x => x with { ObservedAtUtc = snapshot.EvaluatedAtUtc }).ToArray() }).Seal());
@@ -138,6 +139,8 @@ public sealed partial class TradeSelectionRuntimeTests
             container.RegisterSingleton<ICompositionPreparationStore>(() => new WorkflowMarketFixture(
                 container.GetInstance<IDbContextFactory>().MarketDataDb,
                 async key => (await container.GetInstance<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>().LoadStateAsync(starts[key.WorkflowId])).CurrentView!));
+            services.RemoveAll<ICompositionPreparationStore>();
+            services.AddSingleton(_ => container.GetInstance<ICompositionPreparationStore>());
         }, broker, actualPortfolio: true).WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((context, config) =>
         {
             if (benchmark is not null) WorkflowBenchmarkSettings.ValidateEnvironment(context.HostingEnvironment, config.Build(), broker);
@@ -168,8 +171,16 @@ public sealed partial class TradeSelectionRuntimeTests
         catch (Exception exception)
         {
             // Also preserves failures during schema/fixture/funding setup before a sample timer exists.
-            benchmarkWriter?.Write(new { RecordType = "run_failed", benchmarkWriter.RunId, CompletedIterations = completedIterations,
-                Scenario = currentIteration?.Scenario.ToString(), currentIteration?.Phase, currentIteration?.Iteration, Error = exception.ToString() });
+            benchmarkWriter?.Write(new
+            {
+                RecordType = "run_failed",
+                benchmarkWriter.RunId,
+                CompletedIterations = completedIterations,
+                Scenario = currentIteration?.Scenario.ToString(),
+                currentIteration?.Phase,
+                currentIteration?.Iteration,
+                Error = exception.ToString()
+            });
             throw;
         }
         finally
@@ -195,8 +206,12 @@ public sealed partial class TradeSelectionRuntimeTests
                 MarketProfileId = $"FullWorkflow-{Guid.NewGuid():N}",
                 Sources = assessment.ParameterSet.Sources.Select(x => x with { MaximumAgeSeconds = 15 }).ToArray()
             };
-            assessment = assessment with { ParameterSet = profile, MarketProfileId = profile.MarketProfileId,
-                ParameterPayloadSha256 = TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.MarketConditionAssessmentHash.Parameters(profile) };
+            assessment = assessment with
+            {
+                ParameterSet = profile,
+                MarketProfileId = profile.MarketProfileId,
+                ParameterPayloadSha256 = TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.MarketConditionAssessmentHash.Parameters(profile)
+            };
             assessment = assessment with { WorkflowView = assessment.WorkflowView with { AssessmentBinding = new() { Parameters = profile, PayloadSha256 = assessment.ParameterPayloadSha256 } } };
             var regimeProfile = assessment.WorkflowView.RegimeDiscoveryParameterSet!;
             await config.InsertRegimeDiscoveryDraftAsync(regimeProfile, "Full workflow integration regime", "integration-test");
@@ -208,9 +223,15 @@ public sealed partial class TradeSelectionRuntimeTests
             host.Services.GetRequiredService<IntrinsicTimeStrategyWorkflowOptions>().MarketConditionAssessmentProfileId = profile.MarketProfileId;
             var bearish = variant.Contains("Bear", StringComparison.Ordinal) || variant == "ShortFuture";
             var balanced = variant.Contains("Balanced", StringComparison.Ordinal);
-            var trigger = assessment.TriggerEvent with { FuturesItiSignal = assessment.TriggerEvent.FuturesItiSignal! with
-                { IntrinsicPrice = balanced ? 100 : bearish ? 95 : 105, BandLevel = balanced ? 0 : 1,
-                    IntrinsicTimeTrend = bearish ? IntrinsicTimeTrendType.DownTrend : IntrinsicTimeTrendType.UpTrend } };
+            var trigger = assessment.TriggerEvent with
+            {
+                FuturesItiSignal = assessment.TriggerEvent.FuturesItiSignal! with
+                {
+                    IntrinsicPrice = balanced ? 100 : bearish ? 95 : 105,
+                    BandLevel = balanced ? 0 : 1,
+                    IntrinsicTimeTrend = bearish ? IntrinsicTimeTrendType.DownTrend : IntrinsicTimeTrendType.UpTrend
+                }
+            };
             assessment = assessment with { TriggerEvent = trigger, WorkflowView = assessment.WorkflowView with { TriggerEvent = trigger } };
             var selection = await TradeSelectionFixture.Command(variant, horizon, DateTime.UtcNow,
                 scopeId: Random.Shared.Next(10000000, 900000000), compositionReady: true, compositionIntegrationTiming: true,
@@ -222,18 +243,39 @@ public sealed partial class TradeSelectionRuntimeTests
             var request = RegimeDiscoverySnapshotRequestFactory.Create(MarketSeriesIdentity.ForContract(trigger.EntityId.ContractId), parameters);
             long sequence = 0;
             foreach (var requirement in request.Requirements)
-                cache.Upsert(new RegimeDiscoverySignalObservation { Metric = requirement.Metric,
+                cache.Upsert(new RegimeDiscoverySignalObservation
+                {
+                    Metric = requirement.Metric,
                     SignalKey = new(request.MarketSeriesIdentity, IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests.SignalKind(requirement.Metric), requirement.TimeFrame, requirement.CalculationConfigurationId),
-                    Value = FinancialSignal(requirement.Metric, variant), MarketDataAsOfUtc = DateTime.UtcNow, CalculatedAtUtc = DateTime.UtcNow,
-                    SourceSequence = ++sequence, SchemaVersion = 1, CalculationVersion = "1", IsWarm = true, IsValid = true,
-                    Availability = RegimeDiscoverySignalAvailability.Available, SignalIdentity = $"FullWorkflowFixture/{Guid.NewGuid():N}" });
-            ExecuteIntrinsicTimeStrategyWorkflowCommand start = new() { CommandId = Guid.NewGuid(), EntityId = assessment.WorkflowEntityId,
+                    Value = FinancialSignal(requirement.Metric, variant),
+                    MarketDataAsOfUtc = DateTime.UtcNow,
+                    CalculatedAtUtc = DateTime.UtcNow,
+                    SourceSequence = ++sequence,
+                    SchemaVersion = 1,
+                    CalculationVersion = "1",
+                    IsWarm = true,
+                    IsValid = true,
+                    Availability = RegimeDiscoverySignalAvailability.Available,
+                    SignalIdentity = $"FullWorkflowFixture/{Guid.NewGuid():N}"
+                });
+            ExecuteIntrinsicTimeStrategyWorkflowCommand start = new()
+            {
+                CommandId = Guid.NewGuid(),
+                EntityId = assessment.WorkflowEntityId,
                 Subject = Subject(ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb, assessment.WorkflowEntityId),
-                ProposedWorkflowId = assessment.WorkflowId, TriggerEventId = trigger.Id, TriggerEvent = trigger,
-                CorrelationId = assessment.CorrelationId, CausationId = trigger.Id, RequestedAtUtc = selection.SelectionBinding.FrozenAtUtc, WorkflowDefinitionVersion = 1,
-                RegimeDiscoveryParameterSet = parameters, RegimeDiscoveryParameterPayloadSha256 = assessment.WorkflowView.RegimeDiscoveryParameterPayloadSha256,
-                FundId = selection.SelectionBinding.PortfolioSnapshot.Fund.FundId, SelectionBinding = selection.SelectionBinding,
-                AssessmentBinding = new() { Parameters = assessment.ParameterSet, PayloadSha256 = assessment.ParameterPayloadSha256 } };
+                ProposedWorkflowId = assessment.WorkflowId,
+                TriggerEventId = trigger.Id,
+                TriggerEvent = trigger,
+                CorrelationId = assessment.CorrelationId,
+                CausationId = trigger.Id,
+                RequestedAtUtc = selection.SelectionBinding.FrozenAtUtc,
+                WorkflowDefinitionVersion = 1,
+                RegimeDiscoveryParameterSet = parameters,
+                RegimeDiscoveryParameterPayloadSha256 = assessment.WorkflowView.RegimeDiscoveryParameterPayloadSha256,
+                FundId = selection.SelectionBinding.PortfolioSnapshot.Fund.FundId,
+                SelectionBinding = selection.SelectionBinding,
+                AssessmentBinding = new() { Parameters = assessment.ParameterSet, PayloadSha256 = assessment.ParameterPayloadSha256 }
+            };
 
             var measurement = new WorkflowMeasurement(stageCount ?? 5);
             var identity = $"{start.EntityId.Format()}|{start.ProposedWorkflowId}";
@@ -279,10 +321,14 @@ public sealed partial class TradeSelectionRuntimeTests
                     }
                     committed.RiskExecution.Should().BeNull();
                     await AssertWorkflowReservationCountAsync(selection.SelectionBinding, 0);
-                    output.WriteLine(System.Text.Json.JsonSerializer.Serialize(new {
-                        StageCount = stageCount, Endpoint = new[] { "Regime Discovery", "Market Assessment", "Trade Selection", "Order Composer" }[stageCount.Value - 1],
-                        WorkflowMilliseconds = measurement.EndpointMilliseconds, Outcome = "Endpoint accepted",
-                        Stages = stages.Take(stageCount.Value).Select(x => new { x.StartedAtUtc, x.CompletedAtUtc }) }));
+                    output.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        StageCount = stageCount,
+                        Endpoint = new[] { "Regime Discovery", "Market Assessment", "Trade Selection", "Order Composer" }[stageCount.Value - 1],
+                        WorkflowMilliseconds = measurement.EndpointMilliseconds,
+                        Outcome = "Endpoint accepted",
+                        Stages = stages.Take(stageCount.Value).Select(x => new { x.StartedAtUtc, x.CompletedAtUtc })
+                    }));
                     return;
                 }
 
@@ -290,9 +336,21 @@ public sealed partial class TradeSelectionRuntimeTests
                 final!.WorkflowRevision.Should().Be(observed.WorkflowRevision);
                 final.Should().NotBeNull();
                 if (final?.RiskExecution is { } measured)
-                    output.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { Scenario = $"{horizon}/{variant}",
-                        StageCount = stageCount ?? 5, Endpoint = "Risk Manager / Authorized intent", WorkflowMilliseconds = measurement.AuthorizedMilliseconds, QueryVisibleMilliseconds = measurement.QueryVisibleMilliseconds, Risk = RiskLatency.Measure(measured),
-                        WorkflowId = final.WorkflowId.ToString(), StartedAtUtc = final.StartedAtUtc, TerminalAtUtc = final.TerminalAtUtc, Stages = PipelineStages(final).Select(x => new { x.StartedAtUtc, x.CompletedAtUtc }), Outcome = final.Status.ToString(), Phase = final.FinancialHandoff?.Phase.ToString() }));
+                    output.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        Scenario = $"{horizon}/{variant}",
+                        StageCount = stageCount ?? 5,
+                        Endpoint = "Risk Manager / Authorized intent",
+                        WorkflowMilliseconds = measurement.AuthorizedMilliseconds,
+                        QueryVisibleMilliseconds = measurement.QueryVisibleMilliseconds,
+                        Risk = RiskLatency.Measure(measured),
+                        WorkflowId = final.WorkflowId.ToString(),
+                        StartedAtUtc = final.StartedAtUtc,
+                        TerminalAtUtc = final.TerminalAtUtc,
+                        Stages = PipelineStages(final).Select(x => new { x.StartedAtUtc, x.CompletedAtUtc }),
+                        Outcome = final.Status.ToString(),
+                        Phase = final.FinancialHandoff?.Phase.ToString()
+                    }));
                 var candidateAge = final?.RiskExecution is { } invocation ? (invocation.EvaluatedAtUtc - invocation.CompositionResult.ReadCompositionResult().Candidate!.EvaluatedAtUtc).TotalMilliseconds : -1;
                 (final!.FinancialHandoff?.Phase).Should().Be(RiskFinancialHandoffPhase.Authorized,
                     $"candidate age {candidateAge} ms; workflow stopped at {final.CurrentStage}/{final.Status}: {final.StopReasonCode}; {final.RegimeDiscovery.Failure}; {final.MarketCondition.Failure}; {final.TradeSelection.Failure}; {final.OrderComposition.Failure}; {final.RiskManagement.Failure}");
@@ -367,19 +425,37 @@ public sealed partial class TradeSelectionRuntimeTests
                 if (captureTrace) spans.Enqueue(traceRun);
                 if (benchmarkWriter is not null)
                 {
-                    var sample = new { RecordType = "sample", RunId = benchmarkWriter.RunId,
-                        benchmark!.Label, measurement.SampleId, Scenario = iteration.Scenario.ToString(), iteration.Phase, iteration.Iteration,
-                        StageCount = stageCount ?? 5, Endpoint = "Risk Manager / Authorized intent",
-                        Success = failure is null, Error = failure?.ToString(),
-                        measurement.StartedAtUtc, measurement.AuthorizedMilliseconds, WorkflowMilliseconds = measurement.EndpointMilliseconds,
-                        measurement.QueryVisibleMilliseconds, VerificationMilliseconds = verification.Elapsed.TotalMilliseconds,
+                    var sample = new
+                    {
+                        RecordType = "sample",
+                        RunId = benchmarkWriter.RunId,
+                        benchmark!.Label,
+                        measurement.SampleId,
+                        Scenario = iteration.Scenario.ToString(),
+                        iteration.Phase,
+                        iteration.Iteration,
+                        StageCount = stageCount ?? 5,
+                        Endpoint = "Risk Manager / Authorized intent",
+                        Success = failure is null,
+                        Error = failure?.ToString(),
+                        measurement.StartedAtUtc,
+                        measurement.AuthorizedMilliseconds,
+                        WorkflowMilliseconds = measurement.EndpointMilliseconds,
+                        measurement.QueryVisibleMilliseconds,
+                        VerificationMilliseconds = verification.Elapsed.TotalMilliseconds,
                         ElapsedMilliseconds = measurement.ElapsedMilliseconds,
-                        StageAcceptedMilliseconds = measurement.Stages, measurement.ObservedActive,
-                        measurement.ProcessMetrics, WorkflowId = start.ProposedWorkflowId.ToString(),
-                        WorkflowEntityId = start.EntityId.Format(), PortfolioId = selection.SelectionBinding.PortfolioSnapshot.Portfolio.PortfolioId,
-                        FundId = selection.SelectionBinding.PortfolioSnapshot.Fund.FundId, TraceId = traceRun.TraceId.ToString(),
-                        Outcome = final?.Status.ToString(), FinancialPhase = final?.FinancialHandoff?.Phase.ToString(),
-                        Risk = final?.RiskExecution is { } invocation ? RiskLatency.Measure(invocation) : null };
+                        StageAcceptedMilliseconds = measurement.Stages,
+                        measurement.ObservedActive,
+                        measurement.ProcessMetrics,
+                        WorkflowId = start.ProposedWorkflowId.ToString(),
+                        WorkflowEntityId = start.EntityId.Format(),
+                        PortfolioId = selection.SelectionBinding.PortfolioSnapshot.Portfolio.PortfolioId,
+                        FundId = selection.SelectionBinding.PortfolioSnapshot.Fund.FundId,
+                        TraceId = traceRun.TraceId.ToString(),
+                        Outcome = final?.Status.ToString(),
+                        FinancialPhase = final?.FinancialHandoff?.Phase.ToString(),
+                        Risk = final?.RiskExecution is { } invocation ? RiskLatency.Measure(invocation) : null
+                    };
                     benchmarkWriter.Write(sample);
                     output.WriteLine(System.Text.Json.JsonSerializer.Serialize(sample));
                 }
@@ -391,10 +467,19 @@ public sealed partial class TradeSelectionRuntimeTests
                         .Select(x => x.TraceId).Append(traceRun.TraceId).ToHashSet();
                     foreach (var span in spans.Where(x => traceIds.Contains(x.TraceId)).OrderBy(x => x.StartTimeUtc))
                     {
-                        var row = new { RecordType = "span", RunId = benchmarkWriter?.RunId, measurement.SampleId,
-                            Operation = span.OperationName, TraceId = span.TraceId.ToString(),
-                            SpanId = span.SpanId.ToString(), ParentSpanId = span.ParentSpanId.ToString(), span.StartTimeUtc,
-                            Milliseconds = span.Duration.TotalMilliseconds, Tags = span.TagObjects.ToDictionary(x => x.Key, x => x.Value) };
+                        var row = new
+                        {
+                            RecordType = "span",
+                            RunId = benchmarkWriter?.RunId,
+                            measurement.SampleId,
+                            Operation = span.OperationName,
+                            TraceId = span.TraceId.ToString(),
+                            SpanId = span.SpanId.ToString(),
+                            ParentSpanId = span.ParentSpanId.ToString(),
+                            span.StartTimeUtc,
+                            Milliseconds = span.Duration.TotalMilliseconds,
+                            Tags = span.TagObjects.ToDictionary(x => x.Key, x => x.Value)
+                        };
                         if (benchmarkWriter is null) output.WriteLine(System.Text.Json.JsonSerializer.Serialize(row));
                         else benchmarkWriter.Write(row);
                     }
@@ -416,8 +501,13 @@ public sealed partial class TradeSelectionRuntimeTests
             var at = DateTimeOffset.UtcNow;
             var snapshot = CompositionSnapshotAdapter.To(CompositionFixture.Snapshot(binding, at));
             var until = new DateTimeOffset(new[] { at.AddSeconds(30).UtcDateTime, view.CompositionHandoff!.Request.ExpiresAtUtc }.Min());
-            snapshot = snapshot with { ValidUntilUtc = until, Digest = "", Instruments = snapshot.Instruments.Select(x => x.Instrument.Pricing is null ? x : x with
-                { Instrument = x.Instrument with { Pricing = x.Instrument.Pricing with { ValidUntilUtc = until, MaximumQuoteAgeMilliseconds = 5000 } } }).ToImmutableArray() };
+            snapshot = snapshot with
+            {
+                ValidUntilUtc = until,
+                Digest = "",
+                Instruments = snapshot.Instruments.Select(x => x.Instrument.Pricing is null ? x : x with
+                { Instrument = x.Instrument with { Pricing = x.Instrument.Pricing with { ValidUntilUtc = until, MaximumQuoteAgeMilliseconds = 5000 } } }).ToImmutableArray()
+            };
             snapshot = snapshot with { Digest = PricingSemanticHash.Compute(snapshot) };
             var request = new CompositionSnapshotRequest(snapshot.SnapshotId, snapshot.ScopeId, snapshot.Horizon, snapshot.GenerationId, at, snapshot.ValidUntilUtc, binding.BuilderCode != "Future");
             var prepared = new CompositionPreparation(2, key, "GLBX.MDP3", request, snapshot, at, "");

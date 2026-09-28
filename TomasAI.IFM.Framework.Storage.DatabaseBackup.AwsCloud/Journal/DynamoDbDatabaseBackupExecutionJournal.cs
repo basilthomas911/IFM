@@ -142,9 +142,13 @@ public sealed class DynamoDbDatabaseBackupExecutionJournal(
                 UpdateExpression = "SET lease_host_id=:host, lease_expires_ms=:expires, fencing_token=if_not_exists(fencing_token,:zero)+:one, state_version=if_not_exists(state_version,:zero)+:one, updated_utc=:updated",
                 ExpressionAttributeValues = new()
                 {
-                    [":false"] = Flag(false), [":now"] = Number(now.ToUnixTimeMilliseconds()),
-                    [":host"] = Text(hostId.Value), [":expires"] = Number(expires.ToUnixTimeMilliseconds()),
-                    [":zero"] = Number(0), [":one"] = Number(1), [":updated"] = Text(Format(now))
+                    [":false"] = Flag(false),
+                    [":now"] = Number(now.ToUnixTimeMilliseconds()),
+                    [":host"] = Text(hostId.Value),
+                    [":expires"] = Number(expires.ToUnixTimeMilliseconds()),
+                    [":zero"] = Number(0),
+                    [":one"] = Number(1),
+                    [":updated"] = Text(Format(now))
                 },
                 ReturnValues = ReturnValue.ALL_NEW
             }, cancellationToken).ConfigureAwait(false);
@@ -170,9 +174,12 @@ public sealed class DynamoDbDatabaseBackupExecutionJournal(
                 UpdateExpression = "SET lease_expires_ms=:expires, state_version=state_version+:one, updated_utc=:updated",
                 ExpressionAttributeValues = new()
                 {
-                    [":false"] = Flag(false), [":host"] = Text(lease.HostId.Value), [":token"] = Number(lease.FencingToken),
+                    [":false"] = Flag(false),
+                    [":host"] = Text(lease.HostId.Value),
+                    [":token"] = Number(lease.FencingToken),
                     [":expires"] = Number(now.Add(lease.LeaseDuration).ToUnixTimeMilliseconds()),
-                    [":one"] = Number(1), [":updated"] = Text(Format(now))
+                    [":one"] = Number(1),
+                    [":updated"] = Text(Format(now))
                 }
             }, cancellationToken).ConfigureAwait(false);
         }
@@ -190,10 +197,14 @@ public sealed class DynamoDbDatabaseBackupExecutionJournal(
         var pk = OperationKey(checkpoint.OperationId);
         var values = new Dictionary<string, AttributeValue>
         {
-            [":false"] = Flag(false), [":host"] = Text(checkpoint.HostId.Value),
-            [":token"] = Number(checkpoint.FencingToken), [":phase"] = Number((short)checkpoint.Phase),
-            [":terminal"] = Flag(checkpoint.Terminal), [":one"] = Number(1),
-            [":updated"] = Text(Format(checkpoint.ObservedUtc)), [":recoverable"] = Text(RecoverablePartition),
+            [":false"] = Flag(false),
+            [":host"] = Text(checkpoint.HostId.Value),
+            [":token"] = Number(checkpoint.FencingToken),
+            [":phase"] = Number((short)checkpoint.Phase),
+            [":terminal"] = Flag(checkpoint.Terminal),
+            [":one"] = Number(1),
+            [":updated"] = Text(Format(checkpoint.ObservedUtc)),
+            [":recoverable"] = Text(RecoverablePartition),
             [":recoverable_sort"] = Text($"{checkpoint.ObservedUtc.UtcTicks:D20}#{checkpoint.OperationId.Value:N}")
         };
         var checkpointItem = Key(pk, $"CHECKPOINT#{checkpoint.FencingToken:D20}#{(short)checkpoint.Phase:D3}");
@@ -256,13 +267,17 @@ public sealed class DynamoDbDatabaseBackupExecutionJournal(
         var sequence = envelope.Event.Source.SourceRevisionOrSequence;
         var writes = new List<TransactWriteItem> { Put(item, "attribute_not_exists(PK) AND attribute_not_exists(SK)") };
         if (sequence > ReadLong(operation, "last_service_sequence"))
-            writes.Add(new TransactWriteItem { Update = new Update
+            writes.Add(new TransactWriteItem
             {
-                TableName = _tableName, Key = Key(pk, "OP"),
-                ConditionExpression = "last_service_sequence < :sequence",
-                UpdateExpression = "SET last_service_sequence=:sequence, state_version=state_version+:one, updated_utc=:updated",
-                ExpressionAttributeValues = new() { [":sequence"] = Number(sequence), [":one"] = Number(1), [":updated"] = Text(Format(timeProvider.GetUtcNow())) }
-            }});
+                Update = new Update
+                {
+                    TableName = _tableName,
+                    Key = Key(pk, "OP"),
+                    ConditionExpression = "last_service_sequence < :sequence",
+                    UpdateExpression = "SET last_service_sequence=:sequence, state_version=state_version+:one, updated_utc=:updated",
+                    ExpressionAttributeValues = new() { [":sequence"] = Number(sequence), [":one"] = Number(1), [":updated"] = Text(Format(timeProvider.GetUtcNow())) }
+                }
+            });
         try
         {
             await dynamoDb.TransactWriteItemsAsync(new TransactWriteItemsRequest { TransactItems = writes }, cancellationToken).ConfigureAwait(false);
@@ -314,12 +329,16 @@ public sealed class DynamoDbDatabaseBackupExecutionJournal(
         {
             await dynamoDb.UpdateItemAsync(new UpdateItemRequest
             {
-                TableName = _tableName, Key = key,
+                TableName = _tableName,
+                Key = key,
                 ConditionExpression = "published=:false",
                 UpdateExpression = "SET published=:true, published_utc=:published, publish_attempts=publish_attempts+:one REMOVE GSI1PK, GSI1SK",
                 ExpressionAttributeValues = new()
                 {
-                    [":false"] = Flag(false), [":true"] = Flag(true), [":published"] = Text(Format(publishedUtc)), [":one"] = Number(1)
+                    [":false"] = Flag(false),
+                    [":true"] = Flag(true),
+                    [":published"] = Text(Format(publishedUtc)),
+                    [":one"] = Number(1)
                 }
             }, cancellationToken).ConfigureAwait(false);
         }
@@ -369,7 +388,8 @@ public sealed class DynamoDbDatabaseBackupExecutionJournal(
             {
                 await dynamoDb.PutItemAsync(new PutItemRequest
                 {
-                    TableName = _tableName, Item = item,
+                    TableName = _tableName,
+                    Item = item,
                     ConditionExpression = previous == 0 ? "attribute_not_exists(PK)" : "state_version=:version",
                     ExpressionAttributeValues = previous == 0 ? null : new() { [":version"] = Number(ReadLong(existing, "state_version")) }
                 }, cancellationToken).ConfigureAwait(false);
@@ -397,8 +417,12 @@ public sealed class DynamoDbDatabaseBackupExecutionJournal(
         var item = CreateInbox(key, intent, hash, timeProvider.GetUtcNow());
         try
         {
-            await dynamoDb.PutItemAsync(new PutItemRequest { TableName = _tableName, Item = item,
-                ConditionExpression = "attribute_not_exists(PK) AND attribute_not_exists(SK)" }, cancellationToken).ConfigureAwait(false);
+            await dynamoDb.PutItemAsync(new PutItemRequest
+            {
+                TableName = _tableName,
+                Item = item,
+                ConditionExpression = "attribute_not_exists(PK) AND attribute_not_exists(SK)"
+            }, cancellationToken).ConfigureAwait(false);
         }
         catch (ConditionalCheckFailedException)
         {
@@ -410,7 +434,9 @@ public sealed class DynamoDbDatabaseBackupExecutionJournal(
     async Task<Dictionary<string, AttributeValue>> GetAsync(Dictionary<string, AttributeValue> key, CancellationToken cancellationToken)
         => (await dynamoDb.GetItemAsync(new GetItemRequest
         {
-            TableName = _tableName, Key = key, ConsistentRead = true
+            TableName = _tableName,
+            Key = key,
+            ConsistentRead = true
         }, cancellationToken).ConfigureAwait(false)).Item ?? [];
 
     async Task<List<Dictionary<string, AttributeValue>>> ReadWorkQueueAsync(
@@ -422,10 +448,12 @@ public sealed class DynamoDbDatabaseBackupExecutionJournal(
         {
             var response = await dynamoDb.QueryAsync(new QueryRequest
             {
-                TableName = _tableName, IndexName = "WorkQueueIndex",
+                TableName = _tableName,
+                IndexName = "WorkQueueIndex",
                 KeyConditionExpression = "GSI1PK=:partition",
                 ExpressionAttributeValues = new() { [":partition"] = Text(partition) },
-                ExclusiveStartKey = start, ScanIndexForward = true,
+                ExclusiveStartKey = start,
+                ScanIndexForward = true,
                 Limit = maximumCount == int.MaxValue ? 100 : Math.Min(100, maximumCount - keys.Count)
             }, cancellationToken).ConfigureAwait(false);
             if (response.Items is not null)

@@ -367,52 +367,52 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
             Requests.Add(request);
             long ordinal = 1;
             foreach (var series in request.Series)
-            for (var date = request.StartDate; date <= request.EndDate; date = date.AddDays(1))
-            {
-                if (!calendar.IsTradingDate(date))
-                    continue;
-                var bounds = calendar.GetSession(date);
-                var observation = new FuturesTradeSessionBarReadModel
+                for (var date = request.StartDate; date <= request.EndDate; date = date.AddDays(1))
                 {
-                    MarketSeriesIdentity = series.SeriesIdentity,
-                    ObservationId = FuturesTradeSessionBarId.Create(
-                        series.SeriesIdentity,
-                        TimeFrameType.OneMinute,
-                        bounds.StartUtc.AddMinutes(1),
-                        ordinal),
-                    ContractId = "ESZ24",
-                    ValueDate = date,
-                    TimeFrame = TimeFrameType.OneMinute,
-                    IntervalStartUtc = bounds.StartUtc,
-                    IntervalEndUtc = bounds.StartUtc.AddMinutes(1),
-                    Open = 5000,
-                    High = 5010,
-                    Low = 4990,
-                    Close = 5005,
-                    Volume = 100,
-                    TradeCount = 10,
-                    PriceVolumeSum = 500_500,
-                    FirstSourceSequence = ordinal,
-                    LastSourceSequence = ordinal,
-                    FirstMarketEventUtc = bounds.StartUtc,
-                    LastMarketEventUtc = bounds.StartUtc.AddMinutes(1).AddTicks(-1),
-                    CalculatedAtUtc = bounds.EndUtc,
-                    CalculationVersion = "historical-daily-v1",
-                    IsComplete = true,
-                    IsValid = true,
-                    CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate
-                };
-                await sink.AcceptAsync(new NormalizedHistoricalBatch(
-                    request.DataLoadAttemptId,
-                    "fixture",
-                    ordinal,
-                    ordinal.ToString(),
-                    [observation],
-                    [],
-                    $"{ordinal:X64}",
-                    true), token);
-                ordinal++;
-            }
+                    if (!calendar.IsTradingDate(date))
+                        continue;
+                    var bounds = calendar.GetSession(date);
+                    var observation = new FuturesTradeSessionBarReadModel
+                    {
+                        MarketSeriesIdentity = series.SeriesIdentity,
+                        ObservationId = FuturesTradeSessionBarId.Create(
+                            series.SeriesIdentity,
+                            TimeFrameType.OneMinute,
+                            bounds.StartUtc.AddMinutes(1),
+                            ordinal),
+                        ContractId = "ESZ24",
+                        ValueDate = date,
+                        TimeFrame = TimeFrameType.OneMinute,
+                        IntervalStartUtc = bounds.StartUtc,
+                        IntervalEndUtc = bounds.StartUtc.AddMinutes(1),
+                        Open = 5000,
+                        High = 5010,
+                        Low = 4990,
+                        Close = 5005,
+                        Volume = 100,
+                        TradeCount = 10,
+                        PriceVolumeSum = 500_500,
+                        FirstSourceSequence = ordinal,
+                        LastSourceSequence = ordinal,
+                        FirstMarketEventUtc = bounds.StartUtc,
+                        LastMarketEventUtc = bounds.StartUtc.AddMinutes(1).AddTicks(-1),
+                        CalculatedAtUtc = bounds.EndUtc,
+                        CalculationVersion = "historical-daily-v1",
+                        IsComplete = true,
+                        IsValid = true,
+                        CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate
+                    };
+                    await sink.AcceptAsync(new NormalizedHistoricalBatch(
+                        request.DataLoadAttemptId,
+                        "fixture",
+                        ordinal,
+                        ordinal.ToString(),
+                        [observation],
+                        [],
+                        $"{ordinal:X64}",
+                        true), token);
+                    ordinal++;
+                }
             return new MarketDataHistoricalManifest
             {
                 ManifestId = Guid.NewGuid(),

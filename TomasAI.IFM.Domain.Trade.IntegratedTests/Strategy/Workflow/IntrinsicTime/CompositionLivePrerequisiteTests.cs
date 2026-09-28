@@ -51,8 +51,10 @@ public sealed partial class CompositionBusinessProjectionTests
         var options = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Production, "GLBX.MDP3") with { DataSource = FeedDataSourceMode.DatabentoLive };
         var forward = native.CreateLatestPriceClient(options).GetLatestPrice(new()
         {
-            Dataset = "GLBX.MDP3", Symbol = bundle.Underlying.ProviderContractName,
-            PricePolicy = LatestPricePolicy.QuoteMidpoint, FreshnessPolicy = LatestPriceFreshnessPolicy.NextObserved
+            Dataset = "GLBX.MDP3",
+            Symbol = bundle.Underlying.ProviderContractName,
+            PricePolicy = LatestPricePolicy.QuoteMidpoint,
+            FreshnessPolicy = LatestPriceFreshnessPolicy.NextObserved
         }, TimeSpan.FromSeconds(15));
         var mid = forward.SelectedPrice / 1_000_000_000m;
         var strikes = bundle.Definitions.Select(x => x.Definition.StrikePrice).Distinct().OrderBy(x => Math.Abs(x - mid)).Take(2).Order().ToArray();
@@ -71,15 +73,23 @@ public sealed partial class CompositionBusinessProjectionTests
         var manifest = desired.Set("GLBX.MDP3", valueDate, [bundle.Underlying.ToRegistration() with { OnTheRun = true, Rollover = true }]);
         var limits = new DatabentoStage3Options
         {
-            WorkerHandshakeTimeout = TimeSpan.FromSeconds(15), WorkerStartTimeout = TimeSpan.FromSeconds(30),
-            WorkerCommandTimeout = TimeSpan.FromSeconds(20), WorkerGracefulStopTimeout = TimeSpan.FromSeconds(2), WorkerForceKillTimeout = TimeSpan.FromSeconds(10)
+            WorkerHandshakeTimeout = TimeSpan.FromSeconds(15),
+            WorkerStartTimeout = TimeSpan.FromSeconds(30),
+            WorkerCommandTimeout = TimeSpan.FromSeconds(20),
+            WorkerGracefulStopTimeout = TimeSpan.FromSeconds(2),
+            WorkerForceKillTimeout = TimeSpan.FromSeconds(10)
         };
         await using var workers = new DatasetWorkerProcessRecoveryService(limits, admissions, desiredSubscriptions: desired, durableIntent: fixture.Store);
         var started = await workers.StartOwnedAsync(new()
         {
             ExecutablePath = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet", "dotnet.exe"),
             PrefixArguments = [Environment.GetEnvironmentVariable("IFM_OCP_WORKER_ASSEMBLY") ?? throw new InvalidOperationException("The standalone worker output is required; a web test directory omits shared framework dependencies."), "--deployment-profile", "Production", "--data-source", "DatabentoLive"],
-            Dataset = manifest.Dataset, ValueDate = valueDate, GenerationId = Guid.NewGuid(), WorkerInstanceId = Guid.NewGuid(), Manifest = manifest, ManifestRevision = manifest.Revision
+            Dataset = manifest.Dataset,
+            ValueDate = valueDate,
+            GenerationId = Guid.NewGuid(),
+            WorkerInstanceId = Guid.NewGuid(),
+            Manifest = manifest,
+            ManifestRevision = manifest.Revision
         }, token);
         Record(new { Stage = "WorkerStarted", started.ProcessId, started.GenerationId, bundle.BundleId, plan.PlanId, mid, strikes, At = DateTimeOffset.UtcNow });
         using var http = new HttpClient(); using var treasury = new UsTreasuryCurve(http);
@@ -115,11 +125,22 @@ public sealed partial class CompositionBusinessProjectionTests
         }
         foreach (var horizon in new[] { "Daily", "Weekly", "Monthly" }) await Capture(horizon);
         var selection = new CompositionContractSelection(plan.PlanId, plan.Options.Select(x => x.ContractId).ToImmutableArray());
-        var trade = new OptionTradeReadModel { OrderId = 897231, TradeId = 1, TradeState = TradeState.OrderPlaced,
-            CompositionContracts = selection, UnderlyingContractId = bundle.Underlying.DomainContractId }
+        var trade = new OptionTradeReadModel
+        {
+            OrderId = 897231,
+            TradeId = 1,
+            TradeState = TradeState.OrderPlaced,
+            CompositionContracts = selection,
+            UnderlyingContractId = bundle.Underlying.DomainContractId
+        }
             .AddOptionLegs(selection.ContractIds.Select(x => new OptionTradeLegReadModel { ContractId = x, Quantity = 1 }).ToArray());
-        var placed = new OptionTradeOrderPlacedEvent { Id = Guid.NewGuid(), EntityId = trade.EntityId, OptionTrade = trade,
-            Subject = new(ActorType.Event, OptionTradeOrderPlacedEvent.Actor, OptionTradeOrderPlacedEvent.Verb, trade.EntityId.Format()) };
+        var placed = new OptionTradeOrderPlacedEvent
+        {
+            Id = Guid.NewGuid(),
+            EntityId = trade.EntityId,
+            OptionTrade = trade,
+            Subject = new(ActorType.Event, OptionTradeOrderPlacedEvent.Actor, OptionTradeOrderPlacedEvent.Verb, trade.EntityId.Format())
+        };
         await fixture.Append(placed, 1); await fixture.Projector().ProjectPendingAsync(token);
         using var runtime = new DurableCompositionRuntime(fixture.Store, fixture.Plans, new(fixture.Store), admissions, desired, workers, discovery,
             NullLogger<DurableCompositionRuntime>.Instance, authorityScope: fixture.Scope);
@@ -185,25 +206,55 @@ public sealed partial class CompositionBusinessProjectionTests
             if (soak.Elapsed >= nextSample)
             {
                 var health = (await workers.GetHealthAsync(TimeSpan.FromSeconds(5), token)).Single();
-                Record(new { Stage = "LiveSoakProgress", Seconds = soak.Elapsed.TotalSeconds, Samples = latencies.Count,
-                    Qualified = latencies.Count - failures.Values.Sum(), Rss = process.WorkingSet64,
-                    health.Diagnostics, At = DateTimeOffset.UtcNow });
+                Record(new
+                {
+                    Stage = "LiveSoakProgress",
+                    Seconds = soak.Elapsed.TotalSeconds,
+                    Samples = latencies.Count,
+                    Qualified = latencies.Count - failures.Values.Sum(),
+                    Rss = process.WorkingSet64,
+                    health.Diagnostics,
+                    At = DateTimeOffset.UtcNow
+                });
                 nextSample = soak.Elapsed + TimeSpan.FromSeconds(30);
             }
             await Task.Delay(250, token);
         }
         latencies.Sort();
-        Record(new { Stage = "LiveSoak", Seconds = soak.Elapsed.TotalSeconds, Samples = latencies.Count, failures,
-            P95Milliseconds = latencies[(int)(latencies.Count * .95)], P99Milliseconds = latencies[(int)(latencies.Count * .99)],
-            MinRss = rss.Min(), MaxRss = rss.Max(), FirstRss = rss[0], LastRss = rss[^1], At = DateTimeOffset.UtcNow });
+        Record(new
+        {
+            Stage = "LiveSoak",
+            Seconds = soak.Elapsed.TotalSeconds,
+            Samples = latencies.Count,
+            failures,
+            P95Milliseconds = latencies[(int)(latencies.Count * .95)],
+            P99Milliseconds = latencies[(int)(latencies.Count * .99)],
+            MinRss = rss.Min(),
+            MaxRss = rss.Max(),
+            FirstRss = rss[0],
+            LastRss = rss[^1],
+            At = DateTimeOffset.UtcNow
+        });
         Assert.True(latencies.Count > failures.Values.Sum(), "No qualified live snapshot during soak.");
-        await fixture.Append(new OptionTradePositionOpenedEvent { Id = Guid.NewGuid(), EntityId = trade.EntityId, OptionTradeId = trade.EntityId,
-            TradePositionState = TradePositionState.Opened, Subject = new(ActorType.Event, OptionTradePositionOpenedEvent.Actor,
-                OptionTradePositionOpenedEvent.Verb, trade.EntityId.Format()) }, 2);
+        await fixture.Append(new OptionTradePositionOpenedEvent
+        {
+            Id = Guid.NewGuid(),
+            EntityId = trade.EntityId,
+            OptionTradeId = trade.EntityId,
+            TradePositionState = TradePositionState.Opened,
+            Subject = new(ActorType.Event, OptionTradePositionOpenedEvent.Actor,
+                OptionTradePositionOpenedEvent.Verb, trade.EntityId.Format())
+        }, 2);
         await fixture.Projector().ProjectPendingAsync(token); await Reconcile(); await Capture("Monthly");
-        await fixture.Append(new OptionTradePositionClosedEvent { Id = Guid.NewGuid(), EntityId = trade.EntityId, OptionTradeId = trade.EntityId,
-            TradePositionState = TradePositionState.Closed, Subject = new(ActorType.Event, OptionTradePositionClosedEvent.Actor,
-                OptionTradePositionClosedEvent.Verb, trade.EntityId.Format()) }, 3);
+        await fixture.Append(new OptionTradePositionClosedEvent
+        {
+            Id = Guid.NewGuid(),
+            EntityId = trade.EntityId,
+            OptionTradeId = trade.EntityId,
+            TradePositionState = TradePositionState.Closed,
+            Subject = new(ActorType.Event, OptionTradePositionClosedEvent.Actor,
+                OptionTradePositionClosedEvent.Verb, trade.EntityId.Format())
+        }, 3);
         await fixture.Projector().ProjectPendingAsync(token); await Reconcile();
         Assert.All((await fixture.Store.ReadAsync(fixture.Scope, "GLBX.MDP3", token)).Authorities, x => Assert.Empty(x.Leases));
         var afterClose = await workers.CaptureAsync("GLBX.MDP3", new(Guid.NewGuid(), plan.PlanId, "Daily", workers.Current.Single().GenerationId,

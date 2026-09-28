@@ -41,14 +41,14 @@ public static class CompositionValidationExtensions
                 && selected.DecisionContext.VolatilityInput == c.SelectionBinding.VolatilityInput
                 && CompositionHash.Compute(selected.SelectedCandidate) == CompositionHash.Compute(c.CompositionBinding.Selected)
                 && c.AcceptedSelectionEnvelope.HasSameContent(view.TradeSelection.Result), "OC.CONTRACT.UPSTREAM_INVALID");
-            if(c.SelectionBinding.SchemaVersion==1)
+            if (c.SelectionBinding.SchemaVersion == 1)
                 Check(c.Reservation?.Order is { OrderId: > 0 } o && o.WorkflowId == c.WorkflowId.Value
                     && o.PortfolioId == selected.PortfolioId && o.FundId == selected.FundId
                     && o.TradeSelectionResultId == selected.ResultId && o.TradeSelectionResultHash == c.AcceptedSelectionEnvelope.PayloadSha256
                     && c.Reservation.Trades.Length == 1 && c.Reservation.Trades[0].OrderId == o.OrderId && c.Reservation.Trades[0].TradeId > 0,
                     "OC.CONTRACT.RESERVATION_INVALID");
             else
-                Check(c.Reservation is null && selected.PortfolioId==0 && selected.FundId==0,"OC.CONTRACT.OWNERSHIP_PREMATURE");
+                Check(c.Reservation is null && selected.PortfolioId == 0 && selected.FundId == 0, "OC.CONTRACT.OWNERSHIP_PREMATURE");
         }
         Check(c.ExpiresAtUtc > c.RequestedAtUtc && c.EvaluatedAtUtc <= c.RequestedAtUtc && c.ExpiresAtUtc <= view.ExpiresAtUtc
             && c.ExpiresAtUtc <= c.SelectionBinding.ValidUntilUtc

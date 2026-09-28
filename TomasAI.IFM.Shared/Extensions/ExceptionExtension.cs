@@ -226,9 +226,9 @@ where TFailedEvent : IErrorEvent<TEntityId>
     /// <param name="errorType">The classification of the error to be reported in the event.</param>
     /// <param name="context">The event actor context to which the error event will be sent. Cannot be null.</param>
     /// <returns>A <typeparamref name="TFailedEvent"/> instance representing the dispatched error event.</returns>
-   public static async ValueTask<TFailedEvent> SendErrorEventAsync<TFailedEvent, TEntityId>(this Exception ex, ErrorType errorType, IEventActorContext context)
-       where TFailedEvent : class, IErrorEvent<TEntityId>
-       where TEntityId : IActorEntityId
+    public static async ValueTask<TFailedEvent> SendErrorEventAsync<TFailedEvent, TEntityId>(this Exception ex, ErrorType errorType, IEventActorContext context)
+        where TFailedEvent : class, IErrorEvent<TEntityId>
+        where TEntityId : IActorEntityId
     {
         var actorName = "EventException";
         TFailedEvent errorEvent;

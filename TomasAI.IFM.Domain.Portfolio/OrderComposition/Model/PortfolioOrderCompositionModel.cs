@@ -38,7 +38,7 @@ public static class PortfolioOrderCompositionModel
         var decisions = new List<PortfolioFundOrderDecision>(book.Funds.Length);
         var orders = new List<PortfolioExecutionOrderInstruction>(book.Funds.Length);
         var effects = new List<PortfolioAcceptedCapacityEffect>(book.Funds.Length);
-        var provisional = new Dictionary<(CapacityScopeKind ScopeKind,string ScopeKey,CapacityMeasure Measure,CapacityUnit Unit),decimal>();
+        var provisional = new Dictionary<(CapacityScopeKind ScopeKind, string ScopeKey, CapacityMeasure Measure, CapacityUnit Unit), decimal>();
         foreach (var fund in book.Funds.OrderBy(value => value.FundId))
         {
             if (!fund.CanSpend)
@@ -58,7 +58,7 @@ public static class PortfolioOrderCompositionModel
                 continue;
             }
             if (deployment.MaximumRiskPerTrade > 0
-                && Math.Max(candidate.MaximumLoss,candidate.StressLoss) > deployment.MaximumRiskPerTrade)
+                && Math.Max(candidate.MaximumLoss, candidate.StressLoss) > deployment.MaximumRiskPerTrade)
             {
                 decisions.Add(new(fund.FundId, false, "MaximumRiskPerTradeExceeded", null));
                 continue;
@@ -89,10 +89,13 @@ public static class PortfolioOrderCompositionModel
             decisions.Add(new(fund.FundId, true, "Accepted", orderId));
             orders.Add(new PortfolioExecutionOrderInstruction
             {
-                Id = new(request.PortfolioId, fund.FundId, orderId), Revision = 1,
-                Status = PortfolioExecutionOrderStatus.Approved, ValueDate = candidate.ValueDate,
+                Id = new(request.PortfolioId, fund.FundId, orderId),
+                Revision = 1,
+                Status = PortfolioExecutionOrderStatus.Approved,
+                ValueDate = candidate.ValueDate,
                 PositionType = candidate.PositionType,
-                ValidUntilUtc = candidate.ValidUntilUtc, Origin = candidate.Origin,
+                ValidUntilUtc = candidate.ValidUntilUtc,
+                Origin = candidate.Origin,
                 Components = components,
                 DefinitionHash = candidate.EvidenceHash,
                 BrokerAccountAlias = candidate.BrokerAccountAlias,
@@ -118,10 +121,14 @@ public static class PortfolioOrderCompositionModel
         }
         return new()
         {
-            CompositionId = candidate.CompositionId, WorkflowId = candidate.WorkflowId,
+            CompositionId = candidate.CompositionId,
+            WorkflowId = candidate.WorkflowId,
             Status = orders.Count == 0 ? PortfolioOrderCompositionStatus.NoTradeOrders : PortfolioOrderCompositionStatus.ExecuteTradeOrders,
-            FundDecisions = [.. decisions], TradeOrders = [.. orders], FinancialRevision = nextRevision,
-            PortfolioId = request.PortfolioId, CapacityEffects = [.. effects],
+            FundDecisions = [.. decisions],
+            TradeOrders = [.. orders],
+            FinancialRevision = nextRevision,
+            PortfolioId = request.PortfolioId,
+            CapacityEffects = [.. effects],
             VolatilityEvidence = candidate.VolatilityEvidence
         };
     }
@@ -129,13 +136,13 @@ public static class PortfolioOrderCompositionModel
     static bool TryCreateCapacityEffect(int portfolioId, FinancialFundAuthority fund,
         FinancialDeploymentAuthority deployment, PortfolioOrderCandidate candidate,
         PortfolioFundFinancialSnapshot snapshot,
-        IReadOnlyDictionary<(CapacityScopeKind ScopeKind,string ScopeKey,CapacityMeasure Measure,CapacityUnit Unit),decimal> provisional,
+        IReadOnlyDictionary<(CapacityScopeKind ScopeKind, string ScopeKey, CapacityMeasure Measure, CapacityUnit Unit), decimal> provisional,
         out PortfolioAcceptedCapacityEffect? effect, out string reason)
     {
         effect = null;
         reason = string.Empty;
         var underlying = FinancialScopeKeys.Underlying(candidate.ProductSymbol, candidate.ProductExchange, candidate.ProductCurrency);
-        var expectedScopes = new Dictionary<CapacityScopeKind,string>
+        var expectedScopes = new Dictionary<CapacityScopeKind, string>
         {
             [CapacityScopeKind.Portfolio] = FinancialScopeKeys.Portfolio(portfolioId),
             [CapacityScopeKind.Fund] = FinancialScopeKeys.Fund(fund.FundId),
@@ -168,8 +175,12 @@ public static class PortfolioOrderCompositionModel
         };
         var exposures = limits.Select(limit => new CapacityExposure
         {
-            ScopeKind = limit.ScopeKind, ScopeKey = limit.ScopeKey, Measure = limit.Measure,
-            Amount = Amount(limit.Measure), Unit = limit.Unit, MethodVersion = 1
+            ScopeKind = limit.ScopeKind,
+            ScopeKey = limit.ScopeKey,
+            Measure = limit.Measure,
+            Amount = Amount(limit.Measure),
+            Unit = limit.Unit,
+            MethodVersion = 1
         }).ToArray();
         var persisted = snapshot.Usage.ToDictionary(Key, usage =>
             Math.Abs(usage.Held) + Math.Abs(usage.Working) + Math.Abs(usage.Position));
@@ -198,16 +209,19 @@ public static class PortfolioOrderCompositionModel
         }
         effect = new PortfolioAcceptedCapacityEffect
         {
-            PortfolioId = portfolioId, FundId = fund.FundId, UnderlyingScopeKey = underlying,
-            RequiredCash = candidate.RequiredCapital, Exposures = exposures
+            PortfolioId = portfolioId,
+            FundId = fund.FundId,
+            UnderlyingScopeKey = underlying,
+            RequiredCash = candidate.RequiredCapital,
+            Exposures = exposures
         };
         return true;
     }
 
-    static (CapacityScopeKind,string,CapacityMeasure,CapacityUnit) Key(CapacityExposure value)
-        => (value.ScopeKind,value.ScopeKey,value.Measure,value.Unit);
-    static (CapacityScopeKind,string,CapacityMeasure,CapacityUnit) Key(CapacityLimit value)
-        => (value.ScopeKind,value.ScopeKey,value.Measure,value.Unit);
-    static (CapacityScopeKind,string,CapacityMeasure,CapacityUnit) Key(CapacityUsed value)
-        => (value.ScopeKind,value.ScopeKey,value.Measure,value.Unit);
+    static (CapacityScopeKind, string, CapacityMeasure, CapacityUnit) Key(CapacityExposure value)
+        => (value.ScopeKind, value.ScopeKey, value.Measure, value.Unit);
+    static (CapacityScopeKind, string, CapacityMeasure, CapacityUnit) Key(CapacityLimit value)
+        => (value.ScopeKind, value.ScopeKey, value.Measure, value.Unit);
+    static (CapacityScopeKind, string, CapacityMeasure, CapacityUnit) Key(CapacityUsed value)
+        => (value.ScopeKind, value.ScopeKey, value.Measure, value.Unit);
 }

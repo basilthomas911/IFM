@@ -109,9 +109,14 @@ public sealed class TradeStrategyFamilyCatalogStore(IDbContextFactory db, ISeque
             var current = rows.Where(x => x.TradeStrategyFamilyId == target.TradeStrategyFamilyId).MaxBy(x => x.DefinitionVersion);
             if (current is null || current.DefinitionVersion != target.DefinitionVersion || current.State != TradeStrategyFamilyState.Active)
                 throw new InvalidOperationException("The strategy has changed or was removed. Reload the catalog and try again.");
-            var next = (candidate ?? current) with { TradeStrategyFamilyId = current.TradeStrategyFamilyId,
-                DefinitionVersion = checked(current.DefinitionVersion + 1), State = remove is null ? TradeStrategyFamilyState.Active : TradeStrategyFamilyState.Retired,
-                CreatedOnUtc = auditUtc, CreatedBy = principal };
+            var next = (candidate ?? current) with
+            {
+                TradeStrategyFamilyId = current.TradeStrategyFamilyId,
+                DefinitionVersion = checked(current.DefinitionVersion + 1),
+                State = remove is null ? TradeStrategyFamilyState.Active : TradeStrategyFamilyState.Retired,
+                CreatedOnUtc = auditUtc,
+                CreatedBy = principal
+            };
             if (next.Validate().Count != 0) throw new ArgumentException("Invalid family definition.");
             if (remove is null && Current(rows).Any(x => x.TradeStrategyFamilyId != next.TradeStrategyFamilyId && SameProduct(x, next)))
                 throw new InvalidOperationException("This family/strategy/product/timeframe definition already exists.");

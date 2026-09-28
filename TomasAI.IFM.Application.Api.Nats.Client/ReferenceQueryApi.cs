@@ -18,8 +18,11 @@ public class ReferenceQueryApi(IActorProducer actorProducer)
 {
     public Task<ServiceResult<LookupDefinitionReadModel[]>> GetLookupDefinitionsAsync(string groupName, CancellationToken cancellationToken = default)
     {
-        var query = new GetLookupDefinitionsQuery { GroupName = groupName,
-            Subject = new ActorSubject(ActorType.Query, GetLookupDefinitionsQuery.Actor, GetLookupDefinitionsQuery.Verb, ActorEntityId.Default.Format()) };
+        var query = new GetLookupDefinitionsQuery
+        {
+            GroupName = groupName,
+            Subject = new ActorSubject(ActorType.Query, GetLookupDefinitionsQuery.Actor, GetLookupDefinitionsQuery.Verb, ActorEntityId.Default.Format())
+        };
         return RequestAsync<GetLookupDefinitionsQuery, LookupDefinitionReadModel[]>(query.Subject, query, cancellationToken).AsTask();
     }
     public Task<ServiceResult<string>> QueryStrategyCatalogAsync(TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogQueryRequest request, CancellationToken cancellationToken = default)

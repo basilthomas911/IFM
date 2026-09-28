@@ -556,7 +556,6 @@ Against real ScyllaDB, API Server, NATS, and UI:
 | `TomasAI.IFM.Domain.MarketData.Analytics/MarketOutlookSnapshot/Query` | Strict latest durable snapshot query |
 | `TomasAI.IFM.Application.Storage` | Snapshot schema normalization, upsert/latest CQL, parameters, mapping, read/write interfaces |
 | `TomasAI.IFM.Application.Api.Server` | Actor/context/service registration and durable latest-snapshot query wiring; no component-based startup cache seeding |
-| `TomasAI.IFM.Application.Api.Client` | Durable REST query signature |
 | `TomasAI.IFM.Application.Api.Nats.Client` | Durable NATS query and insert-command APIs |
 | `TomasAI.IFM.UI.EventConsumer` | Realtime inserted-event subscription |
 | `TomasAI.IFM.UI.Net.Services` | Updated query/event service contracts |

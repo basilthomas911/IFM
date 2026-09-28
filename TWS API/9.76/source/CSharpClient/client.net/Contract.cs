@@ -193,9 +193,9 @@ namespace IBApi
             set { secId = value; }
         }
 
-         /**
-         * @brief Description of the combo legs.
-         */
+        /**
+        * @brief Description of the combo legs.
+        */
         public string ComboLegsDescription
         {
             get { return comboLegsDescription; }

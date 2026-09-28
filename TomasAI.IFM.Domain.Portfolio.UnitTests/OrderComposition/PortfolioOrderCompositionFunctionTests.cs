@@ -21,8 +21,10 @@ public sealed class PortfolioOrderCompositionFunctionTests
         var request = Request();
         var receipt = new PortfolioOrderCompositionReceipt
         {
-            CompositionId=request.Body.CompositionId, WorkflowId=request.Body.WorkflowId,
-            Status=PortfolioOrderCompositionStatus.NoTradeOrders, FinancialRevision=8
+            CompositionId = request.Body.CompositionId,
+            WorkflowId = request.Body.WorkflowId,
+            Status = PortfolioOrderCompositionStatus.NoTradeOrders,
+            FinancialRevision = 8
         };
 
         var result = new FunctionEventContext<EvaluatePortfolioOrderCompositionCommand>(
@@ -42,13 +44,17 @@ public sealed class PortfolioOrderCompositionFunctionTests
         var request = Request();
         var committed = new PortfolioOrderCompositionCompletedEvent
         {
-            Id=Guid.NewGuid(), EntityId=request.EntityId, CommandId=request.CommandId,
-            OperationId=request.OperationId, PortfolioId=request.PortfolioId, InputHash=request.InputSha256
+            Id = Guid.NewGuid(),
+            EntityId = request.EntityId,
+            CommandId = request.CommandId,
+            OperationId = request.OperationId,
+            PortfolioId = request.PortfolioId,
+            InputHash = request.InputSha256
         };
 
         var result = new FunctionEventContext<EvaluatePortfolioOrderCompositionCommand>(
             typeof(PortfolioOrderCompositionCompletedEvent), request, committed,
-            Phase:FunctionEventPhase.Replayed).Complete(new Clock(request.RequestedAtUtc));
+            Phase: FunctionEventPhase.Replayed).Complete(new Clock(request.RequestedAtUtc));
 
         result.Completed.Should().BeSameAs(committed);
     }
@@ -61,8 +67,8 @@ public sealed class PortfolioOrderCompositionFunctionTests
         var exception = new InvalidOperationException("authority revision changed", new ArgumentException("revision"));
 
         var result = new FunctionEventContext<EvaluatePortfolioOrderCompositionCommand>(
-            typeof(PortfolioOrderCompositionFailedEvent), request, Exception:exception,
-            Stage:FunctionFailureStage.Persistence).Fail(new Clock(request.RequestedAtUtc));
+            typeof(PortfolioOrderCompositionFailedEvent), request, Exception: exception,
+            Stage: FunctionFailureStage.Persistence).Fail(new Clock(request.RequestedAtUtc));
 
         result.IsFailed.Should().BeTrue();
         result.Failed!.ErrorMessage.Should().Be("authority revision changed");
@@ -88,41 +94,48 @@ public sealed class PortfolioOrderCompositionFunctionTests
         var request = Request();
         var completed = new PortfolioOrderCompositionCompletedEvent
         {
-            EntityId=request.EntityId, CommandId=request.CommandId, OperationId=request.OperationId,
-            PortfolioId=request.PortfolioId, InputHash=request.InputSha256
+            EntityId = request.EntityId,
+            CommandId = request.CommandId,
+            OperationId = request.OperationId,
+            PortfolioId = request.PortfolioId,
+            InputHash = request.InputSha256
         };
         var state = new PortfolioOrderCompositionFunctionState();
 
         state.TryComplete(completed, request).Should().BeTrue();
         state.Matches(request).Should().BeTrue();
         state.TryComplete(completed, request).Should().BeFalse();
-        state.Matches(request with { InputSha256=new('f',64) }).Should().BeFalse();
+        state.Matches(request with { InputSha256 = new('f', 64) }).Should().BeFalse();
     }
 
     static EvaluatePortfolioOrderCompositionCommand Request()
     {
-        var now = new DateTime(2026,9,12,14,0,0,DateTimeKind.Utc);
+        var now = new DateTime(2026, 9, 12, 14, 0, 0, DateTimeKind.Utc);
         var operation = Guid.NewGuid();
         return new()
         {
-            CommandId=Guid.NewGuid(), OperationId=operation, PortfolioId=12,
-            EntityId=new FinancialExecutionId(12,operation), RequestedAtUtc=now,
-            ExpiresAtUtc=now.AddMinutes(2), InputSha256=new('a',64),
-            Body=new() { CompositionId=Guid.NewGuid(), WorkflowId=Guid.NewGuid() }
+            CommandId = Guid.NewGuid(),
+            OperationId = operation,
+            PortfolioId = 12,
+            EntityId = new FinancialExecutionId(12, operation),
+            RequestedAtUtc = now,
+            ExpiresAtUtc = now.AddMinutes(2),
+            InputSha256 = new('a', 64),
+            Body = new() { CompositionId = Guid.NewGuid(), WorkflowId = Guid.NewGuid() }
         };
     }
 
     sealed class Clock(DateTime utc) : TimeProvider
     {
-        public override DateTimeOffset GetUtcNow()=>new(utc);
+        public override DateTimeOffset GetUtcNow() => new(utc);
     }
 
     sealed class Context(TimeProvider clock) : IPortfolioOrderCompositionFunctionContext
     {
-        public ActorMailboxId ActorId=>new(ActorType.Function,PortfolioOrderCompositionFunctionActor.ActorName);
-        public IContainerInstance Container=>null!;
-        public IEventSourceFunctionStateRepository<PortfolioOrderCompositionFunctionState,EvaluatePortfolioOrderCompositionCommand> StateRepository=>null!;
-        public TimeProvider TimeProvider=>clock;
-        public ILogger<PortfolioOrderCompositionFunctionActor> Logger=>NullLogger<PortfolioOrderCompositionFunctionActor>.Instance;
+        public ActorMailboxId ActorId => new(ActorType.Function, PortfolioOrderCompositionFunctionActor.ActorName);
+        public IContainerInstance Container => null!;
+        public IEventSourceFunctionStateRepository<PortfolioOrderCompositionFunctionState, EvaluatePortfolioOrderCompositionCommand> StateRepository => null!;
+        public TimeProvider TimeProvider => clock;
+        public ILogger<PortfolioOrderCompositionFunctionActor> Logger => NullLogger<PortfolioOrderCompositionFunctionActor>.Instance;
     }
 }

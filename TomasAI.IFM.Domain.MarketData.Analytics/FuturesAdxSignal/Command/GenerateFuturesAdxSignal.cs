@@ -49,7 +49,7 @@ public static class GenerateFuturesAdxSignal
     /// <param name="computeModel">When this method returns, contains the resulting futures ADX signal compute model if the operation succeeds;
     /// otherwise, contains null.</param>
     /// <returns>true if the compute model was successfully created; otherwise, false.</returns>
-    internal static bool Compute(this GenerateFuturesAdxSignalCommand e, FuturesAdxSignalReadModel? adxSignal,  IReadOnlyCollection<FuturesAdxSignalReadModel> adxSignals, out FuturesAdxSignalCompute computeModel)
+    internal static bool Compute(this GenerateFuturesAdxSignalCommand e, FuturesAdxSignalReadModel? adxSignal, IReadOnlyCollection<FuturesAdxSignalReadModel> adxSignals, out FuturesAdxSignalCompute computeModel)
         => FuturesAdxSignalCompute.Create(e.EntityId.PeriodLength, adxSignal, adxSignals, out computeModel);
 
     /// <summary>

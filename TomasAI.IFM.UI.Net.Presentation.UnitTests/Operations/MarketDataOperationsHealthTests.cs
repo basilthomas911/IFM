@@ -17,13 +17,14 @@ public sealed class MarketDataOperationsHealthTests
     {
         var backend = new TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.MarketDataOperationsHealthReadModel
         {
-            ObservedOnUtc = Now, OverallStatus = "Red",
+            ObservedOnUtc = Now,
+            OverallStatus = "Red",
             Stages = [new() { Stage = "MarketOutlookComposition", Status = "Red", Pending = 12,
                 P99Latency = TimeSpan.FromMilliseconds(500), Reason = "Injected stall" }],
             Datasets = [new() { Dataset = "GLBX.MDP3", ProcessId = 1234, ForcedTermination = true }]
         };
         using var client = new HttpClient(new Reply(_ => new HttpResponseMessage(HttpStatusCode.OK)
-            { Content = JsonContent.Create(backend) }));
+        { Content = JsonContent.Create(backend) }));
         using var query = new MarketDataOperationsHealthQueryService(client, new Uri("http://localhost/health"), timeProvider: new FixedTime());
         var result = await query.GetAsync();
         Assert.True(result.IsSuccess);
@@ -60,8 +61,11 @@ public sealed class MarketDataOperationsHealthTests
     {
         Assert.False((await Read(new() { ObservedOnUtc = Now, SchemaVersion = 2 })).IsSuccess);
         Assert.False((await Read(new() { ObservedOnUtc = Now, Stages = [null!] })).IsSuccess);
-        Assert.False((await Read(new() { ObservedOnUtc = Now,
-            Datasets = Enumerable.Range(0, 17).Select(_ => new MarketDataDatasetHealthSnapshot()).ToArray() })).IsSuccess);
+        Assert.False((await Read(new()
+        {
+            ObservedOnUtc = Now,
+            Datasets = Enumerable.Range(0, 17).Select(_ => new MarketDataDatasetHealthSnapshot()).ToArray()
+        })).IsSuccess);
         Assert.False((await Read(new() { ObservedOnUtc = Now, OverallStatus = "InventedHealthy" })).IsSuccess);
     }
 
@@ -110,7 +114,7 @@ public sealed class MarketDataOperationsHealthTests
     static async Task<UiOperationResult<MarketDataOperationsHealthSnapshot>> Read(MarketDataOperationsHealthSnapshot snapshot)
     {
         using var client = new HttpClient(new Reply(_ => new HttpResponseMessage(HttpStatusCode.OK)
-            { Content = JsonContent.Create(snapshot) }));
+        { Content = JsonContent.Create(snapshot) }));
         using var query = new MarketDataOperationsHealthQueryService(client, new Uri("http://localhost/health"), timeProvider: new FixedTime());
         return await query.GetAsync();
     }

@@ -66,30 +66,30 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
 
     static readonly IReadOnlyDictionary<Type, Func<IIntrinsicTimeStrategyWorkflowQueryContext, IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<IIntrinsicTimeStrategyWorkflowQueryContext, IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor>, IQuery, CancellationToken, ValueTask>>
-    {
-        [typeof(GetIntrinsicTimeStrategyWorkflowByIdQuery)] = static (services, context, query, cancellationToken) =>
-            ((GetIntrinsicTimeStrategyWorkflowByIdQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetIntrinsicTimeStrategyWorkflowsByIdsQuery)] = static (services, context, query, cancellationToken) =>
-            ((GetIntrinsicTimeStrategyWorkflowsByIdsQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetActiveIntrinsicTimeStrategyWorkflowQuery)] = static (services, context, query, cancellationToken) =>
-            ((GetActiveIntrinsicTimeStrategyWorkflowQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetIntrinsicTimeStrategyWorkflowStartAttemptsQuery)] = static (services, context, query, cancellationToken) =>
-            ((GetIntrinsicTimeStrategyWorkflowStartAttemptsQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetIntrinsicTimeStrategyWorkflowStageStateQuery)] = static (services, context, query, cancellationToken) =>
-            ((GetIntrinsicTimeStrategyWorkflowStageStateQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetIntrinsicTimeStrategyWorkflowTimelineQuery)] = static (services, context, query, cancellationToken) =>
-            ((GetIntrinsicTimeStrategyWorkflowTimelineQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetRecentIntrinsicTimeStrategyWorkflowsQuery)] = static (services, context, query, cancellationToken) =>
-            ((GetRecentIntrinsicTimeStrategyWorkflowsQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetCompletedIntrinsicTimeStrategyWorkflowsQuery)] = static (services, context, query, cancellationToken) =>
-            ((GetCompletedIntrinsicTimeStrategyWorkflowsQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetStoppedIntrinsicTimeStrategyWorkflowsQuery)] = static (services, context, query, cancellationToken) =>
-            ((GetStoppedIntrinsicTimeStrategyWorkflowsQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetIntrinsicTimeStrategyWorkflowObservationQuery)] = static (services, context, query, cancellationToken) =>
-            ((GetIntrinsicTimeStrategyWorkflowObservationQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetIntrinsicTimeStrategyWorkflowHistoryPageQuery)] = static (services, context, query, cancellationToken) =>
-            ((GetIntrinsicTimeStrategyWorkflowHistoryPageQuery)query).ExecuteAsync(services, context, cancellationToken)
-    };
+        {
+            [typeof(GetIntrinsicTimeStrategyWorkflowByIdQuery)] = static (services, context, query, cancellationToken) =>
+                ((GetIntrinsicTimeStrategyWorkflowByIdQuery)query).ExecuteAsync(services, context, cancellationToken),
+            [typeof(GetIntrinsicTimeStrategyWorkflowsByIdsQuery)] = static (services, context, query, cancellationToken) =>
+                ((GetIntrinsicTimeStrategyWorkflowsByIdsQuery)query).ExecuteAsync(services, context, cancellationToken),
+            [typeof(GetActiveIntrinsicTimeStrategyWorkflowQuery)] = static (services, context, query, cancellationToken) =>
+                ((GetActiveIntrinsicTimeStrategyWorkflowQuery)query).ExecuteAsync(services, context, cancellationToken),
+            [typeof(GetIntrinsicTimeStrategyWorkflowStartAttemptsQuery)] = static (services, context, query, cancellationToken) =>
+                ((GetIntrinsicTimeStrategyWorkflowStartAttemptsQuery)query).ExecuteAsync(services, context, cancellationToken),
+            [typeof(GetIntrinsicTimeStrategyWorkflowStageStateQuery)] = static (services, context, query, cancellationToken) =>
+                ((GetIntrinsicTimeStrategyWorkflowStageStateQuery)query).ExecuteAsync(services, context, cancellationToken),
+            [typeof(GetIntrinsicTimeStrategyWorkflowTimelineQuery)] = static (services, context, query, cancellationToken) =>
+                ((GetIntrinsicTimeStrategyWorkflowTimelineQuery)query).ExecuteAsync(services, context, cancellationToken),
+            [typeof(GetRecentIntrinsicTimeStrategyWorkflowsQuery)] = static (services, context, query, cancellationToken) =>
+                ((GetRecentIntrinsicTimeStrategyWorkflowsQuery)query).ExecuteAsync(services, context, cancellationToken),
+            [typeof(GetCompletedIntrinsicTimeStrategyWorkflowsQuery)] = static (services, context, query, cancellationToken) =>
+                ((GetCompletedIntrinsicTimeStrategyWorkflowsQuery)query).ExecuteAsync(services, context, cancellationToken),
+            [typeof(GetStoppedIntrinsicTimeStrategyWorkflowsQuery)] = static (services, context, query, cancellationToken) =>
+                ((GetStoppedIntrinsicTimeStrategyWorkflowsQuery)query).ExecuteAsync(services, context, cancellationToken),
+            [typeof(GetIntrinsicTimeStrategyWorkflowObservationQuery)] = static (services, context, query, cancellationToken) =>
+                ((GetIntrinsicTimeStrategyWorkflowObservationQuery)query).ExecuteAsync(services, context, cancellationToken),
+            [typeof(GetIntrinsicTimeStrategyWorkflowHistoryPageQuery)] = static (services, context, query, cancellationToken) =>
+                ((GetIntrinsicTimeStrategyWorkflowHistoryPageQuery)query).ExecuteAsync(services, context, cancellationToken)
+        };
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
         CreateQueryExceptionMap(_receiveMap.Keys, static (query, exception) =>

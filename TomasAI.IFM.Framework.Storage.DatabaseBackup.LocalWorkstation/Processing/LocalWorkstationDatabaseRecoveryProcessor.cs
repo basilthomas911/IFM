@@ -17,7 +17,8 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor
         : this(journal, postgreSql, new FakeScyllaBackupCapability(),
             new PostgreSqlOnlyDatabaseRecoveryEngineSelector(), options,
             new FakeDatabaseBackupPublicationCapability(), new FakeDatabaseRestoreSourceCapability(),
-            new FakeDatabaseRecoveryEvidenceStore(), new FakeDatabaseBackupChainPlanner()) { }
+            new FakeDatabaseRecoveryEvidenceStore(), new FakeDatabaseBackupChainPlanner())
+    { }
 
     public LocalWorkstationDatabaseRecoveryProcessor(
         IDatabaseBackupExecutionJournal journal,
@@ -27,7 +28,8 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor
         DatabaseBackupHostOptions options)
         : this(journal, postgreSql, scylla, engineSelector, options,
             new FakeDatabaseBackupPublicationCapability(), new FakeDatabaseRestoreSourceCapability(),
-            new FakeDatabaseRecoveryEvidenceStore(), new FakeDatabaseBackupChainPlanner()) { }
+            new FakeDatabaseRecoveryEvidenceStore(), new FakeDatabaseBackupChainPlanner())
+    { }
 
     public LocalWorkstationDatabaseRecoveryProcessor(
         IDatabaseBackupExecutionJournal journal,

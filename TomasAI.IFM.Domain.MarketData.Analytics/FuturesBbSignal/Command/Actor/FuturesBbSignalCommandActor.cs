@@ -56,10 +56,10 @@ public sealed class FuturesBbSignalCommandActor(ICommandActorContext<FuturesBbSi
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<FuturesBbSignalCommandActor>,
         FuturesBbSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<FuturesBbSignalCommandActor>,
         FuturesBbSignalCommandState, ServiceResult<GuidResult>>>()
-    {
-        [typeof(GenerateFuturesBbSignalCommand)] = static (command, _, state) =>
-            ((GenerateFuturesBbSignalCommand)command).Execute(state)
-    };
+        {
+            [typeof(GenerateFuturesBbSignalCommand)] = static (command, _, state) =>
+                ((GenerateFuturesBbSignalCommand)command).Execute(state)
+        };
     /// <inheritdoc />
     protected override ValueTask OnValidateAsync(ICommandActorContext<FuturesBbSignalCommandActor> context,
         ActorThreadId threadId, ICommand command) => OnValidateAsync(context, threadId, command, CancellationToken.None);
@@ -73,16 +73,16 @@ public sealed class FuturesBbSignalCommandActor(ICommandActorContext<FuturesBbSi
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
-    {
-        [typeof(GenerateFuturesBbSignalCommand)] = static command =>
         {
-            var generate = (GenerateFuturesBbSignalCommand)command;
-            return new List<ValidationError>()
-                .ValidateCommandId(generate.CommandId, generate.CommandName)
-                .ValidateEntityId(generate.EntityId, generate.CommandName)
-                .ValidateSources(generate);
-        }
-    };
+            [typeof(GenerateFuturesBbSignalCommand)] = static command =>
+            {
+                var generate = (GenerateFuturesBbSignalCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(generate.CommandId, generate.CommandName)
+                    .ValidateEntityId(generate.EntityId, generate.CommandName)
+                    .ValidateSources(generate);
+            }
+        };
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(
         ICommandActorContext<FuturesBbSignalCommandActor> context, ActorThreadId threadId, ICommand command) =>

@@ -11,11 +11,11 @@ namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function;
 public static class ConsumeCapacityReservation
 {
     /// <summary>Validates the consumption request and dispatches its candidate completion for transactional commitment.</summary>
-    public static ValueTask<FunctionResult<CapacityConsumptionCompletedEvent,CapacityConsumptionFailedEvent>> ExecuteAsync(this ConsumeCapacityReservationCommand request,ICapacityConsumptionFunctionContext context,
-        Func<FunctionEventContext<ConsumeCapacityReservationCommand>,FunctionResult<CapacityConsumptionCompletedEvent,CapacityConsumptionFailedEvent>> dispatch,CancellationToken token)
+    public static ValueTask<FunctionResult<CapacityConsumptionCompletedEvent, CapacityConsumptionFailedEvent>> ExecuteAsync(this ConsumeCapacityReservationCommand request, ICapacityConsumptionFunctionContext context,
+        Func<FunctionEventContext<ConsumeCapacityReservationCommand>, FunctionResult<CapacityConsumptionCompletedEvent, CapacityConsumptionFailedEvent>> dispatch, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        FinancialRequestValidation.Demand(request,"CapacityConsume",context.TimeProvider.GetUtcNow().UtcDateTime);
-        return ValueTask.FromResult(dispatch(new(typeof(CapacityConsumptionCompletedEvent),request,new CapacityLifecycleReceipt())));
+        FinancialRequestValidation.Demand(request, "CapacityConsume", context.TimeProvider.GetUtcNow().UtcDateTime);
+        return ValueTask.FromResult(dispatch(new(typeof(CapacityConsumptionCompletedEvent), request, new CapacityLifecycleReceipt())));
     }
 }

@@ -5,5 +5,6 @@ using TomasAI.IFM.Shared.EventSourcing;
 using NewTradeOrderId = TomasAI.IFM.Domain.Trade.Shared.TradeOrderId;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Order;
+
 [MessagePackObject]
 public sealed record CancelTradeOrderCommand : TradeOrderCommand { public const string Verb = "CancelTradeOrder"; }

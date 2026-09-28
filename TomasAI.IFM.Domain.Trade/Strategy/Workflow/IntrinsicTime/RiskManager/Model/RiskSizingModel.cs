@@ -49,7 +49,7 @@ public static class RiskSizingModel
             cancellationToken.ThrowIfCancellationRequested();
             var quote = quotes[quantity];
             var requirements = Requirements(unit, authority, quote);
-            RiskUnitModel.Require(requirements.Exposures.All(x=>limits.ContainsKey(Key(x))),"RM.AUTHORITY.LIMIT_MISSING");
+            RiskUnitModel.Require(requirements.Exposures.All(x => limits.ContainsKey(Key(x))), "RM.AUTHORITY.LIMIT_MISSING");
             decimal cash = requirements.SettlementCash + requirements.MarginFunding + requirements.FeeReserve + requirements.VariationReserve;
             bool fits = true;
             var checks = ImmutableArray.CreateBuilder<RiskLimitCheck>();
@@ -78,14 +78,18 @@ public static class RiskSizingModel
         RiskUnitModel.Require(quantity is > 0 and <= 100, "RM.QUANTITY.INVALID");
         var result = new CapacityRequirements
         {
-            Currency = "USD", SettlementCash = RiskUnitModel.CeilingMoney(unit.SettlementCash * quantity),
-            MarginFunding = RiskUnitModel.CeilingMoney(quote.MarginFunding), FeeReserve = RiskUnitModel.CeilingMoney(quote.EntryFees),
+            Currency = "USD",
+            SettlementCash = RiskUnitModel.CeilingMoney(unit.SettlementCash * quantity),
+            MarginFunding = RiskUnitModel.CeilingMoney(quote.MarginFunding),
+            FeeReserve = RiskUnitModel.CeilingMoney(quote.EntryFees),
             VariationReserve = RiskUnitModel.CeilingMoney(quote.VariationReserve),
             LossCharge = RiskUnitModel.CeilingMoney(unit.LossCharge * quantity
-                + Math.Max(0,quote.EntryFees-unit.ComposerFeeReserve*quantity)),
+                + Math.Max(0, quote.EntryFees - unit.ComposerFeeReserve * quantity)),
             MarginRequirement = RiskUnitModel.CeilingMoney(quote.MarginRequirement),
             GrossNotional = RiskUnitModel.CeilingMoney(unit.GrossNotional * quantity),
-            GrossContracts = checked(unit.GrossContracts * quantity), PositionSlots = 1, AccountingMethodVersion = 1
+            GrossContracts = checked(unit.GrossContracts * quantity),
+            PositionSlots = 1,
+            AccountingMethodVersion = 1
         };
         var values = new List<CapacityExposure>();
         Add(CapacityScopeKind.Portfolio, FinancialScopeKeys.Portfolio(authority.PortfolioId), false);

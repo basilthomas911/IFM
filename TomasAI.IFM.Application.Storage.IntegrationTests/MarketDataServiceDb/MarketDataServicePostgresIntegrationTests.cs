@@ -159,15 +159,20 @@ public sealed class MarketDataServicePostgresIntegrationTests(MarketDataServiceP
     {
         var snapshot = new DatasetIncidentSnapshot
         {
-            Dataset = "GLBX.MDP3", ValueDate = new(2026, 9, 4),
-            IncidentId = Guid.NewGuid(), GenerationId = Guid.NewGuid(), IsOpen = true,
-            CooperativeAttempts = 2, UnhealthyDuration = TimeSpan.FromMinutes(2),
+            Dataset = "GLBX.MDP3",
+            ValueDate = new(2026, 9, 4),
+            IncidentId = Guid.NewGuid(),
+            GenerationId = Guid.NewGuid(),
+            IsOpen = true,
+            CooperativeAttempts = 2,
+            UnhealthyDuration = TimeSpan.FromMinutes(2),
             PolicySession = TomasAI.IFM.Domain.MarketData.Shared.FuturesMarketState.LiveTrading,
             PolicyUnhealthyDuration = TimeSpan.FromMinutes(1),
             ReplacementBackoffRemaining = TimeSpan.FromSeconds(30),
             ReplacementFailureAges = [TimeSpan.FromSeconds(6), TimeSpan.Zero],
             FailureReason = DatabentoDatasetFailureReason.NativeDrainStalled,
-            LastAction = DatasetRecoveryAction.CooperativeReset, ObservedOnUtc = DateTime.UtcNow
+            LastAction = DatasetRecoveryAction.CooperativeReset,
+            ObservedOnUtc = DateTime.UtcNow
         };
         var first = await fixture.Store.PersistDatasetIncidentAsync(new(
             Guid.NewGuid(), Guid.NewGuid(), snapshot));
@@ -181,7 +186,9 @@ public sealed class MarketDataServicePostgresIntegrationTests(MarketDataServiceP
         var reopened = await fixture.Store.PersistDatasetIncidentAsync(new(
             Guid.NewGuid(), Guid.NewGuid(), snapshot with
             {
-                IncidentId = Guid.NewGuid(), IsOpen = true, CooperativeAttempts = 1
+                IncidentId = Guid.NewGuid(),
+                IsOpen = true,
+                CooperativeAttempts = 1
             }));
         reopened.RowVersion.Should().Be(3);
         (await fixture.Store.ListOpenDatasetIncidentsAsync()).Should().ContainSingle(value =>
@@ -199,23 +206,41 @@ public sealed class MarketDataServicePostgresIntegrationTests(MarketDataServiceP
         var now = DateTime.UtcNow;
         return new()
         {
-            ContractRole = role, RootSymbol = source.Symbol, ContractId = source.ContractId,
-            Description = source.Description, LocalSymbol = source.LocalSymbol, SecurityType = source.SecurityType,
-            Currency = source.Currency, Exchange = source.Exchange, Multiplier = source.Multiplier,
-            LastTradeDate = source.LastTradeDate, NextRolloverDate = source.LastTradeDate,
-            SourceContractHash = DatabentoContractAuthority.Hash(source), RowVersion = 0,
-            CreatedOnUtc = now, CreatedBy = "integration-test", UpdatedOnUtc = now, UpdatedBy = "integration-test"
+            ContractRole = role,
+            RootSymbol = source.Symbol,
+            ContractId = source.ContractId,
+            Description = source.Description,
+            LocalSymbol = source.LocalSymbol,
+            SecurityType = source.SecurityType,
+            Currency = source.Currency,
+            Exchange = source.Exchange,
+            Multiplier = source.Multiplier,
+            LastTradeDate = source.LastTradeDate,
+            NextRolloverDate = source.LastTradeDate,
+            SourceContractHash = DatabentoContractAuthority.Hash(source),
+            RowVersion = 0,
+            CreatedOnUtc = now,
+            CreatedBy = "integration-test",
+            UpdatedOnUtc = now,
+            UpdatedBy = "integration-test"
         };
     }
 
     static DatabentoWatchdogObservation Observation(DateTime observed, DatabentoMajorStatus major) => new()
     {
-        ObservationId = Guid.NewGuid(), CorrelationId = Guid.NewGuid(), ValueDate = new(2026, 9, 2),
-        ObservedOnUtc = observed, OperationReason = DatabentoOperationReason.WatchdogPoll,
-        MajorStatus = major, DisplayHealth = major == DatabentoMajorStatus.Up
+        ObservationId = Guid.NewGuid(),
+        CorrelationId = Guid.NewGuid(),
+        ValueDate = new(2026, 9, 2),
+        ObservedOnUtc = observed,
+        OperationReason = DatabentoOperationReason.WatchdogPoll,
+        MajorStatus = major,
+        DisplayHealth = major == DatabentoMajorStatus.Up
             ? DatabentoDisplayHealth.Green : DatabentoDisplayHealth.Red,
-        CoreContractsReady = major == DatabentoMajorStatus.Up, RecoveryAttempt = 0,
-        NativeBackend = "Cpp", NativeAbiVersion = 3, NativeGeneration = Guid.NewGuid(),
+        CoreContractsReady = major == DatabentoMajorStatus.Up,
+        RecoveryAttempt = 0,
+        NativeBackend = "Cpp",
+        NativeAbiVersion = 3,
+        NativeGeneration = Guid.NewGuid(),
         FailureStage = major == DatabentoMajorStatus.Up ? string.Empty : "Transport",
         FailureDetail = major == DatabentoMajorStatus.Up ? string.Empty : "injected",
         FeedStatusDetails = []

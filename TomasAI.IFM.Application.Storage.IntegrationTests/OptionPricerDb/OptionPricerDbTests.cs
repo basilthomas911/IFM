@@ -27,7 +27,7 @@ public class OptionPricerFixture : IDisposable
 {
     public OptionPricerFixture()
     {
-        SetSeqIdDatabase(); 
+        SetSeqIdDatabase();
         SetDevDatabase();
     }
 
@@ -80,7 +80,7 @@ public class OptionPricerFixture : IDisposable
 
 }
 
-public  class OptionPricerDbTests : IClassFixture<OptionPricerFixture>
+public class OptionPricerDbTests : IClassFixture<OptionPricerFixture>
 {
     public OptionPricerDbTests(OptionPricerFixture testFixture)
     {

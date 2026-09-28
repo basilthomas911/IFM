@@ -30,7 +30,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.Exceptions
         /// <param name="command"></param>
         /// <param name="ex"></param>
         /// <returns></returns>
-        public IErrorEvent ToErrorEvent(ICommand command, Exception? ex = null)=> new YieldCurveRateAddedFailEvent
+        public IErrorEvent ToErrorEvent(ICommand command, Exception? ex = null) => new YieldCurveRateAddedFailEvent
         {
             CommandId = command.CommandId,
             CommandName = command.GetType().Name,

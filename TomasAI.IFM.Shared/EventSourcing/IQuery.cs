@@ -32,5 +32,5 @@ public interface IQuery<TResult> : IQuery
 /// query.</remarks>
 public interface IQueryParameter
 {
-    public string? QueryParams { get; } 
-}   
+    public string? QueryParams { get; }
+}

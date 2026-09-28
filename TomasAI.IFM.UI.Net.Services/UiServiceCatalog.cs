@@ -31,7 +31,7 @@ public sealed class UiServiceCatalog(
     CommandResponseEventService commandResponses,
     ApplicationEventService applicationEvents,
     ApplicationQueryService applicationQueries,
-    StatusConsoleService statusConsole,    MarketDataCommandService marketDataCommands,
+    StatusConsoleService statusConsole, MarketDataCommandService marketDataCommands,
     MarketDataQueryService marketDataQueries,
     MarketDataEventService marketDataEvents,
     OptionTradeSpreadBarDataEventService spreadBarEvents,

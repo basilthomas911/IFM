@@ -19,10 +19,16 @@ public static class CompletePortfolioCloseOrderComposition
         return FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,
             PortfolioCloseOrderCompositionFailedEvent>.Complete(new()
             {
-                Id = Guid.NewGuid(), Subject = request.Subject, EntityId = request.EntityId,
-                CommandId = request.CommandId, OperationId = request.OperationId,
-                PortfolioId = request.PortfolioId, CorrelationId = request.CorrelationId,
-                CausationId = request.CausationId, CommittedAtUtc = now, ReceivedOn = now,
+                Id = Guid.NewGuid(),
+                Subject = request.Subject,
+                EntityId = request.EntityId,
+                CommandId = request.CommandId,
+                OperationId = request.OperationId,
+                PortfolioId = request.PortfolioId,
+                CorrelationId = request.CorrelationId,
+                CausationId = request.CausationId,
+                CommittedAtUtc = now,
+                ReceivedOn = now,
                 InputHash = request.InputSha256,
                 Receipt = input.Outcome as PortfolioCloseOrderCompositionReceipt ?? new(),
                 AggregateId = request.EntityId.Format()

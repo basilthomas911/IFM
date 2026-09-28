@@ -60,5 +60,5 @@ public class FuturesTickDataStateRepository(
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
         => await _eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
-    
+
 }

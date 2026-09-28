@@ -29,7 +29,7 @@ public class TradePlanUIEventConsumer(INatsEventListenerOptions options, ILogger
             {
                 await (eventVerb switch
                 {
-                    _ when eventVerb == TradePlanUpdatedEvent.Verb 
+                    _ when eventVerb == TradePlanUpdatedEvent.Verb
                         => HandleEventAsync(eventMsg.AsEvent<TradePlanUpdatedEvent>()!, eventAction),
                     _ => ValueTask.CompletedTask
                 });

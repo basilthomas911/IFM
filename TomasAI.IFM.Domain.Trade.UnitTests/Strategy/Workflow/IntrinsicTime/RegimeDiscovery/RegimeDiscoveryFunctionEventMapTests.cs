@@ -109,7 +109,8 @@ public sealed class RegimeDiscoveryFunctionEventMapTests
         if (scenario == "conflict")
             state.TryComplete(new RegimeDiscoveryPipelineCompletedEvent
             {
-                WorkflowId = command.WorkflowId, InputWorkflowRevision = command.InputWorkflowRevision,
+                WorkflowId = command.WorkflowId,
+                InputWorkflowRevision = command.InputWorkflowRevision,
                 ParameterPayloadSha256 = "different-hash"
             }, command).Should().BeTrue();
         context.StateRepository.LoadStateAsync(command, Arg.Any<CancellationToken>()).Returns(_ =>
@@ -155,8 +156,11 @@ public sealed class RegimeDiscoveryFunctionEventMapTests
 
     static RegimeDiscoveryResult Result(ExecuteRegimeDiscoveryPipelineCommand command) => new()
     {
-        ResultId = command.CommandId, WorkflowId = command.WorkflowId, EntityId = command.WorkflowEntityId,
-        ProducedAtUtc = DateTime.UtcNow, MarketDataAsOfUtc = DateTime.UtcNow,
+        ResultId = command.CommandId,
+        WorkflowId = command.WorkflowId,
+        EntityId = command.WorkflowEntityId,
+        ProducedAtUtc = DateTime.UtcNow,
+        MarketDataAsOfUtc = DateTime.UtcNow,
         Decision = new() { IsComplete = true }
     };
 }

@@ -18,7 +18,7 @@ namespace TomasAI.IFM.Shared.Util
         }
 
         public void Clear() => _signalMap.Clear();
-    
+
         public TData Filter(TData signal, int windowSize, Func<TData, double> observation)
         {
             var output = signal;

@@ -13,7 +13,8 @@ public interface IFuturesTradePlanFunctionContext : IFunctionActorContext<Future
     TimeProvider TimeProvider { get; }
     ILogger<FuturesTradePlanFunctionActor> Logger { get; }
     IEventSourceFunctionStateRepository<FuturesTradePlanFunctionState,
-        UpdateFuturesTradePlanCommand> StateRepository { get; }
+        UpdateFuturesTradePlanCommand> StateRepository
+    { get; }
 }
 
 public sealed class FuturesTradePlanFunctionContext : FunctionActorContext,

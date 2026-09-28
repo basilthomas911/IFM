@@ -46,8 +46,13 @@ public sealed class PortfolioProjectionHandlerTests
         var aggregate = new PortfolioAggregate();
         aggregate.Create(Guid.NewGuid(), new PortfolioReadModel
         {
-            PortfolioId = 101, Name = "Core", PortfolioVersion = 1,
-            OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "unit",
+            PortfolioId = 101,
+            Name = "Core",
+            PortfolioVersion = 1,
+            OperatingState = PortfolioOperatingState.Draft,
+            EffectiveFromUtc = now,
+            CreatedOnUtc = now,
+            CreatedBy = "unit",
         }, now, "unit");
         var deleted = (DraftPortfolioDeletedEvent)aggregate.DeleteDraft(Guid.NewGuid(), 1, "duplicate", now.AddMinutes(1), "unit");
         deleted = deleted with { EventId = 77, AggregateId = "101", ReceivedOn = now.AddMinutes(1) };
@@ -74,7 +79,9 @@ public sealed class PortfolioProjectionHandlerTests
         {
             Order = new() { PortfolioId = 101, FundId = 202, OrderId = 7001, WorkflowId = Guid.NewGuid(), Status = "TemplateSelected", CreatedOnUtc = now, AggregateVersion = 4 },
             Trades = [new() { PortfolioId = 101, FundId = 202, OrderId = 7001, TradeId = 8001, LegOrdinal = 1, AggregateVersion = 4 }, new() { PortfolioId = 101, FundId = 202, OrderId = 7001, TradeId = 8002, LegOrdinal = 2, AggregateVersion = 4 }],
-            AggregateVersion = 4, CommittedOnUtc = now, Disposition = ReservationDisposition.Committed,
+            AggregateVersion = 4,
+            CommittedOnUtc = now,
+            Disposition = ReservationDisposition.Committed,
         };
 
         await handler.ApplyCompositionAsync(reservation, 55, now);
@@ -160,11 +167,22 @@ public sealed class PortfolioProjectionHandlerTests
 
     static PortfolioFinancialPolicyReadModel Policy(DateTime now) => new()
     {
-        PortfolioId = 101, PolicyId = 9001, PolicyVersion = 1, Name = "Limits", OperatingState = PortfolioFinancialPolicyState.Draft,
-        CapitalBase = 1_000_000, MaximumDeployableCapital = 900_000, MaximumRiskPerTrade = 10_000,
-        MaximumAggregateRisk = 100_000, MaximumMargin = 500_000, MaximumGrossNotional = 5_000_000,
-        MaximumOpenPositions = 100, MaximumDrawdownAmount = 200_000,
+        PortfolioId = 101,
+        PolicyId = 9001,
+        PolicyVersion = 1,
+        Name = "Limits",
+        OperatingState = PortfolioFinancialPolicyState.Draft,
+        CapitalBase = 1_000_000,
+        MaximumDeployableCapital = 900_000,
+        MaximumRiskPerTrade = 10_000,
+        MaximumAggregateRisk = 100_000,
+        MaximumMargin = 500_000,
+        MaximumGrossNotional = 5_000_000,
+        MaximumOpenPositions = 100,
+        MaximumDrawdownAmount = 200_000,
         TradeFamilyLimits = [new() { TradeStrategyFamilyId = 1, DefinitionVersion = 1, Enabled = true, MaximumRiskPerTrade = 5_000, MaximumAggregateRisk = 50_000, MaximumMargin = 250_000, MaximumGrossNotional = 2_500_000, MaximumOpenPositions = 50 }],
-        EffectiveFromUtc = now.AddMinutes(-1), CreatedOnUtc = now, CreatedBy = "unit"
+        EffectiveFromUtc = now.AddMinutes(-1),
+        CreatedOnUtc = now,
+        CreatedBy = "unit"
     };
 }

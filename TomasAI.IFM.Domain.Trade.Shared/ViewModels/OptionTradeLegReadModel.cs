@@ -107,7 +107,7 @@ public record OptionTradeLegReadModel
     /// Creates a default OptionLegReadModel with zeroed metrics and empty metadata.
     /// </summary>
     public static OptionTradeLegReadModel Default(int orderId, int tradeId, string contractId, OptionType optionType, OptionLegAction optionLegAction)
-        => new (
+        => new(
             orderId: orderId,
             tradeId: tradeId,
             contractId: contractId,
@@ -124,7 +124,7 @@ public record OptionTradeLegReadModel
     /// Creates a copy of this option leg snapshot. <see cref="UpdatedOn"/> is set to <see cref="DateTime.Now"/>.
     /// </summary>
     public OptionTradeLegReadModel Copy()
-        => new (
+        => new(
             orderId: this.OrderId,
             tradeId: this.TradeId,
             contractId: this.ContractId,

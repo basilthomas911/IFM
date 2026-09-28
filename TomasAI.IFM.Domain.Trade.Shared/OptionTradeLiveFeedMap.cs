@@ -11,7 +11,7 @@ public class OptionTradeLiveFeedMap
     public OptionTradeReadModel[] this[string optionLegContractId]
         => GetOptionTradeByOptionLegContractId(optionLegContractId);
 
-    public bool Exists(OptionTradeEntityId key) 
+    public bool Exists(OptionTradeEntityId key)
         => ContainsKey(key);
 
     public void Add(OptionTradeReadModel optionTrade)

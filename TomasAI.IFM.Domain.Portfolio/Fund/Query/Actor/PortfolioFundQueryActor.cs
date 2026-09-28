@@ -50,55 +50,55 @@ public sealed class PortfolioFundQueryActor(
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
-    {
-        [GetFundQuery.Verb] = static message => message.AsQuery<GetFundQuery, FundMandateReadModel>()!,
-        [GetFundRevisionQuery.Verb] = static message => message.AsQuery<GetFundRevisionQuery, PortfolioAggregateRevision>()!,
-        [GetFundsQuery.Verb] = static message => message.AsQuery<GetFundsQuery, PortfolioPage<FundMandateReadModel>>()!,
-        [GetFundAllocationQuery.Verb] = static message => message.AsQuery<GetFundAllocationQuery, FundAllocationReadModel>()!,
-        [GetFundRiskEnvelopeQuery.Verb] = static message => message.AsQuery<GetFundRiskEnvelopeQuery, FundRiskEnvelopeReadModel>()!,
-        [GetFundTemplateAssignmentsQuery.Verb] = static message => message.AsQuery<GetFundTemplateAssignmentsQuery, FundTradeTemplateAssignmentReadModel[]>()!,
-        [ResolveForSelectionQuery.Verb] = static message => message.AsQuery<ResolveForSelectionQuery, PortfolioFundStrategySnapshot>()!,
-        [GetPortfolioFundStrategySnapshotQuery.Verb] = static message => message.AsQuery<GetPortfolioFundStrategySnapshotQuery, PortfolioFundStrategySnapshot>()!,
-        [GetFundOrderByOrderIdQuery.Verb] = static message => message.AsQuery<GetFundOrderByOrderIdQuery, FundOrderProjectionReadModel>()!,
-        [GetFundOrderTradeByTradeIdQuery.Verb] = static message => message.AsQuery<GetFundOrderTradeByTradeIdQuery, FundOrderTradeProjectionReadModel>()!,
-        [GetFundCompositionByWorkflowQuery.Verb] = static message => message.AsQuery<GetFundCompositionByWorkflowQuery, FundCompositionWorkflowProjectionReadModel[]>()!,
-        [GetFundOrdersPageQuery.Verb] = static message => message.AsQuery<GetFundOrdersPageQuery, PortfolioPage<FundOrderProjectionReadModel>>()!,
-        [GetFundOrderTradesPageQuery.Verb] = static message => message.AsQuery<GetFundOrderTradesPageQuery, PortfolioPage<FundOrderTradeProjectionReadModel>>()!,
-        [GetPortfolioFundStrategyReferenceCombinationsQuery.Verb] = static message => message.AsQuery<GetPortfolioFundStrategyReferenceCombinationsQuery, PortfolioFundStrategyReferenceCombination[]>()!,
-    };
+        {
+            [GetFundQuery.Verb] = static message => message.AsQuery<GetFundQuery, FundMandateReadModel>()!,
+            [GetFundRevisionQuery.Verb] = static message => message.AsQuery<GetFundRevisionQuery, PortfolioAggregateRevision>()!,
+            [GetFundsQuery.Verb] = static message => message.AsQuery<GetFundsQuery, PortfolioPage<FundMandateReadModel>>()!,
+            [GetFundAllocationQuery.Verb] = static message => message.AsQuery<GetFundAllocationQuery, FundAllocationReadModel>()!,
+            [GetFundRiskEnvelopeQuery.Verb] = static message => message.AsQuery<GetFundRiskEnvelopeQuery, FundRiskEnvelopeReadModel>()!,
+            [GetFundTemplateAssignmentsQuery.Verb] = static message => message.AsQuery<GetFundTemplateAssignmentsQuery, FundTradeTemplateAssignmentReadModel[]>()!,
+            [ResolveForSelectionQuery.Verb] = static message => message.AsQuery<ResolveForSelectionQuery, PortfolioFundStrategySnapshot>()!,
+            [GetPortfolioFundStrategySnapshotQuery.Verb] = static message => message.AsQuery<GetPortfolioFundStrategySnapshotQuery, PortfolioFundStrategySnapshot>()!,
+            [GetFundOrderByOrderIdQuery.Verb] = static message => message.AsQuery<GetFundOrderByOrderIdQuery, FundOrderProjectionReadModel>()!,
+            [GetFundOrderTradeByTradeIdQuery.Verb] = static message => message.AsQuery<GetFundOrderTradeByTradeIdQuery, FundOrderTradeProjectionReadModel>()!,
+            [GetFundCompositionByWorkflowQuery.Verb] = static message => message.AsQuery<GetFundCompositionByWorkflowQuery, FundCompositionWorkflowProjectionReadModel[]>()!,
+            [GetFundOrdersPageQuery.Verb] = static message => message.AsQuery<GetFundOrdersPageQuery, PortfolioPage<FundOrderProjectionReadModel>>()!,
+            [GetFundOrderTradesPageQuery.Verb] = static message => message.AsQuery<GetFundOrderTradesPageQuery, PortfolioPage<FundOrderTradeProjectionReadModel>>()!,
+            [GetPortfolioFundStrategyReferenceCombinationsQuery.Verb] = static message => message.AsQuery<GetPortfolioFundStrategyReferenceCombinationsQuery, PortfolioFundStrategyReferenceCombination[]>()!,
+        };
 
     static readonly IReadOnlyDictionary<Type, Func<PortfolioQueryParameters, IQueryActorContext<PortfolioFundQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<PortfolioQueryParameters, IQueryActorContext<PortfolioFundQueryActor>, IQuery, CancellationToken, ValueTask>>
-    {
-        [typeof(GetFundQuery)] = static (parameters, context, query, token) =>
-            ((GetFundQuery)query).ExecuteAsync(context, parameters, token),
-        [typeof(GetFundRevisionQuery)] = static (parameters, context, query, token) =>
-            ((GetFundRevisionQuery)query).ExecuteAsync(context, parameters, token),
-        [typeof(GetFundsQuery)] = static (parameters, context, query, token) =>
-            ((GetFundsQuery)query).ExecuteAsync(context, parameters, token),
-        [typeof(GetFundAllocationQuery)] = static (parameters, context, query, token) =>
-            ((GetFundAllocationQuery)query).ExecuteAsync(context, parameters, token),
-        [typeof(GetFundRiskEnvelopeQuery)] = static (parameters, context, query, token) =>
-            ((GetFundRiskEnvelopeQuery)query).ExecuteAsync(context, parameters, token),
-        [typeof(GetFundTemplateAssignmentsQuery)] = static (parameters, context, query, token) =>
-            ((GetFundTemplateAssignmentsQuery)query).ExecuteAsync(context, parameters, token),
-        [typeof(ResolveForSelectionQuery)] = static (parameters, context, query, token) =>
-            ((ResolveForSelectionQuery)query).ExecuteAsync(context, parameters, token),
-        [typeof(GetPortfolioFundStrategySnapshotQuery)] = static (parameters, context, query, token) =>
-            ((GetPortfolioFundStrategySnapshotQuery)query).ExecuteAsync(context, parameters, token),
-        [typeof(GetFundOrderByOrderIdQuery)] = static (parameters, context, query, token) =>
-            ((GetFundOrderByOrderIdQuery)query).ExecuteAsync(context, parameters, token),
-        [typeof(GetFundOrderTradeByTradeIdQuery)] = static (parameters, context, query, token) =>
-            ((GetFundOrderTradeByTradeIdQuery)query).ExecuteAsync(context, parameters, token),
-        [typeof(GetFundCompositionByWorkflowQuery)] = static (parameters, context, query, token) =>
-            ((GetFundCompositionByWorkflowQuery)query).ExecuteAsync(context, parameters, token),
-        [typeof(GetFundOrdersPageQuery)] = static (parameters, context, query, token) =>
-            ((GetFundOrdersPageQuery)query).ExecuteAsync(context, parameters, token),
-        [typeof(GetFundOrderTradesPageQuery)] = static (parameters, context, query, token) =>
-            ((GetFundOrderTradesPageQuery)query).ExecuteAsync(context, parameters, token),
-        [typeof(GetPortfolioFundStrategyReferenceCombinationsQuery)] = static (parameters, context, query, token) =>
-            ((GetPortfolioFundStrategyReferenceCombinationsQuery)query).ExecuteAsync(context, parameters, token),
-    };
+        {
+            [typeof(GetFundQuery)] = static (parameters, context, query, token) =>
+                ((GetFundQuery)query).ExecuteAsync(context, parameters, token),
+            [typeof(GetFundRevisionQuery)] = static (parameters, context, query, token) =>
+                ((GetFundRevisionQuery)query).ExecuteAsync(context, parameters, token),
+            [typeof(GetFundsQuery)] = static (parameters, context, query, token) =>
+                ((GetFundsQuery)query).ExecuteAsync(context, parameters, token),
+            [typeof(GetFundAllocationQuery)] = static (parameters, context, query, token) =>
+                ((GetFundAllocationQuery)query).ExecuteAsync(context, parameters, token),
+            [typeof(GetFundRiskEnvelopeQuery)] = static (parameters, context, query, token) =>
+                ((GetFundRiskEnvelopeQuery)query).ExecuteAsync(context, parameters, token),
+            [typeof(GetFundTemplateAssignmentsQuery)] = static (parameters, context, query, token) =>
+                ((GetFundTemplateAssignmentsQuery)query).ExecuteAsync(context, parameters, token),
+            [typeof(ResolveForSelectionQuery)] = static (parameters, context, query, token) =>
+                ((ResolveForSelectionQuery)query).ExecuteAsync(context, parameters, token),
+            [typeof(GetPortfolioFundStrategySnapshotQuery)] = static (parameters, context, query, token) =>
+                ((GetPortfolioFundStrategySnapshotQuery)query).ExecuteAsync(context, parameters, token),
+            [typeof(GetFundOrderByOrderIdQuery)] = static (parameters, context, query, token) =>
+                ((GetFundOrderByOrderIdQuery)query).ExecuteAsync(context, parameters, token),
+            [typeof(GetFundOrderTradeByTradeIdQuery)] = static (parameters, context, query, token) =>
+                ((GetFundOrderTradeByTradeIdQuery)query).ExecuteAsync(context, parameters, token),
+            [typeof(GetFundCompositionByWorkflowQuery)] = static (parameters, context, query, token) =>
+                ((GetFundCompositionByWorkflowQuery)query).ExecuteAsync(context, parameters, token),
+            [typeof(GetFundOrdersPageQuery)] = static (parameters, context, query, token) =>
+                ((GetFundOrdersPageQuery)query).ExecuteAsync(context, parameters, token),
+            [typeof(GetFundOrderTradesPageQuery)] = static (parameters, context, query, token) =>
+                ((GetFundOrderTradesPageQuery)query).ExecuteAsync(context, parameters, token),
+            [typeof(GetPortfolioFundStrategyReferenceCombinationsQuery)] = static (parameters, context, query, token) =>
+                ((GetPortfolioFundStrategyReferenceCombinationsQuery)query).ExecuteAsync(context, parameters, token),
+        };
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
         CreateQueryExceptionMap(_receiveMap.Keys, static (query, exception) => exception switch

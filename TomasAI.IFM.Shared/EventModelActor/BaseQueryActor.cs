@@ -529,5 +529,5 @@ public abstract class BaseQueryActor<TActor>(
         cancellationToken.ThrowIfCancellationRequested();
         return OnValidateAsync(context, query);
     }
-    protected abstract  ValueTask OnExceptionAsync(IQueryActorContext<TActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex);
+    protected abstract ValueTask OnExceptionAsync(IQueryActorContext<TActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex);
 }

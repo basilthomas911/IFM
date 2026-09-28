@@ -13,7 +13,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 /// base command members occupy keys 0�5.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
-public record RemoveTradeLiveFeedsCommand 
+public record RemoveTradeLiveFeedsCommand
     : ICommand<TradeLiveFeedsId>
 {
     public const string Actor = "MarketDataFeedCommand";

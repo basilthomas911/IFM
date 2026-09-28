@@ -39,12 +39,12 @@ namespace TomasAI.IFM.Domain.Trade.VerificationTests.Strategy.IntrinsicTime.Regi
 public sealed class RegimeDiscoveryVerificationFixture : IAsyncDisposable
 {
     public static readonly TimeSpan ScenarioTimeout = TimeSpan.FromSeconds(30);
-    readonly WebApplicationFactory<Program> factory;
+    readonly TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory;
     readonly IActorSupervisor supervisor;
     readonly IActorProducer publisher;
 
     RegimeDiscoveryVerificationFixture(
-        WebApplicationFactory<Program> factory,
+        TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory,
         IActorSupervisor supervisor,
         IActorProducer publisher,
         MarketConditionPipelineCommandProbe probe)
@@ -61,7 +61,7 @@ public sealed class RegimeDiscoveryVerificationFixture : IAsyncDisposable
 
     /// <summary>Starts the real actor host with a recording assessment repository and a held assessment calculation.</summary>
     public static async Task<RegimeDiscoveryVerificationFixture> StartAsync(
-        WebApplicationFactory<Program> source,
+        TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> source,
         Action<IServiceCollection>? configure = null)
     {
         MarketConditionPipelineCommandProbe probe = null!;
@@ -117,7 +117,8 @@ public sealed class RegimeDiscoveryVerificationFixture : IAsyncDisposable
                 parameterSet.Version,
                 DateTime.UtcNow.AddMinutes(-1));
             var assessment = MarketConditionAssessmentParameterSet.CreateDefault(profile, horizon,
-                Guid.NewGuid(), parameterSet.ParameterSetId, parameterSet.Version) with { MaximumExecutionMilliseconds = 25_000 };
+                Guid.NewGuid(), parameterSet.ParameterSetId, parameterSet.Version) with
+            { MaximumExecutionMilliseconds = 25_000 };
             await configuration.InsertMarketConditionAssessmentDraftAsync(assessment, "RDV dispatch boundary", "regime-discovery-verification");
             await configuration.PublishAsync(StrategyParameterSetKind.MarketConditionAssessment,
                 assessment.ParameterSetId, assessment.Version, DateTime.UtcNow.AddMinutes(-1));

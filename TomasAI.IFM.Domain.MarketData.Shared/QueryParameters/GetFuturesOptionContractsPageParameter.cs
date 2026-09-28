@@ -12,7 +12,8 @@ public sealed record GetFuturesOptionContractsPageParameter : IActorEntityId, IQ
     [Key(0)] public string Symbol { get; init; } = string.Empty;
     [Key(1)] public int PageSize { get; init; } = DefaultPageSize;
     [Key(2)] public string? ContinuationToken { get; init; }
-    [IgnoreMember] public string QueryParams =>
+    [IgnoreMember]
+    public string QueryParams =>
         $"symbol={Uri.EscapeDataString(Symbol)}&pageSize={PageSize}&continuationToken={Uri.EscapeDataString(ContinuationToken ?? string.Empty)}";
 
     public GetFuturesOptionContractsPageParameter() { }

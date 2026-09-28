@@ -28,8 +28,8 @@ public class OptionTradePositionClosedEventHandler : BaseEventServiceHandler,
     /// <param name="logger"></param>
     public OptionTradePositionClosedEventHandler(
         IBlackboardService blackboardService,
-        IStatusConsoleWriter statusConsoleWriter, 
-        ILogger logger) 
+        IStatusConsoleWriter statusConsoleWriter,
+        ILogger logger)
         : base(statusConsoleWriter)
     {
         _blackboardService = IsArgumentNull.Set(blackboardService);

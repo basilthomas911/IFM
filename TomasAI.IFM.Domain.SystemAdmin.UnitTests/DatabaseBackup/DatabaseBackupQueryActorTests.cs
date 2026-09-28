@@ -31,7 +31,8 @@ public sealed class DatabaseBackupQueryActorTests
         var rows = new[] { new DatabaseBackupHealthReadModel { Source = BackupSource.LocalWorkstation, Ready = true } };
         var query = new GetDatabaseBackupServiceHealthQuery
         {
-            EntityId = new DatabaseRecoveryOperationId(Guid.NewGuid()), Request = Request(),
+            EntityId = new DatabaseRecoveryOperationId(Guid.NewGuid()),
+            Request = Request(),
             Subject = new ActorSubject(ActorType.Query, DatabaseBackupQueryRoute.Actor, "GetServiceHealth", Guid.NewGuid().ToString("N"))
         };
         db.GetServiceHealthAsync(Arg.Any<GetDatabaseBackupServiceHealthQuery>(), CancellationToken.None).Returns(ValueTask.FromResult(rows));
@@ -55,7 +56,9 @@ public sealed class DatabaseBackupQueryActorTests
         var operationId = new DatabaseRecoveryOperationId(Guid.NewGuid());
         var query = new GetDatabaseBackupOperationQuery
         {
-            EntityId = operationId, OperationId = operationId, Request = Request(),
+            EntityId = operationId,
+            OperationId = operationId,
+            Request = Request(),
             Subject = new ActorSubject(ActorType.Query, DatabaseBackupQueryRoute.Actor, "GetBackupOperation", operationId.Format())
         };
         db.GetBackupOperationAsync(Arg.Any<GetDatabaseBackupOperationQuery>(), CancellationToken.None).Returns(ValueTask.FromResult<DatabaseBackupOperationReadModel?>(null));
@@ -70,8 +73,13 @@ public sealed class DatabaseBackupQueryActorTests
 
     static DatabaseRequestEnvelope Request() => new()
     {
-        RequestId = Guid.NewGuid(), CallerIdentity = "operator", AuthorizationReference = "approval",
-        CallerRoles = ["DatabaseRecoveryReader"], Origin = DatabaseRequestOrigin.UI,
-        CorrelationId = Guid.NewGuid(), EnvironmentIdentity = "paper-trading", CreatedUtc = DateTimeOffset.UtcNow
+        RequestId = Guid.NewGuid(),
+        CallerIdentity = "operator",
+        AuthorizationReference = "approval",
+        CallerRoles = ["DatabaseRecoveryReader"],
+        Origin = DatabaseRequestOrigin.UI,
+        CorrelationId = Guid.NewGuid(),
+        EnvironmentIdentity = "paper-trading",
+        CreatedUtc = DateTimeOffset.UtcNow
     };
 }

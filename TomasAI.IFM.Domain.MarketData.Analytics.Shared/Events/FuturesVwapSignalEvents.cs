@@ -32,9 +32,15 @@ public sealed record FuturesVwapSignalUpdatedEvent : IEvent<FuturesVwapSignalEnt
         (ICompleteEvent<TEntityId>)(object)new FuturesVwapSignalUpdatedCompleteEvent
         {
             Subject = new(ActorType.Event, Actor, FuturesVwapSignalUpdatedCompleteEvent.Verb, EntityId.Format()),
-            EntityId = EntityId, Id = Id, EventId = EventId, CommandId = CommandId,
-            AggregateId = AggregateId, EventSource = EventSource, ReceivedOn = ReceivedOn,
-            Checkpoint = Checkpoint, Signal = Signal
+            EntityId = EntityId,
+            Id = Id,
+            EventId = EventId,
+            CommandId = CommandId,
+            AggregateId = AggregateId,
+            EventSource = EventSource,
+            ReceivedOn = ReceivedOn,
+            Checkpoint = Checkpoint,
+            Signal = Signal
         };
 
     public IErrorEvent<TEntityId> ToFailEvent<TFail, TEntityId>(Exception exception)
@@ -91,10 +97,17 @@ public sealed record FuturesVwapSignalUpdatedFailEvent : IErrorEvent<FuturesVwap
         FuturesVwapSignalUpdatedEvent source, Exception exception) => new()
         {
             Subject = new(ActorType.Event, FuturesVwapSignalUpdatedEvent.Actor, Verb, source.EntityId.Format()),
-            EntityId = source.EntityId, Id = source.Id, ErrorDate = DateTime.UtcNow,
-            EventId = source.EventId, CommandId = source.CommandId, EventSource = source.EventSource,
-            ErrorMessage = exception.Message, ErrorCode = FuturesVwapSignalUpdatedEvent.ErrorCode,
-            ErrorType = ErrorType.Command, ErrorData = exception.ToString(), ReceivedOn = source.ReceivedOn,
+            EntityId = source.EntityId,
+            Id = source.Id,
+            ErrorDate = DateTime.UtcNow,
+            EventId = source.EventId,
+            CommandId = source.CommandId,
+            EventSource = source.EventSource,
+            ErrorMessage = exception.Message,
+            ErrorCode = FuturesVwapSignalUpdatedEvent.ErrorCode,
+            ErrorType = ErrorType.Command,
+            ErrorData = exception.ToString(),
+            ReceivedOn = source.ReceivedOn,
             AggregateId = source.AggregateId
         };
 }

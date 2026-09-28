@@ -28,11 +28,20 @@ public static class InstrumentDefinitionImport
             source.RawSymbol, "FUT", source.Currency, source.Exchange,
             source.Multiplier?.ToString(CultureInfo.InvariantCulture) ?? "", date, false)
         {
-            SchemaVersion = 1, ReviewState = ReferenceReviewState.Draft, Dataset = source.Dataset,
-            PublisherId = source.PublisherId, InstrumentId = source.InstrumentId, RawSymbol = source.RawSymbol,
-            DefinitionTimestampUtc = source.DefinitionTimestampUtc, DefinitionDigest = source.DefinitionDigest,
-            RawDefinitionReference = source.RawDefinitionReference, ExpirationUtc = source.ExpirationUtc,
-            ExchangeTimeZoneId = timeZone, MultiplierValue = source.Multiplier, PriceScale = 1m, TickSize = source.TickSize
+            SchemaVersion = 1,
+            ReviewState = ReferenceReviewState.Draft,
+            Dataset = source.Dataset,
+            PublisherId = source.PublisherId,
+            InstrumentId = source.InstrumentId,
+            RawSymbol = source.RawSymbol,
+            DefinitionTimestampUtc = source.DefinitionTimestampUtc,
+            DefinitionDigest = source.DefinitionDigest,
+            RawDefinitionReference = source.RawDefinitionReference,
+            ExpirationUtc = source.ExpirationUtc,
+            ExchangeTimeZoneId = timeZone,
+            MultiplierValue = source.Multiplier,
+            PriceScale = 1m,
+            TickSize = source.TickSize
         };
     }
 
@@ -54,14 +63,25 @@ public static class InstrumentDefinitionImport
             source.RawSymbol, underlying.Symbol, source.RawSymbol, "FOP", source.Currency, source.Exchange,
             source.Multiplier?.ToString(CultureInfo.InvariantCulture) ?? "", date, (double)strike, call ? "Call" : "Put")
         {
-            SchemaVersion = 1, ReviewState = ReferenceReviewState.Draft, StrikePriceDecimal = strike,
-            Dataset = source.Dataset, PublisherId = source.PublisherId, InstrumentId = source.InstrumentId,
-            RawSymbol = source.RawSymbol, DefinitionTimestampUtc = source.DefinitionTimestampUtc,
-            DefinitionDigest = source.DefinitionDigest, RawDefinitionReference = source.RawDefinitionReference,
-            ExpirationUtc = source.ExpirationUtc, ExchangeTimeZoneId = timeZone, MultiplierValue = source.Multiplier,
-            PriceScale = 1m, TickSize = source.TickSize, UnderlyingContractId = underlying.ContractId,
+            SchemaVersion = 1,
+            ReviewState = ReferenceReviewState.Draft,
+            StrikePriceDecimal = strike,
+            Dataset = source.Dataset,
+            PublisherId = source.PublisherId,
+            InstrumentId = source.InstrumentId,
+            RawSymbol = source.RawSymbol,
+            DefinitionTimestampUtc = source.DefinitionTimestampUtc,
+            DefinitionDigest = source.DefinitionDigest,
+            RawDefinitionReference = source.RawDefinitionReference,
+            ExpirationUtc = source.ExpirationUtc,
+            ExchangeTimeZoneId = timeZone,
+            MultiplierValue = source.Multiplier,
+            PriceScale = 1m,
+            TickSize = source.TickSize,
+            UnderlyingContractId = underlying.ContractId,
             UnderlyingAssetType = ReferenceAssetType.Futures,
-            UnderlyingInstrumentId = source.UnderlyingInstrumentId, UnderlyingPublisherId = underlying.PublisherId,
+            UnderlyingInstrumentId = source.UnderlyingInstrumentId,
+            UnderlyingPublisherId = underlying.PublisherId,
             OptionRight = call ? ReferenceOptionRight.Call : ReferenceOptionRight.Put
         };
     }

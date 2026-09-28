@@ -133,32 +133,36 @@ public class FuturesAdxSignalCommandActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
-    {
-        [typeof(StartFuturesAdxSignalCommand)] = cmd => {
-            var e = (StartFuturesAdxSignalCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName);
-        },
-        [typeof(StopFuturesAdxSignalCommand)] = cmd => {
-            var e = (StopFuturesAdxSignalCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName);
-        },
-        [typeof(GenerateFuturesAdxSignalCommand)] = cmd => {
-            var e = (GenerateFuturesAdxSignalCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesAdxSignalId(e.FuturesAdxSignalId, e.CommandName)
-                .ValidateClosedObservation(e.Observation, e.EntityId.ContractId,
-                    e.EntityId.ValueDate, e.EntityId.TimePeriod, e.CommandName, allowPriorValueDate: e.IsHistoricalSeed);
-        },
-        [typeof(GenerateFuturesAdxDailySignalCommand)] = cmd => {
-            var e = (GenerateFuturesAdxDailySignalCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesAdxSignalId(e.FuturesAdxSignalId, e.CommandName);
-        }
-    };
+        {
+            [typeof(StartFuturesAdxSignalCommand)] = cmd =>
+            {
+                var e = (StartFuturesAdxSignalCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName);
+            },
+            [typeof(StopFuturesAdxSignalCommand)] = cmd =>
+            {
+                var e = (StopFuturesAdxSignalCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName);
+            },
+            [typeof(GenerateFuturesAdxSignalCommand)] = cmd =>
+            {
+                var e = (GenerateFuturesAdxSignalCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFuturesAdxSignalId(e.FuturesAdxSignalId, e.CommandName)
+                    .ValidateClosedObservation(e.Observation, e.EntityId.ContractId,
+                        e.EntityId.ValueDate, e.EntityId.TimePeriod, e.CommandName, allowPriorValueDate: e.IsHistoricalSeed);
+            },
+            [typeof(GenerateFuturesAdxDailySignalCommand)] = cmd =>
+            {
+                var e = (GenerateFuturesAdxDailySignalCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFuturesAdxSignalId(e.FuturesAdxSignalId, e.CommandName);
+            }
+        };
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.

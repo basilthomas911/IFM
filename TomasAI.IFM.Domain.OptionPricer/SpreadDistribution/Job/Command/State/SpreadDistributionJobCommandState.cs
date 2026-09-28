@@ -66,7 +66,7 @@ public class SpreadDistributionJobCommandState
     /// <returns>Always returns <see langword="true"/>, indicating that the job status was updated.</returns>
     bool On(SpreadDistributionJobStatusUpdatedEvent e)
     {
-        _spreadDistributionJob = _spreadDistributionJob! with { JobStatus = e.JobStatus,  InProgress = false };
+        _spreadDistributionJob = _spreadDistributionJob! with { JobStatus = e.JobStatus, InProgress = false };
         return true;
     }
 

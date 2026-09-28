@@ -67,9 +67,9 @@ public record TradePlacementRangeboundEvent : IEvent
     public ICompleteEvent ToCompletedEvent() => new TradePlacementRangeboundCompleteEvent
     {
         TradePlacementId = this.TradePlacementId,
-        FuturesTradeSignal= this.FuturesTradeSignal,
+        FuturesTradeSignal = this.FuturesTradeSignal,
         CreatedOn = this.CreatedOn,
-        CreatedBy= this.CreatedBy,
+        CreatedBy = this.CreatedBy,
     };
     public IErrorEvent ToFailedEvent(Exception ex) => new TradePlacementRangeboundFailEvent
     {

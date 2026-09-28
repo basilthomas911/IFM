@@ -15,7 +15,7 @@ public static class GetTradingDates
     /// <param name="context">The query actor context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
 
-	public static ValueTask<DateOnly[]> ExecuteAsync(
+    public static ValueTask<DateOnly[]> ExecuteAsync(
         this GetTradingDatesQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)

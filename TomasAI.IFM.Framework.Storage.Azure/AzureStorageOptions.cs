@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Framework.Storage.Azure
     {
         public AzureStorageOptions()
         {
-            BackupFiles = new List<AzureStorageFile>(); 
+            BackupFiles = new List<AzureStorageFile>();
         }
 
         public string ConnectionString { get; set; } = string.Empty;
@@ -17,6 +17,6 @@ namespace TomasAI.IFM.Framework.Storage.Azure
 
         public IAzureStorageFile? GetStorageFile(string name, string backupType)
             => BackupFiles.Where(e => e.Name == name && e.BackupType == backupType).FirstOrDefault();
-        
+
     }
 }

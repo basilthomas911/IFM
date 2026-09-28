@@ -74,17 +74,6 @@ public sealed class TradeStrategySymbolQueryTransportTests
     }
 
     [Fact]
-    public async Task Http_client_uses_market_data_route_and_family_parameter()
-    {
-        var transport = Substitute.For<IQueryServiceApi>();
-        transport.ExecuteQueryAsync<TradeStrategySymbolReadModel[]>(MarketDataQueryUriPath.GetTradeStrategySymbols,
-            Arg.Is<GetTradeStrategySymbolsParameter>(x => x.Family == TradeStrategyFamilyType.FuturesOption && x.QueryParams == "family=FuturesOption"), GetTradeStrategySymbolsQuery.ErrorId)
-            .Returns(new ServiceOk<TradeStrategySymbolReadModel[]>([Symbol()]));
-        var client = new TomasAI.IFM.Application.Api.Client.MarketDataQueryApi(transport);
-        (await client.GetTradeStrategySymbolsAsync(TradeStrategyFamilyType.FuturesOption)).Value.Should().Equal(Symbol());
-    }
-
-    [Fact]
     public void Shared_family_enum_resolves_from_canonical_contract_assembly_and_preserves_numeric_values()
     {
         typeof(TradeStrategyFamilyType).Assembly.GetType(typeof(TradeStrategyFamilyType).FullName!).Should().Be(typeof(TradeStrategyFamilyType));

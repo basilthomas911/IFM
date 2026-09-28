@@ -46,8 +46,12 @@ public sealed class FundMetricsViewModel : ObservableObject, IDisposable
         Message = $"Loading metrics for Fund {fundId}...";
         try
         {
-            var scope = new FinancialReadScope { PortfolioId = portfolioId, FundId = fundId,
-                Access = new(Environment.UserName, ["LedgerRead"], [portfolioId]) };
+            var scope = new FinancialReadScope
+            {
+                PortfolioId = portfolioId,
+                FundId = fundId,
+                Access = new(Environment.UserName, ["LedgerRead"], [portfolioId])
+            };
             var rows = new List<FinancialTransactionRow>(); FinancialPageCursor? cursor = null;
             do
             {
@@ -92,6 +96,7 @@ public sealed class FundMetricsViewModel : ObservableObject, IDisposable
     {
         LedgerTransactionKind.WithdrawalSettled or LedgerTransactionKind.Commission => -Math.Abs(value.Amount),
         LedgerTransactionKind.RealizedPnl => value.Amount,
-        LedgerTransactionKind.OpeningBalance or LedgerTransactionKind.DepositConfirmed => Math.Abs(value.Amount), _ => 0m
+        LedgerTransactionKind.OpeningBalance or LedgerTransactionKind.DepositConfirmed => Math.Abs(value.Amount),
+        _ => 0m
     };
 }

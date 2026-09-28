@@ -46,7 +46,8 @@ public sealed class ClosedObservationIngressValidationTests
     {
         var observation = SampleData.AtrObservation with
         {
-            ContractId = "OTHER", ObservationId = default
+            ContractId = "OTHER",
+            ObservationId = default
         };
         var errors = new List<ValidationError>().ValidateClosedObservation(
             observation, SampleData.ContractId, observation.ValueDate,

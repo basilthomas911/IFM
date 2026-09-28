@@ -1,10 +1,11 @@
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 namespace TomasAI.IFM.Application.Storage.ConfigurationDb.ParameterSets;
+
 public static class ParameterRegistrySchemaSql
 {
- public static string Create => Tables + string.Join("\n",ParameterSchemaRegistry.Default.Definitions.Select(schema =>
-  $"INSERT INTO reference_configuration.parameter_schema_version(component_code,schema_version,codec,schema_sha256,schema_json) VALUES ('{schema.ComponentCode.Replace("'","''")}',{schema.Version},'{schema.Codec}','{schema.SchemaSha256}','{schema.JsonSchema.Replace("'","''")}'::jsonb) ON CONFLICT(component_code,schema_version) DO NOTHING;"));
- const string Tables="""
+    public static string Create => Tables + string.Join("\n", ParameterSchemaRegistry.Default.Definitions.Select(schema =>
+     $"INSERT INTO reference_configuration.parameter_schema_version(component_code,schema_version,codec,schema_sha256,schema_json) VALUES ('{schema.ComponentCode.Replace("'", "''")}',{schema.Version},'{schema.Codec}','{schema.SchemaSha256}','{schema.JsonSchema.Replace("'", "''")}'::jsonb) ON CONFLICT(component_code,schema_version) DO NOTHING;"));
+    const string Tables = """
  CREATE TABLE IF NOT EXISTS reference_configuration.parameter_area (
  area_id uuid PRIMARY KEY,code text NOT NULL UNIQUE,name text NOT NULL,enabled boolean NOT NULL DEFAULT true);
  CREATE TABLE IF NOT EXISTS reference_configuration.parameter_component (

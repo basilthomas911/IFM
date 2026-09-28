@@ -32,9 +32,18 @@ public sealed class Black76ComposerPricer : IFuturesOptionComposerPricer
             CompositionSnapshotAdapter.To(instrument.Quote), instrument.Strike.Value, instrument.IsCall.Value, at);
         if (priced.Failure is { } failure) throw new CompositionException("OC.PRICING." + failure.Code);
         var p = priced.Value ?? throw new CompositionException("OC.PRICING.GREEKS_CALCULATION_FAILED");
-        return new() { ImpliedVolatility = Normalize(p.ImpliedVolatility), Delta = Normalize(p.Delta),
-            Gamma = Normalize(p.Gamma), Theta = Normalize(p.Theta), Vega = Normalize(p.Vega), Rho = Normalize(p.Rho),
-            TheoreticalPrice = Normalize(p.TheoreticalPrice), TimeToExpiry = Normalize(p.TimeToExpiry), ContextDigest = p.ContextDigest };
+        return new()
+        {
+            ImpliedVolatility = Normalize(p.ImpliedVolatility),
+            Delta = Normalize(p.Delta),
+            Gamma = Normalize(p.Gamma),
+            Theta = Normalize(p.Theta),
+            Vega = Normalize(p.Vega),
+            Rho = Normalize(p.Rho),
+            TheoreticalPrice = Normalize(p.TheoreticalPrice),
+            TimeToExpiry = Normalize(p.TimeToExpiry),
+            ContextDigest = p.ContextDigest
+        };
     }
     public decimal Tick(CompositionMarketInstrument instrument, decimal premium, bool allocatedLeg) =>
         instrument.Pricing is { } p ? OptionPremiumTicks.GetIncrement(CompositionSnapshotAdapter.To(p.Contract), premium, allocatedLeg)

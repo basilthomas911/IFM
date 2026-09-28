@@ -53,7 +53,7 @@ public record TradeLiveFeedAddedEvent : IEvent<TradeLiveFeedId>
         DateTime receivedOn,
         int orderId,
         int tradeId,
-        TradeLiveFeedStateType tradeLiveFeedState,  
+        TradeLiveFeedStateType tradeLiveFeedState,
         DateTime addedOn,
         string addedBy)
     {
@@ -67,7 +67,7 @@ public record TradeLiveFeedAddedEvent : IEvent<TradeLiveFeedId>
         ReceivedOn = receivedOn;
         OrderId = orderId;
         TradeId = tradeId;
-        TradeLiveFeedState = tradeLiveFeedState;    
+        TradeLiveFeedState = tradeLiveFeedState;
         AddedOn = addedOn;
         AddedBy = addedBy ?? string.Empty;
     }

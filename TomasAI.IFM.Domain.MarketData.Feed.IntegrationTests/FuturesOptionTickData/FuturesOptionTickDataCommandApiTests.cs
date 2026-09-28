@@ -1,16 +1,15 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
 using FluentAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -19,13 +18,12 @@ using TomasAI.IFM.Domain.Trade.Shared.Events;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.FuturesOptionTickData;
 
-public class FuturesOptionTickDataCommandApiTests(WebApplicationFactory<Program> factory, MarketDataFeedFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataFeedFixture>
+public class FuturesOptionTickDataCommandApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory, MarketDataFeedFixture dbFixture)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<MarketDataFeedFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
-    readonly WebApplicationFactory<Program> _factory = factory;
+    readonly TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> _factory = factory;
 
     [Fact(Skip = "Legacy direct option-tick insertion is retired; TickAggregation is the sole feed-tick persistence boundary.")]
     public async Task InsertFuturesOptionTickData_Ok()
@@ -61,9 +59,7 @@ public class FuturesOptionTickDataCommandApiTests(WebApplicationFactory<Program>
         await dbFixture.MarketDataDb.DeleteFuturesOptionTickDataAsync(optionTickData.ContractId, optionTickData.ValueDate);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
+        var marketDataFeedApi = new MarketDataFeedCommandApi(_actorProducer);
         var response = await marketDataFeedApi.InsertFuturesOptionTickDataAsync(contract, optionTickData);
 
         response.Should().NotBeNull();
@@ -176,9 +172,7 @@ public class FuturesOptionTickDataCommandApiTests(WebApplicationFactory<Program>
         await dbFixture.MarketDataDb.DeleteFuturesOptionTickDataAsync(optionTickData.ContractId, optionTickData.ValueDate);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
+        var marketDataFeedApi = new MarketDataFeedCommandApi(_actorProducer);
         var response = await marketDataFeedApi.InsertFuturesOptionTickDataAsync(contract, optionTickData);
 
         response.Should().NotBeNull();
@@ -272,9 +266,7 @@ public class FuturesOptionTickDataCommandApiTests(WebApplicationFactory<Program>
         await dbFixture.MarketDataDb.DeleteFuturesOptionTickDataAsync(optionTickData.ContractId, optionTickData.ValueDate);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
+        var marketDataFeedApi = new MarketDataFeedCommandApi(_actorProducer);
         var response = await marketDataFeedApi.InsertFuturesOptionTickDataAsync(contract, optionTickData);
 
         response.Should().NotBeNull();
@@ -378,19 +370,17 @@ public class FuturesOptionTickDataCommandApiTests(WebApplicationFactory<Program>
         var optionContract = SampleData.ShortOptionContract;
         var baseContract = SampleData.FuturesContract;
         var valueDate = SampleData.ValueDate;
-        var maturityDate = new DateOnly(2025, 12, 19);
+        var maturityDate = new DateOnly(2026, 12, 18);
         var riskFreeRate = 0.05;
 
         // act...
-        _httpClientFactory.CreateClient();
+        var lifecycle = _factory.Services.GetRequiredService<IMarketDataLifecycleRequests>();
+        if (lifecycle.Current.ValueDate is { } activeValueDate)
+            await lifecycle.StopAsync(activeValueDate);
+        await lifecycle.StartAsync(valueDate);
         var applicationMarketDataApi = _factory.Services.GetRequiredService<DatabentoMarketDataApi>();
-        if (applicationMarketDataApi.ActiveValueDate is { } activeValueDate
-            && activeValueDate != valueDate)
-            await applicationMarketDataApi.StopAsync(activeValueDate);
-        await applicationMarketDataApi.StartAsync(valueDate);
         await applicationMarketDataApi.StartStreamingFuturesTickDataAsync(baseContract.ContractId);
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
+        var marketDataFeedApi = new MarketDataFeedCommandApi(_actorProducer);
         var response = await marketDataFeedApi.StartFuturesOptionTickDataStreamingAsync(entityId, optionContract, baseContract, valueDate, maturityDate, riskFreeRate);
 
         response.Should().NotBeNull();
@@ -453,7 +443,7 @@ public class FuturesOptionTickDataCommandApiTests(WebApplicationFactory<Program>
         var optionContract = SampleData.ShortOptionContract;
         var baseContract = SampleData.FuturesContract;
         var valueDate = SampleData.ValueDate;
-        var maturityDate = new DateOnly(2025, 12, 19);
+        var maturityDate = new DateOnly(2026, 12, 18);
         var riskFreeRate = 0.05;
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         FuturesOptionTickDataStreamingStartedCompleteEvent futuresOptionTickDataStreamingStartedCompleteEvent = default!;
@@ -482,15 +472,13 @@ public class FuturesOptionTickDataCommandApiTests(WebApplicationFactory<Program>
         );
 
         // act... start streaming first
-        _httpClientFactory.CreateClient();
+        var lifecycle = _factory.Services.GetRequiredService<IMarketDataLifecycleRequests>();
+        if (lifecycle.Current.ValueDate is { } activeValueDate)
+            await lifecycle.StopAsync(activeValueDate);
+        await lifecycle.StartAsync(valueDate);
         var applicationMarketDataApi = _factory.Services.GetRequiredService<DatabentoMarketDataApi>();
-        if (applicationMarketDataApi.ActiveValueDate is { } activeValueDate
-            && activeValueDate != valueDate)
-            await applicationMarketDataApi.StopAsync(activeValueDate);
-        await applicationMarketDataApi.StartAsync(valueDate);
         await applicationMarketDataApi.StartStreamingFuturesTickDataAsync(baseContract.ContractId);
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
+        var marketDataFeedApi = new MarketDataFeedCommandApi(_actorProducer);
         var startResponse = await marketDataFeedApi.StartFuturesOptionTickDataStreamingAsync(entityId, optionContract, baseContract, valueDate, maturityDate, riskFreeRate);
 
         // assert start succeeded...
@@ -503,8 +491,7 @@ public class FuturesOptionTickDataCommandApiTests(WebApplicationFactory<Program>
         futuresOptionTickDataStreamingStartedFailEvent.Should().BeNull();
 
         // act... stop streaming
-        commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
+        marketDataFeedApi = new MarketDataFeedCommandApi(_actorProducer);
         var response = await marketDataFeedApi.StopFuturesOptionTickDataStreamingAsync(entityId, optionContract.ContractId);
 
         response.Should().NotBeNull();

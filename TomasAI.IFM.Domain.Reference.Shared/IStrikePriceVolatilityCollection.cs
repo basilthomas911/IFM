@@ -13,6 +13,6 @@ namespace TomasAI.IFM.Domain.Reference.Shared
         void Add(IStrikePriceVolatility item);
         void Clear();
         void Remove(StrikePriceVolatilityId id);
-        
+
     }
 }

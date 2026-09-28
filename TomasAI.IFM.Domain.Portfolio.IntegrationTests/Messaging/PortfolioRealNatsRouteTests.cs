@@ -23,7 +23,7 @@ public sealed class PortfolioRealNatsRouteTests
     [Trait("Category", "Portfolio")]
     public async Task Typed_command_client_round_trips_over_real_NATS_with_exact_subject_and_correlation()
     {
-        var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
+        var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? DomainActorIntegrationInfrastructureFixture.NatsUrl;
         var portfolioId = Math.Abs(Guid.NewGuid().GetHashCode()) + 1000;
         var actorSubject = new ActorSubject(ActorType.Command, CreatePortfolioCommand.Actor, "CreatePortfolio", new PortfolioId(portfolioId).Format());
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));

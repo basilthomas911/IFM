@@ -17,19 +17,19 @@ public static class RiskContracts
 
     public static void ValidateResult(RiskAssessmentResult result)
     {
-        bool approved=result.Outcome==RiskAssessmentOutcome.Approved;
-        if (result.SchemaVersion!=1 || result.ResultId==Guid.Empty || result.ResultId!=result.InvocationId
-            || result.WorkflowId.Value==Guid.Empty || result.InputWorkflowRevision<=0 || result.CompositionResultId==Guid.Empty
-            || result.CompositionResultHash.Length!=64 || result.UnitCandidateHash.Length!=64 || result.InputHash.Length!=64
-            || result.PolicyHash.Length!=64 || result.PortfolioId<=0 || result.FundId<=0 || result.OrderId<=0
-            || result.Reasons.IsDefaultOrEmpty || result.ValidUntilUtc<=result.EvaluatedAtUtc
-            || result.ProducedAtUtc!=result.EvaluatedAtUtc || MessagePackBinarySerializer.MeasureContent(result)>524288
-            || (approved ? result.StrategyUnits is <=0 or >100 || result.SizedOrderHash.Length!=64
+        bool approved = result.Outcome == RiskAssessmentOutcome.Approved;
+        if (result.SchemaVersion != 1 || result.ResultId == Guid.Empty || result.ResultId != result.InvocationId
+            || result.WorkflowId.Value == Guid.Empty || result.InputWorkflowRevision <= 0 || result.CompositionResultId == Guid.Empty
+            || result.CompositionResultHash.Length != 64 || result.UnitCandidateHash.Length != 64 || result.InputHash.Length != 64
+            || result.PolicyHash.Length != 64 || result.PortfolioId <= 0 || result.FundId <= 0 || result.OrderId <= 0
+            || result.Reasons.IsDefaultOrEmpty || result.ValidUntilUtc <= result.EvaluatedAtUtc
+            || result.ProducedAtUtc != result.EvaluatedAtUtc || MessagePackBinarySerializer.MeasureContent(result) > 524288
+            || (approved ? result.StrategyUnits is <= 0 or > 100 || result.SizedOrderHash.Length != 64
                 || result.Requirements is null || result.MarginEvidence is null || result.UnitRisk is null
-                || result.Legs.Length is not (1 or 2 or 4) || result.Legs.Any(x=>x.Contracts<=0 || x.TradeId<=0 || x.Side is not ("Buy" or "Sell"))
-                || result.Requirements.ContentHash!=FinancialCanonicalHash.Requirements(result.Requirements)
-                : result.Outcome!=RiskAssessmentOutcome.Rejected || result.StrategyUnits!=0 || result.Requirements is not null
-                    || result.MarginEvidence is not null || !result.Legs.IsEmpty || result.SizedOrderHash.Length!=0))
+                || result.Legs.Length is not (1 or 2 or 4) || result.Legs.Any(x => x.Contracts <= 0 || x.TradeId <= 0 || x.Side is not ("Buy" or "Sell"))
+                || result.Requirements.ContentHash != FinancialCanonicalHash.Requirements(result.Requirements)
+                : result.Outcome != RiskAssessmentOutcome.Rejected || result.StrategyUnits != 0 || result.Requirements is not null
+                    || result.MarginEvidence is not null || !result.Legs.IsEmpty || result.SizedOrderHash.Length != 0))
             throw new ArgumentException("RM.RESULT.INVALID");
     }
 
@@ -41,7 +41,7 @@ public static class RiskContracts
             && c.WorkflowId.Value != Guid.Empty && c.CorrelationId != Guid.Empty && c.CausationId != Guid.Empty,
             "RM.INPUT.IDENTITY");
         Check(c.Subject == new ActorSubject(ActorType.Function, ExecuteRiskManagementPipelineCommand.Actor,
-            ExecuteRiskManagementPipelineCommand.Verb,c.EntityId.Format()) && c.RouteTo == BoundedContextName.RiskManagementPipelineBoundedContext,
+            ExecuteRiskManagementPipelineCommand.Verb, c.EntityId.Format()) && c.RouteTo == BoundedContextName.RiskManagementPipelineBoundedContext,
             "RM.INPUT.ROUTE");
         Check(c.RequestedAtUtc.Kind == DateTimeKind.Utc && c.EvaluatedAtUtc.Kind == DateTimeKind.Utc
             && c.ExpiresAtUtc.Kind == DateTimeKind.Utc && c.EvaluatedAtUtc <= c.RequestedAtUtc && c.RequestedAtUtc < c.ExpiresAtUtc,
@@ -52,15 +52,15 @@ public static class RiskContracts
         if (errors.Count != 0) return errors;
         Check(c.Policy!.Horizon is TimeFrameType.Daily or TimeFrameType.Weekly or TimeFrameType.Monthly
             && c.Policy.MaximumUnits is > 0 and <= 100 && c.Policy.PerTradeRiskFraction is > 0 and <= 1
-            && c.PolicyId != Guid.Empty && c.PolicyVersion > 0 && c.PolicyHash == Hash(new { c.PolicyId,c.PolicyVersion,c.Policy }),
+            && c.PolicyId != Guid.Empty && c.PolicyVersion > 0 && c.PolicyHash == Hash(new { c.PolicyId, c.PolicyVersion, c.Policy }),
             "RM.POLICY.INVALID");
         Check(c.IncrementalLossReserve >= 0 && c.Funding.Length <= 100 && c.SizingAuthority!.Limits.Length <= 256
             && c.SizingAuthority.Usage.Length <= 10000 && c.MarketSnapshot!.Instruments.Length <= 10000, "RM.INPUT.BOUNDS");
         if (errors.Count != 0) return errors;
         Check(c.RegimeResult!.RegimeResult is not null && c.RegimeResult.HasValidPayloadSha256()
             && c.MarketConditionResult!.AssessmentResult is not null && c.MarketConditionResult.HasValidPayloadSha256()
-            && c.SelectionResult!.SelectionResult is { Outcome:SelectionOutcome.Selected, SelectedCandidate:not null } && c.SelectionResult.HasValidPayloadSha256()
-            && c.CompositionResult!.CompositionResult is { Outcome:CompositionOutcome.Composed, Candidate:not null } && c.CompositionResult.HasValidPayloadSha256(),
+            && c.SelectionResult!.SelectionResult is { Outcome: SelectionOutcome.Selected, SelectedCandidate: not null } && c.SelectionResult.HasValidPayloadSha256()
+            && c.CompositionResult!.CompositionResult is { Outcome: CompositionOutcome.Composed, Candidate: not null } && c.CompositionResult.HasValidPayloadSha256(),
             "RM.INPUT.UPSTREAM");
         if (errors.Count != 0) return errors;
         var regime = c.RegimeResult!.RegimeResult!;
@@ -90,8 +90,8 @@ public static class RiskContracts
             && candidate.DeploymentKey == c.SizingAuthority.DeploymentKey && candidate.DeploymentKey == c.Authority!.DeploymentKey
             && candidate.AssignmentVersion == c.Authority.AssignmentVersion, "RM.INPUT.CATALOG_AUTHORITY");
         Check(c.Authority!.FinancialSnapshotHash.Length == 64 && c.Authority.AuthorityEpoch > 0
-            && c.Authority.PortfolioVersion>0 && c.Authority.FundMandateVersion>0 && c.Authority.PolicyId>0 && c.Authority.PolicyVersion>0
-            && c.Authority.EnvelopeId!=Guid.Empty && c.Authority.EnvelopeVersion>0 && c.Authority.AssignmentVersion>0
+            && c.Authority.PortfolioVersion > 0 && c.Authority.FundMandateVersion > 0 && c.Authority.PolicyId > 0 && c.Authority.PolicyVersion > 0
+            && c.Authority.EnvelopeId != Guid.Empty && c.Authority.EnvelopeVersion > 0 && c.Authority.AssignmentVersion > 0
             && !string.IsNullOrWhiteSpace(c.Authority.SourceWatermark) && !string.IsNullOrWhiteSpace(c.Authority.ValuationWatermark)
             && c.SizingAuthority!.EvaluatedAtUtc == c.EvaluatedAtUtc && c.SizingAuthority.ValidUntilUtc >= c.ExpiresAtUtc
             && c.Authority.ValidUntilUtc >= c.ExpiresAtUtc && candidate.ValidUntilUtc >= c.ExpiresAtUtc

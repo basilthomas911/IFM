@@ -162,7 +162,8 @@ public sealed record RegimeDiscoveryResult
     /// <summary>Gets the Market Structure specialist result.</summary>
     [Key(15)] public MarketStructureRegimeResult MarketStructure { get; init; } = new();
     /// <summary>Gets the final evidence-derived Regime Discovery decision.</summary>
-    [Key(16)] public RegimeDiscoveryDecision Decision
+    [Key(16)]
+    public RegimeDiscoveryDecision Decision
     {
         get => _decision;
         init => _decision = value ?? new();

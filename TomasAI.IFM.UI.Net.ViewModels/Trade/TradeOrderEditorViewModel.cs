@@ -44,7 +44,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     readonly BrokerEnvironment _brokerEnvironment;
     readonly AsyncLifecycleCoordinator _lifecycle;
     readonly DateOnly? _valueDate;
-    readonly IReadOnlyList<FuturesContractV3ReadModel> _baseContracts;    readonly IReferenceDataService _referenceDataService;    IReadOnlyList<PortfolioFundEditorModel> _funds = [];
+    readonly IReadOnlyList<FuturesContractV3ReadModel> _baseContracts; readonly IReferenceDataService _referenceDataService; IReadOnlyList<PortfolioFundEditorModel> _funds = [];
     IReadOnlyList<PortfolioFundOrderEditorModel> _fundOrders = [];
     IReadOnlyList<PortfolioFundOrderTradeEditorModel> _fundOrderTrades = [];
     IReadOnlyList<PortfolioReadModel> _portfolios = [];

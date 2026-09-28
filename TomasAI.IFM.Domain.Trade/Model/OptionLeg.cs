@@ -37,7 +37,7 @@ public class OptionLeg : IDataValidation, IOptionLeg
         UpdatedOn = updatedOn;
         UpdatedBy = updatedBy;
         _validator ??= new OptionLegValidator();
-       this.Validate(_validator);
+        this.Validate(_validator);
     }
 
     public int OrderId { get; private set; }
@@ -53,11 +53,11 @@ public class OptionLeg : IDataValidation, IOptionLeg
     public string UpdatedBy { get; private set; }
 
     public OptionTradeLegReadModel ToDataModel()
-        => new  (
+        => new(
             orderId: OrderId,
             tradeId: TradeId,
-            contractId:  ContractId,
-            quantity:  Quantity,
+            contractId: ContractId,
+            quantity: Quantity,
             strikePrice: StrikePrice,
             optionLegType: OptionLegType,
             optionLegAction: OptionLegAction,
@@ -88,7 +88,7 @@ public static class OptionLegReadModelExtension
         string createdBy,
         DateTime updatedOn,
         string updatedBy)
-    => new (
+    => new(
         orderId: e.OrderId,
         tradeId: e.TradeId,
         contractId: e.ContractId,

@@ -134,7 +134,7 @@ public class ServiceFailed<TResult> : ServiceResult<TResult>
     public ServiceFailed(bool success, int errorCode, string errorMessage, TResult? value)
         : base(success, errorCode, errorMessage, value) { }
 
-    public ServiceFailed( int errorCode, string errorMessage, TResult? value)
+    public ServiceFailed(int errorCode, string errorMessage, TResult? value)
         : base(false, errorCode, errorMessage, value) { }
 
     public ServiceFailed(int errorCode, string errorMessage) : base(errorCode, errorMessage) { }

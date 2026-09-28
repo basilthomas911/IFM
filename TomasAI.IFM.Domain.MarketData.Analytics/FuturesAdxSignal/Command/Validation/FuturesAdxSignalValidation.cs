@@ -19,7 +19,7 @@ public static class FuturesAdxSignalValidation
     {
         var ruleErrors = new FuturesMacdSignalIdValidationRules().Execute(futuresMacdSignalId);
         if (ruleErrors is not null)
-                validationErrors.AddRange(ruleErrors);
+            validationErrors.AddRange(ruleErrors);
         return validationErrors;
     }
 }

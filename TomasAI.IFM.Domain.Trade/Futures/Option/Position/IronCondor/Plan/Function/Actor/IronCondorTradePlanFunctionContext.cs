@@ -13,7 +13,8 @@ public interface IIronCondorTradePlanFunctionContext : IFunctionActorContext<Iro
     TimeProvider TimeProvider { get; }
     ILogger<IronCondorTradePlanFunctionActor> Logger { get; }
     IEventSourceFunctionStateRepository<IronCondorTradePlanFunctionState,
-        UpdateIronCondorTradePlanCommand> StateRepository { get; }
+        UpdateIronCondorTradePlanCommand> StateRepository
+    { get; }
 }
 
 public sealed class IronCondorTradePlanFunctionContext : FunctionActorContext,

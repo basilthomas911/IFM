@@ -117,7 +117,8 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
             {
                 var actorNode = new TreeNode($"{StatusGlyph(actor.Status)} {actor.ActorId.Name} [{actor.ActorId.ActorType}]")
                 {
-                    Name = $"actor:{actor.ActorId.ActorType}:{actor.ActorId.Name}", Tag = actor,
+                    Name = $"actor:{actor.ActorId.ActorType}:{actor.ActorId.Name}",
+                    Tag = actor,
                     ForeColor = StatusColor(actor.Status)
                 };
                 foreach (var mailbox in actor.Mailboxes.OrderBy(mailbox => mailbox.ThreadId.EntityId, StringComparer.Ordinal))
@@ -125,7 +126,8 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
                     actorNode.Nodes.Add(new TreeNode($"{StatusGlyph(MailboxStatus(mailbox))} {mailbox.ThreadId.EntityId} ({mailbox.QueueDepth} waiting)")
                     {
                         Name = $"mailbox:{actor.ActorId.ActorType}:{actor.ActorId.Name}:{mailbox.ThreadId.EntityId}",
-                        Tag = mailbox, ForeColor = StatusColor(MailboxStatus(mailbox))
+                        Tag = mailbox,
+                        ForeColor = StatusColor(MailboxStatus(mailbox))
                     });
                 }
                 domainNode.Nodes.Add(actorNode);
@@ -138,7 +140,9 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
             failuresNode.Nodes.Add(new TreeNode(
                 $"{StatusGlyph(2)} {failure.FailedUtc.ToUniversalTime():HH:mm:ss} {failure.ActorId.Name}.{failure.Verb}")
             {
-                Name = $"failure:{failure.FailureId:D}", Tag = failure, ForeColor = Color.Salmon
+                Name = $"failure:{failure.FailureId:D}",
+                Tag = failure,
+                ForeColor = Color.Salmon
             });
         }
         tree.Nodes.Add(failuresNode);
@@ -148,7 +152,8 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
             projectorsNode.Nodes.Add(new TreeNode(
                 $"{StatusGlyph(projector.IsReady ? 0 : 2)} {projector.ActorName} / {projector.ProjectorName}")
             {
-                Name = $"projector:{projector.ActorName}:{projector.ProjectorName}", Tag = projector,
+                Name = $"projector:{projector.ActorName}:{projector.ProjectorName}",
+                Tag = projector,
                 ForeColor = projector.IsReady ? Color.LightGreen : Color.Salmon
             });
         }
@@ -161,7 +166,9 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
             workersNode.Nodes.Add(new TreeNode(
                 $"{StatusGlyph(workerStatus)} Worker {worker.WorkerId} [{WorkerStateName(worker.State)}]")
             {
-                Name = $"worker:{worker.WorkerId}", Tag = worker, ForeColor = StatusColor(workerStatus)
+                Name = $"worker:{worker.WorkerId}",
+                Tag = worker,
+                ForeColor = StatusColor(workerStatus)
             });
         }
         tree.Nodes.Add(workersNode);
@@ -284,7 +291,9 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
             if (details.Columns.Contains("Status"))
                 row.Cells["Status"].Style.ForeColor = row.Cells["Status"].Value?.ToString() switch
                 {
-                    "Green" => Color.LightGreen, "Yellow" => Color.Khaki, _ => Color.Salmon
+                    "Green" => Color.LightGreen,
+                    "Yellow" => Color.Khaki,
+                    _ => Color.Salmon
                 };
     }
 
@@ -313,29 +322,46 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
 
     static DateTimePicker Picker(string name) => new()
     {
-        Name = name, Width = 190, Format = DateTimePickerFormat.Custom,
-        CustomFormat = "yyyy-MM-dd HH:mm:ss", ShowUpDown = true
+        Name = name,
+        Width = 190,
+        Format = DateTimePickerFormat.Custom,
+        CustomFormat = "yyyy-MM-dd HH:mm:ss",
+        ShowUpDown = true
     };
     static Label Caption(string text) => new() { Text = text, AutoSize = true, Padding = new Padding(8, 7, 2, 0) };
     static DataGridView Grid() => new()
     {
-        Name = "actorHealthDetails", Dock = DockStyle.Fill, ReadOnly = true,
-        AllowUserToAddRows = false, AllowUserToDeleteRows = false, RowHeadersVisible = false,
-        AutoGenerateColumns = true, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells,
-        BackgroundColor = Color.FromArgb(25, 25, 25), GridColor = Color.DimGray,
+        Name = "actorHealthDetails",
+        Dock = DockStyle.Fill,
+        ReadOnly = true,
+        AllowUserToAddRows = false,
+        AllowUserToDeleteRows = false,
+        RowHeadersVisible = false,
+        AutoGenerateColumns = true,
+        AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells,
+        BackgroundColor = Color.FromArgb(25, 25, 25),
+        GridColor = Color.DimGray,
         EnableHeadersVisualStyles = false,
         ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle { BackColor = Color.FromArgb(50, 50, 50), ForeColor = Color.White },
         DefaultCellStyle = new DataGridViewCellStyle { BackColor = Color.FromArgb(30, 30, 30), ForeColor = Color.Gainsboro },
-        SelectionMode = DataGridViewSelectionMode.FullRowSelect, MultiSelect = false
+        SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+        MultiSelect = false
     };
     static int MailboxStatus(ActorHealthMailboxSnapshot value) => value.IsProcessing || value.QueueDepth > 0 ? 1
         : value.LastFailedUtc is not null && (value.LastCompletedUtc is null || value.LastFailedUtc >= value.LastCompletedUtc) ? 2 : 0;
     static string StatusName(int status) => status switch { 0 => "Green", 1 => "Yellow", _ => "Red" };
     static string LifecycleName(int state) => state switch
     {
-        0 => "Registered", 1 => "Starting", 2 => "Running", 3 => "Draining",
-        4 => "Stopped", 5 => "Restarting", 6 => "Faulted", 7 => "Timed out",
-        8 => "Quarantined", _ => $"Unknown ({state})"
+        0 => "Registered",
+        1 => "Starting",
+        2 => "Running",
+        3 => "Draining",
+        4 => "Stopped",
+        5 => "Restarting",
+        6 => "Faulted",
+        7 => "Timed out",
+        8 => "Quarantined",
+        _ => $"Unknown ({state})"
     };
 
     static string MailboxLifecycleName(int state) => state switch
@@ -349,8 +375,14 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
     };
     static string WorkerStateName(int state) => state switch
     {
-        0 => "Unknown", 1 => "Ready", 2 => "Started", 3 => "Processing",
-        4 => "Waiting", 5 => "Stopped", 6 => "Faulted", 7 => "Timed out",
+        0 => "Unknown",
+        1 => "Ready",
+        2 => "Started",
+        3 => "Processing",
+        4 => "Waiting",
+        5 => "Stopped",
+        6 => "Faulted",
+        7 => "Timed out",
         _ => $"Unknown ({state})"
     };
     static string StatusGlyph(int status) => "\u25CF";

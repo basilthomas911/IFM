@@ -28,8 +28,15 @@ public static partial class CompositionParameterResolver
             Require(before >= bound.Minimum && before <= bound.Maximum, "OC.CONFIG.RULE_INVALID");
             var after = Quantize(before, bound);
             values = Write(values, bound.Parameter, after);
-            if (before != after) evidence.Add(new() { Code = "BaseGrid:" + bound.Parameter, Parameter = bound.Parameter,
-                Before = before, Unclamped = before, After = after, Status = "Quantized" });
+            if (before != after) evidence.Add(new()
+            {
+                Code = "BaseGrid:" + bound.Parameter,
+                Parameter = bound.Parameter,
+                Before = before,
+                Unclamped = before,
+                After = after,
+                Status = "Quantized"
+            });
         }
         foreach (var rule in rules.AdjustmentRules.OrderBy(x => x.Priority).ThenBy(x => x.Code, StringComparer.Ordinal))
         {
@@ -38,8 +45,15 @@ public static partial class CompositionParameterResolver
             var matches = Evaluate(rule.Predicate, features);
             if (matches != true)
             {
-                evidence.Add(new() { Code = rule.Code, Parameter = rule.Parameter, Before = before, Unclamped = before,
-                    After = before, Status = matches is null ? "InputUnavailable" : "PredicateFalse" });
+                evidence.Add(new()
+                {
+                    Code = rule.Code,
+                    Parameter = rule.Parameter,
+                    Before = before,
+                    Unclamped = before,
+                    After = before,
+                    Status = matches is null ? "InputUnavailable" : "PredicateFalse"
+                });
                 continue;
             }
             var raw = rule.Operation switch
@@ -55,15 +69,22 @@ public static partial class CompositionParameterResolver
             var bound = rules.HardBounds.Single(x => x.Parameter == rule.Parameter);
             var after = Quantize(raw, bound);
             values = Write(values, rule.Parameter, after);
-            evidence.Add(new() { Code = rule.Code, Parameter = rule.Parameter, Before = before, Unclamped = raw,
-                After = after, Status = after == raw ? "Applied" : "Clamped" });
+            evidence.Add(new()
+            {
+                Code = rule.Code,
+                Parameter = rule.Parameter,
+                Before = before,
+                Unclamped = raw,
+                After = after,
+                Status = after == raw ? "Applied" : "Clamped"
+            });
         }
         Validate(values);
         var result = new CompositionResolvedParameters { Values = values, Evidence = evidence.ToImmutable() };
         return result with { Hash = CompositionHash.Compute(result) };
     }
 
-static decimal Quantize(decimal value, CompositionParameterBound bound)
+    static decimal Quantize(decimal value, CompositionParameterBound bound)
     {
         var first = decimal.Ceiling(bound.Minimum / bound.Grid);
         var last = decimal.Floor(bound.Maximum / bound.Grid);

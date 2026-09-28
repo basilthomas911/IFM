@@ -20,7 +20,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels
             PriceDirectionType PriceDirection,
             PriceVolatilityType PriceVolatility,
             double MarketDirectionIndicator,
-            DateTime CreatedOn ,
+            DateTime CreatedOn,
             string CreatedBy)
     {
         public FuturesTradeSignalId Id => new(ContractId, ValueDate, TimePeriod, SequenceId);

@@ -20,6 +20,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTime;
+
 public sealed partial class TradeSelectionRuntimeTests
 {
     [Theory, InlineData(false), InlineData(true), Trait("Gate", "OC-06"), Trait("Gate", "OC-07")]
@@ -49,10 +50,16 @@ public sealed partial class TradeSelectionRuntimeTests
                 FunctionResult<OrderCompositionFunctionCompletedEvent, OrderCompositionFunctionFailedEvent>>(c.Subject, c, c.EntityId);
             reply.Value!.IsCompleted.Should().BeTrue(reply.ErrorMessage);
             var completed = CompositionFixture.Completion(c, reply.Value.Completed!.Result.ReadCompositionResult()) with
-                { Subject = Subject(CompleteOrderCompositionCommand.Verb, c.WorkflowEntityId) };
-            var seed = new WorkflowStrategyStateUpdatedEvent { Id = Guid.NewGuid(), EntityId = c.WorkflowEntityId, WorkflowId = c.WorkflowId,
-                WorkflowRevision = c.InputWorkflowRevision, State = c.WorkflowView with { CompositionExecution = c },
-                Subject = new(ActorType.Event, CompleteOrderCompositionCommand.Actor, WorkflowStrategyStateUpdatedEvent.Verb, c.WorkflowEntityId.Format()) };
+            { Subject = Subject(CompleteOrderCompositionCommand.Verb, c.WorkflowEntityId) };
+            var seed = new WorkflowStrategyStateUpdatedEvent
+            {
+                Id = Guid.NewGuid(),
+                EntityId = c.WorkflowEntityId,
+                WorkflowId = c.WorkflowId,
+                WorkflowRevision = c.InputWorkflowRevision,
+                State = c.WorkflowView with { CompositionExecution = c },
+                Subject = new(ActorType.Event, CompleteOrderCompositionCommand.Actor, WorkflowStrategyStateUpdatedEvent.Verb, c.WorkflowEntityId.Format())
+            };
             await factory.Services.GetRequiredService<IEventSourceActorDbContext>().SaveEventsAsync(completed.StreamId, Guid.NewGuid(), new DomainEventCollection([seed]), 0, default);
             var accepted = await producer.RequestAsync<CompleteOrderCompositionCommand, IntrinsicTimeStrategyWorkflowEntityId, GuidResult>(completed.Subject, completed, completed.EntityId);
             accepted.Success.Should().BeTrue(accepted.ErrorMessage);

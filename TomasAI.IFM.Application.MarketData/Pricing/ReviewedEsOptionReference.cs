@@ -49,22 +49,47 @@ public static class ReviewedEsOptionReference
         var digest = PricingSemanticHash.Compute(option);
         var convention = new OptionPricingConvention
         {
-            SchemaVersion = 2, ContractId = id, Dataset = option.Dataset, PublisherId = option.Instrument.PublisherId,
-            InstrumentId = option.Instrument.InstrumentId, RawSymbol = option.RawSymbol, Root = "ES", Exchange = option.Exchange,
-            Currency = option.Currency, UnderlyingContractId = underlyingId, ExerciseStyle = OptionExerciseStyle.European,
-            SettlementStyle = OptionSettlementStyle.DeliveryOfFuture, ExpirationUtc = expires, LastTradingUtc = expires,
+            SchemaVersion = 2,
+            ContractId = id,
+            Dataset = option.Dataset,
+            PublisherId = option.Instrument.PublisherId,
+            InstrumentId = option.Instrument.InstrumentId,
+            RawSymbol = option.RawSymbol,
+            Root = "ES",
+            Exchange = option.Exchange,
+            Currency = option.Currency,
+            UnderlyingContractId = underlyingId,
+            ExerciseStyle = OptionExerciseStyle.European,
+            SettlementStyle = OptionSettlementStyle.DeliveryOfFuture,
+            ExpirationUtc = expires,
+            LastTradingUtc = expires,
             // Explicit application model convention, not a field purportedly supplied by DataBento/CME.
-            DayCount = PricingDayCount.Actual365Fixed, CalendarVersion = Calendar.Version, Multiplier = 50,
-            TickSize = .05m, PremiumTickRule = OptionPremiumTickRule.CmeEsGlobex358A, TickRuleVersion = OptionPremiumTicks.CmeEsGlobexVersion,
-            DefinitionDigest = digest, MappingVersion = Version, EvidenceId = Evidence,
-            EffectiveFromUtc = new(2026, 9, 1, 0, 0, 0, TimeSpan.Zero), EffectiveUntilUtc = expires
+            DayCount = PricingDayCount.Actual365Fixed,
+            CalendarVersion = Calendar.Version,
+            Multiplier = 50,
+            TickSize = .05m,
+            PremiumTickRule = OptionPremiumTickRule.CmeEsGlobex358A,
+            TickRuleVersion = OptionPremiumTicks.CmeEsGlobexVersion,
+            DefinitionDigest = digest,
+            MappingVersion = Version,
+            EvidenceId = Evidence,
+            EffectiveFromUtc = new(2026, 9, 1, 0, 0, 0, TimeSpan.Zero),
+            EffectiveUntilUtc = expires
         };
         return (new(id, Version, digest, new()
         {
-            Dataset = option.Dataset, RawSymbol = option.RawSymbol, Ticker = option.Ticker, Underlying = underlyingId,
-            Instrument = option.Instrument, Right = right, StrikePrice = strike, MaturityDate = expiry,
-            ExpirationTimestampNanoseconds = ns, ActivationTimestampNanoseconds = option.ActivationTimestampNanoseconds,
-            MinimumPriceIncrement = option.MinimumPriceIncrement, ContractMultiplier = option.ContractMultiplier
+            Dataset = option.Dataset,
+            RawSymbol = option.RawSymbol,
+            Ticker = option.Ticker,
+            Underlying = underlyingId,
+            Instrument = option.Instrument,
+            Right = right,
+            StrikePrice = strike,
+            MaturityDate = expiry,
+            ExpirationTimestampNanoseconds = ns,
+            ActivationTimestampNanoseconds = option.ActivationTimestampNanoseconds,
+            MinimumPriceIncrement = option.MinimumPriceIncrement,
+            ContractMultiplier = option.ContractMultiplier
         }), convention);
     }
 }

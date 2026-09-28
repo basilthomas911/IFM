@@ -11,11 +11,11 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Reference.IntegrationTests;
 
-public class LookupTypeCommandApiTests(WebApplicationFactory<Program> factory, ReferenceFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<ReferenceFixture>
+[Collection(ReferenceIntegrationInfrastructureCollection.Name)]
+public class LookupTypeCommandApiTests(ReferenceIntegrationInfrastructureFixture infrastructure)
 {
     static readonly TimeSpan StateTimeout = TimeSpan.FromSeconds(10);
-    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
+    readonly IActorProducer _actorProducer = infrastructure.ActorProducer;
 
     [Fact]
     public async Task AddLookupType_Ok()
@@ -27,13 +27,13 @@ public class LookupTypeCommandApiTests(WebApplicationFactory<Program> factory, R
         var subject = new ActorSubject(ActorType.Command, AddLookupTypeCommand.Actor, AddLookupTypeCommand.Verb, entityId.Format());
         await ClearEventStreamAsync(subject);
 
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(lookupType.Id);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(lookupType.Id);
 
         // act...
         var referenceApi = new ReferenceCommandApi(_actorProducer);
         var response = await referenceApi.AddLookupTypeAsync(lookupType);
 
-        await WaitUntilAsync(async () => await dbFixture.ReferenceDb.GetLookupTypeAsync(lookupType.Id) is not null);
+        await WaitUntilAsync(async () => await infrastructure.ReferenceDb.GetLookupTypeAsync(lookupType.Id) is not null);
 
         // assert...
         response.Should().NotBeNull();
@@ -41,7 +41,7 @@ public class LookupTypeCommandApiTests(WebApplicationFactory<Program> factory, R
         response.Value.Should().NotBe(Guid.Empty);
 
         // verify lookup type was added to database
-        var savedLookupType = await dbFixture.ReferenceDb.GetLookupTypeAsync(lookupType.Id);
+        var savedLookupType = await infrastructure.ReferenceDb.GetLookupTypeAsync(lookupType.Id);
         savedLookupType.Should().NotBeNull();
         savedLookupType!.LookupTypeName.Should().Be(lookupType.LookupTypeName);
         savedLookupType.ShortCode.Should().Be(lookupType.ShortCode);
@@ -62,13 +62,13 @@ public class LookupTypeCommandApiTests(WebApplicationFactory<Program> factory, R
         await ClearEventStreamAsync(new ActorSubject(
             ActorType.Command, ChangeLookupTypeCommand.Actor, ChangeLookupTypeCommand.Verb, entityId.Format()));
 
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(lookupType.Id);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(lookupType.Id);
 
         // first add the lookup type
         var referenceApi = new ReferenceCommandApi(_actorProducer);
         var addResponse = await referenceApi.AddLookupTypeAsync(lookupType);
 
-        await WaitUntilAsync(async () => await dbFixture.ReferenceDb.GetLookupTypeAsync(lookupType.Id) is not null);
+        await WaitUntilAsync(async () => await infrastructure.ReferenceDb.GetLookupTypeAsync(lookupType.Id) is not null);
 
         addResponse.Should().NotBeNull();
         addResponse.Success.Should().BeTrue(addResponse.ErrorMessage);
@@ -80,7 +80,7 @@ public class LookupTypeCommandApiTests(WebApplicationFactory<Program> factory, R
         var changeResponse = await referenceApi.ChangeLookupTypeAsync(lookupTypeId, changedLookupType, overwrite: true);
 
         await WaitUntilAsync(async () =>
-            (await dbFixture.ReferenceDb.GetLookupTypeAsync(lookupType.Id))?.Description == changedLookupType.Description);
+            (await infrastructure.ReferenceDb.GetLookupTypeAsync(lookupType.Id))?.Description == changedLookupType.Description);
 
         // assert...
         changeResponse.Should().NotBeNull();
@@ -88,7 +88,7 @@ public class LookupTypeCommandApiTests(WebApplicationFactory<Program> factory, R
         changeResponse.Value.Should().NotBe(Guid.Empty);
 
         // verify lookup type was changed in database
-        var savedLookupType = await dbFixture.ReferenceDb.GetLookupTypeAsync(lookupType.Id);
+        var savedLookupType = await infrastructure.ReferenceDb.GetLookupTypeAsync(lookupType.Id);
         savedLookupType.Should().NotBeNull();
         savedLookupType!.LookupTypeName.Should().Be(changedLookupType.LookupTypeName);
         savedLookupType.ShortCode.Should().Be(changedLookupType.ShortCode);
@@ -108,24 +108,24 @@ public class LookupTypeCommandApiTests(WebApplicationFactory<Program> factory, R
             ActorType.Command, RemoveLookupTypeCommand.Actor, RemoveLookupTypeCommand.Verb, lookupTypeId.Format()));
 
         // first ensure the lookup type exists by adding it
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(lookupType.Id);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(lookupType.Id);
 
         var referenceApi = new ReferenceCommandApi(_actorProducer);
         var addResponse = await referenceApi.AddLookupTypeAsync(lookupType);
 
-        await WaitUntilAsync(async () => await dbFixture.ReferenceDb.GetLookupTypeAsync(lookupType.Id) is not null);
+        await WaitUntilAsync(async () => await infrastructure.ReferenceDb.GetLookupTypeAsync(lookupType.Id) is not null);
 
         addResponse.Should().NotBeNull();
         addResponse.Success.Should().BeTrue(addResponse.ErrorMessage);
 
         // verify lookup type exists before removal
-        var existingLookupType = await dbFixture.ReferenceDb.GetLookupTypeAsync(lookupType.Id);
+        var existingLookupType = await infrastructure.ReferenceDb.GetLookupTypeAsync(lookupType.Id);
         existingLookupType.Should().NotBeNull();
 
         // act...
         var removeResponse = await referenceApi.RemoveLookupTypeAsync(lookupTypeId, overwrite: true);
 
-        await WaitUntilAsync(async () => await dbFixture.ReferenceDb.GetLookupTypeAsync(lookupType.Id) is null);
+        await WaitUntilAsync(async () => await infrastructure.ReferenceDb.GetLookupTypeAsync(lookupType.Id) is null);
 
         // assert...
         removeResponse.Should().NotBeNull();
@@ -133,16 +133,16 @@ public class LookupTypeCommandApiTests(WebApplicationFactory<Program> factory, R
         removeResponse.Value.Should().NotBe(Guid.Empty);
 
         // verify lookup type was removed from database
-        var removedLookupType = await dbFixture.ReferenceDb.GetLookupTypeAsync(lookupType.Id);
+        var removedLookupType = await infrastructure.ReferenceDb.GetLookupTypeAsync(lookupType.Id);
         removedLookupType.Should().BeNull();
     }
 
     async Task ClearEventStreamAsync(ActorSubject subject)
     {
-        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{subject.ThreadId}");
-        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
+        infrastructure.BlackboardService.EventSourcing.EventStreamId.Remove($"{subject.ThreadId}");
+        var eventStreamId = await infrastructure.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
         if (eventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
+            await infrastructure.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
     }
 
     static async Task WaitUntilAsync(Func<Task<bool>> condition)

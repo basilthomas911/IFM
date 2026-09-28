@@ -56,17 +56,17 @@ public sealed record FuturesTradeSessionBarSignalBarrierRealtimeEvent
     internal static FuturesTradeSessionBarSignalBarrierRealtimeEvent Create(
         DateTimeOffset barrierUtc,
         FuturesTradeSessionBarAccumulatorEntityId entityId) => new()
-    {
-        Subject = new ActorSubject(
+        {
+            Subject = new ActorSubject(
             ActorType.Realtime,
             FuturesTradeSessionBarSignalRealtimeActor.ActorName,
             Verb,
             entityId.Format()),
-        Id = Guid.NewGuid(),
-        EntityId = entityId,
-        AggregateId = entityId.Format(),
-        EventSource = nameof(FuturesTradeSessionBarSignalRealtimeActor),
-        ReceivedOn = barrierUtc.UtcDateTime,
-        BarrierUtc = barrierUtc.ToUniversalTime()
-    };
+            Id = Guid.NewGuid(),
+            EntityId = entityId,
+            AggregateId = entityId.Format(),
+            EventSource = nameof(FuturesTradeSessionBarSignalRealtimeActor),
+            ReceivedOn = barrierUtc.UtcDateTime,
+            BarrierUtc = barrierUtc.ToUniversalTime()
+        };
 }

@@ -42,7 +42,7 @@ namespace TomasAI.IFM.UI.EventConsumer
                 {
                     _ = eventVerb switch
                     {
-                        _ when eventVerb == FuturesTdiSignalGeneratedCompleteEvent.Verb 
+                        _ when eventVerb == FuturesTdiSignalGeneratedCompleteEvent.Verb
                         => HandleEvent(eventMsg.AsEvent<FuturesTdiSignalGeneratedCompleteEvent>()!, eventAction),
                         _ => default!
                     };

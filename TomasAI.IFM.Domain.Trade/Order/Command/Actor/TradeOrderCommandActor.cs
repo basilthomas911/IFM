@@ -31,47 +31,47 @@ public sealed class TradeOrderCommandActor(ICommandActorContext<TradeOrderComman
         }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
-            {
-                [typeof(CreateTradeOrderCommand)] = Validate,
-                [typeof(AmendTradeOrderCommand)] = Validate,
-                [typeof(ApproveTradeOrderCommand)] = Validate,
-                [typeof(ReadyTradeOrderCommand)] = Validate,
-                [typeof(BindTradeOrderExecutionCommand)] = Validate,
-                [typeof(ReleaseTradeOrderExecutionCommand)] = Validate,
-                [typeof(CompleteTradeOrderCommand)] = Validate,
-                [typeof(CancelTradeOrderCommand)] = Validate,
-                [typeof(ExpireTradeOrderCommand)] = Validate
-            }.ToFrozenDictionary();
+        {
+            [typeof(CreateTradeOrderCommand)] = Validate,
+            [typeof(AmendTradeOrderCommand)] = Validate,
+            [typeof(ApproveTradeOrderCommand)] = Validate,
+            [typeof(ReadyTradeOrderCommand)] = Validate,
+            [typeof(BindTradeOrderExecutionCommand)] = Validate,
+            [typeof(ReleaseTradeOrderExecutionCommand)] = Validate,
+            [typeof(CompleteTradeOrderCommand)] = Validate,
+            [typeof(CancelTradeOrderCommand)] = Validate,
+            [typeof(ExpireTradeOrderCommand)] = Validate
+        }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, Func<ICommand, TradeOrderCommandState, ServiceResult<GuidResult>>> _receiveMap =
         new Dictionary<Type, Func<ICommand, TradeOrderCommandState, ServiceResult<GuidResult>>>
         {
-            [typeof(CreateTradeOrderCommand)] = static (c,s) => ((CreateTradeOrderCommand)c).Execute(s),
-            [typeof(AmendTradeOrderCommand)] = static (c,s) => ((AmendTradeOrderCommand)c).Execute(s),
-            [typeof(ApproveTradeOrderCommand)] = static (c,s) => ((ApproveTradeOrderCommand)c).Execute(s),
-            [typeof(ReadyTradeOrderCommand)] = static (c,s) => ((ReadyTradeOrderCommand)c).Execute(s),
-            [typeof(BindTradeOrderExecutionCommand)] = static (c,s) => ((BindTradeOrderExecutionCommand)c).Execute(s),
-            [typeof(ReleaseTradeOrderExecutionCommand)] = static (c,s) => ((ReleaseTradeOrderExecutionCommand)c).Execute(s),
-            [typeof(CompleteTradeOrderCommand)] = static (c,s) => ((CompleteTradeOrderCommand)c).Execute(s),
-            [typeof(CancelTradeOrderCommand)] = static (c,s) => ((CancelTradeOrderCommand)c).Execute(s),
-            [typeof(ExpireTradeOrderCommand)] = static (c,s) => ((ExpireTradeOrderCommand)c).Execute(s)
+            [typeof(CreateTradeOrderCommand)] = static (c, s) => ((CreateTradeOrderCommand)c).Execute(s),
+            [typeof(AmendTradeOrderCommand)] = static (c, s) => ((AmendTradeOrderCommand)c).Execute(s),
+            [typeof(ApproveTradeOrderCommand)] = static (c, s) => ((ApproveTradeOrderCommand)c).Execute(s),
+            [typeof(ReadyTradeOrderCommand)] = static (c, s) => ((ReadyTradeOrderCommand)c).Execute(s),
+            [typeof(BindTradeOrderExecutionCommand)] = static (c, s) => ((BindTradeOrderExecutionCommand)c).Execute(s),
+            [typeof(ReleaseTradeOrderExecutionCommand)] = static (c, s) => ((ReleaseTradeOrderExecutionCommand)c).Execute(s),
+            [typeof(CompleteTradeOrderCommand)] = static (c, s) => ((CompleteTradeOrderCommand)c).Execute(s),
+            [typeof(CancelTradeOrderCommand)] = static (c, s) => ((CancelTradeOrderCommand)c).Execute(s),
+            [typeof(ExpireTradeOrderCommand)] = static (c, s) => ((ExpireTradeOrderCommand)c).Execute(s)
         }.ToFrozenDictionary();
 
     protected override ValueTask OnStartup(ICommandActorContext<TradeOrderCommandActor> c) => services.EventProjector.StartAsync(c);
     protected override ValueTask OnShutdown(ICommandActorContext<TradeOrderCommandActor> c) => services.EventProjector.StopAsync();
-    protected override ICommand ParseMessage(ICommandActorContext<TradeOrderCommandActor> c, IActorMessage m) => ParseMappedCommand(c,m,_parseMap);
+    protected override ICommand ParseMessage(ICommandActorContext<TradeOrderCommandActor> c, IActorMessage m) => ParseMappedCommand(c, m, _parseMap);
     protected override ValueTask OnValidateAsync(ICommandActorContext<TradeOrderCommandActor> c, ActorThreadId id, ICommand command)
-    { ValidateMappedCommand(command,_validationMap); return ValueTask.CompletedTask; }
+    { ValidateMappedCommand(command, _validationMap); return ValueTask.CompletedTask; }
     protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<TradeOrderCommandActor> c, ActorThreadId id, ICommand command) => await services.StateRepository.LoadStateAsync(command);
-    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<TradeOrderCommandActor> c, ActorThreadId id, IActorState state, ICommand command) => await services.StateRepository.SaveStateAsync(c,(TradeOrderCommandState)state,command);
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<TradeOrderCommandActor> c, IActorState state, ICommand command) => ValueTask.FromResult(ResolveMappedCommandHandler(command,_receiveMap)(command,(TradeOrderCommandState)state));
-    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<TradeOrderCommandActor> c, ActorThreadId id, ICommand command, Exception ex) => ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(command.ErrorCode,ex.Message));
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<TradeOrderCommandActor> c, ActorThreadId id, IActorState state, ICommand command) => await services.StateRepository.SaveStateAsync(c, (TradeOrderCommandState)state, command);
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<TradeOrderCommandActor> c, IActorState state, ICommand command) => ValueTask.FromResult(ResolveMappedCommandHandler(command, _receiveMap)(command, (TradeOrderCommandState)state));
+    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<TradeOrderCommandActor> c, ActorThreadId id, ICommand command, Exception ex) => ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(command.ErrorCode, ex.Message));
 
     static List<ValidationError> Validate(ICommand command) => new List<ValidationError>()
-        .ValidateCommandId(command.CommandId,command.CommandName)
+        .ValidateCommandId(command.CommandId, command.CommandName)
         .CaptureCommandValidation(() =>
         {
             if (command is not ICommand<TomasAI.IFM.Domain.Trade.Shared.TradeOrderId> typed || !typed.EntityId.IsValid ||
-                !string.Equals(command.Subject.EntityId,typed.EntityId.Format(),StringComparison.Ordinal))
+                !string.Equals(command.Subject.EntityId, typed.EntityId.Format(), StringComparison.Ordinal))
                 throw new ArgumentException("Valid Trade Order identity and matching subject are required.");
         });
     static ITradeOrderCommandContext Typed(ICommandActorContext<TradeOrderCommandActor> c) => c as ITradeOrderCommandContext ?? throw new ArgumentException("Typed Trade Order command context required.");

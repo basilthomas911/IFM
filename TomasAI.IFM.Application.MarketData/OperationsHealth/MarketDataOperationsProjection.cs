@@ -44,21 +44,31 @@ public sealed partial class MarketDataOperationsHealthService
                 : incident?.IsOpen == true ? "Orange" : stale ? "Yellow" : "Green";
             return new MarketDataDatasetHealthReadModel
             {
-                Dataset = worker.Dataset, Status = status, SessionState = session.State.ToString(),
-                ValueDate = session.ActiveValueDate, ProcessId = worker.ProcessId,
-                WorkerInstanceId = worker.WorkerInstanceId, GenerationId = worker.GenerationId,
-                StartedOnUtc = worker.StartedOnUtc, LastObservedUtc = diagnostic?.ObservedOnUtc,
+                Dataset = worker.Dataset,
+                Status = status,
+                SessionState = session.State.ToString(),
+                ValueDate = session.ActiveValueDate,
+                ProcessId = worker.ProcessId,
+                WorkerInstanceId = worker.WorkerInstanceId,
+                GenerationId = worker.GenerationId,
+                StartedOnUtc = worker.StartedOnUtc,
+                LastObservedUtc = diagnostic?.ObservedOnUtc,
                 LastHealthyUtc = worker.Healthy && complete && !stale ? diagnostic?.ObservedOnUtc : prior?.LastHealthyUtc,
-                Running = worker.Running, Healthy = worker.Healthy && complete && !stale,
-                GracefulStopSucceeded = worker.GracefulStopSucceeded, ForcedTermination = worker.ForcedTermination,
+                Running = worker.Running,
+                Healthy = worker.Healthy && complete && !stale,
+                GracefulStopSucceeded = worker.GracefulStopSucceeded,
+                ForcedTermination = worker.ForcedTermination,
                 CooperativeAttempts = incident?.CooperativeAttempts ?? 0,
                 ProcessReplacementCount = incident?.ProcessReplacements ?? 0,
                 ProcessReplacementLatched = incident?.ProcessReplacementLatched == true,
                 IncidentAge = incident?.IsOpen == true ? incident.UnhealthyDuration : null,
                 IncidentOpenedUtc = incident?.IsOpen == true ? incident.ObservedOnUtc - incident.UnhealthyDuration : null,
-                NextProbeUtc = nextProbe, RecordsProduced = diagnostic?.RecordsProduced ?? 0,
-                RecordsConsumed = diagnostic?.RecordsConsumed ?? 0, RingUsed = diagnostic?.RingUsed ?? 0,
-                RingCapacity = diagnostic?.RingCapacity ?? 0, ChannelBatchCount = diagnostic?.ChannelBatchCount ?? 0,
+                NextProbeUtc = nextProbe,
+                RecordsProduced = diagnostic?.RecordsProduced ?? 0,
+                RecordsConsumed = diagnostic?.RecordsConsumed ?? 0,
+                RingUsed = diagnostic?.RingUsed ?? 0,
+                RingCapacity = diagnostic?.RingCapacity ?? 0,
+                ChannelBatchCount = diagnostic?.ChannelBatchCount ?? 0,
                 ChannelBatchCapacity = diagnostic?.ChannelBatchCapacity ?? 0,
                 RecordsStarted = diagnostic?.Aggregation?.RecordsStarted ?? 0,
                 RecordsCompleted = diagnostic?.Aggregation?.RecordsCompleted ?? 0,
@@ -100,7 +110,8 @@ public sealed partial class MarketDataOperationsHealthService
             overlays[stage] = Gauge(stage, outlookStatus,
                 !outlook.IsProcessorReady ? "ProcessorUnavailable" : outlookStatus is "Red" or "Yellow" ? "PendingWorkAged" : "CurrentProgress",
                 !outlook.IsProcessorReady ? "Market Outlook processor is not ready." : "Local Market Outlook pending work and processor readiness.",
-                now, active, outlook.PendingCount, 0) with { OldestPendingAge = pendingAge };
+                now, active, outlook.PendingCount, 0) with
+            { OldestPendingAge = pendingAge };
         if (publisher is { PolicyEnabled: true })
         {
             var status = !active && !publisher.Running ? "Inactive" : publisher.Faulted || !publisher.Running ? "Red"
@@ -109,9 +120,11 @@ public sealed partial class MarketDataOperationsHealthService
                 MarketDataOperationStage.DatabentoRealtimePublication, status, publisher.Failure.ToString(),
                 publisher.FailureDetail, now, active, publisher.Depth, publisher.Capacity) with
             {
-                Received = publisher.Accepted, Completed = publisher.Published,
+                Received = publisher.Accepted,
+                Completed = publisher.Published,
                 Failed = publisher.Failed + publisher.Rejected + publisher.Expired,
-                Saturated = publisher.SaturationCount, OldestPendingAge = publisher.OldestQueuedAge
+                Saturated = publisher.SaturationCount,
+                OldestPendingAge = publisher.OldestQueuedAge
             };
         }
         Volatile.Write(ref runtimeProjection, new(now, session.State.ToString(), session.ActiveValueDate, lastProbe, nextProbe,
@@ -127,13 +140,23 @@ public sealed partial class MarketDataOperationsHealthService
         {
             var result = new MarketDataOperationStageReadModel
             {
-                Stage = value.Stage.ToString(), Status = value.Status.ToString(), Reason = value.Reason,
+                Stage = value.Stage.ToString(),
+                Status = value.Status.ToString(),
+                Reason = value.Reason,
                 ReasonCode = value.Received == 0 ? "NotObserved" : value.Status == MarketDataOperationsStatus.Green ? "CurrentProgress" : "ProgressUnconfirmed",
-                Received = value.Received, Completed = value.Completed, Failed = value.Failed, Coalesced = value.Coalesced,
-                LastObservedUtc = value.LastObservedUtc, LastSucceededUtc = value.LastSucceededUtc,
-                LastFailedUtc = value.LastFailedUtc, MarketDataAsOfUtc = value.MarketDataAsOfUtc,
-                AverageLatency = value.AverageLatency, MaximumLatency = value.MaximumLatency,
-                P50Latency = Percentile(value.Stage, .50), P95Latency = Percentile(value.Stage, .95), P99Latency = Percentile(value.Stage, .99)
+                Received = value.Received,
+                Completed = value.Completed,
+                Failed = value.Failed,
+                Coalesced = value.Coalesced,
+                LastObservedUtc = value.LastObservedUtc,
+                LastSucceededUtc = value.LastSucceededUtc,
+                LastFailedUtc = value.LastFailedUtc,
+                MarketDataAsOfUtc = value.MarketDataAsOfUtc,
+                AverageLatency = value.AverageLatency,
+                MaximumLatency = value.MaximumLatency,
+                P50Latency = Percentile(value.Stage, .50),
+                P95Latency = Percentile(value.Stage, .95),
+                P99Latency = Percentile(value.Stage, .99)
             };
             if (runtime?.Stages.TryGetValue(value.Stage, out var overlay) == true)
             {
@@ -144,10 +167,14 @@ public sealed partial class MarketDataOperationsHealthService
                     Status = useOverlayStatus ? overlay.Status : result.Status,
                     Reason = useOverlayStatus ? overlay.Reason : result.Reason,
                     ReasonCode = useOverlayStatus ? overlay.ReasonCode : result.ReasonCode,
-                    Pending = overlay.Pending, Capacity = overlay.Capacity,
-                    HighWater = overlay.HighWater, Saturated = overlay.Saturated, OldestPendingAge = overlay.OldestPendingAge,
+                    Pending = overlay.Pending,
+                    Capacity = overlay.Capacity,
+                    HighWater = overlay.HighWater,
+                    Saturated = overlay.Saturated,
+                    OldestPendingAge = overlay.OldestPendingAge,
                     LastObservedUtc = overlay.LastObservedUtc,
-                    Received = Math.Max(result.Received, overlay.Received), Completed = Math.Max(result.Completed, overlay.Completed),
+                    Received = Math.Max(result.Received, overlay.Received),
+                    Completed = Math.Max(result.Completed, overlay.Completed),
                     Failed = Math.Max(result.Failed, overlay.Failed)
                 };
             }
@@ -161,20 +188,31 @@ public sealed partial class MarketDataOperationsHealthService
                  && StatusRank(overall) < StatusRank("Orange")) overall = "Orange";
         return new()
         {
-            Revision = snapshot.Revision, ObservedOnUtc = runtime?.ObservedOnUtc ?? snapshot.ObservedOnUtc,
-            OverallStatus = overall, SessionState = runtime?.Session ?? "Unknown", ValueDate = runtime?.ValueDate,
-            LastProbeUtc = runtime?.LastProbe, NextProbeUtc = runtime?.NextProbe,
+            Revision = snapshot.Revision,
+            ObservedOnUtc = runtime?.ObservedOnUtc ?? snapshot.ObservedOnUtc,
+            OverallStatus = overall,
+            SessionState = runtime?.Session ?? "Unknown",
+            ValueDate = runtime?.ValueDate,
+            LastProbeUtc = runtime?.LastProbe,
+            NextProbeUtc = runtime?.NextProbe,
             RejectedStaleGenerationPublications = snapshot.RejectedStaleGenerationPublications,
-            Stages = Array.AsReadOnly(stages), Datasets = runtime?.Datasets ?? []
+            Stages = Array.AsReadOnly(stages),
+            Datasets = runtime?.Datasets ?? []
         };
     }
 
     static MarketDataOperationStageReadModel Gauge(MarketDataOperationStage stage, string status,
         string code, string reason, DateTime observed, bool required, long pending, long capacity) => new()
-    {
-        Stage = stage.ToString(), Status = status, ReasonCode = code, Reason = BoundReason(reason),
-        LastObservedUtc = observed, Required = required, Pending = pending, Capacity = capacity
-    };
+        {
+            Stage = stage.ToString(),
+            Status = status,
+            ReasonCode = code,
+            Reason = BoundReason(reason),
+            LastObservedUtc = observed,
+            Required = required,
+            Pending = pending,
+            Capacity = capacity
+        };
     static int StatusRank(string value) => value switch { "Red" => 4, "Orange" => 3, "Yellow" => 2, "Green" => 1, _ => 0 };
     static TimeSpan MaxAge(TimeSpan value) => value < TimeSpan.Zero ? TimeSpan.Zero : value;
     static string BoundReason(string value) => value.Length <= 4096 ? value : value[..4096];

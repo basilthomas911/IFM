@@ -38,7 +38,8 @@ public sealed class ActorHealthRenderingTests
                 completed.SetResult();
             }
             catch (Exception exception) { completed.SetException(exception); }
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         await completed.Task.WaitAsync(TimeSpan.FromSeconds(15));

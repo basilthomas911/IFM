@@ -46,7 +46,7 @@ public record FuturesAdxDailySignalEntityId : IActorEntityId
     /// <summary>
     /// Factory method for explicit creation.
     /// </summary>
-    public static FuturesAdxDailySignalEntityId Create(string contractId, TimeFrameType timePeriod, int periodLength) 
+    public static FuturesAdxDailySignalEntityId Create(string contractId, TimeFrameType timePeriod, int periodLength)
         => new(contractId, timePeriod, periodLength);
 
     /// <summary>

@@ -44,12 +44,12 @@ public class SampleData
             contractMonth: DateOnly.FromDateTime(DateTime.UtcNow),
             strikePrice: 1000,
             optionType: "Call");
-    
+
     // Sample FuturesBarDataReadModel instance
-    public static FuturesBarDataReadModel FuturesBarData => new (
+    public static FuturesBarDataReadModel FuturesBarData => new(
         contractId: "TestContract",
         symbol: "TestSymbol",
-        valueDate:  DateOnly.FromDateTime(DateTime.Now.Date),
+        valueDate: DateOnly.FromDateTime(DateTime.Now.Date),
         barDate: DateTime.Now,
         barRateType: BarRateType.Minute,
         barValue: 100.0m,
@@ -57,7 +57,7 @@ public class SampleData
         downTrendTrigger: -1.0
     );
 
-    public static FuturesClosingPriceReadModel FuturesClosingPrice => new (
+    public static FuturesClosingPriceReadModel FuturesClosingPrice => new(
         contractId: "SampleContractId",
         valueDate: new DateOnly(2023, 10, 10),
         closingPrice: 123.45m,
@@ -65,7 +65,7 @@ public class SampleData
         createdBy: "TestUser"
     );
 
-    public static FuturesClosingPriceReadModel YesterdaysFuturesClosingPrice => new (
+    public static FuturesClosingPriceReadModel YesterdaysFuturesClosingPrice => new(
         contractId: "SampleContractId",
         valueDate: new DateOnly(2023, 10, 9),
         closingPrice: 120.00m,
@@ -73,16 +73,16 @@ public class SampleData
         createdBy: "TestUser"
     );
 
-    public static FuturesTickDataV2ReadModel FuturesTickData => new (
+    public static FuturesTickDataV2ReadModel FuturesTickData => new(
         contractId: "SampleContractId",
         valueDate: new DateOnly(2023, 10, 10),
         tickId: 1234,
-        tickTime: new TimeOnly(10,10,2),
+        tickTime: new TimeOnly(10, 10, 2),
         price: 456.34m,
         size: 10
     );
 
-    public static FuturesTickDataV2ReadModel FuturesTickDataLowPrice => new (
+    public static FuturesTickDataV2ReadModel FuturesTickDataLowPrice => new(
         contractId: "SampleContractId",
         valueDate: new DateOnly(2023, 10, 10),
         tickId: 1235,
@@ -91,7 +91,7 @@ public class SampleData
         size: 10
     );
 
-    public static FuturesTickDataV2ReadModel FuturesTickDataHighPrice => new (
+    public static FuturesTickDataV2ReadModel FuturesTickDataHighPrice => new(
         contractId: "SampleContractId",
         valueDate: new DateOnly(2023, 10, 10),
         tickId: 1236,
@@ -100,13 +100,13 @@ public class SampleData
         size: 10
     );
 
-    public static FuturesEodDataId FuturesEodDataId => new ("SampleContractId", new DateOnly(2023, 10, 10));
-    public static FuturesDataId FuturesClosingPriceId => new ("SampleContractId", new DateOnly(2023, 10, 10));
+    public static FuturesEodDataId FuturesEodDataId => new("SampleContractId", new DateOnly(2023, 10, 10));
+    public static FuturesDataId FuturesClosingPriceId => new("SampleContractId", new DateOnly(2023, 10, 10));
     public static decimal FuturesOpenPrice => 123.45m;
     public static decimal FuturesHighPrice => 130.98m;
 
     // Sample FuturesEodDataV2ReadModel instance
-    public static FuturesEodDataV2ReadModel FuturesEodData => new (
+    public static FuturesEodDataV2ReadModel FuturesEodData => new(
         contractId: "SampleContractId",
         valueDate: new DateOnly(2023, 10, 10),
         symbol: "SampleSymbol",
@@ -133,7 +133,7 @@ public class SampleData
         TwoHundredDMA = 200.0m
     };
 
-    public static FuturesEodDataV2ReadModel YesterdaysFuturesEodData => new (
+    public static FuturesEodDataV2ReadModel YesterdaysFuturesEodData => new(
         contractId: "SampleContractId",
         valueDate: new DateOnly(2023, 10, 9),
         symbol: "SampleSymbol",
@@ -160,7 +160,7 @@ public class SampleData
         TwoHundredDMA = 200.0m
     };
 
-    public static FuturesItiSignalV2ReadModel FuturesItiSignal1 => new (
+    public static FuturesItiSignalV2ReadModel FuturesItiSignal1 => new(
         contractId: "SYM20251215",
         valueDate: new DateOnly(2025, 1, 15),
         timePeriod: TimeFrameType.FifteenSeconds,
@@ -184,7 +184,7 @@ public class SampleData
         tradeState: IntrinsicTimeTradeState.Ready
     );
 
-    public static FuturesItiSignalV2ReadModel FuturesItiSignal2 => new (
+    public static FuturesItiSignalV2ReadModel FuturesItiSignal2 => new(
         contractId: "SYM20251230",
         valueDate: new DateOnly(2025, 1, 20),
         timePeriod: TimeFrameType.FifteenSeconds,
@@ -208,10 +208,10 @@ public class SampleData
         tradeState: IntrinsicTimeTradeState.Ready
     );
 
-    public static FuturesContractV3ReadModel FuturesContract1 = new ("SYM20251215", "Description1", "SYM", "LocalSymbol1", "FUT", "USD", "CME", "50", new DateOnly(2025, 12, 15), true);
-    public static FuturesContractV3ReadModel FuturesContract2 = new ("SYM20251230", "Description2", "SYM", "LocalSymbol2", "FUT", "USD", "CME", "50", new DateOnly(2025, 12,30), true);
+    public static FuturesContractV3ReadModel FuturesContract1 = new("SYM20251215", "Description1", "SYM", "LocalSymbol1", "FUT", "USD", "CME", "50", new DateOnly(2025, 12, 15), true);
+    public static FuturesContractV3ReadModel FuturesContract2 = new("SYM20251230", "Description2", "SYM", "LocalSymbol2", "FUT", "USD", "CME", "50", new DateOnly(2025, 12, 30), true);
 
-    public static FuturesOptionContractReadModel FuturesOptionContract1 = new (
+    public static FuturesOptionContractReadModel FuturesOptionContract1 = new(
         contractId: "ES20251215C5000",
         description: "E-mini S&P 500 Dec 2025 Call 5000",
         symbol: "ES",
@@ -225,7 +225,7 @@ public class SampleData
         optionType: "Call"
     );
 
-    public static FuturesOptionContractReadModel FuturesOptionContract2 = new (
+    public static FuturesOptionContractReadModel FuturesOptionContract2 = new(
         contractId: "ES20251215P4900",
         description: "E-mini S&P 500 Dec 2025 Put 4900",
         symbol: "ES",
@@ -239,7 +239,7 @@ public class SampleData
         optionType: "Put"
     );
 
-    public static FuturesItiTrendClassModelReadModel FuturesItiTrendClassModel => new 
+    public static FuturesItiTrendClassModelReadModel FuturesItiTrendClassModel => new
     (
         symbol: "SYM",
         valueDate: new DateOnly(2025, 2, 17),
@@ -261,7 +261,7 @@ public class SampleData
         modelData: Encoding.UTF8.GetBytes("SampleModelData")
     );
 
-    public static FuturesItiTrendDeltaModelReadModel FuturesItiTrendDeltaModel => new 
+    public static FuturesItiTrendDeltaModelReadModel FuturesItiTrendDeltaModel => new
     (
         symbol: "SYM",
         valueDate: new DateOnly(2025, 2, 17),
@@ -283,7 +283,7 @@ public class SampleData
         modelData: Encoding.UTF8.GetBytes("SampleModelData")
     );
 
-    public static FuturesOptionTickDataV2ReadModel FuturesOptionTickData => new 
+    public static FuturesOptionTickDataV2ReadModel FuturesOptionTickData => new
    (
        contractId: "ES20180511P2525",
        valueDate: new DateOnly(2025, 2, 20),
@@ -303,7 +303,7 @@ public class SampleData
        rho: 0.05
    );
 
-    public static FuturesRsiSignalReadModel FuturesRsiSignal => new (
+    public static FuturesRsiSignalReadModel FuturesRsiSignal => new(
         contractId: "SYM20251230",
         valueDate: new DateOnly(2025, 2, 20),
         timePeriod: TimeFrameType.OneMinute,
@@ -321,7 +321,7 @@ public class SampleData
         rsiSlope: 0.5
     );
 
-    public static FuturesTdiSignalReadModel FuturesTdiSignal => new (
+    public static FuturesTdiSignalReadModel FuturesTdiSignal => new(
         contractId: "SYM20251230",
         valueDate: new DateOnly(2025, 2, 20),
         timePeriod: TimeFrameType.FifteenSeconds,
@@ -332,7 +332,7 @@ public class SampleData
         tdiStrength: FuturesTrendDirectionStrengthType.High
     );
 
-    public static FuturesTradeSignalV2ReadModel FuturesTradeSignal => new (
+    public static FuturesTradeSignalV2ReadModel FuturesTradeSignal => new(
         contractId: "SYM20251230",
         valueDate: new DateOnly(2025, 2, 20),
         timePeriod: TimeFrameType.FifteenSeconds,
@@ -366,14 +366,14 @@ public class SampleData
         tradeExecuteState: TradeExecuteState.Enter
     );
 
-    public static RateOfReturnReadModel RateOfReturn => new (
+    public static RateOfReturnReadModel RateOfReturn => new(
         symbol: "SYM",
         valueDate: new DateOnly(2025, 2, 20),
         rateOfReturn: 0.05
     );
 
-    public static VixFuturesEodDataReadModel VixFuturesEodData => new (
-        contractId  : "VX20201216",
+    public static VixFuturesEodDataReadModel VixFuturesEodData => new(
+        contractId: "VX20201216",
         valueDate: new DateOnly(2023, 10, 10),
         openPrice: 20.0m,
         highPrice: 22.0m,
@@ -382,7 +382,7 @@ public class SampleData
         volume: 1500
     );
 
-    public static FuturesTickDataV2ReadModel VixFuturesTickData => new (
+    public static FuturesTickDataV2ReadModel VixFuturesTickData => new(
         contractId: "VX20201216",
         valueDate: new DateOnly(2023, 10, 10),
         tickId: 1234,
@@ -391,7 +391,7 @@ public class SampleData
         size: 100
     );
 
-    public static FuturesTickDataV2ReadModel VixFuturesTickDataLowPrice => new (
+    public static FuturesTickDataV2ReadModel VixFuturesTickDataLowPrice => new(
        contractId: "VX20201216",
        valueDate: new DateOnly(2023, 10, 10),
        tickId: 1234,
@@ -400,7 +400,7 @@ public class SampleData
        size: 100
    );
 
-    public static FuturesTickDataV2ReadModel VixFuturesTickDataHighPrice => new (
+    public static FuturesTickDataV2ReadModel VixFuturesTickDataHighPrice => new(
        contractId: "VX20201216",
        valueDate: new DateOnly(2023, 10, 10),
        tickId: 1234,
@@ -409,7 +409,7 @@ public class SampleData
        size: 100
    );
 
-    public static YieldCurveRateReadModel YieldCurveRate => new (
+    public static YieldCurveRateReadModel YieldCurveRate => new(
         valueDate: new DateOnly(2025, 3, 1),
         oneMonth: 0.01,
         twoMonth: 0.015,
@@ -425,13 +425,13 @@ public class SampleData
         thirtyYear: 0.065
     );
 
-    public static MarketHolidayReadModel MarketHoliday1 => new (
+    public static MarketHolidayReadModel MarketHoliday1 => new(
         currencyType: CurrencyType.USD,
         holidayDate: new DateOnly(2025, 1, 1),
         description: "New Year's Day"
     );
 
-    public static MarketHolidayReadModel MarketHoliday2 => new (
+    public static MarketHolidayReadModel MarketHoliday2 => new(
         currencyType: CurrencyType.USD,
         holidayDate: new DateOnly(2025, 12, 25),
         description: "Christmas Day"

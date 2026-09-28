@@ -1,8 +1,20 @@
-using System.Diagnostics;
-using System.Net;
-using System.Net.Sockets;
-using System.Text.Json;
-using Npgsql;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
+using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
+using TomasAI.IFM.Application.Storage.ReferenceDb;
+using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
+using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
+using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.IntegrationTesting;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Domain.Reference.IntegrationTests;
 
@@ -14,65 +26,72 @@ public sealed class ReferenceIntegrationInfrastructureCollection
 }
 
 /// <summary>
-/// Owns the disposable PostgreSQL, Redis, and NATS services used by the Reference
-/// integration tests. Docker assigns every loopback port so the fixture neither
-/// depends on nor collides with developer infrastructure.
+/// Owns the disposable PostgreSQL, Redis, NATS, Cassandra-compatible CQL, and production Kestrel
+/// services used by the complete Reference integration-test project.
 /// </summary>
 public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
 {
-    const string PostgresImage = "postgres:17.2";
-    const string RedisImage = "redis:latest";
-    const string NatsImage = "nats:2.12.0-alpine";
-    const string PostgresUser = "postgres";
-    const string PostgresPassword = "reference-integration-fixture";
-    const string Database = "ifm_reference_integration_tests";
-
     readonly string _runId = Guid.NewGuid().ToString("N")[..12];
-    readonly Dictionary<string, string?> _previousEnvironment = new(StringComparer.Ordinal);
-    string PostgresContainer => $"ifm-reference-pg-{_runId}";
-    string RedisContainer => $"ifm-reference-redis-{_runId}";
-    string NatsContainer => $"ifm-reference-nats-{_runId}";
+    readonly IsolatedIntegrationInfrastructure _infrastructure = new("reference");
+    TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>? _source;
+    TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>? _host;
 
     public string PostgresConnectionString { get; private set; } = string.Empty;
     public string RedisConnectionString { get; private set; } = string.Empty;
     public string NatsUrl { get; private set; } = string.Empty;
+    public string CqlConnectionString { get; private set; } = string.Empty;
+    public HttpClient HttpClient { get; private set; } = default!;
+    public IActorProducer ActorProducer { get; private set; } = default!;
+    public ReferenceDbContext ReferenceDb { get; private set; } = default!;
+    public EventSourceActorDbContext ActorEventSourceDb { get; private set; } = default!;
+    public TomasAI.IFM.Application.Blackboard.IBlackboardService BlackboardService { get; private set; } = default!;
 
     public async Task InitializeAsync()
     {
         try
         {
-            await DockerAsync([
-                "run", "--detach", "--name", PostgresContainer,
-                "--label", $"ifm.reference.integration.run={_runId}",
-                "--publish", "127.0.0.1::5432",
-                "--env", $"POSTGRES_USER={PostgresUser}",
-                "--env", $"POSTGRES_PASSWORD={PostgresPassword}",
-                "--env", $"POSTGRES_DB={Database}",
-                PostgresImage]);
-            await DockerAsync([
-                "run", "--detach", "--name", RedisContainer,
-                "--label", $"ifm.reference.integration.run={_runId}",
-                "--publish", "127.0.0.1::6379",
-                RedisImage]);
-            await DockerAsync([
-                "run", "--detach", "--name", NatsContainer,
-                "--label", $"ifm.reference.integration.run={_runId}",
-                "--publish", "127.0.0.1::4222",
-                NatsImage, "--jetstream"]);
+            await _infrastructure.StartAsync();
+            PostgresConnectionString = _infrastructure.PostgresConnectionString;
+            RedisConnectionString = _infrastructure.RedisConnectionString;
+            NatsUrl = _infrastructure.NatsUrl;
+            CqlConnectionString = _infrastructure.CqlConnectionString;
 
-            var postgresPort = await MappedPortAsync(PostgresContainer, "5432/tcp");
-            var redisPort = await MappedPortAsync(RedisContainer, "6379/tcp");
-            var natsPort = await MappedPortAsync(NatsContainer, "4222/tcp");
-            PostgresConnectionString = $"Host=127.0.0.1;Port={postgresPort};Database={Database};SSL Mode=Disable;Pooling=false";
-            RedisConnectionString = $"127.0.0.1:{redisPort},abortConnect=false";
-            NatsUrl = $"nats://127.0.0.1:{natsPort}";
+            var logger = NullLogger<DbProvider>.Instance;
+            var settings = new DbConnectionSettings()
+                .Add("ConfigurationDbConnection", PostgresConnectionString, "System.Data.Postgres")
+                .Add("EventSourceActorDbConnection", PostgresConnectionString, "System.Data.Postgres")
+                .Add("SequenceIdDbConnection", PostgresConnectionString, "System.Data.Postgres")
+                .Add("ReferenceDbConnection", CqlConnectionString, "System.Data.ScyllaDb");
+            await new ConfigurationSchemaDb(settings, logger).CreateAllAsync();
+            await new EventSourceSchemaDb(settings, logger).CreateAllAsync();
+            await new SequenceIdSchemaDb(settings, logger).CreateAllAsync();
+            await new ReferenceSchemaDb(settings, logger).CreateAllAsync();
 
-            SetCredentialEnvironment("POSTGRES_DEV_KEY");
-            SetCredentialEnvironment("POSTGRES_TEST_KEY");
+            _source = new TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>();
+            _host = _source.WithWebHostBuilder(builder =>
+            {
+                builder.UseEnvironment("Development")
+                    .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Reference")
+                    .UseSetting("IFM_TEST_NATS_URL", NatsUrl)
+                    .UseSetting("IFM_TEST_REDIS_URL", RedisConnectionString)
+                    .UseSetting("IFM_TEST_POSTGRES_CONNECTION", PostgresConnectionString);
+                foreach (var name in new[] { "MarketData", "OptionPricer", "Reference", "Securities", "Trade" })
+                    builder.UseSetting($"ConnectionStrings:{name}DbConnection", CqlConnectionString);
+                builder.ConfigureServices(services => services.RemoveAll<IHostedService>());
+            });
 
-            await WaitForPostgresAsync(postgresPort);
-            await WaitForTcpAsync(redisPort, "Redis");
-            await WaitForTcpAsync(natsPort, "NATS");
+            HttpClient = _host.CreateClient();
+            if (HttpClient.BaseAddress!.Port == 0)
+                throw new InvalidOperationException("The Reference integration host did not bind an isolated Kestrel port.");
+            using var startupDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+            await WaitForActorReadinessAsync(HttpClient, startupDeadline.Token);
+
+            ActorProducer = _host.Services.GetRequiredService<IActorProducer>();
+            await ActorProducer.StartAsync(new ActorMailboxId(ActorType.Query, "ReferenceIntegrationTests"));
+            var dbFactory = _host.Services.GetRequiredService<IDbContextFactory>();
+            ReferenceDb = (ReferenceDbContext)dbFactory.ReferenceDb;
+            ActorEventSourceDb = (EventSourceActorDbContext)dbFactory.ActorEventSourceDb;
+            BlackboardService = _host.Services.GetRequiredService<TomasAI.IFM.Application.Blackboard.IBlackboardService>();
         }
         catch
         {
@@ -83,96 +102,33 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        await DockerAsync(["rm", "--force", NatsContainer], allowFailure: true);
-        await DockerAsync(["rm", "--force", RedisContainer], allowFailure: true);
-        await DockerAsync(["rm", "--force", PostgresContainer], allowFailure: true);
-        foreach (var (name, value) in _previousEnvironment)
-            Environment.SetEnvironmentVariable(name, value);
-        _previousEnvironment.Clear();
+        if (ActorProducer is not null)
+        {
+            try { await ActorProducer.StopAsync(); }
+            catch { }
+        }
+        HttpClient?.Dispose();
+        if (_host is not null)
+            await _host.DisposeAsync();
+        if (_source is not null)
+            await _source.DisposeAsync();
+        await _infrastructure.DisposeAsync();
     }
 
-    void SetCredentialEnvironment(string name)
-    {
-        _previousEnvironment.TryAdd(name, Environment.GetEnvironmentVariable(name));
-        Environment.SetEnvironmentVariable(name, JsonSerializer.Serialize(new
-        {
-            userid = PostgresUser,
-            password = PostgresPassword
-        }));
-    }
 
-    async Task WaitForPostgresAsync(int port)
+    static async Task WaitForActorReadinessAsync(HttpClient client, CancellationToken token)
     {
-        var directConnection = new NpgsqlConnectionStringBuilder(PostgresConnectionString)
+        string responseBody = string.Empty;
+        while (!token.IsCancellationRequested)
         {
-            Username = PostgresUser,
-            Password = PostgresPassword
-        }.ConnectionString;
-        var deadline = DateTimeOffset.UtcNow.AddMinutes(1);
-        while (DateTimeOffset.UtcNow < deadline)
-        {
-            try
-            {
-                await using var connection = new NpgsqlConnection(directConnection);
-                await connection.OpenAsync();
+            using var response = await client.GetAsync("/health/actors", token);
+            responseBody = await response.Content.ReadAsStringAsync(token);
+            if (response.IsSuccessStatusCode)
                 return;
-            }
-            catch (NpgsqlException)
-            {
-                await Task.Delay(250);
-            }
+            await Task.Delay(100, token);
         }
 
-        throw new TimeoutException($"The disposable PostgreSQL container on port {port} did not become ready.");
+        throw new TimeoutException($"The production actor runtime did not become ready: {responseBody}");
     }
 
-    static async Task WaitForTcpAsync(int port, string service)
-    {
-        var deadline = DateTimeOffset.UtcNow.AddMinutes(1);
-        while (DateTimeOffset.UtcNow < deadline)
-        {
-            try
-            {
-                using var client = new TcpClient();
-                await client.ConnectAsync(IPAddress.Loopback, port);
-                return;
-            }
-            catch (SocketException)
-            {
-                await Task.Delay(250);
-            }
-        }
-
-        throw new TimeoutException($"The disposable {service} container on port {port} did not become ready.");
-    }
-
-    static async Task<int> MappedPortAsync(string container, string containerPort)
-    {
-        var output = await DockerAsync(["port", container, containerPort]);
-        var endpoint = output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).Single();
-        return int.Parse(endpoint[(endpoint.LastIndexOf(':') + 1)..]);
-    }
-
-    static async Task<string> DockerAsync(IReadOnlyList<string> arguments, bool allowFailure = false)
-    {
-        var start = new ProcessStartInfo
-        {
-            FileName = "docker",
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        };
-        foreach (var argument in arguments)
-            start.ArgumentList.Add(argument);
-
-        using var process = Process.Start(start)
-            ?? throw new InvalidOperationException("Docker could not be started.");
-        var output = await process.StandardOutput.ReadToEndAsync();
-        var error = await process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
-        if (!allowFailure && process.ExitCode != 0)
-            throw new InvalidOperationException($"Docker failed with exit code {process.ExitCode}: {error}");
-        return output.Trim();
-    }
 }

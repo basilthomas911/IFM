@@ -791,7 +791,7 @@ public static class PortfolioDbSql
 
     public static class Schema
     {
-        public const string Create="""
+        public const string Create = """
             CREATE SCHEMA IF NOT EXISTS portfolio;
             CREATE TABLE IF NOT EXISTS portfolio.schema_version(singleton boolean PRIMARY KEY CHECK(singleton),version int NOT NULL);
             INSERT INTO portfolio.schema_version VALUES(true,1) ON CONFLICT(singleton) DO NOTHING;
@@ -823,15 +823,15 @@ public static class PortfolioDbSql
               close_order_id int NOT NULL UNIQUE REFERENCES portfolio.accepted_trade_order(order_id) ON DELETE RESTRICT,
               accepted_at_utc timestamptz NOT NULL);
             """ + Financial.FinancialHistoryProjection.Create01;
-        public const string Drop="DROP SCHEMA IF EXISTS portfolio CASCADE;";
+        public const string Drop = "DROP SCHEMA IF EXISTS portfolio CASCADE;";
     }
 
     public static class Portfolio
     {
-        public const string Get="SELECT payload_json::text FROM portfolio.portfolio_by_id WHERE portfolio_id=$1 ORDER BY portfolio_version DESC LIMIT 1;";
-        public const string Revision="SELECT aggregate_version,source_event_id FROM portfolio.portfolio_by_id WHERE portfolio_id=$1 ORDER BY portfolio_version DESC LIMIT 1;";
-        public const string ByState="SELECT payload_json::text FROM portfolio.portfolio_by_state WHERE operating_state=$1 AND state_bucket=$2 AND portfolio_id>$3 ORDER BY portfolio_id LIMIT $4;";
-        public const string Upsert="""
+        public const string Get = "SELECT payload_json::text FROM portfolio.portfolio_by_id WHERE portfolio_id=$1 ORDER BY portfolio_version DESC LIMIT 1;";
+        public const string Revision = "SELECT aggregate_version,source_event_id FROM portfolio.portfolio_by_id WHERE portfolio_id=$1 ORDER BY portfolio_version DESC LIMIT 1;";
+        public const string ByState = "SELECT payload_json::text FROM portfolio.portfolio_by_state WHERE operating_state=$1 AND state_bucket=$2 AND portfolio_id>$3 ORDER BY portfolio_id LIMIT $4;";
+        public const string Upsert = """
             WITH saved_portfolio AS (
               INSERT INTO portfolio.portfolio_by_id(portfolio_id,portfolio_version,operating_state,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash)
               SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9 WHERE NOT EXISTS(SELECT 1 FROM portfolio.projection_tombstone WHERE entity_kind='portfolio' AND entity_key=$1::text AND source_event_id>=$6)
@@ -842,7 +842,7 @@ public static class PortfolioDbSql
             SELECT $3,$10,$1,$2,$4,$5,$6,$7,$8,$9 WHERE EXISTS(SELECT 1 FROM saved_portfolio)
             ON CONFLICT(operating_state,state_bucket,portfolio_id) DO UPDATE SET portfolio_version=EXCLUDED.portfolio_version,schema_version=EXCLUDED.schema_version,aggregate_version=EXCLUDED.aggregate_version,source_event_id=EXCLUDED.source_event_id,updated_on_utc=EXCLUDED.updated_on_utc,payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash WHERE portfolio.portfolio_by_state.source_event_id<=EXCLUDED.source_event_id
             """;
-        public const string DeleteDraft="""
+        public const string DeleteDraft = """
             WITH tombstone AS (
               INSERT INTO portfolio.projection_tombstone(entity_kind,entity_key,source_event_id) VALUES('portfolio',$1::text,$2)
               ON CONFLICT(entity_kind,entity_key) DO UPDATE SET source_event_id=GREATEST(portfolio.projection_tombstone.source_event_id,EXCLUDED.source_event_id) RETURNING 1),
@@ -861,14 +861,14 @@ public static class PortfolioDbSql
 
     public static class Fund
     {
-        public const string ByPortfolio="SELECT payload_json::text FROM portfolio.fund_by_portfolio WHERE portfolio_id=$1 AND fund_id>$2 ORDER BY fund_id,fund_mandate_version DESC LIMIT $3;";
-        public const string Get="SELECT payload_json::text FROM portfolio.fund_by_portfolio WHERE fund_id=$1 ORDER BY fund_mandate_version DESC LIMIT 1;";
-        public const string Revision="SELECT portfolio_id,aggregate_version,source_event_id FROM portfolio.fund_by_portfolio WHERE fund_id=$1 ORDER BY fund_mandate_version DESC LIMIT 1;";
-        public const string Active="SELECT payload_json::text FROM portfolio.active_fund_by_portfolio_horizon WHERE portfolio_id=$1 AND trading_year=$2 AND decision_horizon=$3 AND effective_from_utc<=$4 ORDER BY effective_from_utc DESC,fund_id LIMIT $5;";
-        public const string Assignments="SELECT payload_json::text FROM portfolio.fund_template_assignment WHERE portfolio_id=$1 AND fund_id=$2 AND fund_mandate_version=$3 ORDER BY trade_template_id,trade_template_version LIMIT $4;";
-        public const string Allocation="SELECT payload_json::text FROM portfolio.fund_allocation WHERE portfolio_id=$1 AND fund_id=$2 ORDER BY allocation_version DESC LIMIT 1;";
-        public const string Envelope="SELECT payload_json::text FROM portfolio.fund_risk_envelope WHERE portfolio_id=$1 AND fund_id=$2 ORDER BY envelope_version DESC LIMIT 1;";
-        public const string Upsert="""
+        public const string ByPortfolio = "SELECT payload_json::text FROM portfolio.fund_by_portfolio WHERE portfolio_id=$1 AND fund_id>$2 ORDER BY fund_id,fund_mandate_version DESC LIMIT $3;";
+        public const string Get = "SELECT payload_json::text FROM portfolio.fund_by_portfolio WHERE fund_id=$1 ORDER BY fund_mandate_version DESC LIMIT 1;";
+        public const string Revision = "SELECT portfolio_id,aggregate_version,source_event_id FROM portfolio.fund_by_portfolio WHERE fund_id=$1 ORDER BY fund_mandate_version DESC LIMIT 1;";
+        public const string Active = "SELECT payload_json::text FROM portfolio.active_fund_by_portfolio_horizon WHERE portfolio_id=$1 AND trading_year=$2 AND decision_horizon=$3 AND effective_from_utc<=$4 ORDER BY effective_from_utc DESC,fund_id LIMIT $5;";
+        public const string Assignments = "SELECT payload_json::text FROM portfolio.fund_template_assignment WHERE portfolio_id=$1 AND fund_id=$2 AND fund_mandate_version=$3 ORDER BY trade_template_id,trade_template_version LIMIT $4;";
+        public const string Allocation = "SELECT payload_json::text FROM portfolio.fund_allocation WHERE portfolio_id=$1 AND fund_id=$2 ORDER BY allocation_version DESC LIMIT 1;";
+        public const string Envelope = "SELECT payload_json::text FROM portfolio.fund_risk_envelope WHERE portfolio_id=$1 AND fund_id=$2 ORDER BY envelope_version DESC LIMIT 1;";
+        public const string Upsert = """
             WITH saved_fund AS (
               INSERT INTO portfolio.fund_by_portfolio(portfolio_id,fund_id,fund_mandate_version,operating_state,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash)
               SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10 WHERE NOT EXISTS(SELECT 1 FROM portfolio.projection_tombstone WHERE entity_kind='portfolio' AND entity_key=$1::text AND source_event_id>=$7)
@@ -882,32 +882,32 @@ public static class PortfolioDbSql
               updated_on_utc=EXCLUDED.updated_on_utc,payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash
             WHERE portfolio.active_fund_by_portfolio_horizon.source_event_id<=EXCLUDED.source_event_id
             """;
-        public const string UpsertAssignment="INSERT INTO portfolio.fund_template_assignment(portfolio_id,fund_id,fund_mandate_version,trade_template_id,trade_template_version,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11 WHERE NOT EXISTS(SELECT 1 FROM portfolio.projection_tombstone WHERE entity_kind='portfolio' AND entity_key=$1::text AND source_event_id>=$8) ON CONFLICT(portfolio_id,fund_id,fund_mandate_version,trade_template_id,trade_template_version) DO UPDATE SET schema_version=EXCLUDED.schema_version,aggregate_version=EXCLUDED.aggregate_version,source_event_id=EXCLUDED.source_event_id,updated_on_utc=EXCLUDED.updated_on_utc,payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash WHERE portfolio.fund_template_assignment.source_event_id<=EXCLUDED.source_event_id;";
-        public const string UpsertAllocation="INSERT INTO portfolio.fund_allocation(portfolio_id,fund_id,allocation_version,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9 WHERE NOT EXISTS(SELECT 1 FROM portfolio.projection_tombstone WHERE entity_kind='portfolio' AND entity_key=$1::text AND source_event_id>=$6) ON CONFLICT(portfolio_id,fund_id,allocation_version) DO UPDATE SET schema_version=EXCLUDED.schema_version,aggregate_version=EXCLUDED.aggregate_version,source_event_id=EXCLUDED.source_event_id,updated_on_utc=EXCLUDED.updated_on_utc,payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash WHERE portfolio.fund_allocation.source_event_id<=EXCLUDED.source_event_id;";
-        public const string UpsertEnvelope="INSERT INTO portfolio.fund_risk_envelope(portfolio_id,fund_id,envelope_version,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9 WHERE NOT EXISTS(SELECT 1 FROM portfolio.projection_tombstone WHERE entity_kind='portfolio' AND entity_key=$1::text AND source_event_id>=$6) ON CONFLICT(portfolio_id,fund_id,envelope_version) DO UPDATE SET schema_version=EXCLUDED.schema_version,aggregate_version=EXCLUDED.aggregate_version,source_event_id=EXCLUDED.source_event_id,updated_on_utc=EXCLUDED.updated_on_utc,payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash WHERE portfolio.fund_risk_envelope.source_event_id<=EXCLUDED.source_event_id;";
+        public const string UpsertAssignment = "INSERT INTO portfolio.fund_template_assignment(portfolio_id,fund_id,fund_mandate_version,trade_template_id,trade_template_version,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11 WHERE NOT EXISTS(SELECT 1 FROM portfolio.projection_tombstone WHERE entity_kind='portfolio' AND entity_key=$1::text AND source_event_id>=$8) ON CONFLICT(portfolio_id,fund_id,fund_mandate_version,trade_template_id,trade_template_version) DO UPDATE SET schema_version=EXCLUDED.schema_version,aggregate_version=EXCLUDED.aggregate_version,source_event_id=EXCLUDED.source_event_id,updated_on_utc=EXCLUDED.updated_on_utc,payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash WHERE portfolio.fund_template_assignment.source_event_id<=EXCLUDED.source_event_id;";
+        public const string UpsertAllocation = "INSERT INTO portfolio.fund_allocation(portfolio_id,fund_id,allocation_version,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9 WHERE NOT EXISTS(SELECT 1 FROM portfolio.projection_tombstone WHERE entity_kind='portfolio' AND entity_key=$1::text AND source_event_id>=$6) ON CONFLICT(portfolio_id,fund_id,allocation_version) DO UPDATE SET schema_version=EXCLUDED.schema_version,aggregate_version=EXCLUDED.aggregate_version,source_event_id=EXCLUDED.source_event_id,updated_on_utc=EXCLUDED.updated_on_utc,payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash WHERE portfolio.fund_allocation.source_event_id<=EXCLUDED.source_event_id;";
+        public const string UpsertEnvelope = "INSERT INTO portfolio.fund_risk_envelope(portfolio_id,fund_id,envelope_version,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9 WHERE NOT EXISTS(SELECT 1 FROM portfolio.projection_tombstone WHERE entity_kind='portfolio' AND entity_key=$1::text AND source_event_id>=$6) ON CONFLICT(portfolio_id,fund_id,envelope_version) DO UPDATE SET schema_version=EXCLUDED.schema_version,aggregate_version=EXCLUDED.aggregate_version,source_event_id=EXCLUDED.source_event_id,updated_on_utc=EXCLUDED.updated_on_utc,payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash WHERE portfolio.fund_risk_envelope.source_event_id<=EXCLUDED.source_event_id;";
     }
 
     public static class Orders
     {
-        public const string Timeline="SELECT payload_json::text FROM portfolio.fund_order WHERE portfolio_id=$1 AND fund_id=$2 AND order_month=$3 AND created_on_utc<$4 ORDER BY created_on_utc DESC,order_id DESC LIMIT $5;";
-        public const string Get="SELECT payload_json::text FROM portfolio.fund_order WHERE order_id=$1;";
-        public const string Trades="SELECT payload_json::text FROM portfolio.fund_order_trade WHERE order_id=$1 ORDER BY trade_id LIMIT $2;";
-        public const string Trade="SELECT payload_json::text FROM portfolio.fund_order_trade WHERE trade_id=$1;";
-        public const string Compositions="SELECT payload_json::text FROM portfolio.fund_composition WHERE workflow_id=$1 ORDER BY order_id LIMIT $2;";
-        public const string UpsertOrder="INSERT INTO portfolio.fund_order(portfolio_id,fund_id,order_month,created_on_utc,order_id,status,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12 WHERE NOT EXISTS(SELECT 1 FROM portfolio.projection_tombstone WHERE entity_kind='portfolio' AND entity_key=$1::text AND source_event_id>=$9) ON CONFLICT(order_id) DO UPDATE SET status=EXCLUDED.status,schema_version=EXCLUDED.schema_version,aggregate_version=EXCLUDED.aggregate_version,source_event_id=EXCLUDED.source_event_id,updated_on_utc=EXCLUDED.updated_on_utc,payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash WHERE portfolio.fund_order.source_event_id<=EXCLUDED.source_event_id;";
-        public const string UpsertTrade="INSERT INTO portfolio.fund_order_trade(order_id,trade_id,portfolio_id,fund_id,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10 WHERE NOT EXISTS(SELECT 1 FROM portfolio.projection_tombstone WHERE entity_kind='portfolio' AND entity_key=$3::text AND source_event_id>=$7) ON CONFLICT(trade_id) DO UPDATE SET order_id=EXCLUDED.order_id,portfolio_id=EXCLUDED.portfolio_id,fund_id=EXCLUDED.fund_id,schema_version=EXCLUDED.schema_version,aggregate_version=EXCLUDED.aggregate_version,source_event_id=EXCLUDED.source_event_id,updated_on_utc=EXCLUDED.updated_on_utc,payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash WHERE portfolio.fund_order_trade.source_event_id<=EXCLUDED.source_event_id;";
-        public const string UpsertComposition="INSERT INTO portfolio.fund_composition(workflow_id,order_id,portfolio_id,fund_id,status,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11 WHERE NOT EXISTS(SELECT 1 FROM portfolio.projection_tombstone WHERE entity_kind='portfolio' AND entity_key=$3::text AND source_event_id>=$8) ON CONFLICT(workflow_id,order_id) DO UPDATE SET status=EXCLUDED.status,schema_version=EXCLUDED.schema_version,aggregate_version=EXCLUDED.aggregate_version,source_event_id=EXCLUDED.source_event_id,updated_on_utc=EXCLUDED.updated_on_utc,payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash WHERE portfolio.fund_composition.source_event_id<=EXCLUDED.source_event_id;";
-        public const string DeleteOrder="DELETE FROM portfolio.fund_order WHERE order_id=$1 AND source_event_id<=$2;";
-        public const string DeleteTrade="DELETE FROM portfolio.fund_order_trade WHERE trade_id=$1 AND source_event_id<=$2;";
+        public const string Timeline = "SELECT payload_json::text FROM portfolio.fund_order WHERE portfolio_id=$1 AND fund_id=$2 AND order_month=$3 AND created_on_utc<$4 ORDER BY created_on_utc DESC,order_id DESC LIMIT $5;";
+        public const string Get = "SELECT payload_json::text FROM portfolio.fund_order WHERE order_id=$1;";
+        public const string Trades = "SELECT payload_json::text FROM portfolio.fund_order_trade WHERE order_id=$1 ORDER BY trade_id LIMIT $2;";
+        public const string Trade = "SELECT payload_json::text FROM portfolio.fund_order_trade WHERE trade_id=$1;";
+        public const string Compositions = "SELECT payload_json::text FROM portfolio.fund_composition WHERE workflow_id=$1 ORDER BY order_id LIMIT $2;";
+        public const string UpsertOrder = "INSERT INTO portfolio.fund_order(portfolio_id,fund_id,order_month,created_on_utc,order_id,status,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12 WHERE NOT EXISTS(SELECT 1 FROM portfolio.projection_tombstone WHERE entity_kind='portfolio' AND entity_key=$1::text AND source_event_id>=$9) ON CONFLICT(order_id) DO UPDATE SET status=EXCLUDED.status,schema_version=EXCLUDED.schema_version,aggregate_version=EXCLUDED.aggregate_version,source_event_id=EXCLUDED.source_event_id,updated_on_utc=EXCLUDED.updated_on_utc,payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash WHERE portfolio.fund_order.source_event_id<=EXCLUDED.source_event_id;";
+        public const string UpsertTrade = "INSERT INTO portfolio.fund_order_trade(order_id,trade_id,portfolio_id,fund_id,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10 WHERE NOT EXISTS(SELECT 1 FROM portfolio.projection_tombstone WHERE entity_kind='portfolio' AND entity_key=$3::text AND source_event_id>=$7) ON CONFLICT(trade_id) DO UPDATE SET order_id=EXCLUDED.order_id,portfolio_id=EXCLUDED.portfolio_id,fund_id=EXCLUDED.fund_id,schema_version=EXCLUDED.schema_version,aggregate_version=EXCLUDED.aggregate_version,source_event_id=EXCLUDED.source_event_id,updated_on_utc=EXCLUDED.updated_on_utc,payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash WHERE portfolio.fund_order_trade.source_event_id<=EXCLUDED.source_event_id;";
+        public const string UpsertComposition = "INSERT INTO portfolio.fund_composition(workflow_id,order_id,portfolio_id,fund_id,status,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11 WHERE NOT EXISTS(SELECT 1 FROM portfolio.projection_tombstone WHERE entity_kind='portfolio' AND entity_key=$3::text AND source_event_id>=$8) ON CONFLICT(workflow_id,order_id) DO UPDATE SET status=EXCLUDED.status,schema_version=EXCLUDED.schema_version,aggregate_version=EXCLUDED.aggregate_version,source_event_id=EXCLUDED.source_event_id,updated_on_utc=EXCLUDED.updated_on_utc,payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash WHERE portfolio.fund_composition.source_event_id<=EXCLUDED.source_event_id;";
+        public const string DeleteOrder = "DELETE FROM portfolio.fund_order WHERE order_id=$1 AND source_event_id<=$2;";
+        public const string DeleteTrade = "DELETE FROM portfolio.fund_order_trade WHERE trade_id=$1 AND source_event_id<=$2;";
     }
 
     public static class Policy
     {
-        public const string GetCurrent="SELECT payload_json::text FROM portfolio.portfolio_policy WHERE policy_id=$1 ORDER BY policy_version DESC LIMIT 1;";
-        public const string GetVersion="SELECT payload_json::text FROM portfolio.portfolio_policy WHERE policy_id=$1 AND policy_version=$2;";
-        public const string ByPortfolio="SELECT payload_json::text FROM portfolio.portfolio_policy WHERE portfolio_id=$1 ORDER BY policy_id DESC,policy_version DESC LIMIT $2;";
-        public const string Active="SELECT payload_json::text FROM portfolio.active_portfolio_policy WHERE portfolio_id=$1;";
-        public const string Upsert="""
+        public const string GetCurrent = "SELECT payload_json::text FROM portfolio.portfolio_policy WHERE policy_id=$1 ORDER BY policy_version DESC LIMIT 1;";
+        public const string GetVersion = "SELECT payload_json::text FROM portfolio.portfolio_policy WHERE policy_id=$1 AND policy_version=$2;";
+        public const string ByPortfolio = "SELECT payload_json::text FROM portfolio.portfolio_policy WHERE portfolio_id=$1 ORDER BY policy_id DESC,policy_version DESC LIMIT $2;";
+        public const string Active = "SELECT payload_json::text FROM portfolio.active_portfolio_policy WHERE portfolio_id=$1;";
+        public const string Upsert = """
             WITH saved_policy AS (
               INSERT INTO portfolio.portfolio_policy(policy_id,policy_version,portfolio_id,operating_state,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash)
               SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10 WHERE NOT EXISTS(SELECT 1 FROM portfolio.projection_tombstone WHERE entity_kind='policy' AND entity_key=$3::text||':'||$1::text AND source_event_id>=$7)
@@ -921,7 +921,7 @@ public static class PortfolioDbSql
               payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash
             WHERE portfolio.active_portfolio_policy.source_event_id<=EXCLUDED.source_event_id
             """;
-        public const string DeleteDraft="""
+        public const string DeleteDraft = """
             WITH tombstone AS (
               INSERT INTO portfolio.projection_tombstone(entity_kind,entity_key,source_event_id) VALUES('policy',$1::text||':'||$2::text,$3)
               ON CONFLICT(entity_kind,entity_key) DO UPDATE SET source_event_id=GREATEST(portfolio.projection_tombstone.source_event_id,EXCLUDED.source_event_id) RETURNING 1),

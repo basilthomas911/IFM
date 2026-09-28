@@ -133,13 +133,23 @@ public sealed class DatabentoContractAuthority(
         var prior = existing.GetValueOrDefault(role);
         return new()
         {
-            ContractRole = role, RootSymbol = source.Symbol, ContractId = source.ContractId,
-            Description = source.Description, LocalSymbol = source.LocalSymbol, SecurityType = source.SecurityType,
-            Currency = source.Currency, Exchange = source.Exchange, Multiplier = source.Multiplier,
-            LastTradeDate = source.LastTradeDate, NextRolloverDate = source.LastTradeDate,
-            SourceContractHash = Hash(source), RowVersion = prior?.RowVersion ?? 0,
-            CreatedOnUtc = prior?.CreatedOnUtc ?? now, CreatedBy = prior?.CreatedBy ?? changedBy,
-            UpdatedOnUtc = now, UpdatedBy = changedBy
+            ContractRole = role,
+            RootSymbol = source.Symbol,
+            ContractId = source.ContractId,
+            Description = source.Description,
+            LocalSymbol = source.LocalSymbol,
+            SecurityType = source.SecurityType,
+            Currency = source.Currency,
+            Exchange = source.Exchange,
+            Multiplier = source.Multiplier,
+            LastTradeDate = source.LastTradeDate,
+            NextRolloverDate = source.LastTradeDate,
+            SourceContractHash = Hash(source),
+            RowVersion = prior?.RowVersion ?? 0,
+            CreatedOnUtc = prior?.CreatedOnUtc ?? now,
+            CreatedBy = prior?.CreatedBy ?? changedBy,
+            UpdatedOnUtc = now,
+            UpdatedBy = changedBy
         };
     }
 

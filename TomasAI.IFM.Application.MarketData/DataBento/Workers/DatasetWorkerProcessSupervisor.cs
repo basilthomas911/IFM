@@ -596,7 +596,8 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
 
         public void Dispose() => handle.Dispose();
 
-        [StructLayout(LayoutKind.Sequential)] struct BasicLimitInformation
+        [StructLayout(LayoutKind.Sequential)]
+        struct BasicLimitInformation
         {
             public long PerProcessUserTimeLimit, PerJobUserTimeLimit;
             public uint LimitFlags;
@@ -605,12 +606,14 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
             public UIntPtr Affinity;
             public uint PriorityClass, SchedulingClass;
         }
-        [StructLayout(LayoutKind.Sequential)] struct IoCounters
+        [StructLayout(LayoutKind.Sequential)]
+        struct IoCounters
         {
             public ulong ReadOperationCount, WriteOperationCount, OtherOperationCount,
                 ReadTransferCount, WriteTransferCount, OtherTransferCount;
         }
-        [StructLayout(LayoutKind.Sequential)] struct ExtendedLimitInformation
+        [StructLayout(LayoutKind.Sequential)]
+        struct ExtendedLimitInformation
         {
             public BasicLimitInformation BasicLimitInformation;
             public IoCounters IoInfo;

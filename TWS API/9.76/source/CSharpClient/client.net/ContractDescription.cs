@@ -19,9 +19,9 @@ namespace IBApi
         private Contract contract;
         private string[] derivativeSecTypes;
 
-         /**
-         * @brief A contract data
-         */
+        /**
+        * @brief A contract data
+        */
         public Contract Contract
         {
             get { return contract; }

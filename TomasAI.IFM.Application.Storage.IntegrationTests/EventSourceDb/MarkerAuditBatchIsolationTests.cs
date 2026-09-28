@@ -48,8 +48,12 @@ public sealed partial class MarkerProjectorPipelineTests
         });
         meter.Start();
         await using (var writer = new BinaryCopyEventLogAppender(fixture.Provider, true,
-            new EventLogPersistenceOptions { WriteMode = EventLogWriteMode.BinaryCopy,
-                MaximumEventsPerBatch = 2, MaximumOldestRequestDelay = TimeSpan.FromMilliseconds(500) },
+            new EventLogPersistenceOptions
+            {
+                WriteMode = EventLogWriteMode.BinaryCopy,
+                MaximumEventsPerBatch = 2,
+                MaximumOldestRequestDelay = TimeSpan.FromMilliseconds(500)
+            },
             EventLogSqlLayout.ForBenchmark(fixture.Provider, batched)))
         {
             Task<EventLogAppendResult> invalid, valid;

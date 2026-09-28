@@ -70,10 +70,15 @@ public sealed class StrategyWorkflowDetailsAccordion : DarkTradingView
         var expanded = section.Key == _expandedKey;
         var button = new Button
         {
-            AutoSize = false, Height = 38, TextAlign = ContentAlignment.MiddleLeft,
-            FlatStyle = FlatStyle.Flat, ForeColor = StateColor(section.State), BackColor = Color.FromArgb(35, 35, 38),
+            AutoSize = false,
+            Height = 38,
+            TextAlign = ContentAlignment.MiddleLeft,
+            FlatStyle = FlatStyle.Flat,
+            ForeColor = StateColor(section.State),
+            BackColor = Color.FromArgb(35, 35, 38),
             Text = $"{(expanded ? "v" : ">")} {section.Title} - {section.Summary}",
-            Tag = section.Key, AccessibleName = section.AccessibleStatus,
+            Tag = section.Key,
+            AccessibleName = section.AccessibleStatus,
             AccessibleDescription = expanded ? "Expanded. Activate to collapse." : "Collapsed. Activate to expand."
         };
         button.FlatAppearance.BorderColor = Color.FromArgb(70, 70, 74);
@@ -82,9 +87,15 @@ public sealed class StrategyWorkflowDetailsAccordion : DarkTradingView
         if (!expanded) return;
         _content.Controls.Add(new TextBox
         {
-            Multiline = true, ReadOnly = true, WordWrap = false, ScrollBars = ScrollBars.Both,
-            BorderStyle = BorderStyle.FixedSingle, BackColor = Color.Black, ForeColor = Color.White,
-            Font = new("Consolas", 9F), Height = Math.Clamp(section.Content.Count(c => c == '\n') * 18 + 24, 120, 420),
+            Multiline = true,
+            ReadOnly = true,
+            WordWrap = false,
+            ScrollBars = ScrollBars.Both,
+            BorderStyle = BorderStyle.FixedSingle,
+            BackColor = Color.Black,
+            ForeColor = Color.White,
+            Font = new("Consolas", 9F),
+            Height = Math.Clamp(section.Content.Count(c => c == '\n') * 18 + 24, 120, 420),
             Text = section.Content
         });
     }

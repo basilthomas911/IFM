@@ -63,7 +63,7 @@ public class DbCache : IDbCache
         if (cacheEntries == null)
             throw new ArgumentException("DbCache.Load: empty cache entries");
         var cache = _cache[GetCacheName(cacheNameExpr)];
-        if (! (cache is DbSingleCache<TKey,TValue>))
+        if (!(cache is DbSingleCache<TKey, TValue>))
             throw new InvalidOperationException("DbCache.Load: invalid cache entries");
         ((dynamic)cache).Load(cacheEntries);
     }

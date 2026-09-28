@@ -12,10 +12,14 @@ public static class OptionTradePricing
     {
         OptionGreeksSnapshot Failed(OptionPricingFailure failure) => new()
         {
-            IsValid = false, PriceSource = OptionGreeksPriceSource.Trade,
-            FailureReason = OptionGreeksFailureReason.PricingContextUnavailable, PricingFailure = failure,
-            FuturesContractId = context.Contract.UnderlyingContractId, OptionMarkPrice = trade.Price,
-            OptionPriceSourceSequence = trade.SourceSequence, OptionPriceTimestamp = trade.EventTimestamp,
+            IsValid = false,
+            PriceSource = OptionGreeksPriceSource.Trade,
+            FailureReason = OptionGreeksFailureReason.PricingContextUnavailable,
+            PricingFailure = failure,
+            FuturesContractId = context.Contract.UnderlyingContractId,
+            OptionMarkPrice = trade.Price,
+            OptionPriceSourceSequence = trade.SourceSequence,
+            OptionPriceTimestamp = trade.EventTimestamp,
             CalculatedAtUtc = calculatedAt
         };
         if (underlying is null)
@@ -29,17 +33,35 @@ public static class OptionTradePricing
         var g = result.Value!;
         return new()
         {
-            IsValid = true, PriceSource = OptionGreeksPriceSource.Trade,
+            IsValid = true,
+            PriceSource = OptionGreeksPriceSource.Trade,
             FuturesContractId = context.Contract.UnderlyingContractId,
-            FuturesPrice = underlying.Bid / 2m + underlying.Ask / 2m, OptionMarkPrice = trade.Price,
-            RiskFreeRate = context.Rate.AnnualContinuousRate, TimeToExpiryYears = g.TimeToExpiry,
-            ImpliedVolatility = g.ImpliedVolatility, TheoreticalPrice = g.TheoreticalPrice,
-            Delta = g.Delta, Gamma = g.Gamma, Vega = g.Vega, Theta = g.Theta, Rho = g.Rho,
-            FuturesPriceSourceSequence = underlying.Sequence, OptionPriceSourceSequence = trade.SourceSequence,
-            FuturesPriceTimestamp = underlying.EventAtUtc, OptionPriceTimestamp = trade.EventTimestamp,
+            FuturesPrice = underlying.Bid / 2m + underlying.Ask / 2m,
+            OptionMarkPrice = trade.Price,
+            RiskFreeRate = context.Rate.AnnualContinuousRate,
+            TimeToExpiryYears = g.TimeToExpiry,
+            ImpliedVolatility = g.ImpliedVolatility,
+            TheoreticalPrice = g.TheoreticalPrice,
+            Delta = g.Delta,
+            Gamma = g.Gamma,
+            Vega = g.Vega,
+            Theta = g.Theta,
+            Rho = g.Rho,
+            FuturesPriceSourceSequence = underlying.Sequence,
+            OptionPriceSourceSequence = trade.SourceSequence,
+            FuturesPriceTimestamp = underlying.EventAtUtc,
+            OptionPriceTimestamp = trade.EventTimestamp,
             CalculatedAtUtc = calculatedAt,
-            PricingContextDigest = PricingSemanticHash.Compute(new { Version = 1, Basis = "Trade", trade,
-                context, underlying, calculatedAt, g.ContextDigest })
+            PricingContextDigest = PricingSemanticHash.Compute(new
+            {
+                Version = 1,
+                Basis = "Trade",
+                trade,
+                context,
+                underlying,
+                calculatedAt,
+                g.ContextDigest
+            })
         };
     }
 }

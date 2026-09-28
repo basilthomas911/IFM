@@ -25,15 +25,23 @@ public class ReferenceCommandApi(IActorProducer actorProducer)
     public Task<ServiceResult<Guid>> ChangeTradeStrategyFamilyAsync(ChangeTradeStrategyFamilyRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request); cancellationToken.ThrowIfCancellationRequested();
-        var command = new ChangeTradeStrategyFamilyCommand { CommandId = request.OperationId, Request = request,
-            Subject = new ActorSubject(ActorType.Command, ChangeTradeStrategyFamilyCommand.Actor, ChangeTradeStrategyFamilyCommand.Verb, ActorEntityId.Default.Format()) };
+        var command = new ChangeTradeStrategyFamilyCommand
+        {
+            CommandId = request.OperationId,
+            Request = request,
+            Subject = new ActorSubject(ActorType.Command, ChangeTradeStrategyFamilyCommand.Actor, ChangeTradeStrategyFamilyCommand.Verb, ActorEntityId.Default.Format())
+        };
         return RequestCommandAsync(command, command.EntityId, cancellationToken).AsTask();
     }
     public Task<ServiceResult<Guid>> RemoveTradeStrategyFamilyAsync(RemoveTradeStrategyFamilyRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request); cancellationToken.ThrowIfCancellationRequested();
-        var command = new RemoveTradeStrategyFamilyCommand { CommandId = request.OperationId, Request = request,
-            Subject = new ActorSubject(ActorType.Command, RemoveTradeStrategyFamilyCommand.Actor, RemoveTradeStrategyFamilyCommand.Verb, ActorEntityId.Default.Format()) };
+        var command = new RemoveTradeStrategyFamilyCommand
+        {
+            CommandId = request.OperationId,
+            Request = request,
+            Subject = new ActorSubject(ActorType.Command, RemoveTradeStrategyFamilyCommand.Actor, RemoveTradeStrategyFamilyCommand.Verb, ActorEntityId.Default.Format())
+        };
         return RequestCommandAsync(command, command.EntityId, cancellationToken).AsTask();
     }
     public Task<ServiceResult<Guid>> CreateTradeStrategyFamilyAsync(CreateTradeStrategyFamilyRequest request, CancellationToken cancellationToken = default)
@@ -42,7 +50,8 @@ public class ReferenceCommandApi(IActorProducer actorProducer)
         cancellationToken.ThrowIfCancellationRequested();
         var command = new CreateTradeStrategyFamilyCommand
         {
-            CommandId = request.OperationId, Request = request,
+            CommandId = request.OperationId,
+            Request = request,
             Subject = new ActorSubject(ActorType.Command, CreateTradeStrategyFamilyCommand.Actor, CreateTradeStrategyFamilyCommand.Verb, ActorEntityId.Default.Format())
         };
         return RequestCommandAsync(command, command.EntityId, cancellationToken).AsTask();

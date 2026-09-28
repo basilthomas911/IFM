@@ -10,7 +10,7 @@ public interface IDurableReplayQueue
 {
     Task PrepareAsync(string eventProjectorName, TimeSpan replayInterval, CancellationToken cancellationToken = default);
     Task StartAsync(string eventProjectorName, TimeSpan replayInterval, CancellationToken cancellationToken = default);
-    Task StopAsync(string eventProjectorName,  CancellationToken cancellationToken = default);
+    Task StopAsync(string eventProjectorName, CancellationToken cancellationToken = default);
     ValueTask EnqueueAsync(string eventProjectorName, IEvent domainEvent, CancellationToken cancellationToken = default);
     Task DequeueAsync(
         string eventProjectorName,

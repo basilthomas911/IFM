@@ -6,8 +6,8 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared
 {
     public enum BarRateType
     {
-         Minute,
-         FifteenSeconds
+        Minute,
+        FifteenSeconds
     }
 
     public static class BarRateTypeExtensions

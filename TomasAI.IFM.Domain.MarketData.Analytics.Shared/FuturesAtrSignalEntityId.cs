@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 /// explicit creation. The identifier can be formatted into a stable string key and serialized into a compact JSON
 /// representation.</remarks>
 [MessagePackObject(AllowPrivate = true)]
-public record 
+public record
     FuturesAtrSignalEntityId : IActorEntityId
 {
     /// <summary>Futures contract identifier (root + month/year code).</summary>
@@ -24,10 +24,10 @@ public record
     public DateOnly ValueDate { get; init; }
 
     [Key(2)]
-    public TimeFrameType TimePeriod {  get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     [Key(3)]
-    public int  PeriodLength { get; init; }
+    public int PeriodLength { get; init; }
 
     /// <summary>
     /// Parameterless constructor required for MessagePack and some serializers.
@@ -41,7 +41,7 @@ public record
     /// <param name="valueDate">Value date.</param>
     /// <param name="timePeriod">Time period type.</param>
     /// <param name="periodLength">ATR signal source type.</param>
-    public FuturesAtrSignalEntityId(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)            
+    public FuturesAtrSignalEntityId(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
     {
         ContractId = contractId;
         ValueDate = valueDate;
@@ -52,7 +52,7 @@ public record
     /// <summary>
     /// Factory method for explicit creation.
     /// </summary>
-    public static FuturesAtrSignalEntityId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) 
+    public static FuturesAtrSignalEntityId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
         => new(contractId, valueDate, timePeriod, periodLength);
 
     /// <summary>

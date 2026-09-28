@@ -33,8 +33,12 @@ public sealed class SupervisedHostPublisherLifecycleTests
         var ingress = new DatasetPublicationIngress(admissions, publisher, Substitute.For<IMarketDataOperationsRecorder>());
         var envelope = new DatasetPublicationEnvelope
         {
-            Dataset = identity.Dataset, ValueDate = identity.ValueDate, WorkerInstanceId = identity.WorkerInstanceId,
-            GenerationId = identity.GenerationId, ManifestRevision = 1, PublicationSequence = 1,
+            Dataset = identity.Dataset,
+            ValueDate = identity.ValueDate,
+            WorkerInstanceId = identity.WorkerInstanceId,
+            GenerationId = identity.GenerationId,
+            ManifestRevision = 1,
+            PublicationSequence = 1,
             Kind = DatasetPublicationKind.MarketPrice,
             Payload = MessagePackSerializer.Serialize(new FuturesMarketPriceUpdatedRealtimeEvent
             {
@@ -145,8 +149,10 @@ public sealed class SupervisedHostPublisherLifecycleTests
                 Substitute.For<IMarketDataOperationsRecorder>(), Values);
             var processOptions = new DatabentoStage3Options
             {
-                WorkerHandshakeTimeout = TimeSpan.FromSeconds(10), WorkerStartTimeout = TimeSpan.FromSeconds(15),
-                WorkerCommandTimeout = TimeSpan.FromSeconds(5), WorkerGracefulStopTimeout = TimeSpan.FromSeconds(2),
+                WorkerHandshakeTimeout = TimeSpan.FromSeconds(10),
+                WorkerStartTimeout = TimeSpan.FromSeconds(15),
+                WorkerCommandTimeout = TimeSpan.FromSeconds(5),
+                WorkerGracefulStopTimeout = TimeSpan.FromSeconds(2),
                 WorkerForceKillTimeout = TimeSpan.FromSeconds(5)
             };
             Workers = new DatasetWorkerProcessRecoveryService(processOptions, Admissions, ingress,

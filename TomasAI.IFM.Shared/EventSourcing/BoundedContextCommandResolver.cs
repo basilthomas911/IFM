@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Shared.EventSourcing;
 /// or resolved dynamically using a provided resolver function. Resolved instances  are cached for future use to improve
 /// performance.</remarks>
 /// <param name="resolverFunction"></param>
-public class BoundedContextCommandResolver(Func<Type, object>? resolverFunction) 
+public class BoundedContextCommandResolver(Func<Type, object>? resolverFunction)
     : IBoundedContextCommandResolver
 {
     static readonly ConcurrentDictionary<Type, object> _resolverMap = [];
@@ -23,7 +23,7 @@ public class BoundedContextCommandResolver(Func<Type, object>? resolverFunction)
     /// <param name="cmdHandlerType">The type of the command handler to add. This cannot be <see langword="null"/>.</param>
     /// <param name="cmdHandler">The instance of the command handler to associate with the specified type. This cannot be <see langword="null"/>.</param>
     public void Add(Type cmdHandlerType, object cmdHandler)
-        =>  _resolverMap.TryAdd(cmdHandlerType, cmdHandler);
+        => _resolverMap.TryAdd(cmdHandlerType, cmdHandler);
 
     /// <summary>
     /// Resolves an instance of the specified command handler type.

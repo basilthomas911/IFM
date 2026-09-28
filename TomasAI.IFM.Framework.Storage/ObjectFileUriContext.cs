@@ -11,7 +11,7 @@ public class ObjectFileUriContext(string commandName, Uri uri, IDataReaderOption
 
     public void Read<TResult>(Func<string, TResult> mapper, Action<IEnumerable<TResult>> reducer)
     {
-       
+
     }
 
     /// <summary>
@@ -24,7 +24,7 @@ public class ObjectFileUriContext(string commandName, Uri uri, IDataReaderOption
     {
         ICollection<TResult> resultSet = [];
         var stringReader = new FileStringReader(Uri);
-        await foreach(var line in stringReader.ReadLinesAsync())
+        await foreach (var line in stringReader.ReadLinesAsync())
         {
             try
             {
@@ -79,7 +79,7 @@ public class ObjectFileUriContext(string commandName, Uri uri, IDataReaderOption
             return resultSet;
         }
 
-        ICollection<TResult> ReadAll(IDataReader  dataReader)
+        ICollection<TResult> ReadAll(IDataReader dataReader)
         {
             var resultSet = new List<TResult>();
             var record = new AdoNetDataRecord().SetReader(dataReader);
@@ -136,7 +136,7 @@ public static class ObjectFileUriContextExtensions
         return await objectFileUriContext.ReadAsync(dataReaderMapper);
     }
 
-    public static async Task ReadAsync<TResult>(this IObjectUriContext uriCtx, Func<string, int, TResult> mapper, Func<IEnumerable<TResult>,  Task> reducer)
+    public static async Task ReadAsync<TResult>(this IObjectUriContext uriCtx, Func<string, int, TResult> mapper, Func<IEnumerable<TResult>, Task> reducer)
     {
         if (uriCtx is not ObjectFileUriContext objectFileUriContext)
         {

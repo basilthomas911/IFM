@@ -50,12 +50,12 @@ public sealed class RegimeDiscoveryConfigurationQueryActor(
         IQueryActorContext<RegimeDiscoveryConfigurationQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<IRegimeDiscoveryConfigurationQueryContext,
             IQueryActorContext<RegimeDiscoveryConfigurationQueryActor>, IQuery, CancellationToken, ValueTask>>
-    {
-        [typeof(GetRegimeDiscoveryParameterSetQuery)] = static (services, context, query, cancellationToken) =>
-            ((GetRegimeDiscoveryParameterSetQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(ResolveRegimeDiscoveryParameterSetQuery)] = static (services, context, query, cancellationToken) =>
-            ((ResolveRegimeDiscoveryParameterSetQuery)query).ExecuteAsync(services, context, cancellationToken)
-    };
+        {
+            [typeof(GetRegimeDiscoveryParameterSetQuery)] = static (services, context, query, cancellationToken) =>
+                ((GetRegimeDiscoveryParameterSetQuery)query).ExecuteAsync(services, context, cancellationToken),
+            [typeof(ResolveRegimeDiscoveryParameterSetQuery)] = static (services, context, query, cancellationToken) =>
+                ((ResolveRegimeDiscoveryParameterSetQuery)query).ExecuteAsync(services, context, cancellationToken)
+        };
     /// <inheritdoc />
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
         CreateQueryExceptionMap(_receiveMap.Keys);

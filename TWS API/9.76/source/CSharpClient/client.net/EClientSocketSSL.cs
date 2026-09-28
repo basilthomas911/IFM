@@ -16,7 +16,8 @@ namespace IBApi
     public class EClientSocketSSL : EClientSocket
     {
         public EClientSocketSSL(EWrapper wrapper, EReaderSignal signal) :
-            base(wrapper, signal) { }
+            base(wrapper, signal)
+        { }
 
         protected override Stream createClientStream(string host, int port)
         {

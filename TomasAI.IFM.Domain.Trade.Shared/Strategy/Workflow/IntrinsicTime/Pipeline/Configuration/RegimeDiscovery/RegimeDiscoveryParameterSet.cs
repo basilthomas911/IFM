@@ -131,7 +131,7 @@ public sealed class RegimeDiscoveryParameterSetValidationRules
             RuleFor(x => x).Must(x => x.SchemaVersion < 5 ||
                 (x.SignalMetrics is { Length: > 0 and <= 128 } && x.ObservationMetrics is { Length: > 0 and <= 32 }))
                 .WithMessage("Schema 5 requires normalized signal and observation metric lists.");
-            When(x=>x.SchemaVersion<3,()=>
+            When(x => x.SchemaVersion < 3, () =>
             {
                 RuleFor(x => x.StrategyParameterSetId).NotEmpty();
                 RuleFor(x => x.StrategyParameterSetVersion).GreaterThan(0);

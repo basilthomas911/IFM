@@ -29,11 +29,12 @@ internal sealed record IsolatedWorkflowCatalogFixture(CatalogKey Deployment, str
 {
     internal static async Task<IsolatedWorkflowCatalogFixture> CreateAsync(IActorProducer producer, CancellationToken token)
     {
-        Environment.GetEnvironmentVariable("IFM_NATS_URL").Should().Be("nats://127.0.0.1:24223");
+        Environment.GetEnvironmentVariable("IFM_NATS_URL").Should().MatchRegex(@"^nats://127\.0\.0\.1:\d+$");
         var connection = Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION") ?? "";
-        var match = Regex.Match(connection, @"\AHost=127\.0\.0\.1;Port=25432;Database=ifm_eventlog_bench_([a-f0-9]{12})_synthetic_host\z");
+        var match = Regex.Match(connection, @"\AHost=127\.0\.0\.1;Port=\d+;Database=ifm_eventlog_bench_([a-f0-9]{12})_synthetic_host\z");
         match.Success.Should().BeTrue("fixture publication is restricted to the disposable host");
-        var scyllaPort = Environment.GetEnvironmentVariable("IFM_QUALIFICATION_EXISTING_SCYLLA") == "1" ? 9042 : 29042;
+        var scyllaPort = int.Parse(Environment.GetEnvironmentVariable("IFM_QUALIFICATION_SCYLLA_PORT")
+            ?? throw new InvalidOperationException("Qualification CQL port is required."));
         var settings = new DbConnectionSettings()
             .Add(ConfigurationDbContext.ConfigurationDbConnection, connection, "System.Data.Postgres")
             .Add(SequenceIdDbContext.SequenceIdDbConnection, connection, "System.Data.Postgres")

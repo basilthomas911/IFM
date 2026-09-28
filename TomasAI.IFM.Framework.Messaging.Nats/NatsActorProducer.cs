@@ -173,7 +173,7 @@ public class NatsActorProducer(
     /// <param name="event">The event to publish. Cannot be <see langword="null"/>.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the NATS producer is not started.</exception>
-    public async ValueTask SendAsync<TEvent, TEntityId>(ActorSubject subject, TEvent @event) 
+    public async ValueTask SendAsync<TEvent, TEntityId>(ActorSubject subject, TEvent @event)
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId
         => await SendAsync<TEvent, TEntityId>(subject, @event, CancellationToken.None).ConfigureAwait(false);
@@ -247,7 +247,7 @@ public class NatsActorProducer(
     /// response of type <typeparamref name="TResult"/> returned by the actor subject.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the NATS producer is not started before calling this method.</exception>
     public async ValueTask<ServiceResult<TResult>> RequestAsync<TResult, TQuery>(ActorSubject subject, TQuery query)
-        where TQuery : class,IQuery<TResult>
+        where TQuery : class, IQuery<TResult>
         where TResult : class
         => await RequestAsync<TResult, TQuery>(subject, query, CancellationToken.None).ConfigureAwait(false);
 
@@ -255,7 +255,7 @@ public class NatsActorProducer(
         ActorSubject subject,
         TQuery query,
         CancellationToken cancellationToken)
-        where TQuery : class,IQuery<TResult>
+        where TQuery : class, IQuery<TResult>
         where TResult : class
     {
         EnsureCoreSubject(subject, ActorType.Query);
@@ -310,13 +310,13 @@ public class NatsActorProducer(
     /// <param name="entityId">The identifier of the entity associated with the command. Cannot be <see langword="null"/>.</param>
     /// <returns>A <see cref="ValueTask{TResult}"/> that represents the asynchronous operation. The result contains a <see
     /// cref="ServiceResult{T}"/> with a <see cref="Guid"/> representing the outcome of the command execution.</returns>
-    public async ValueTask<ServiceResult<TResult>> RequestAsync<TCommand,TEntityId, TResult>(ActorSubject subject, TCommand command, TEntityId entityId) 
+    public async ValueTask<ServiceResult<TResult>> RequestAsync<TCommand, TEntityId, TResult>(ActorSubject subject, TCommand command, TEntityId entityId)
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
         where TResult : class
         => await RequestAsync<TCommand, TEntityId, TResult>(subject, command, entityId, CancellationToken.None).ConfigureAwait(false);
 
-    public async ValueTask<ServiceResult<TResult>> RequestAsync<TCommand,TEntityId, TResult>(
+    public async ValueTask<ServiceResult<TResult>> RequestAsync<TCommand, TEntityId, TResult>(
         ActorSubject subject,
         TCommand command,
         TEntityId entityId,

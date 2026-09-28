@@ -31,8 +31,8 @@ public sealed record AppliedParameterAssignment(
 
 [MessagePackObject]
 public sealed record ParameterAssignmentSnapshot(
- [property:Key(0)] ParameterAssignmentEntityId EntityId,
- [property:Key(1)] ParameterAssignmentScope Scope,
- [property:Key(2)] long Revision,
- [property:Key(3)] ParameterAssignmentRevision? Assignment,
- [property:Key(4)] ParameterAuditEntry[]? Audit = null);
+ [property: Key(0)] ParameterAssignmentEntityId EntityId,
+ [property: Key(1)] ParameterAssignmentScope Scope,
+ [property: Key(2)] long Revision,
+ [property: Key(3)] ParameterAssignmentRevision? Assignment,
+ [property: Key(4)] ParameterAuditEntry[]? Audit = null);

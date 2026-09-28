@@ -44,7 +44,9 @@ public sealed class MarketDataSubscriptionCoordinator : IAsyncDisposable
         current = new(HostEpochId, scope, dataset, valueDate, 0, []);
         commands = Channel.CreateBounded<Work>(new BoundedChannelOptions(this.policy.CommandCapacity)
         {
-            SingleReader = true, SingleWriter = false, AllowSynchronousContinuations = false,
+            SingleReader = true,
+            SingleWriter = false,
+            AllowSynchronousContinuations = false,
             FullMode = BoundedChannelFullMode.Wait
         });
         pump = Task.Run(RunAsync);

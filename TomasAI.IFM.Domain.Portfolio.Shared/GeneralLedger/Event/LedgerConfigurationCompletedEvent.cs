@@ -19,7 +19,7 @@ public sealed record LedgerConfigurationCompletedEvent : ICompleteEvent<LedgerPo
     [Key(8)] public Guid CausationId { get; init; } = Guid.Empty;
     [Key(9)] public DateTime CommittedAtUtc { get; init; } = default;
     [Key(10)] public string InputHash { get; init; } = string.Empty;
-    [Key(11)] public LedgerConfigurationReceipt Receipt { get; init; } = new(Guid.Empty,0,LedgerConfigurationAction.Undefined,0,default,null,string.Empty);
+    [Key(11)] public LedgerConfigurationReceipt Receipt { get; init; } = new(Guid.Empty, 0, LedgerConfigurationAction.Undefined, 0, default, null, string.Empty);
     [Key(12)] public long EventId { get; init; } = 0;
     [Key(13)] public string AggregateId { get; init; } = string.Empty;
     [Key(14)] public string EventSource { get; init; } = "LedgerConfigurationCommand";

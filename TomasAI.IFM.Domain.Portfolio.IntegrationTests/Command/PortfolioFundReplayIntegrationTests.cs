@@ -32,10 +32,20 @@ public sealed class PortfolioFundReplayIntegrationTests
 
     static FundMandateReadModel Mandate(DateTime now) => new()
     {
-        PortfolioId = 101, FundId = 205, FundCode = "DAILY", Name = "Daily",
-        FundMandateVersion = 1, TradingYear = 2026, OperatingState = FundOperatingState.Draft,
-        EffectiveFromUtc = now, DecisionHorizon = "Daily", Objective = "Directional",
-        UnderlyingUniverse = ["ES"], EligibleAssetTypes = ["Futures"],
-        PermittedTradeFamilies = ["DirectionalFuture"], CreatedOnUtc = now, CreatedBy = "admin",
+        PortfolioId = 101,
+        FundId = 205,
+        FundCode = "DAILY",
+        Name = "Daily",
+        FundMandateVersion = 1,
+        TradingYear = 2026,
+        OperatingState = FundOperatingState.Draft,
+        EffectiveFromUtc = now,
+        DecisionHorizon = "Daily",
+        Objective = "Directional",
+        UnderlyingUniverse = ["ES"],
+        EligibleAssetTypes = ["Futures"],
+        PermittedTradeFamilies = ["DirectionalFuture"],
+        CreatedOnUtc = now,
+        CreatedBy = "admin",
     };
 }

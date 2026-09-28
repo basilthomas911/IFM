@@ -28,7 +28,8 @@ public sealed class BrokerOrderFillsPreviewTests
                 finally { context.ExitThread(); }
             }));
             System.Windows.Forms.Application.Run(context);
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         await completed.Task.WaitAsync(TimeSpan.FromSeconds(20));
@@ -40,12 +41,18 @@ public sealed class BrokerOrderFillsPreviewTests
             DateTime.UtcNow, "test");
         var order = new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel
         {
-            PortfolioId = 1, FundId = 4, OrderId = 16001
+            PortfolioId = 1,
+            FundId = 4,
+            OrderId = 16001
         });
         var trade = new PortfolioFundOrderTradeEditorModel
         {
-            PortfolioId = 1, FundId = 4, OrderId = 16001, TradeId = 2,
-            TradeType = TradeType.ShortIronCondor, BaseContractId = "ES20261218",
+            PortfolioId = 1,
+            FundId = 4,
+            OrderId = 16001,
+            TradeId = 2,
+            TradeType = TradeType.ShortIronCondor,
+            BaseContractId = "ES20261218",
             RequestedTradeDate = new DateOnly(2026, 9, 23)
         };
         using var preview = new BrokerOrderFillsPreviewControl(1, fund, order, trade);

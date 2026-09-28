@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 namespace TomasAI.IFM.Domain.Trade.Shared;
 
 public record struct TradePositionStateEntityId(
-    int OrderId, 
+    int OrderId,
     int TradeId)
 {
     public override string ToString() => JsonConvert.SerializeObject(this, Formatting.None);

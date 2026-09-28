@@ -36,7 +36,7 @@ public static class OptionTradeFactory
                 updatedOn: optionTrade.CreatedOn,
                 updatedBy: optionTrade.CreatedBy
             )).Cast<IOptionLeg>().ToList());
-       
+
         // set trade limit...
         optionTrade.SetTradeLimit(new TradeLimit(tradeOrder.TradeLimit, optionTrade.CreatedOn, optionTrade.CreatedBy, optionTrade.CreatedOn, optionTrade.CreatedBy));
 

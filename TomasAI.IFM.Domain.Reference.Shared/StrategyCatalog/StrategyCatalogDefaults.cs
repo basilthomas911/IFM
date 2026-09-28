@@ -15,10 +15,12 @@ public static class StrategyCatalogDefaults
         var examples = StrategyCatalogExamples.Create();
         var structures = examples.Where(x => x.Key.Kind == StrategyCatalogKind.Structure).ToArray();
         var families = Families.Select(x => StrategyCatalogExamples.New(StrategyCatalogKind.Family, x.Code + "Family", x.Name)
-            with { Description = $"Default {x.Name} family. Configure its strategies, variants and deployments in the corresponding catalog sections." }).ToArray();
+            with
+        { Description = $"Default {x.Name} family. Configure its strategies, variants and deployments in the corresponding catalog sections." }).ToArray();
         var strategies = Families.Select((x, i) => StrategyCatalogExamples.New(StrategyCatalogKind.Strategy, x.Code, x.Name) with
         {
-            Families = [families[i].Key], Structures = structures.Where(s => x.Structures.Contains(s.Code)).Select(s => s.Key).ToArray(),
+            Families = [families[i].Key],
+            Structures = structures.Where(s => x.Structures.Contains(s.Code)).Select(s => s.Key).ToArray(),
             Description = $"Default {x.Name} strategy. Draft configuration; execution requires qualified capabilities.",
             Capabilities = [new("evaluator", "RegimeAligned", 1), new("data", "AcceptedMarketAssessment", 1)]
         });

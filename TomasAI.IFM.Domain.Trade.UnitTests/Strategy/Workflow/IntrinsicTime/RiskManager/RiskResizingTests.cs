@@ -146,8 +146,13 @@ public sealed class RiskResizingTests
     {
         var (view, financial, at) = await Input();
         var state = new IntrinsicTimeStrategyWorkflowCommandState();
-        state.Apply(new WorkflowStrategyStateUpdatedEvent { State = view, EntityId = view.EntityId,
-            WorkflowId = view.WorkflowId, WorkflowRevision = view.WorkflowRevision }, false);
+        state.Apply(new WorkflowStrategyStateUpdatedEvent
+        {
+            State = view,
+            EntityId = view.EntityId,
+            WorkflowId = view.WorkflowId,
+            WorkflowRevision = view.WorkflowRevision
+        }, false);
         var api = Substitute.For<IPortfolioFinancialApi>();
         api.GetPostingReceiptAsync(Arg.Any<FinancialReadScope>(), Arg.Any<GetPostingReceiptRequest>(), Arg.Any<CancellationToken>())
             .Returns(new ServiceOk<FinancialRead<FinancialOperationOutcome>>(Absent(financial)));
@@ -170,8 +175,12 @@ public sealed class RiskResizingTests
     {
         var result = new RiskEvaluator().Calculate(view.RiskExecution!);
         result.Outcome.Should().Be(RiskAssessmentOutcome.Approved);
-        return view with { WorkflowRevision = view.WorkflowRevision + 1, RiskManagement = view.RiskManagement with
-        { ProcessingStatus = StrategyActorProcessingStatus.Completed, Result = StrategyStageResultEnvelope.CreateRisk(result), SourceEventId = result.InvocationId } };
+        return view with
+        {
+            WorkflowRevision = view.WorkflowRevision + 1,
+            RiskManagement = view.RiskManagement with
+            { ProcessingStatus = StrategyActorProcessingStatus.Completed, Result = StrategyStageResultEnvelope.CreateRisk(result), SourceEventId = result.InvocationId }
+        };
     }
 
     static async Task<(IntrinsicTimeStrategyWorkflowView View, FinancialRead<FinancialAdmissionSnapshot> Financial, DateTime At)> Input()
@@ -183,11 +192,15 @@ public sealed class RiskResizingTests
         result.StrategyUnits.Should().Be(10);
         var reserve = RiskFinancialHandoff.Reserve(view, result, input.Financial, input.At);
         view = view with { FinancialHandoff = new() { Phase = RiskFinancialHandoffPhase.ReservePending, ReservationRequest = reserve } };
-        var financial = input.Financial with { FinancialRevision = 2, Value = input.Financial.Value! with
+        var financial = input.Financial with
         {
-            Usage = input.Financial.Value.Limits.Where(x => x.Measure == CapacityMeasure.GrossContracts)
+            FinancialRevision = 2,
+            Value = input.Financial.Value! with
+            {
+                Usage = input.Financial.Value.Limits.Where(x => x.Measure == CapacityMeasure.GrossContracts)
                 .Select(x => new CapacityUsed(x.ScopeKind, x.ScopeKey, x.Measure, x.Unit, x.Maximum - 2, 0, 0)).ToArray()
-        } };
+            }
+        };
         return (view, financial, input.At);
     }
 

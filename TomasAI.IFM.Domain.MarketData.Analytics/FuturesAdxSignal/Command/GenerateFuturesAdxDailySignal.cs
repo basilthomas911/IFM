@@ -42,8 +42,8 @@ public static class GenerateFuturesAdxDailySignal
     /// <param name="computeModel">When this method returns, contains the resulting futures ADX signal compute model if the operation succeeds;
     /// otherwise, contains null.</param>
     /// <returns>true if the compute model was successfully created; otherwise, false.</returns>
-    internal static bool Compute(this GenerateFuturesAdxDailySignalCommand e, FuturesAdxSignalReadModel? adxSignal,  IReadOnlyCollection<FuturesAdxSignalReadModel> adxSignals, out FuturesAdxSignalCompute computeModel)
-        => FuturesAdxSignalCompute.Create( e.EntityId.PeriodLength, adxSignal, adxSignals, out computeModel);
+    internal static bool Compute(this GenerateFuturesAdxDailySignalCommand e, FuturesAdxSignalReadModel? adxSignal, IReadOnlyCollection<FuturesAdxSignalReadModel> adxSignals, out FuturesAdxSignalCompute computeModel)
+        => FuturesAdxSignalCompute.Create(e.EntityId.PeriodLength, adxSignal, adxSignals, out computeModel);
 
     /// <summary>
     /// Creates a <see cref="FuturesAdxSignalGeneratedEvent"/> from the given command, trend direction, and computed ADX signal values.
@@ -54,13 +54,13 @@ public static class GenerateFuturesAdxDailySignal
     /// <returns>The generated futures ADX signal event.</returns>
     internal static FuturesAdxDailySignalGeneratedEvent CreateFuturesAdxDailySignalGeneratedEvent(this GenerateFuturesAdxDailySignalCommand e, FuturesTrendDirectionType trendDirection, FuturesAdxSignalCompute computed)
     {
-        var entityId = new FuturesAdxDailySignalEntityId(e.FuturesAdxSignalId.ContractId,  e.EntityId.TimePeriod, e.EntityId.PeriodLength);
+        var entityId = new FuturesAdxDailySignalEntityId(e.FuturesAdxSignalId.ContractId, e.EntityId.TimePeriod, e.EntityId.PeriodLength);
         return new FuturesAdxDailySignalGeneratedEvent
         {
             CommandId = e.CommandId,
             Subject = new ActorSubject(ActorType.Event, FuturesAdxSignalGeneratedEvent.Actor, FuturesAdxSignalGeneratedEvent.Verb, entityId.Format()),
             EntityId = entityId,
-            FuturesAdxSignal = new(e.EntityId.ContractId, e.FuturesAdxSignalId.ValueDate,e.EntityId.TimePeriod, e.EntityId.PeriodLength, TimeOnly.FromDateTime(DateTime.UtcNow), 
+            FuturesAdxSignal = new(e.EntityId.ContractId, e.FuturesAdxSignalId.ValueDate, e.EntityId.TimePeriod, e.EntityId.PeriodLength, TimeOnly.FromDateTime(DateTime.UtcNow),
                e.FuturesPrice, computed.PlusDI, computed.MinusDI, computed.AdxValue, trendDirection, computed.TrendDirectionStrength()),
             CreatedBy = e.OriginatedBy,
             CreatedOn = e.OriginatedOn

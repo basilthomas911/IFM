@@ -80,7 +80,7 @@ public class CsvDataReader<TData> : ICsvDataReader
                         _nameIndex = [];
                         for (var i = 0; i < headerCols.Length; i++)
                         {
-                            var colName = headerCols[i].Replace("\"","");
+                            var colName = headerCols[i].Replace("\"", "");
                             if (!_nameIndex.ContainsKey(colName.ToLowerInvariant()))
                             {
                                 _nameIndex.Add(colName.ToLowerInvariant(), i);
@@ -173,7 +173,7 @@ public class CsvDataReader<TData> : ICsvDataReader
             return _propertyInfo[i].PropertyType.Name;
         }
         catch { }
-        return string.Empty;    
+        return string.Empty;
     }
 
     public DateTime GetDateTime(int i)
@@ -258,7 +258,7 @@ public class CsvDataReader<TData> : ICsvDataReader
         => _propertyIndex.ContainsKey(name) && _nameIndex.TryGetValue(name.ToLowerInvariant(), out var index)
             ? index
             : -1;
-    
+
     public DataTable GetSchemaTable()
     {
         var dataTable = new DataTable("CsvDataReader");
@@ -322,7 +322,7 @@ public class CsvDataReader<TData> : ICsvDataReader
         throw new NotImplementedException();
     }
 
-    public bool Read() 
+    public bool Read()
         => ++_cursor < _rows.Count;
 
     void ValidIndex(int index)

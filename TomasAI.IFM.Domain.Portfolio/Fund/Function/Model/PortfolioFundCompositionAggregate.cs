@@ -411,8 +411,10 @@ public sealed class PortfolioFundCompositionAggregate
             throw new InvalidOperationException("Only a RiskPending Fund order can accept new financial authorization.");
         return Save(current with
         {
-            Status = nameof(FundCompositionState.RiskApproved), RiskResultId = authorization.RiskResultId,
-            RiskResultHash = authorization.RiskAssessmentHash, RiskAuthorization = authorization,
+            Status = nameof(FundCompositionState.RiskApproved),
+            RiskResultId = authorization.RiskResultId,
+            RiskResultHash = authorization.RiskAssessmentHash,
+            RiskAuthorization = authorization,
             AggregateVersion = checked(current.AggregateVersion + 1)
         });
     }
@@ -437,8 +439,15 @@ public sealed class PortfolioFundCompositionAggregate
             || current.CompositionResultHash != evidence.CompositionHash || evidence.SourceCommandId == Guid.Empty || evidence.SourceEventId == Guid.Empty
             || evidence.TargetStatus is not ("RiskRejected" or "Cancelled" or "Expired") || evidence.DecidedAtUtc.Kind != DateTimeKind.Utc)
             throw new InvalidOperationException("Terminal Risk outcome conflicts with the current Fund order.");
-        return Save(current with { Status = evidence.TargetStatus, AggregateVersion = current.AggregateVersion + 1,
-            TerminalRisk = evidence, StopReason = evidence.Reason, RiskResultId = evidence.RiskResultId, RiskResultHash = evidence.RiskResultHash });
+        return Save(current with
+        {
+            Status = evidence.TargetStatus,
+            AggregateVersion = current.AggregateVersion + 1,
+            TerminalRisk = evidence,
+            StopReason = evidence.Reason,
+            RiskResultId = evidence.RiskResultId,
+            RiskResultHash = evidence.RiskResultHash
+        });
     }
 
     FundOrderProjectionReadModel Stop(int orderId, long version, FundCompositionState desired, string reason, FundCompositionState[] allowed)
@@ -495,7 +504,9 @@ public sealed class PortfolioFundCompositionAggregate
         _trades[order.OrderId] = trades;
         var updated = _reservations[order.IdempotencyKey] with
         {
-            Order = order, Trades = trades, AggregateVersion = order.AggregateVersion,
+            Order = order,
+            Trades = trades,
+            AggregateVersion = order.AggregateVersion,
         };
         _reservations[order.IdempotencyKey] = updated;
         return updated;
@@ -554,30 +565,30 @@ public sealed class PortfolioFundCompositionAggregate
 
     static FundOrderTradeProjectionReadModel CreateManualTrade(
         AddManualFundOrderTradeRequest request, string principal, int ordinal, long version) => new()
-    {
-        PortfolioId = request.PortfolioId,
-        FundId = request.FundId,
-        OrderId = request.OrderId,
-        TradeId = request.TradeId,
-        TradeFamily = request.TradeType,
-        TradeType = request.TradeType,
-        InstructionReference = FundOrderTradeReference.Create(
+        {
+            PortfolioId = request.PortfolioId,
+            FundId = request.FundId,
+            OrderId = request.OrderId,
+            TradeId = request.TradeId,
+            TradeFamily = request.TradeType,
+            TradeType = request.TradeType,
+            InstructionReference = FundOrderTradeReference.Create(
             request.BaseContractId,
             request.TradeDate,
             request.MaturityDate),
-        LegOrdinal = ordinal,
-        AggregateVersion = version,
-        TradeAction = request.TradeAction,
-        UnderlyingRoot = request.BaseContractSymbol.Trim(),
-        RequestedTradeDate = request.TradeDate,
-        RequestedMaturityDate = request.MaturityDate,
-        TradeState = request.TradeState,
-        PrimaryTrade = request.PrimaryTrade,
-        BaseContractSymbol = request.BaseContractSymbol.Trim(),
-        BaseContractId = request.BaseContractId.Trim(),
-        CreatedOnUtc = request.RequestedAtUtc,
-        CreatedBy = principal,
-    };
+            LegOrdinal = ordinal,
+            AggregateVersion = version,
+            TradeAction = request.TradeAction,
+            UnderlyingRoot = request.BaseContractSymbol.Trim(),
+            RequestedTradeDate = request.TradeDate,
+            RequestedMaturityDate = request.MaturityDate,
+            TradeState = request.TradeState,
+            PrimaryTrade = request.PrimaryTrade,
+            BaseContractSymbol = request.BaseContractSymbol.Trim(),
+            BaseContractId = request.BaseContractId.Trim(),
+            CreatedOnUtc = request.RequestedAtUtc,
+            CreatedBy = principal,
+        };
     static void ValidateReservation(ReserveFundOrderCompositionRequest request, PortfolioFundStrategySnapshot snapshot, DateTime nowUtc)
     {
         if (request.IdempotencyKey == Guid.Empty || request.WorkflowId == Guid.Empty || request.TradeSelectionInvocationId == Guid.Empty || request.TradeSelectionResultId == Guid.Empty)

@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
@@ -40,9 +40,9 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests;
 /// </summary>
 [Trait("Category", "Integration")]
 public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
-    WebApplicationFactory<Program> factory,
+    TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory,
     MarketDataAnalyticsFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataAnalyticsFixture>
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<MarketDataAnalyticsFixture>
 {
     static readonly DateOnly ValueDate = new(2026, 8, 17);
     readonly IActorProducer _producer = factory.Services.GetRequiredService<IActorProducer>();
@@ -128,7 +128,6 @@ public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
     [Fact]
     public async Task VwapRealtimeTrades_ProjectAndQueryExactSessionValue()
     {
-        var marketDataApi = factory.Services.GetRequiredService<IMarketDataApi>();
         var offset = Random.Shared.Next(1, 1500);
         var valueDate = new DateOnly(2030, 1, 1).AddDays(offset);
         while (valueDate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
@@ -138,7 +137,6 @@ public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
             "FUT", "USD", "CME", "50", new DateOnly(2025, 10, 10), true);
         factory.Services.GetRequiredService<IDatabentoContractRegistrationRegistry>()
             .ReplaceFuturesRolloverSet("ES", [contract]);
-        await marketDataApi.StartAsync(valueDate);
         try
         {
             var epoch = Guid.NewGuid();
@@ -202,7 +200,6 @@ public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
         }
         finally
         {
-            await marketDataApi.StopAsync(valueDate);
         }
     }
 

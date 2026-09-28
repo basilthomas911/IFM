@@ -1,15 +1,14 @@
 using FluentAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -19,13 +18,12 @@ using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.MarketDataFeed;
 
-public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factory, MarketDataFeedFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataFeedFixture>
+public class MarketDataFeedCommandApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory, MarketDataFeedFixture dbFixture)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<MarketDataFeedFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
-    readonly WebApplicationFactory<Program> _factory = factory;
+    readonly TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> _factory = factory;
 
     [Fact]
     public async Task StartMarketDataFeed_Ok()
@@ -49,13 +47,11 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         );
 
         var futuresContracts = new[] { SampleData.FuturesContract };
-        var valueDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-Random.Shared.Next(1, 10_000));
+        var valueDate = SampleData.ValueDate;
 
         // act...
-        _httpClientFactory.CreateClient();
         await ResetApplicationMarketDataApiAsync();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
+        var marketDataFeedApi = new MarketDataFeedCommandApi(_actorProducer);
         var response = await marketDataFeedApi.StartMarketDataFeedAsync(futuresContracts, valueDate);
 
         response.Should().NotBeNull();
@@ -129,13 +125,11 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
             EventHandlerAsync
         );
 
-        var valueDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-Random.Shared.Next(1, 10_000));
+        var valueDate = SampleData.ValueDate;
 
         // act...
-        _httpClientFactory.CreateClient();
         await ResetApplicationMarketDataApiAsync(valueDate);
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
+        var marketDataFeedApi = new MarketDataFeedCommandApi(_actorProducer);
         var response = await marketDataFeedApi.StopMarketDataFeedAsync(valueDate);
 
         response.Should().NotBeNull();
@@ -208,13 +202,11 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         );
 
         var futuresContracts = new[] { SampleData.FuturesContract };
-        var valueDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-Random.Shared.Next(1, 10_000));
+        var valueDate = SampleData.ValueDate;
 
         // act...
-        _httpClientFactory.CreateClient();
         await ResetApplicationMarketDataApiAsync();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
+        var marketDataFeedApi = new MarketDataFeedCommandApi(_actorProducer);
         var response = await marketDataFeedApi.ResetMarketDataFeedAsync(futuresContracts, valueDate);
 
         response.Should().NotBeNull();
@@ -229,7 +221,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         marketDataFeedResetFailEvent.Should().BeNull();
 
         //marketDataFeedResetEvent.ValueDate.Should().Be(valueDate);
-       //marketDataFeedResetEvent.FuturesContracts.Should().NotBeNullOrEmpty();
+        //marketDataFeedResetEvent.FuturesContracts.Should().NotBeNullOrEmpty();
         //marketDataFeedResetEvent.FuturesContracts!.Length.Should().Be(futuresContracts.Length);
 
         await eventListener.StopAsync();
@@ -291,9 +283,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         var valueDate = DateOnly.FromDateTime(DateTime.Today);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
+        var marketDataFeedApi = new MarketDataFeedCommandApi(_actorProducer);
         var entityId = new TradeEntityId(
             Random.Shared.Next(1, int.MaxValue),
             Random.Shared.Next(1, int.MaxValue),
@@ -371,9 +361,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         var valueDate = DateOnly.FromDateTime(DateTime.Today);
 
         // arrange... add the live feed first
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
+        var marketDataFeedApi = new MarketDataFeedCommandApi(_actorProducer);
         var entityId = new TradeEntityId(
             Random.Shared.Next(1, int.MaxValue),
             Random.Shared.Next(1, int.MaxValue),
@@ -465,9 +453,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         var valueDate = DateOnly.FromDateTime(DateTime.Today);
 
         // arrange... add the live feed first
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
+        var marketDataFeedApi = new MarketDataFeedCommandApi(_actorProducer);
         var entityId = new TradeEntityId(
             Random.Shared.Next(1, int.MaxValue),
             Random.Shared.Next(1, int.MaxValue),
@@ -554,9 +540,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         var feedId = new FeedId(Random.Shared.Next(1, int.MaxValue));
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
+        var marketDataFeedApi = new MarketDataFeedCommandApi(_actorProducer);
         var response = await marketDataFeedApi.DeleteStreamingRequestIdAsync(feedId);
 
         response.Should().NotBeNull();
@@ -603,8 +587,8 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
 
     private async Task ResetApplicationMarketDataApiAsync(DateOnly? startValueDate = null)
     {
-        var api = _factory.Services.GetRequiredService<DatabentoMarketDataApi>();
-        if (api.ActiveValueDate is { } activeValueDate)
+        var api = _factory.Services.GetRequiredService<IMarketDataLifecycleRequests>();
+        if (api.Current.ValueDate is { } activeValueDate)
             await api.StopAsync(activeValueDate);
         if (startValueDate is { } valueDate)
             await api.StartAsync(valueDate);

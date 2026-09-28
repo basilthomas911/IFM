@@ -58,6 +58,6 @@ public class FuturesContractCommandActorTests : IClassFixture<SecuritiesFixture>
             => await OnExceptionAsync(context, threadId, cmd, ex);
     }
 
-  
+
 }
 

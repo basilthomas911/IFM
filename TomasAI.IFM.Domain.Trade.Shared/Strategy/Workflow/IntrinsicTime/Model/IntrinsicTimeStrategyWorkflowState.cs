@@ -99,13 +99,13 @@ public sealed record IntrinsicTimeStrategyWorkflowState
     [Key(20)] public MarketConditionParameterSet MarketConditionParameterSet { get; init; } = new();
     [Key(21)] public string MarketConditionParameterPayloadSha256 { get; init; } = string.Empty;
     [Key(22)] public MarketConditionAssessmentBinding? AssessmentBinding { get; init; }
-    [Key(23)] public TradeSelectionBinding? SelectionBinding {get;init;}
-    [Key(24)] public WorkflowCompositionHandoffState? CompositionHandoff {get;init;}
-    [Key(25)] public ExecuteTradeSelectionPipelineCommand? SelectionDispatch {get;init;}
+    [Key(23)] public TradeSelectionBinding? SelectionBinding { get; init; }
+    [Key(24)] public WorkflowCompositionHandoffState? CompositionHandoff { get; init; }
+    [Key(25)] public ExecuteTradeSelectionPipelineCommand? SelectionDispatch { get; init; }
     [Key(26)] public StartOrderCompositionPipelineCommand? CompositionDispatch { get; init; }
     /// <summary>Selected contracts retained in the compatibility projection.</summary>
     [Key(27)] public CompositionContractSelection? CompositionContracts { get; init; }
     [Key(28)] public ExecuteOrderCompositionPipelineCommand? CompositionExecution { get; init; }
-    [Key(29)] public ParameterApplicationProvenance? RegimeDiscoveryParameterApplication {get;init;}
+    [Key(29)] public ParameterApplicationProvenance? RegimeDiscoveryParameterApplication { get; init; }
 
 }

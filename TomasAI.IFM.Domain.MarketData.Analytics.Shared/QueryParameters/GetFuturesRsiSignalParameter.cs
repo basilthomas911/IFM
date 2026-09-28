@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.QueryParameters;
 public record GetFuturesRsiSignalParameter : IActorEntityId, IQueryParameter
 {
     [Key(0)] public string ContractId { get; init; } = string.Empty;
-    [Key(1)] public DateOnly ValueDate { get; init; } 
+    [Key(1)] public DateOnly ValueDate { get; init; }
     [Key(2)] public TimeFrameType TimePeriod { get; init; }
     [Key(3)] public int PeriodLength { get; init; }
 

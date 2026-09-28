@@ -40,10 +40,14 @@ public sealed class RegimeDiscoveryFunctionValidationTests
     {
         var command = ValidCommand() with
         {
-            CommandId = Guid.Empty, InputWorkflowRevision = 0,
-            CorrelationId = Guid.Empty, CausationId = Guid.Empty,
-            RequestedAtUtc = default, ExpiresAtUtc = default,
-            ParameterPayloadSha256 = "bad", TargetHorizon = TimeFrameType.None
+            CommandId = Guid.Empty,
+            InputWorkflowRevision = 0,
+            CorrelationId = Guid.Empty,
+            CausationId = Guid.Empty,
+            RequestedAtUtc = default,
+            ExpiresAtUtc = default,
+            ParameterPayloadSha256 = "bad",
+            TargetHorizon = TimeFrameType.None
         };
         var errors = Validate(command);
         errors.Count.Should().BeGreaterThanOrEqualTo(8);
@@ -66,8 +70,13 @@ public sealed class RegimeDiscoveryFunctionValidationTests
     {
         var parameters = ValidCommand().ParameterSet with
         {
-            Horizon = null!, Trend = null!, Volatility = null!, MarketStructure = null!,
-            Fusion = null!, Freshness = null!, DataQuality = null!
+            Horizon = null!,
+            Trend = null!,
+            Volatility = null!,
+            MarketStructure = null!,
+            Fusion = null!,
+            Freshness = null!,
+            DataQuality = null!
         };
         new RegimeDiscoveryParameterSetValidationRules().Execute(parameters).Should().HaveCount(7);
         parameters = ValidCommand().ParameterSet;
@@ -130,8 +139,11 @@ public sealed class RegimeDiscoveryFunctionValidationTests
         var command = ValidCommand();
         var completed = new RegimeDiscoveryPipelineCompletedEvent
         {
-            Id = Guid.NewGuid(), EntityId = command.WorkflowEntityId, WorkflowId = command.WorkflowId,
-            InputWorkflowRevision = command.InputWorkflowRevision, CommandId = command.CommandId,
+            Id = Guid.NewGuid(),
+            EntityId = command.WorkflowEntityId,
+            WorkflowId = command.WorkflowId,
+            InputWorkflowRevision = command.InputWorkflowRevision,
+            CommandId = command.CommandId,
             ParameterPayloadSha256 = command.ParameterPayloadSha256
         };
         var state = new RegimeDiscoveryFunctionState();
@@ -217,17 +229,22 @@ public sealed class RegimeDiscoveryFunctionValidationTests
         var entity = command.EntityId with { WorkflowEntityId = workflow };
         return command with
         {
-            EntityId = entity, Subject = command.Subject with { EntityId = entity.Format() },
+            EntityId = entity,
+            Subject = command.Subject with { EntityId = entity.Format() },
             WorkflowView = command.WorkflowView with { EntityId = workflow },
             TriggerEvent = command.TriggerEvent with { EntityId = workflow.ItiSignalEntityId },
-            CorrelationId = Guid.NewGuid(), CausationId = Guid.NewGuid(),
-            ParameterSet = parameters, ParameterPayloadSha256 = RegimeDiscoveryParameterPayload.ComputeSha256(parameters),
+            CorrelationId = Guid.NewGuid(),
+            CausationId = Guid.NewGuid(),
+            ParameterSet = parameters,
+            ParameterPayloadSha256 = RegimeDiscoveryParameterPayload.ComputeSha256(parameters),
             TargetHorizon = horizon,
             Snapshot = new RegimeDiscoveryMarketSignalSnapshot
             {
-                SnapshotId = Guid.NewGuid(), CacheRevision = 1,
+                SnapshotId = Guid.NewGuid(),
+                CacheRevision = 1,
                 MarketSeriesIdentity = MarketSeriesIdentity.ForContract(workflow.ItiSignalEntityId.ContractId),
-                TargetHorizon = horizon, CapturedAtUtc = DateTime.UtcNow,
+                TargetHorizon = horizon,
+                CapturedAtUtc = DateTime.UtcNow,
                 MarketDataAsOfUtc = DateTime.UtcNow,
                 Observations =
                 [

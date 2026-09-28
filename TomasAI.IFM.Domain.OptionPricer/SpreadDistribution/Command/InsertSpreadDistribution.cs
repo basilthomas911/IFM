@@ -23,7 +23,7 @@ public static class InsertSpreadDistribution
     /// event. Cannot be null.</param>
     /// <returns>A SpreadDistributionInsertedEvent that encapsulates the inserted spread distribution and associated metadata.</returns>
     internal static SpreadDistributionInsertedEvent CreateSpreadDistributionInsertedEvent(this InsertSpreadDistributionCommand e)
-        => new ()
+        => new()
         {
             Subject = new ActorSubject(ActorType.Event, SpreadDistributionInsertedEvent.Actor, SpreadDistributionInsertedEvent.Verb, e.EntityId.Format()),
             EntityId = new SpreadDistributionEntityId(e.EntityId.TradeId, e.EntityId.ValueDate),

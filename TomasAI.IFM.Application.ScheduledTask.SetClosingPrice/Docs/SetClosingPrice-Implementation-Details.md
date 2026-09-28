@@ -68,8 +68,7 @@ Do not manually edit or commit generated `bin` or `obj` content.
 | `Worker.cs` | Executes the value-date, contract, closing-price, and trade-placement-stop workflow once. |
 | `TomasAI.IFM.Application.ScheduledTask.SetClosingPrice.csproj` | Defines the .NET 7 worker, packages, project references, user-secrets identity, and settings copy behavior. |
 | `appsettings.json` | Required base Serilog configuration. |
-| `appsettings.Development.json` | Development command/query service endpoints. |
-| `appsettings.Production.json` | Production command/query service endpoints. |
+| `appsettings.json` | NATS actor messaging configuration. |
 | `Properties/launchSettings.json` | Local .NET project launch profile. |
 | `Properties/PublishProfiles/FolderProfile.pubxml` | Folder-publish settings. |
 | `Docs/SetClosingPrice-Implementation-Details.md` | This document. |
@@ -84,13 +83,9 @@ The service container registers:
 | --- | --- |
 | Logging | Serilog configured from application settings. |
 | Named non-generic logger | `IFM-ScheduledTask-SetClosingPrice`. |
-| `IRestApiSerializer` | `NewtonSoftJsonSerializer`. |
-| `ICommandServiceRestApiOptions` | Reads `AppSettings:CommandServerBaseUri`. |
-| `ICommandService` | `CommandServiceRestApiClient`. |
+| `IActorProducer` | `NatsActorProducer`. |
 | `IMarketDataFeedCommandApi` | `MarketDataFeedCommandApi`, used to insert closing prices. |
 | `ITradePlacementCommandApi` | `TradePlacementCommandApi`, used to stop ES trade placement. |
-| `IQueryServiceRestApiOptions` | Reads `AppSettings:QueryServerBaseUri`. |
-| `IQueryService` | `QueryServiceRestClientApi`. |
 | `IMarketDataFeedQueryApi` | `MarketDataFeedQueryApi`, used to obtain the last futures tick. |
 | `IMarketDataQueryApi` | `MarketDataQueryApi`, used for value date and traded contracts. |
 | Hosted service | `Worker`. |
@@ -131,8 +126,7 @@ The worker catches and logs execution exceptions. Once the host exits, `Program.
 
 | Key | Required by code | Purpose |
 | --- | --- | --- |
-| `AppSettings:CommandServerBaseUri` | Yes | Base URI for closing-price insert and trade-placement-stop commands. |
-| `AppSettings:QueryServerBaseUri` | Yes | Base URI for value-date, contract, and last-tick queries. |
+| `Nats:Url` | Optional | NATS actor broker URL; defaults to `nats://localhost:4222`. |
 | `Serilog:*` | Required for configured logging behavior | Sink, minimum-level, enrichment, and application metadata. |
 | `DOTNET_ENVIRONMENT` | Optional host input | Selects the environment-specific settings file. |
 

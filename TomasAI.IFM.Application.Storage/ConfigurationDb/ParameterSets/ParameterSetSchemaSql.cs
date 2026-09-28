@@ -1,7 +1,8 @@
 namespace TomasAI.IFM.Application.Storage.ConfigurationDb.ParameterSets;
+
 public static class ParameterSetSchemaSql
 {
- public const string Create = """
+    public const string Create = """
  CREATE TABLE IF NOT EXISTS reference_configuration.parameter_legacy_reference (
  legacy_kind text NOT NULL,legacy_set_id uuid NOT NULL,legacy_version integer NOT NULL,generic_set_id uuid NOT NULL,generic_version integer NOT NULL,
  legacy_sha256 text NOT NULL,legacy_codec text NOT NULL,PRIMARY KEY(legacy_kind,legacy_set_id,legacy_version));

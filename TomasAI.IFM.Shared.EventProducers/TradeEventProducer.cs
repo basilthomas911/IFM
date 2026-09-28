@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Shared.EventProducers;
 /// with event-driven architectures, enabling downstream consumers to react to trade lifecycle changes in real time.
 /// This class is intended for use in production scenarios; a parameterless constructor is available for BDD testing
 /// purposes only.</remarks>
-public class TradeEventProducer : NatsEventProducer,  ITradeEventProducer
+public class TradeEventProducer : NatsEventProducer, ITradeEventProducer
 {
     public TradeEventProducer()
     {

@@ -39,7 +39,8 @@ public interface ICompleteEvent<TEntityId> : IEvent<TEntityId>, ICompleteEvent
 {
 }
 
-public interface IErrorEvent : IEvent {
+public interface IErrorEvent : IEvent
+{
     DateTime ErrorDate { get; }
     int ErrorCode { get; init; }
     string ErrorMessage { get; init; }

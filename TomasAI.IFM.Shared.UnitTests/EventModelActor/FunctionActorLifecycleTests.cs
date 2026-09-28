@@ -340,7 +340,8 @@ public sealed class FunctionActorLifecycleTests
         var request = new TestRequest(); var state = new TestState(); var completed = Completed(request);
         if (replay) state.TryComplete(completed, request);
         var actor = new TestFunctionActor(new TestRepository(state, []), null,
-            (_, _) => FunctionResult<TestCompletedEvent, TestFailedEvent>.Complete(completed)) { FailObservation = true };
+            (_, _) => FunctionResult<TestCompletedEvent, TestFailedEvent>.Complete(completed))
+        { FailObservation = true };
         var message = new TestMessage(request); await actor.HandleMessageAsync(message);
         message.Reply!.Value!.Completed.Should().BeSameAs(completed);
         actor.Observations.Should().Equal(replay ? FunctionEventPhase.Replayed : FunctionEventPhase.Committed);

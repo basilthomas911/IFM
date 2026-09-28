@@ -8,7 +8,9 @@ namespace TomasAI.IFM.Domain.MarketData.UnitTests.DownloadLog;
 
 public class DownloadLogContractTests
 {
-    [Theory] [InlineData("FMP")] [InlineData("USTreasury")]
+    [Theory]
+    [InlineData("FMP")]
+    [InlineData("USTreasury")]
     public void Treasury_provider_round_trips_and_partition_matches(string provider)
     {
         var outcome = Outcome(MarketDataDownloadDataset.TreasuryCurve) with { Provider = provider };
@@ -24,13 +26,22 @@ public class DownloadLogContractTests
     }
     internal static MarketDataDownloadOutcome Outcome(MarketDataDownloadDataset dataset = MarketDataDownloadDataset.EconomicCalendar) => new()
     {
-        Dataset = dataset, Scope = "US", ValueDate = new(2026, 9, 5), ImportCommandId = Guid.NewGuid(), SourceTerminalEventId = Guid.NewGuid(),
-        RequestedAtUtc = new(2026, 9, 5, 12, 0, 0, DateTimeKind.Utc), StartedAtUtc = new(2026, 9, 5, 12, 0, 1, DateTimeKind.Utc),
-        FinishedAtUtc = new(2026, 9, 5, 12, 0, 2, DateTimeKind.Utc), Status = MarketDataDownloadStatus.Completed,
-        DownloadedRecordCount = 3, PersistedRecordCount = 3, ElapsedMilliseconds = 1000
+        Dataset = dataset,
+        Scope = "US",
+        ValueDate = new(2026, 9, 5),
+        ImportCommandId = Guid.NewGuid(),
+        SourceTerminalEventId = Guid.NewGuid(),
+        RequestedAtUtc = new(2026, 9, 5, 12, 0, 0, DateTimeKind.Utc),
+        StartedAtUtc = new(2026, 9, 5, 12, 0, 1, DateTimeKind.Utc),
+        FinishedAtUtc = new(2026, 9, 5, 12, 0, 2, DateTimeKind.Utc),
+        Status = MarketDataDownloadStatus.Completed,
+        DownloadedRecordCount = 3,
+        PersistedRecordCount = 3,
+        ElapsedMilliseconds = 1000
     };
 
-    [Fact] public void Logging_identity_is_stable_and_distinct_from_source_identity()
+    [Fact]
+    public void Logging_identity_is_stable_and_distinct_from_source_identity()
     {
         var outcome = Outcome(); var command = new InsertMarketDataDownloadLogCommand(outcome);
         command.Validate(); Assert.NotEqual(outcome.ImportCommandId, command.CommandId);
@@ -38,46 +49,71 @@ public class DownloadLogContractTests
         Assert.NotEqual(command.CommandId, new InsertMarketDataDownloadLogCommand(Outcome()).CommandId);
     }
 
-    [Theory] [InlineData("us,CA,us", "CA,US")] [InlineData("", "ALL")]
+    [Theory]
+    [InlineData("us,CA,us", "CA,US")]
+    [InlineData("", "ALL")]
     public void Scope_is_canonical(string input, string expected)
         => Assert.Equal(expected, MarketDataDownloadOutcome.CanonicalScope(input.Split(',', StringSplitOptions.RemoveEmptyEntries)));
 
-    [Fact] public void Reserved_ALL_scope_cannot_be_supplied_as_a_country_filter()
+    [Fact]
+    public void Reserved_ALL_scope_cannot_be_supplied_as_a_country_filter()
         => Assert.Throws<ArgumentException>(() => MarketDataDownloadOutcome.CanonicalScope(["ALL"]));
 
     [Theory]
-    [InlineData("version")] [InlineData("dataset")] [InlineData("status")] [InlineData("provider")]
-    [InlineData("scope")] [InlineData("identity")] [InlineData("time")] [InlineData("precision")]
-    [InlineData("elapsed")] [InlineData("count")] [InlineData("unknown-completed")] [InlineData("completed-error")]
+    [InlineData("version")]
+    [InlineData("dataset")]
+    [InlineData("status")]
+    [InlineData("provider")]
+    [InlineData("scope")]
+    [InlineData("identity")]
+    [InlineData("time")]
+    [InlineData("precision")]
+    [InlineData("elapsed")]
+    [InlineData("count")]
+    [InlineData("unknown-completed")]
+    [InlineData("completed-error")]
     public void Invalid_outcomes_are_rejected(string field)
     {
         var o = Outcome();
         o = field switch
         {
-            "version" => o with { SchemaVersion = 2 }, "dataset" => o with { Dataset = 0 }, "status" => o with { Status = 0 },
-            "provider" => o with { Provider = "fmp" }, "scope" => o with { Scope = "us" }, "identity" => o with { ImportCommandId = Guid.Empty },
-            "time" => o with { StartedAtUtc = o.RequestedAtUtc.AddSeconds(-1) }, "precision" => o with { RequestedAtUtc = o.RequestedAtUtc.AddTicks(1) },
-            "elapsed" => o with { ElapsedMilliseconds = -1 }, "count" => o with { DownloadedRecordCount = -1 },
-            "unknown-completed" => o with { PersistedRecordCount = null }, _ => o with { ErrorCode = "error" }
+            "version" => o with { SchemaVersion = 2 },
+            "dataset" => o with { Dataset = 0 },
+            "status" => o with { Status = 0 },
+            "provider" => o with { Provider = "fmp" },
+            "scope" => o with { Scope = "us" },
+            "identity" => o with { ImportCommandId = Guid.Empty },
+            "time" => o with { StartedAtUtc = o.RequestedAtUtc.AddSeconds(-1) },
+            "precision" => o with { RequestedAtUtc = o.RequestedAtUtc.AddTicks(1) },
+            "elapsed" => o with { ElapsedMilliseconds = -1 },
+            "count" => o with { DownloadedRecordCount = -1 },
+            "unknown-completed" => o with { PersistedRecordCount = null },
+            _ => o with { ErrorCode = "error" }
         };
         Assert.Throws<ArgumentException>(o.Validate);
     }
 
-    [Fact] public void Failed_partial_write_preserves_unknown_count_and_requires_error()
+    [Fact]
+    public void Failed_partial_write_preserves_unknown_count_and_requires_error()
     {
         var o = Outcome() with { Status = MarketDataDownloadStatus.Failed, PersistedRecordCount = null };
         Assert.Throws<ArgumentException>(o.Validate);
         (o with { ErrorCode = "StorageFailed", ErrorMessage = "Persistence was not confirmed." }).Validate();
     }
 
-    [Fact] public void Command_and_outcome_round_trip_with_stable_hash()
+    [Fact]
+    public void Command_and_outcome_round_trip_with_stable_hash()
     {
         var original = new InsertMarketDataDownloadLogCommand(Outcome());
         var copy = MessagePackSerializer.Deserialize<InsertMarketDataDownloadLogCommand>(MessagePackSerializer.Serialize(original));
         copy.Validate(); Assert.Equal(original, copy);
     }
 
-    [Theory] [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)]
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
     public void Four_terminal_contracts_accept_new_and_legacy_payloads(int type)
     {
         var o = Outcome();
@@ -101,7 +137,8 @@ public class DownloadLogContractTests
         Assert.Null(original.GetType().GetProperty("DownloadOutcome")!.GetValue(legacy));
     }
 
-    [Fact] public void Equivalent_duplicate_is_noop_and_conflict_cannot_mutate_state()
+    [Fact]
+    public void Equivalent_duplicate_is_noop_and_conflict_cannot_mutate_state()
     {
         var state = new DownloadLogCommandState(); var command = new InsertMarketDataDownloadLogCommand(Outcome());
         Assert.True(command.Execute(state).Success); Assert.Single(state.Events);

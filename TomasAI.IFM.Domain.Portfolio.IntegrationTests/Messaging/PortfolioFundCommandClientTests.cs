@@ -23,14 +23,23 @@ public sealed class PortfolioFundCommandClientTests
         var key = Guid.NewGuid();
         var request = new CreateManualFundOrderRequest
         {
-            PortfolioId = 101, PortfolioVersion = 2, FundId = 202, FundMandateVersion = 3,
+            PortfolioId = 101,
+            PortfolioVersion = 2,
+            FundId = 202,
+            FundMandateVersion = 3,
             IdempotencyKey = key,
-            RequestedAtUtc = now, ExpiresAtUtc = now.AddDays(1),
+            RequestedAtUtc = now,
+            ExpiresAtUtc = now.AddDays(1),
         };
         var projected = new FundOrderProjectionReadModel
         {
-            PortfolioId = 101, FundId = 202, OrderId = 7001, IdempotencyKey = key,
-            CreatedOnUtc = now, AggregateVersion = 1, Origin = CompositionOrigin.ManualUi,
+            PortfolioId = 101,
+            FundId = 202,
+            OrderId = 7001,
+            IdempotencyKey = key,
+            CreatedOnUtc = now,
+            AggregateVersion = 1,
+            Origin = CompositionOrigin.ManualUi,
             CanonicalRequestHash = PortfolioCanonicalHash.Compute(request),
         };
         var producer = new AcknowledgingProducer();
@@ -131,7 +140,8 @@ public sealed class PortfolioFundCommandClientTests
         public Task<ServiceResult<PortfolioPage<FundOrderProjectionReadModel>>> GetOrdersAsync(int portfolioId, int fundId, DateOnly orderMonth, int pageSize, string? pageToken = null, CancellationToken cancellationToken = default) =>
             Task.FromResult<ServiceResult<PortfolioPage<FundOrderProjectionReadModel>>>(new ServiceOk<PortfolioPage<FundOrderProjectionReadModel>>(new()
             {
-                Items = [.. (timeline ?? []).Where(x => x.PortfolioId == portfolioId && x.FundId == fundId)], PageSize = pageSize,
+                Items = [.. (timeline ?? []).Where(x => x.PortfolioId == portfolioId && x.FundId == fundId)],
+                PageSize = pageSize,
             }));
         public Task<ServiceResult<PortfolioFundStrategyReferenceCombination[]>> GetStrategyReferenceCombinationsAsync(int portfolioId, DateTime asOfUtc, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }

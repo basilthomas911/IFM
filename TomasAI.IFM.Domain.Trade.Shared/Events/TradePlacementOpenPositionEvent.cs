@@ -67,7 +67,7 @@ public record TradePlacementOpenPositionEvent : IEvent
     public ICompleteEvent ToCompletedEvent() => new TradePlacementOpenPositionCompleteEvent
     {
         TradePlacementId = this.TradePlacementId,
-        FuturesTradeSignal= this.FuturesTradeSignal,
+        FuturesTradeSignal = this.FuturesTradeSignal,
         OpenedOn = this.OpenedOn,
         OpenedBy = this.OpenedBy,
     };

@@ -35,7 +35,7 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
     readonly Button _financials = PortfolioUiStyle.Button("Financials...", "View selected Fund financials");
     IPortfolioFinancialApi? _financialApi;
     IRiskQueryApi? _riskApi;
-    readonly Button _riskHistory=PortfolioUiStyle.Button("Risk History...", "View Risk invocation history");
+    readonly Button _riskHistory = PortfolioUiStyle.Button("Risk History...", "View Risk invocation history");
     readonly Button _configureAllocation = PortfolioUiStyle.Button("Allocation...", "Configure Fund allocation");
     readonly Button _configureEnvelope = PortfolioUiStyle.Button("Risk Envelope...", "Configure Fund risk envelope");
     readonly Button _configureAssignment = PortfolioUiStyle.Button("Trade Assignment...", "Configure Fund trade assignment");
@@ -74,7 +74,7 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
     public PortfolioAdministrationForm()
     {
         Text = "Portfolio Administration"; Name = "PortfolioAdministrationForm"; AccessibleName = "Portfolio Administration";
-        _financials.Enabled=false;
+        _financials.Enabled = false;
         Width = 1450; Height = 900; MinimumSize = new(1100, 700); PortfolioUiStyle.Apply(this);
         _state.Width = 140; _state.Dock = DockStyle.None;
         _state.Items.AddRange(Enum.GetValues<PortfolioOperatingState>().Where(x => x != PortfolioOperatingState.Unknown).Cast<object>().ToArray());
@@ -94,15 +94,15 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
         _newPortfolioVersion.Click += async (_, _) => await NewPortfolioVersionAsync(); _portfolioState.Click += async (_, _) => await ChangePortfolioStateAsync();
         _deletePortfolio.Click += async (_, _) => await DeleteDraftPortfolioAsync();
         _createFund.Click += async (_, _) => await CreateFundAsync(); _newFundVersion.Click += async (_, _) => await NewFundVersionAsync(); _fundState.Click += async (_, _) => await ChangeFundStateAsync();
-        _financials.Click += (_,_) => ShowFinancials();
-        _riskHistory.Click += (_,_) => { if(_riskApi is not null && _viewModel?.SelectedFund is {} fund) { using var form=new Strategy.RiskHistoryForm(_riskApi,fund.PortfolioId,fund.FundId); form.ShowDialog(this); } };
+        _financials.Click += (_, _) => ShowFinancials();
+        _riskHistory.Click += (_, _) => { if (_riskApi is not null && _viewModel?.SelectedFund is { } fund) { using var form = new Strategy.RiskHistoryForm(_riskApi, fund.PortfolioId, fund.FundId); form.ShowDialog(this); } };
         _configureAllocation.Click += async (_, _) => await ConfigureAllocationAsync(); _configureEnvelope.Click += async (_, _) => await ConfigureEnvelopeAsync(); _configureAssignment.Click += async (_, _) => await ConfigureAssignmentAsync();
         FormClosed += (_, _) => { _metrics?.Dispose(); _metricTips.Dispose(); _viewModel?.ClearSelection(); _load?.Cancel(); _load?.Dispose(); };
     }
 
-    public async Task LoadViewModelAsync(IPortfolioQueryApi queries, IPortfolioCommandApi commands, IPortfolioFundCommandApi fundCommands, IPortfolioIdentityApi identities, IPortfolioFinancialPolicyCommandApi? policyCommands = null, IReferenceQueryApi? referenceQueries = null, bool canMutate = true, IPortfolioFinancialApi? financialApi=null, IRiskQueryApi? riskApi=null)
+    public async Task LoadViewModelAsync(IPortfolioQueryApi queries, IPortfolioCommandApi commands, IPortfolioFundCommandApi fundCommands, IPortfolioIdentityApi identities, IPortfolioFinancialPolicyCommandApi? policyCommands = null, IReferenceQueryApi? referenceQueries = null, bool canMutate = true, IPortfolioFinancialApi? financialApi = null, IRiskQueryApi? riskApi = null)
     {
-        _queries = queries; _policyCommands = policyCommands; _identities = identities; _referenceQueries = referenceQueries; _financialApi=financialApi; _riskApi=riskApi; _metrics?.Dispose(); _metrics = financialApi is null ? null : new FundMetricsViewModel(financialApi);
+        _queries = queries; _policyCommands = policyCommands; _identities = identities; _referenceQueries = referenceQueries; _financialApi = financialApi; _riskApi = riskApi; _metrics?.Dispose(); _metrics = financialApi is null ? null : new FundMetricsViewModel(financialApi);
         _viewModel = new(queries, commands, fundCommands, identities, canMutate); SetSelectionButtons(); await RefreshAsync();
     }
 
@@ -325,8 +325,8 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
     async Task RefreshForStateAsync(PortfolioOperatingState state) { _state.SelectedItem = state; await RefreshAsync(); }
     void BindConfiguration()
     {
-        _financials.Enabled=_financialApi is not null && _viewModel?.SelectedFund is not null && _viewModel.State!=PortfolioUiState.Loading;
-        _riskHistory.Enabled=_riskApi is not null && _viewModel?.SelectedFund is not null && _viewModel.State!=PortfolioUiState.Loading;
+        _financials.Enabled = _financialApi is not null && _viewModel?.SelectedFund is not null && _viewModel.State != PortfolioUiState.Loading;
+        _riskHistory.Enabled = _riskApi is not null && _viewModel?.SelectedFund is not null && _viewModel.State != PortfolioUiState.Loading;
         BindFundSummary();
         BindDetails(_allocation, _viewModel?.Allocation);
         BindDetails(_envelope, _viewModel?.RiskEnvelope);
@@ -337,9 +337,13 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
     void ShowStatus(string? message = null) { _status.Text = message ?? (_viewModel?.State == PortfolioUiState.Empty ? "No Portfolios match the filter." : _viewModel?.Message) ?? string.Empty; }
     void ShowFinancials()
     {
-        if(_financialApi is null || _viewModel?.SelectedFund is not { } fund) return;
-        var scope=new FinancialReadScope { PortfolioId=fund.PortfolioId,FundId=fund.FundId,
-            Access=new(Environment.UserName,_viewModel.CanMutate ? ["LedgerRead","LedgerPost","LedgerReverse","LedgerConfigure","LedgerPeriodReopen","LedgerImport"] : ["LedgerRead"],[fund.PortfolioId]) };
+        if (_financialApi is null || _viewModel?.SelectedFund is not { } fund) return;
+        var scope = new FinancialReadScope
+        {
+            PortfolioId = fund.PortfolioId,
+            FundId = fund.FundId,
+            Access = new(Environment.UserName, _viewModel.CanMutate ? ["LedgerRead", "LedgerPost", "LedgerReverse", "LedgerConfigure", "LedgerPeriodReopen", "LedgerImport"] : ["LedgerRead"], [fund.PortfolioId])
+        };
         using var form = new FundFinancialForm(_financialApi, scope, fund.Name);
         form.ShowDialog(this);
     }

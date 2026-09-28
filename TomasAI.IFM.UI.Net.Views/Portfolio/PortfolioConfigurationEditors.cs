@@ -50,7 +50,8 @@ public sealed class FundAllocationEditorForm : PortfolioConfigurationEditor<Fund
     protected override void SaveCore()
     {
         var now = DateTime.UtcNow; var value = new FundAllocationReadModel { PortfolioId = _portfolio.PortfolioId, PortfolioVersion = _portfolio.PortfolioVersion, FundId = _fund.FundId, FundMandateVersion = _fund.FundMandateVersion, AllocationVersion = (_source?.AllocationVersion ?? 0) + 1, TargetWeight = _target.Value, MinimumWeight = _minimum.Value, MaximumWeight = _maximum.Value, AllocatedCapital = _capital.Value, Currency = _currency.Text.Trim().ToUpperInvariant(), EffectiveFromUtc = now, SourcePolicyId = _portfolio.ActivePolicyId, SourcePolicyVersion = (long)_policyVersion.Value, CreatedOnUtc = now, CreatedBy = Environment.UserName };
-        var errors = value.Validate(); if (errors.Count != 0) { Error.Text = string.Join("; ", errors); return; } Finish(value);
+        var errors = value.Validate(); if (errors.Count != 0) { Error.Text = string.Join("; ", errors); return; }
+        Finish(value);
     }
 }
 
@@ -68,7 +69,8 @@ public sealed class FundRiskEnvelopeEditorForm : PortfolioConfigurationEditor<Fu
     protected override void SaveCore()
     {
         var now = DateTime.UtcNow; var value = new FundRiskEnvelopeReadModel { PortfolioId = _portfolio.PortfolioId, PortfolioVersion = _portfolio.PortfolioVersion, FundId = _fund.FundId, FundMandateVersion = _fund.FundMandateVersion, EnvelopeId = _source?.EnvelopeId ?? Guid.NewGuid(), EnvelopeVersion = (_source?.EnvelopeVersion ?? 0) + 1, CapacityState = (FundCapacityState)(_capacity.SelectedItem ?? FundCapacityState.Available), Currency = _currency.Text.Trim().ToUpperInvariant(), AllocatedCapital = _allocated.Value, AvailableCapital = _available.Value, MaximumRiskPerTrade = _perTrade.Value, MaximumAggregateRisk = _aggregate.Value, MaximumMargin = _margin.Value, MaximumGrossNotional = _notional.Value, MaximumContracts = (int)_contracts.Value, MaximumOpenPositions = (int)_positions.Value, RemainingLossBudget = _lossBudget.Value, EffectiveFromUtc = now, ExpiresAtUtc = now.AddDays((double)_days.Value), SourcePolicyId = _portfolio.ActivePolicyId, SourcePolicyVersion = _portfolio.ActivePolicyVersion, CreatedOnUtc = now, CreatedBy = Environment.UserName };
-        var errors = value.Validate(); if (errors.Count != 0) { Error.Text = string.Join("; ", errors); return; } Finish(value);
+        var errors = value.Validate(); if (errors.Count != 0) { Error.Text = string.Join("; ", errors); return; }
+        Finish(value);
     }
 }
 
@@ -121,6 +123,7 @@ public sealed class FundAssignmentEditorForm : PortfolioConfigurationEditor<Fund
         }
         var now = DateTime.UtcNow; var value = new FundTradeTemplateAssignmentReadModel { PortfolioId = _portfolio.PortfolioId, PortfolioVersion = _portfolio.PortfolioVersion, FundId = _fund.FundId, FundMandateVersion = _fund.FundMandateVersion, AssignmentVersion = 1, TradeTemplateId = Guid.TryParse(_template.Text, out var template) ? template : Guid.Empty, TradeTemplateVersion = (long)_templateVersion.Value, Enabled = _enabled.Checked, DecisionHorizon = PortfolioUiStyle.SelectedStrategyTimeFrameName(_horizon), UnderlyingUniverse = Csv(_underlyings.Text), AssetType = _asset.Text.Trim(), TradeFamily = selectedFamily.SystemKey, Priority = (int)_priority.Value, EffectiveFromUtc = now, TradeSelectionHintProfileId = Guid.TryParse(_hint.Text, out var hint) ? hint : Guid.Empty, TradeSelectionHintProfileVersion = (long)_hintVersion.Value, OrderCompositionProfileId = Guid.TryParse(_composition.Text, out var composition) ? composition : Guid.Empty, OrderCompositionProfileVersion = (long)_compositionVersion.Value, CreatedOnUtc = now, CreatedBy = Environment.UserName };
         value = value with { SchemaVersion = 3, TradeStrategyFamily = selectedFamily.Reference };
-        var errors = value.Validate(); if (errors.Count != 0) { Error.Text = string.Join("; ", errors); return; } Finish(value);
+        var errors = value.Validate(); if (errors.Count != 0) { Error.Text = string.Join("; ", errors); return; }
+        Finish(value);
     }
 }

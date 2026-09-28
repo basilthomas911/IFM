@@ -9,8 +9,8 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Queries;
 
-public class TradeQueryApiTests(WebApplicationFactory<Program> factory, TradeDatabaseFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<TradeDatabaseFixture>
+public class TradeQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory, TradeDatabaseFixture dbFixture)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<TradeDatabaseFixture>
 {
     readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
 
@@ -85,7 +85,7 @@ public class TradeQueryApiTests(WebApplicationFactory<Program> factory, TradeDat
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBeNull();
     }
 

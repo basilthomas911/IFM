@@ -19,11 +19,21 @@ public sealed class PortfolioFundCatalogVerificationTests
         var aggregate = new PortfolioFundAggregate();
         aggregate.Create(Guid.NewGuid(), new FundMandateReadModel
         {
-            PortfolioId = 101, FundId = fundId, FundCode = horizon.ToUpperInvariant(), Name = horizon,
-            FundMandateVersion = 1, TradingYear = 2026, OperatingState = FundOperatingState.Draft,
-            EffectiveFromUtc = now, DecisionHorizon = horizon, Objective = "ES strategy",
-            UnderlyingUniverse = ["ES"], EligibleAssetTypes = [asset], PermittedTradeFamilies = [family],
-            CreatedOnUtc = now, CreatedBy = "verification",
+            PortfolioId = 101,
+            FundId = fundId,
+            FundCode = horizon.ToUpperInvariant(),
+            Name = horizon,
+            FundMandateVersion = 1,
+            TradingYear = 2026,
+            OperatingState = FundOperatingState.Draft,
+            EffectiveFromUtc = now,
+            DecisionHorizon = horizon,
+            Objective = "ES strategy",
+            UnderlyingUniverse = ["ES"],
+            EligibleAssetTypes = [asset],
+            PermittedTradeFamilies = [family],
+            CreatedOnUtc = now,
+            CreatedBy = "verification",
         }, now, "verification");
 
         aggregate.Current!.DecisionHorizon.Should().Be(horizon);

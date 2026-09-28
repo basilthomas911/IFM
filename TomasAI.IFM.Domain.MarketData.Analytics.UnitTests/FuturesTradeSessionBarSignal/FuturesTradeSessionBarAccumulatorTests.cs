@@ -148,24 +148,24 @@ public sealed class FuturesTradeSessionBarAccumulatorTests
         Guid epoch,
         long ordinal,
         decimal price) => new()
-    {
-        Subject = new ActorSubject(ActorType.Realtime,
+        {
+            Subject = new ActorSubject(ActorType.Realtime,
             FuturesMarketPriceUpdatedRealtimeEvent.Actor,
             FuturesMarketPriceUpdatedRealtimeEvent.Verb,
             $"{contractId}-{valueDate:O}"),
-        Id = Guid.NewGuid(),
-        EntityId = new(contractId, valueDate, AssetTypeId.Futures),
-        AggregateId = contractId,
-        EventSource = "test",
-        ReceivedOn = timestamp.UtcDateTime,
-        UpdateSource = FuturesMarketPriceUpdateSource.Trade,
-        Price = new FuturesMarketPriceSnapshot(
+            Id = Guid.NewGuid(),
+            EntityId = new(contractId, valueDate, AssetTypeId.Futures),
+            AggregateId = contractId,
+            EventSource = "test",
+            ReceivedOn = timestamp.UtcDateTime,
+            UpdateSource = FuturesMarketPriceUpdateSource.Trade,
+            Price = new FuturesMarketPriceSnapshot(
             contractId, 1, 1, AssetTypeId.Futures, valueDate, null,
             new FuturesMarketTradeSnapshot(
                 price, 1, ordinal, timestamp, timestamp,
                 NormalizedTradeAction.New, NormalizedTradeSide.Buy,
                 NormalizedTradeConditionFlags.None, epoch, ordinal))
-    };
+        };
 
     sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {

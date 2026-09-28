@@ -11,7 +11,7 @@ public class FundQueryUriPath
     public const string GetFunds = "/api/funds/";
     public const string GetFundOrders = "/api/fund/orders";
     public const string GetFundOrderTrades = "/api/fund/order/trades";
-    public const string GetFundBalance  = "/api/fund/balance";
+    public const string GetFundBalance = "/api/fund/balance";
     public const string GetOpeningFundBalance = "/api/fund/balance/open";
     public const string GetClosingFundBalance = "/api/fund/balance/close";
     public const string GetFundTransactions = "/api/fund/transactions";
@@ -90,13 +90,13 @@ public class FuturesBarDataQueryUriPath
 
 }
 
-    /// <summary>
-    /// Provides a collection of URI paths for querying market data endpoints.
-    /// </summary>
-    /// <remarks>This class contains constant string fields representing the URI paths for various endpoints in the
-    /// market data API. These endpoints are used to retrieve market data such as contracts, quotes, rates, and analytics.
-    /// The URIs are intended to be used as part of HTTP requests to the API.</remarks>
-    public class MarketDataQueryUriPath
+/// <summary>
+/// Provides a collection of URI paths for querying market data endpoints.
+/// </summary>
+/// <remarks>This class contains constant string fields representing the URI paths for various endpoints in the
+/// market data API. These endpoints are used to retrieve market data such as contracts, quotes, rates, and analytics.
+/// The URIs are intended to be used as part of HTTP requests to the API.</remarks>
+public class MarketDataQueryUriPath
 {
     public const string GetOnTheRunFuturesContract = "/api/marketdata/futures/on-the-run";
     public const string GetRolloverFuturesContracts = "/api/marketdata/futures/rollover-set";

@@ -11,7 +11,7 @@ public class CommandValidationException : ApplicationException
     public int ErrorCode => _errorCode;
 
     public CommandValidationException(int errorCode, string errorMessage)
-        :base(errorMessage)
+        : base(errorMessage)
     {
         _errorCode = errorCode;
     }

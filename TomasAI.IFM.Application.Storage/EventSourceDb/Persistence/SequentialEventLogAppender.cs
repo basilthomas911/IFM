@@ -50,7 +50,8 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
     internal SequentialEventLogAppender(string connectionString, bool useLz4Compression,
         EventLogPersistenceOptions? options, EventLogSqlLayout layout)
         : this(connectionString, useLz4Compression,
-            new AppenderConfiguration((options ?? new EventLogPersistenceOptions { UseLz4Compression = useLz4Compression }).Validate(), layout)) { }
+            new AppenderConfiguration((options ?? new EventLogPersistenceOptions { UseLz4Compression = useLz4Compression }).Validate(), layout))
+    { }
 
     SequentialEventLogAppender(string connectionString, bool useLz4Compression, AppenderConfiguration configuration)
     {

@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.AlgoTrader
 {
-    public interface IAlgoTraderModel<TEvent> where TEvent:IEvent
+    public interface IAlgoTraderModel<TEvent> where TEvent : IEvent
     {
     }
 }

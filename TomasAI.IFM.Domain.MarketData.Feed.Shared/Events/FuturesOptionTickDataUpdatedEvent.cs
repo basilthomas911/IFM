@@ -37,7 +37,7 @@ public record FuturesOptionTickDataUpdatedEvent : IEvent<FuturesOptionTickEntity
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;
 
     public FuturesOptionTickDataUpdatedEvent() { }
-    public FuturesOptionTickDataUpdatedEvent(FuturesOptionTickDataV2ReadModel optionTickData) 
+    public FuturesOptionTickDataUpdatedEvent(FuturesOptionTickDataV2ReadModel optionTickData)
     {
         OptionTickData = IsArgumentNull.Set(optionTickData);
     }

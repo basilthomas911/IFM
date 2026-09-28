@@ -84,30 +84,35 @@ public sealed record MarketConditionResult
     [Key(25)] public MarketConditionLiquidityQuality LiquidityQuality { get; init; }
     [Key(26)] public MarketConditionDataQuality DataQuality { get; init; }
     [Key(27)] public MarketConditionUpstreamAlignment UpstreamAlignment { get; init; }
-    [Key(28)] public MarketConditionEvidenceItem[] EvidenceItems
+    [Key(28)]
+    public MarketConditionEvidenceItem[] EvidenceItems
     {
         get => _evidenceItems is null ? null! : [.. _evidenceItems];
         init => _evidenceItems = value is null ? null : [.. value];
     }
-    [Key(29)] public MarketConditionEvidenceItem[] ConflictingEvidenceItems
+    [Key(29)]
+    public MarketConditionEvidenceItem[] ConflictingEvidenceItems
     {
         get => _conflictingEvidenceItems is null ? null! : [.. _conflictingEvidenceItems];
         init => _conflictingEvidenceItems = value is null ? null : [.. value];
     }
-    [Key(30)] public MarketConditionBlockingReason[] BlockingReasons
+    [Key(30)]
+    public MarketConditionBlockingReason[] BlockingReasons
     {
         get => _blockingReasons is null ? null! : [.. _blockingReasons];
         init => _blockingReasons = value is null ? null : [.. value];
     }
     [Key(31)] public string PrimaryReasonCode { get; init; } = string.Empty;
-    [Key(32)] public string[] Reasons
+    [Key(32)]
+    public string[] Reasons
     {
         get => _reasons is null ? null! : [.. _reasons];
         init => _reasons = value is null ? null : [.. value];
     }
     [Key(33)] public string SummaryText { get; init; } = string.Empty;
     /// <summary>Gets extensible, non-binding hints emitted after the primary decision is complete.</summary>
-    [Key(34)] public MarketConditionOutputHint[] OutputHints
+    [Key(34)]
+    public MarketConditionOutputHint[] OutputHints
     {
         get => _outputHints is null ? [] : [.. _outputHints];
         init => _outputHints = value is null ? null : [.. value];

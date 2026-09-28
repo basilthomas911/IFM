@@ -102,9 +102,9 @@ public class FuturesClosingPriceCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext,
         FuturesClosingPriceCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext,
         FuturesClosingPriceCommandState, ServiceResult<GuidResult>>>()
-    {
-        [typeof(InsertFuturesClosingPriceCommand)] = (cmd, context, state) => (cmd as InsertFuturesClosingPriceCommand).Execute(state)
-    };
+        {
+            [typeof(InsertFuturesClosingPriceCommand)] = (cmd, context, state) => (cmd as InsertFuturesClosingPriceCommand).Execute(state)
+        };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -127,16 +127,17 @@ public class FuturesClosingPriceCommandActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
-    {
-        [typeof(InsertFuturesClosingPriceCommand)] = cmd => {
-            var e = (InsertFuturesClosingPriceCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesDataId(e.FuturesClosingPriceId)
-                .ValidateClosingPrice(e.ClosingPrice, e.CommandName);
-        }
-    };
+        {
+            [typeof(InsertFuturesClosingPriceCommand)] = cmd =>
+            {
+                var e = (InsertFuturesClosingPriceCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFuturesDataId(e.FuturesClosingPriceId)
+                    .ValidateClosingPrice(e.ClosingPrice, e.CommandName);
+            }
+        };
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.

@@ -167,7 +167,7 @@ public class ActorThreadScheduler(Func<IActorMessage, ValueTask> messageReader, 
                 }
                 catch (OperationCanceledException)
                 {
-                   _logger?.LogInformationEvent(_serviceId, "{channelName} - query message processing canceled.", _channelName!);   
+                    _logger?.LogInformationEvent(_serviceId, "{channelName} - query message processing canceled.", _channelName!);
                 }
                 await Task.Delay(TimeSpan.FromSeconds(2));
                 this.Stop();

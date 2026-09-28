@@ -18,7 +18,7 @@ namespace TomasAI.IFM.UI.Net.Services.MarketData;
 /// asynchronously and interacts with the underlying <see cref="IMarketDataCommandApi"/> implementation. Callbacks are
 /// provided to track the unique command identifiers for auditing or further processing.</remarks>
 /// <param name="commandApi"></param>
-public class MarketDataCommandService(IMarketDataCommandApi commandApi) 
+public class MarketDataCommandService(IMarketDataCommandApi commandApi)
     : UiServiceBase<MarketDataCommandService>
 {
     readonly IMarketDataCommandApi _commandApi = IsArgumentNull.Set(commandApi);
@@ -111,7 +111,7 @@ public class MarketDataCommandService(IMarketDataCommandApi commandApi)
     /// <param name="changedFuturesOptionContract"></param>
     /// <param name="overwrite"></param>
     /// <returns>A task containing the command identifier used to correlate the terminal event.</returns>
-    public Task<Guid> ChangeFuturesOptionContractAsync(string originalContractId, FuturesOptionContractReadModel changedFuturesOptionContract,  bool overwrite)
+    public Task<Guid> ChangeFuturesOptionContractAsync(string originalContractId, FuturesOptionContractReadModel changedFuturesOptionContract, bool overwrite)
         => ExecuteCommandAsync(() => _commandApi.ChangeFuturesOptionContractAsync(originalContractId, changedFuturesOptionContract, overwrite));
 
     /// <summary>
@@ -121,7 +121,7 @@ public class MarketDataCommandService(IMarketDataCommandApi commandApi)
     /// <param name="overwrite"></param>
     /// <returns>A task containing the command identifier used to correlate the terminal event.</returns>
     public Task<Guid> RemoveFuturesOptionContractAsync(string contractId, bool overwrite)
-        => ExecuteCommandAsync(() => _commandApi.RemoveFuturesOptionContractAsync(contractId,  overwrite));
+        => ExecuteCommandAsync(() => _commandApi.RemoveFuturesOptionContractAsync(contractId, overwrite));
 
     /// <summary>
     /// add yield curve rate

@@ -1,6 +1,7 @@
 using MessagePack;
 using System.Collections.Immutable;
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing;
+
 [MessagePackObject]
 public sealed record CompositionFutureDefinition(
     [property: Key(0)] string ContractId, [property: Key(1)] string Root,

@@ -119,7 +119,8 @@ public sealed class ConfigurationStrategyCatalogUiTests
                 form.ShowDialog(); done.TrySetResult();
             }
             catch (Exception ex) { done.TrySetException(ex); }
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA); thread.Start(); await done.Task.WaitAsync(TimeSpan.FromSeconds(20));
         thread.Join(TimeSpan.FromSeconds(3)).Should().BeTrue();
     }

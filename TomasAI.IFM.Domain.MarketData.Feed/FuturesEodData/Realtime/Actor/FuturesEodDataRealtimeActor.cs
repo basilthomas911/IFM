@@ -50,28 +50,28 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
-    {
-        [FuturesTickTradeDataInsertedEvent.Verb] =
+        {
+            [FuturesTickTradeDataInsertedEvent.Verb] =
             message => message.AsEvent<FuturesTickTradeDataInsertedEvent>()!,
-        [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
+            [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
             message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!,
-        [FuturesSessionStatisticsUpdatedRealtimeEvent.Verb] =
+            [FuturesSessionStatisticsUpdatedRealtimeEvent.Verb] =
             message => message.AsEvent<FuturesSessionStatisticsUpdatedRealtimeEvent>()!,
-        [FuturesEodSessionStatisticsUpdatedEvent.Verb] =
+            [FuturesEodSessionStatisticsUpdatedEvent.Verb] =
             message => message.AsEvent<FuturesEodSessionStatisticsUpdatedEvent>()!,
-        [FuturesEodDataInsertedEvent.Verb] =
+            [FuturesEodDataInsertedEvent.Verb] =
             message => message.AsEvent<FuturesEodDataInsertedEvent>()!,
-        [FuturesEodDataInsertedCompleteEvent.Verb] =
+            [FuturesEodDataInsertedCompleteEvent.Verb] =
             message => message.AsEvent<FuturesEodDataInsertedCompleteEvent>()!,
-        [FuturesEodDataInsertedFailEvent.Verb] =
+            [FuturesEodDataInsertedFailEvent.Verb] =
             message => message.AsEvent<FuturesEodDataInsertedFailEvent>()!,
-        [VixFuturesEodDataInsertedEvent.Verb] =
+            [VixFuturesEodDataInsertedEvent.Verb] =
             message => message.AsEvent<VixFuturesEodDataInsertedEvent>()!,
-        [VixFuturesEodDataInsertedCompleteEvent.Verb] =
+            [VixFuturesEodDataInsertedCompleteEvent.Verb] =
             message => message.AsEvent<VixFuturesEodDataInsertedCompleteEvent>()!,
-        [VixFuturesEodDataInsertedFailEvent.Verb] =
+            [VixFuturesEodDataInsertedFailEvent.Verb] =
             message => message.AsEvent<VixFuturesEodDataInsertedFailEvent>()!
-    };
+        };
 
     readonly FuturesEodDataEventParameters _parameters = new(
         ((IFuturesEodDataRealtimeContext)actorContext).BlackboardService,

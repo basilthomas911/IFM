@@ -29,18 +29,31 @@ public static class CompleteRiskManagementPipeline
 
         RiskUnitModel.Require(MessagePackBinarySerializer.MeasureContent(result) <= 524288,
             "RM.INPUT.PAYLOAD_SIZE");
-        var completed=new RiskManagementFunctionCompletedEvent
+        var completed = new RiskManagementFunctionCompletedEvent
         {
-            Subject=new(ActorType.Function,ExecuteRiskManagementPipelineCommand.Actor,RiskManagementFunctionCompletedEvent.Verb,c.EntityId.Format()),
-            Id=result.ResultId,EntityId=c.WorkflowEntityId,CommandId=c.CommandId,AggregateId=c.EntityId.Format(),EventSource=c.EventSource,ReceivedOn=result.ProducedAtUtc,
-            WorkflowId=c.WorkflowId,InputWorkflowRevision=c.InputWorkflowRevision,CorrelationId=c.CorrelationId,CausationId=c.CausationId,PipelineStage=StrategyWorkflowStage.RiskManagement,
-            Result=result,
-            CompletedAtUtc=result.ProducedAtUtc,ExpiresAtUtc=c.ExpiresAtUtc,ParameterPayloadSha256=c.PolicyHash,
-            EvaluatedAtUtc=result.EvaluatedAtUtc,ValidUntilUtc=result.ValidUntilUtc,RequestFingerprint=c.Fingerprint()
+            Subject = new(ActorType.Function, ExecuteRiskManagementPipelineCommand.Actor, RiskManagementFunctionCompletedEvent.Verb, c.EntityId.Format()),
+            Id = result.ResultId,
+            EntityId = c.WorkflowEntityId,
+            CommandId = c.CommandId,
+            AggregateId = c.EntityId.Format(),
+            EventSource = c.EventSource,
+            ReceivedOn = result.ProducedAtUtc,
+            WorkflowId = c.WorkflowId,
+            InputWorkflowRevision = c.InputWorkflowRevision,
+            CorrelationId = c.CorrelationId,
+            CausationId = c.CausationId,
+            PipelineStage = StrategyWorkflowStage.RiskManagement,
+            Result = result,
+            CompletedAtUtc = result.ProducedAtUtc,
+            ExpiresAtUtc = c.ExpiresAtUtc,
+            ParameterPayloadSha256 = c.PolicyHash,
+            EvaluatedAtUtc = result.EvaluatedAtUtc,
+            ValidUntilUtc = result.ValidUntilUtc,
+            RequestFingerprint = c.Fingerprint()
         };
         RiskUnitModel.Require(MessagePackBinarySerializer.MeasureContent(completed) <= 1048576 &&
             MessagePackBinarySerializer.MeasureEncoded(completed) <= 1048576,
             "RM.INPUT.PAYLOAD_SIZE");
-        return FunctionResult<RiskManagementFunctionCompletedEvent,RiskManagementFunctionFailedEvent>.Complete(completed);
+        return FunctionResult<RiskManagementFunctionCompletedEvent, RiskManagementFunctionFailedEvent>.Complete(completed);
     }
 }

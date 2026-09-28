@@ -282,7 +282,8 @@ public sealed class Stage4DurableIntentPostgresTests(Stage4DurableIntentPostgres
         await fixture.Store.ApplyAsync(first);
         await fixture.Store.ApplyAsync(Next(first, 1, 2) with
         {
-            Adds = [], Releases = [new(first.Adds[0].LeaseId, 1)]
+            Adds = [],
+            Releases = [new(first.Adds[0].LeaseId, 1)]
         });
         var reused = Next(first, 2, 3);
         (await fixture.NewStore().ApplyAsync(reused)).Code.Should().Be(DurableIntentResultCode.LeaseConflict);
@@ -312,7 +313,8 @@ public sealed class Stage4DurableIntentPostgresTests(Stage4DurableIntentPostgres
         var added = Options(1).Select(value => value with { Ticker = value.Ticker with { ContractId = "ES-OPTION-NEW" } }).ToArray();
         var wrong = Next(first, 1, 2) with
         {
-            Adds = added, Releases = [new(first.Adds[0].LeaseId, first.Adds[0].LeaseVersion + 1)]
+            Adds = added,
+            Releases = [new(first.Adds[0].LeaseId, first.Adds[0].LeaseVersion + 1)]
         };
         (await fixture.Store.ApplyAsync(wrong)).Code.Should().Be(DurableIntentResultCode.LeaseConflict);
         (await fixture.Store.ReadAsync(first.Scope, Dataset)).Authorities[0].Leases.Should().HaveCount(2);
@@ -362,8 +364,11 @@ public sealed class Stage4DurableIntentPostgresTests(Stage4DurableIntentPostgres
 
     private static DurableAuthorityMutation Next(DurableAuthorityMutation first, long revision, long sourceVersion) => first with
     {
-        OperationId = Guid.NewGuid(), CorrelationId = Guid.NewGuid(), SourceEventId = Guid.NewGuid(),
-        ExpectedRevision = revision, SourceVersion = sourceVersion
+        OperationId = Guid.NewGuid(),
+        CorrelationId = Guid.NewGuid(),
+        SourceEventId = Guid.NewGuid(),
+        ExpectedRevision = revision,
+        SourceVersion = sourceVersion
     };
 
     [Fact]
@@ -422,7 +427,8 @@ public sealed class Stage4DurableIntentSafetyTests
         ephemeral.Should().Throw<ArgumentException>();
         var unknown = () => DurableSubscriptionContract.Freeze(request with
         {
-            Status = DurableAuthorityStatus.Unknown, Adds = [lease with { Purpose = SubscriptionLeasePurpose.Position }]
+            Status = DurableAuthorityStatus.Unknown,
+            Adds = [lease with { Purpose = SubscriptionLeasePurpose.Position }]
         });
         unknown.Should().Throw<ArgumentException>();
     }

@@ -58,12 +58,12 @@ public sealed class FuturesVwapSignalCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<FuturesVwapSignalCommandActor>,
         FuturesVwapSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<FuturesVwapSignalCommandActor>,
         FuturesVwapSignalCommandState, ServiceResult<GuidResult>>>()
-    {
-        [typeof(UpdateFuturesVwapSignalCommand)] = static (command, _, state) =>
-            ((UpdateFuturesVwapSignalCommand)command).Execute(state),
-        [typeof(RecoverFuturesVwapSignalCommand)] = static (command, _, state) =>
-            ((RecoverFuturesVwapSignalCommand)command).Execute(state)
-    };
+        {
+            [typeof(UpdateFuturesVwapSignalCommand)] = static (command, _, state) =>
+                ((UpdateFuturesVwapSignalCommand)command).Execute(state),
+            [typeof(RecoverFuturesVwapSignalCommand)] = static (command, _, state) =>
+                ((RecoverFuturesVwapSignalCommand)command).Execute(state)
+        };
 
     /// <inheritdoc />
     protected override ValueTask OnValidateAsync(ICommandActorContext<FuturesVwapSignalCommandActor> context,
@@ -79,24 +79,24 @@ public sealed class FuturesVwapSignalCommandActor(
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
-    {
-        [typeof(UpdateFuturesVwapSignalCommand)] = static command =>
         {
-            var update = (UpdateFuturesVwapSignalCommand)command;
-            return new List<ValidationError>()
-                .ValidateCommandId(update.CommandId, update.CommandName)
-                .ValidateEntityId(update.EntityId, update.CommandName)
-                .ValidateLiveInputs(update);
-        },
-        [typeof(RecoverFuturesVwapSignalCommand)] = static command =>
-        {
-            var recover = (RecoverFuturesVwapSignalCommand)command;
-            return new List<ValidationError>()
-                .ValidateCommandId(recover.CommandId, recover.CommandName)
-                .ValidateEntityId(recover.EntityId, recover.CommandName)
-                .ValidateRecoveryInputs(recover);
-        }
-    };
+            [typeof(UpdateFuturesVwapSignalCommand)] = static command =>
+            {
+                var update = (UpdateFuturesVwapSignalCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(update.CommandId, update.CommandName)
+                    .ValidateEntityId(update.EntityId, update.CommandName)
+                    .ValidateLiveInputs(update);
+            },
+            [typeof(RecoverFuturesVwapSignalCommand)] = static command =>
+            {
+                var recover = (RecoverFuturesVwapSignalCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(recover.CommandId, recover.CommandName)
+                    .ValidateEntityId(recover.EntityId, recover.CommandName)
+                    .ValidateRecoveryInputs(recover);
+            }
+        };
 
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(

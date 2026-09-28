@@ -29,7 +29,7 @@ public sealed record LedgerPostingRequest
 }
 
 /// <summary>A posted cash outflow can settle this named component of the exact consumed reservation.</summary>
-public enum CapacityFundingComponent { Undefined=0, SettlementCash=1, EntryFees=2, MarginFunding=3 }
+public enum CapacityFundingComponent { Undefined = 0, SettlementCash = 1, EntryFees = 2, MarginFunding = 3 }
 
 /// <summary>Versioned financial contract: LedgerPostingBatchRequest; numeric keys are append-only.</summary>
 [MessagePackObject]
@@ -297,12 +297,12 @@ public sealed record CapacityLifecycleReceipt
 }
 
 /// <summary>Business purpose determines accounting; signs never implicitly choose a transaction kind.</summary>
-public enum LedgerTransactionKind { Undefined=0, DepositConfirmed=1, WithdrawalRequested=2, WithdrawalSettled=3, WithdrawalCancelled=4, FundTransfer=5, TradeSettlement=6, Commission=7, RealizedPnl=8, Valuation=9, Reversal=10, Adjustment=11, OpeningBalance=12 }
-public enum PostingSide { Undefined=0, Debit=1, Credit=2 }
-public enum MovementStatus { Undefined=0, Pending=1, Confirmed=2, Cancelled=3, Unknown=4 }
-public enum ReservationStatus { Undefined=0, Reserved=1, Consumed=2, Working=3, PartiallyFilled=4, SubmissionUnknown=5, CancelPending=6, Filled=7, Released=8, Expired=9 }
-public enum CapacityChangeKind { Undefined=0, Consume=1, RecordWorking=2, RecordFill=3, MarkSubmissionUnknown=4, RequestCancel=5, ConfirmCancel=6, ReleaseUnconsumed=7, ExpireUnconsumed=8, RecordPositionClose=9 }
-public enum CapacityScopeKind { Undefined=0, Portfolio=1, Deployment=2, Fund=3, Underlying=4 }
-public enum CapacityMeasure { Undefined=0, SettlementCash=1, LossCharge=2, Margin=3, GrossNotional=4, GrossContracts=5, PositionSlots=6, Delta=7, Gamma=8, Vega=9 }
-public enum CapacityUnit { Undefined=0, Usd=1, Contracts=2, Positions=3, NormalizedDelta=4, NormalizedGamma=5, NormalizedVega=6 }
-public enum FinancialCommitDisposition { NotCommitted=0, OutcomeUnknown=1, NoNewMutation=2 }
+public enum LedgerTransactionKind { Undefined = 0, DepositConfirmed = 1, WithdrawalRequested = 2, WithdrawalSettled = 3, WithdrawalCancelled = 4, FundTransfer = 5, TradeSettlement = 6, Commission = 7, RealizedPnl = 8, Valuation = 9, Reversal = 10, Adjustment = 11, OpeningBalance = 12 }
+public enum PostingSide { Undefined = 0, Debit = 1, Credit = 2 }
+public enum MovementStatus { Undefined = 0, Pending = 1, Confirmed = 2, Cancelled = 3, Unknown = 4 }
+public enum ReservationStatus { Undefined = 0, Reserved = 1, Consumed = 2, Working = 3, PartiallyFilled = 4, SubmissionUnknown = 5, CancelPending = 6, Filled = 7, Released = 8, Expired = 9 }
+public enum CapacityChangeKind { Undefined = 0, Consume = 1, RecordWorking = 2, RecordFill = 3, MarkSubmissionUnknown = 4, RequestCancel = 5, ConfirmCancel = 6, ReleaseUnconsumed = 7, ExpireUnconsumed = 8, RecordPositionClose = 9 }
+public enum CapacityScopeKind { Undefined = 0, Portfolio = 1, Deployment = 2, Fund = 3, Underlying = 4 }
+public enum CapacityMeasure { Undefined = 0, SettlementCash = 1, LossCharge = 2, Margin = 3, GrossNotional = 4, GrossContracts = 5, PositionSlots = 6, Delta = 7, Gamma = 8, Vega = 9 }
+public enum CapacityUnit { Undefined = 0, Usd = 1, Contracts = 2, Positions = 3, NormalizedDelta = 4, NormalizedGamma = 5, NormalizedVega = 6 }
+public enum FinancialCommitDisposition { NotCommitted = 0, OutcomeUnknown = 1, NoNewMutation = 2 }

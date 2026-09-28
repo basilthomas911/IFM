@@ -7,7 +7,7 @@ using System.Data;
 
 namespace TomasAI.IFM.Framework.Storage;
 
-public interface IObjectRepositoryContext: IDisposable
+public interface IObjectRepositoryContext : IDisposable
 {
     IObjectRepository Repository { get; }
     List<object> ParameterValues { get; }

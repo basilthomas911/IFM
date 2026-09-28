@@ -75,8 +75,13 @@ public sealed class StrategyCatalogDefinitionEditor : DarkTradingView
                 ReferencePage(tabs, "Variants", definition.Variants, StrategyCatalogKind.Variant);
                 var productGrid = RowsPage(tabs, "Products", ["Symbol", "Product ID", "Exchange", "Currency"], []);
                 productGrid.Columns.RemoveAt(0);
-                productGrid.Columns.Insert(0, new DataGridViewComboBoxColumn { HeaderText = "Symbol", Name = "Symbol", FlatStyle = FlatStyle.Flat,
-                    DataSource = products.Keys.Order(StringComparer.Ordinal).ToArray() });
+                productGrid.Columns.Insert(0, new DataGridViewComboBoxColumn
+                {
+                    HeaderText = "Symbol",
+                    Name = "Symbol",
+                    FlatStyle = FlatStyle.Flat,
+                    DataSource = products.Keys.Order(StringComparer.Ordinal).ToArray()
+                });
                 for (var i = 1; i < 4; i++) productGrid.Columns[i].ReadOnly = true;
                 productGrid.CurrentCellDirtyStateChanged += (_, _) => { if (productGrid.IsCurrentCellDirty) productGrid.CommitEdit(DataGridViewDataErrorContexts.Commit); };
                 productGrid.CellValueChanged += (_, e) =>
@@ -128,11 +133,18 @@ public sealed class StrategyCatalogDefinitionEditor : DarkTradingView
         }
         return source with
         {
-            Code = code.Text.Trim(), Name = name.Text.Trim(), Description = description.Text,
+            Code = code.Text.Trim(),
+            Name = name.Text.Trim(),
+            Description = description.Text,
             Parent = source.Key.Kind is StrategyCatalogKind.Variant or StrategyCatalogKind.ParameterSet or StrategyCatalogKind.Deployment ? Key(parent.SelectedItem?.ToString()) : null,
             Horizon = source.Key.Kind == StrategyCatalogKind.Deployment ? (TimeFrameType)(horizon.SelectedItem ?? throw new ArgumentException("Select a timeframe.")) : TimeFrameType.None,
-            Side = source.Key.Kind == StrategyCatalogKind.Variant ? side.Text : "", Bias = source.Key.Kind == StrategyCatalogKind.Variant ? bias.Text : "", PremiumMode = source.Key.Kind == StrategyCatalogKind.Variant ? premium.Text : "",
-            Settings = JsonSerializer.SerializeToElement(json), Families = References("Families"), Structures = References("Structures"), Variants = References("Variants"),
+            Side = source.Key.Kind == StrategyCatalogKind.Variant ? side.Text : "",
+            Bias = source.Key.Kind == StrategyCatalogKind.Variant ? bias.Text : "",
+            PremiumMode = source.Key.Kind == StrategyCatalogKind.Variant ? premium.Text : "",
+            Settings = JsonSerializer.SerializeToElement(json),
+            Families = References("Families"),
+            Structures = References("Structures"),
+            Variants = References("Variants"),
             Capabilities = Read("Capabilities", r => new CatalogCapability(Cell(r, 0), Cell(r, 1), Int(r, 2))),
             ExpiryGroups = Read("Expiry groups", r => new CatalogExpiryGroup(Cell(r, 0), EmptyNull(Cell(r, 1)))),
             Legs = Read("Legs", r => new CatalogLeg(Cell(r, 0), Cell(r, 1), Cell(r, 2), Cell(r, 3), Decimal(r, 4), Cell(r, 5))),
@@ -225,9 +237,14 @@ public sealed class StrategyCatalogDefinitionEditor : DarkTradingView
             var type = Enum.Parse<JsonValueKind>(Cell(row, 1), true);
             JsonNode? value = type switch
             {
-                JsonValueKind.String => JsonValue.Create(row.Cells[2].Value?.ToString() ?? ""), JsonValueKind.Number => JsonValue.Create(Decimal(row, 2)),
-                JsonValueKind.True => JsonValue.Create(true), JsonValueKind.False => JsonValue.Create(false), JsonValueKind.Null => null,
-                JsonValueKind.Object => new JsonObject(), JsonValueKind.Array => new JsonArray(), _ => throw new ArgumentException("Unsupported parameter type.")
+                JsonValueKind.String => JsonValue.Create(row.Cells[2].Value?.ToString() ?? ""),
+                JsonValueKind.Number => JsonValue.Create(Decimal(row, 2)),
+                JsonValueKind.True => JsonValue.Create(true),
+                JsonValueKind.False => JsonValue.Create(false),
+                JsonValueKind.Null => null,
+                JsonValueKind.Object => new JsonObject(),
+                JsonValueKind.Array => new JsonArray(),
+                _ => throw new ArgumentException("Unsupported parameter type.")
             };
             JsonNode node = root;
             for (var i = 0; i < path.Length; i++)
@@ -263,9 +280,16 @@ public sealed class StrategyCatalogDefinitionEditor : DarkTradingView
         foreach (var row in Rows(schema))
         {
             var path = Cell(row, 0);
-            if (!fields.TryAdd(path, (new CatalogParameterShape { Type = Enum.Parse<CatalogValueType>(Cell(row, 1), true),
-                Unit = Cell(row, 3), Minimum = OptionalDecimal(row, 4), Maximum = OptionalDecimal(row, 5),
-                MinLength = OptionalInt(row, 6), MaxLength = OptionalInt(row, 7), Choices = Cell(row, 8).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
+            if (!fields.TryAdd(path, (new CatalogParameterShape
+            {
+                Type = Enum.Parse<CatalogValueType>(Cell(row, 1), true),
+                Unit = Cell(row, 3),
+                Minimum = OptionalDecimal(row, 4),
+                Maximum = OptionalDecimal(row, 5),
+                MinLength = OptionalInt(row, 6),
+                MaxLength = OptionalInt(row, 7),
+                Choices = Cell(row, 8).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            },
                 bool.TryParse(Cell(row, 2), out var req) && req))) throw new ArgumentException("Duplicate schema path.");
         }
         if (!fields.ContainsKey("$")) throw new ArgumentException("The parameter schema needs a $ root row.");

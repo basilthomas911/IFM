@@ -80,18 +80,18 @@ public class MarketDataFeedQueryActor(IQueryActorContext<MarketDataFeedQueryActo
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<IMarketDataFeedQueryContext, MarketDataFeedQueryParameters, IQuery, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<IMarketDataFeedQueryContext, MarketDataFeedQueryParameters, IQuery, ValueTask>>
-    {
-        [typeof(GetFuturesOptionContractQuery)] = static (context, parameters, query) => ((GetFuturesOptionContractQuery)query).ExecuteAsync(context, parameters),
-        [typeof(GetFuturesOptionSpreadDataQuery)] = static (context, parameters, query) => ((GetFuturesOptionSpreadDataQuery)query).ExecuteAsync(context, parameters),
-        [typeof(GetFuturesRiskPositionTypeQuery)] = static (context, parameters, query) => ((GetFuturesRiskPositionTypeQuery)query).ExecuteAsync(context, parameters),
-        [typeof(GetIronCondorMarketDataFeedQuery)] = static (context, parameters, query) => ((GetIronCondorMarketDataFeedQuery)query).ExecuteAsync(context, parameters),
-        [typeof(GetNormalCurveTableQuery)] = static (context, parameters, query) => ((GetNormalCurveTableQuery)query).ExecuteAsync(context, parameters),
-        [typeof(GetMarketDataFeedRuntimeStatusQuery)] = static (context, parameters, query) => ((GetMarketDataFeedRuntimeStatusQuery)query).ExecuteAsync(context, parameters),
-        [typeof(GetDatabentoReadinessQuery)] = static (context, parameters, query) => ((GetDatabentoReadinessQuery)query).ExecuteAsync(context, parameters),
-        [typeof(GetDatabentoCurrentContractsQuery)] = static (context, parameters, query) => ((GetDatabentoCurrentContractsQuery)query).ExecuteAsync(context, parameters),
-        [typeof(GetDatabentoWatchdogHistoryQuery)] = static (context, parameters, query) => ((GetDatabentoWatchdogHistoryQuery)query).ExecuteAsync(context, parameters),
-        [typeof(GetStreamingRequestIdQuery)] = static (context, parameters, query) => ((GetStreamingRequestIdQuery)query).ExecuteAsync(context, parameters)
-    };
+        {
+            [typeof(GetFuturesOptionContractQuery)] = static (context, parameters, query) => ((GetFuturesOptionContractQuery)query).ExecuteAsync(context, parameters),
+            [typeof(GetFuturesOptionSpreadDataQuery)] = static (context, parameters, query) => ((GetFuturesOptionSpreadDataQuery)query).ExecuteAsync(context, parameters),
+            [typeof(GetFuturesRiskPositionTypeQuery)] = static (context, parameters, query) => ((GetFuturesRiskPositionTypeQuery)query).ExecuteAsync(context, parameters),
+            [typeof(GetIronCondorMarketDataFeedQuery)] = static (context, parameters, query) => ((GetIronCondorMarketDataFeedQuery)query).ExecuteAsync(context, parameters),
+            [typeof(GetNormalCurveTableQuery)] = static (context, parameters, query) => ((GetNormalCurveTableQuery)query).ExecuteAsync(context, parameters),
+            [typeof(GetMarketDataFeedRuntimeStatusQuery)] = static (context, parameters, query) => ((GetMarketDataFeedRuntimeStatusQuery)query).ExecuteAsync(context, parameters),
+            [typeof(GetDatabentoReadinessQuery)] = static (context, parameters, query) => ((GetDatabentoReadinessQuery)query).ExecuteAsync(context, parameters),
+            [typeof(GetDatabentoCurrentContractsQuery)] = static (context, parameters, query) => ((GetDatabentoCurrentContractsQuery)query).ExecuteAsync(context, parameters),
+            [typeof(GetDatabentoWatchdogHistoryQuery)] = static (context, parameters, query) => ((GetDatabentoWatchdogHistoryQuery)query).ExecuteAsync(context, parameters),
+            [typeof(GetStreamingRequestIdQuery)] = static (context, parameters, query) => ((GetStreamingRequestIdQuery)query).ExecuteAsync(context, parameters)
+        };
     /// <summary>
     /// Handles exceptions that occur during the processing of a query in the actor context.
     /// </summary>

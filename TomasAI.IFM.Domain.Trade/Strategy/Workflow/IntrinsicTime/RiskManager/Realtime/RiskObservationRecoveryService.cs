@@ -60,33 +60,33 @@ public sealed class RiskObservationRecoveryService(RiskHistoryJournal journal, I
             if (synchronize)
                 await SynchronizeAndAcknowledgeAsync(snapshot, token);
         }
-        return Advance(after, page.Select(snapshot=>snapshot.EventId).ToArray());
+        return Advance(after, page.Select(snapshot => snapshot.EventId).ToArray());
     }
 
-    async Task<long> SynchronizePageAsync(long after,CancellationToken token)
+    async Task<long> SynchronizePageAsync(long after, CancellationToken token)
     {
-        var page=await journal.PageAsync(after,token,RiskHistoryJournal.FundOutcomeProjection);
-        foreach(var snapshot in page)
-            await SynchronizeAndAcknowledgeAsync(snapshot,token);
-        return Advance(after,page.Select(snapshot=>snapshot.EventId).ToArray());
+        var page = await journal.PageAsync(after, token, RiskHistoryJournal.FundOutcomeProjection);
+        foreach (var snapshot in page)
+            await SynchronizeAndAcknowledgeAsync(snapshot, token);
+        return Advance(after, page.Select(snapshot => snapshot.EventId).ToArray());
     }
 
-    async Task SynchronizeAndAcknowledgeAsync(WorkflowStrategyStateUpdatedEvent snapshot,CancellationToken token)
+    async Task SynchronizeAndAcknowledgeAsync(WorkflowStrategyStateUpdatedEvent snapshot, CancellationToken token)
     {
         try
         {
-            await SynchronizeAsync(snapshot,token);
-            await journal.AcknowledgeAsync(RiskHistoryJournal.FundOutcomeProjection,snapshot.EventId,token);
+            await SynchronizeAsync(snapshot, token);
+            await journal.AcknowledgeAsync(RiskHistoryJournal.FundOutcomeProjection, snapshot.EventId, token);
         }
-        catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
-        catch(Exception e)
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch (Exception e)
         {
-            logger.LogWarning(e,"Fund outcome for workflow {WorkflowId} awaits reconciliation.",snapshot.WorkflowId);
+            logger.LogWarning(e, "Fund outcome for workflow {WorkflowId} awaits reconciliation.", snapshot.WorkflowId);
         }
     }
 
-    internal static long Advance(long after,IReadOnlyList<long> eventIds)
-        =>eventIds.Count==0?after:Math.Max(after,eventIds.Max());
+    internal static long Advance(long after, IReadOnlyList<long> eventIds)
+        => eventIds.Count == 0 ? after : Math.Max(after, eventIds.Max());
     public async Task SynchronizeAsync(WorkflowStrategyStateUpdatedEvent snapshot, CancellationToken token)
     {
         if (snapshot.TerminalRisk is not { } evidence) return;
@@ -98,9 +98,14 @@ public sealed class RiskObservationRecoveryService(RiskHistoryJournal journal, I
         var command = new SynchronizeFundRiskOutcomeCommand
         {
             CommandId = RiskFinancialHandoff.Identity(evidence.SourceCommandId, $"FundTerminal/{order.AggregateVersion}"),
-            EntityId = id, Subject = new(ActorType.Command, CreateFundMandateCommand.Actor, SynchronizeFundRiskOutcomeCommand.Verb, id.Format()),
-            ErrorCode = 34100, CorrelationId = snapshot.CorrelationId, RequestedOnUtc = evidence.DecidedAtUtc,
-            Access = PortfolioAccessContext.Workflow("RiskOutcomeRecovery"), ExpectedVersion = order.AggregateVersion, Evidence = evidence
+            EntityId = id,
+            Subject = new(ActorType.Command, CreateFundMandateCommand.Actor, SynchronizeFundRiskOutcomeCommand.Verb, id.Format()),
+            ErrorCode = 34100,
+            CorrelationId = snapshot.CorrelationId,
+            RequestedOnUtc = evidence.DecidedAtUtc,
+            Access = PortfolioAccessContext.Workflow("RiskOutcomeRecovery"),
+            ExpectedVersion = order.AggregateVersion,
+            Evidence = evidence
         };
         var result = await actors.RequestAsync<SynchronizeFundRiskOutcomeCommand, PortfolioFundId>(command, token);
         if (!result.Success) throw new InvalidOperationException(result.ErrorMessage);

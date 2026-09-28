@@ -33,10 +33,10 @@ public class ActorMailbox : IActorMailbox
             _metrics);
     }
 
-    public ActorMailboxId Id 
+    public ActorMailboxId Id
         => _id;
 
-    public IActorThreadQueues ThreadQueues 
+    public IActorThreadQueues ThreadQueues
         => _threadQueues;
 
     public IActorMetricsStore Metrics => _metrics;

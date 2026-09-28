@@ -17,7 +17,7 @@ public static class LookupTypeListExtension
             return LookupTypeReadModel.Default;
         return (index < 0 && lookupTypes.Count > 0)
             ? lookupTypes[0]
-            :  lookupTypes[index];
+            : lookupTypes[index];
     }
 
     /// <summary>

@@ -41,8 +41,13 @@ public class FundCompositionHandoffTests
         var result = new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.OrderComposer(new Black76ComposerPricer()).Calculate(input);
         var envelope = StrategyStageResultEnvelope.CreateComposition(result);
         var view = input.WorkflowView with { CompositionExecution = input, OrderComposition = new() { Result = envelope } };
-        var order = input.Reservation.Order with { Status = status, WorkflowId = wrongWorkflow ? Guid.NewGuid() : input.WorkflowId.Value,
-            CompositionResultId = result.ResultId, CompositionResultHash = envelope.PayloadSha256 };
+        var order = input.Reservation.Order with
+        {
+            Status = status,
+            WorkflowId = wrongWorkflow ? Guid.NewGuid() : input.WorkflowId.Value,
+            CompositionResultId = result.ResultId,
+            CompositionResultHash = envelope.PayloadSha256
+        };
         var queries = Substitute.For<IPortfolioQueryApi>();
         var commands = Substitute.For<IPortfolioFundCommandApi>();
         var context = Substitute.For<IIntrinsicTimeStrategyWorkflowRealtimeContext>();

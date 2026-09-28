@@ -19,12 +19,23 @@ public sealed class InstrumentDefinitionImportWorkflowTests
     static readonly DateTimeOffset Expiry = new(2026, 12, 18, 21, 0, 0, TimeSpan.Zero);
     static InstrumentDefinitionSelection Definition(bool option) => new()
     {
-        SnapshotId = Guid.Parse("b1eb88c6-88ed-4ec2-a977-41b53d297498"), Dataset = "GLBX.MDP3", Root = "ES",
-        PublisherId = 1, InstrumentId = option ? 42u : 99u, UnderlyingInstrumentId = option ? 99u : 0,
-        RawSymbol = option ? "fixture C6500.5" : "fixture ESZ6", InstrumentClass = option ? "C" : "F",
-        Currency = "USD", Exchange = "CME", Multiplier = 50, TickSize = .25m,
-        Strike = option ? 6500.5m : null, ExpirationUtc = Expiry, DefinitionTimestampUtc = At.AddDays(-1),
-        DefinitionDigest = new('a', 64), RawDefinitionReference = "fixture/definition"
+        SnapshotId = Guid.Parse("b1eb88c6-88ed-4ec2-a977-41b53d297498"),
+        Dataset = "GLBX.MDP3",
+        Root = "ES",
+        PublisherId = 1,
+        InstrumentId = option ? 42u : 99u,
+        UnderlyingInstrumentId = option ? 99u : 0,
+        RawSymbol = option ? "fixture C6500.5" : "fixture ESZ6",
+        InstrumentClass = option ? "C" : "F",
+        Currency = "USD",
+        Exchange = "CME",
+        Multiplier = 50,
+        TickSize = .25m,
+        Strike = option ? 6500.5m : null,
+        ExpirationUtc = Expiry,
+        DefinitionTimestampUtc = At.AddDays(-1),
+        DefinitionDigest = new('a', 64),
+        RawDefinitionReference = "fixture/definition"
     };
 
     [Theory]

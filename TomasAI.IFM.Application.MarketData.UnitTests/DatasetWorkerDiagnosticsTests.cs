@@ -141,8 +141,11 @@ public sealed class DatasetWorkerDiagnosticsTests
         {
             ExecutablePath = DotNetHost(),
             PrefixArguments = [typeof(DatasetWorkerAssemblyMarker).Assembly.Location],
-            Dataset = "GLBX.MDP3", ValueDate = new(2026, 9, 4), WorkerInstanceId = Guid.NewGuid(),
-            GenerationId = Guid.NewGuid(), Manifest = Manifest()
+            Dataset = "GLBX.MDP3",
+            ValueDate = new(2026, 9, 4),
+            WorkerInstanceId = Guid.NewGuid(),
+            GenerationId = Guid.NewGuid(),
+            Manifest = Manifest()
         });
         DatasetWorkerControlFrame health;
         var timer = Stopwatch.StartNew();
@@ -203,9 +206,15 @@ public sealed class DatasetWorkerDiagnosticsTests
 
     static DatasetWorkerControlFrame Frame(DatasetWorkerDiagnostics diagnostics) => new()
     {
-        Kind = DatasetWorkerMessageKind.HealthSnapshot, WorkerInstanceId = Guid.NewGuid(), Dataset = diagnostics.Dataset,
-        ValueDate = new(2026, 9, 4), GenerationId = diagnostics.GenerationId, CorrelationId = Guid.NewGuid(),
-        Sequence = 1, BootstrapToken = new string('A', 64), Diagnostics = diagnostics
+        Kind = DatasetWorkerMessageKind.HealthSnapshot,
+        WorkerInstanceId = Guid.NewGuid(),
+        Dataset = diagnostics.Dataset,
+        ValueDate = new(2026, 9, 4),
+        GenerationId = diagnostics.GenerationId,
+        CorrelationId = Guid.NewGuid(),
+        Sequence = 1,
+        BootstrapToken = new string('A', 64),
+        Diagnostics = diagnostics
     };
 
     static string DotNetHost()

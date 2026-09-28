@@ -27,7 +27,7 @@ public interface IActorProducer
         return SendAsync(subject, command, entityId);
     }
 
-    ValueTask SendAsync<TEvent, TEntityId>(ActorSubject subject, TEvent @event) 
+    ValueTask SendAsync<TEvent, TEntityId>(ActorSubject subject, TEvent @event)
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId;
 
@@ -57,8 +57,8 @@ public interface IActorProducer
         return RequestAsync<TResult, TQuery>(subject, query);
     }
 
-    ValueTask<ServiceResult<TResult>> RequestAsync<TCommand,TEntityId, TResult>(ActorSubject subject, TCommand command, TEntityId entityId)
-        where TCommand: class, ICommand<TEntityId>
+    ValueTask<ServiceResult<TResult>> RequestAsync<TCommand, TEntityId, TResult>(ActorSubject subject, TCommand command, TEntityId entityId)
+        where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
         where TResult : class;
 

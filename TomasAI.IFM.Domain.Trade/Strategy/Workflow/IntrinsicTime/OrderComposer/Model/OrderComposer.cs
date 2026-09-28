@@ -84,20 +84,37 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
             : ImmutableArray.Create("OC.COMPOSED");
         return new()
         {
-            ResultId = c.CommandId, WorkflowId = c.WorkflowId, EntityId = c.WorkflowEntityId, InvocationId = c.CommandId,
-            InputWorkflowRevision = c.InputWorkflowRevision, InputSha256 = c.InputSha256, EvaluatedAtUtc = c.EvaluatedAtUtc,
-            ProducedAtUtc = c.EvaluatedAtUtc, TargetHorizon = binding.Rules.SupportedHorizon,
-            Outcome = best is null ? CompositionOutcome.NoCandidate : CompositionOutcome.Composed, Candidate = best,
-            DecisionContext = new() { SelectionResultId = selected.ResultId, SelectionResultHash = c.AcceptedSelectionEnvelope.PayloadSha256,
-                InputHash = c.InputSha256, BindingHash = binding.BindingSha256, SnapshotHash = snapshot.Digest,
+            ResultId = c.CommandId,
+            WorkflowId = c.WorkflowId,
+            EntityId = c.WorkflowEntityId,
+            InvocationId = c.CommandId,
+            InputWorkflowRevision = c.InputWorkflowRevision,
+            InputSha256 = c.InputSha256,
+            EvaluatedAtUtc = c.EvaluatedAtUtc,
+            ProducedAtUtc = c.EvaluatedAtUtc,
+            TargetHorizon = binding.Rules.SupportedHorizon,
+            Outcome = best is null ? CompositionOutcome.NoCandidate : CompositionOutcome.Composed,
+            Candidate = best,
+            DecisionContext = new()
+            {
+                SelectionResultId = selected.ResultId,
+                SelectionResultHash = c.AcceptedSelectionEnvelope.PayloadSha256,
+                InputHash = c.InputSha256,
+                BindingHash = binding.BindingSha256,
+                SnapshotHash = snapshot.Digest,
                 ValueDate = c.SelectionBinding.RequestedTradeDate,
                 PortfolioId = c.SelectionBinding.SchemaVersion == 2 ? 0 : selected.PortfolioId,
                 FundId = c.SelectionBinding.SchemaVersion == 2 ? 0 : selected.FundId,
-                PricerVersion = pricer.Version, AlgorithmVersion = AlgorithmVersion,
-                VolatilityEvidence = selected.DecisionContext.VolatilityInput },
-            ResolvedParameters = resolved, CandidateCounts = new() { Generated = generated, Eligible = eligible, Rejected = generated - eligible },
+                PricerVersion = pricer.Version,
+                AlgorithmVersion = AlgorithmVersion,
+                VolatilityEvidence = selected.DecisionContext.VolatilityInput
+            },
+            ResolvedParameters = resolved,
+            CandidateCounts = new() { Generated = generated, Eligible = eligible, Rejected = generated - eligible },
             CandidateDiagnostics = rejected.Select(x => new CompositionRejection { ReasonCode = x.Key, Count = x.Value }).ToImmutableArray(),
-            Reasons = reasons, ValidUntilUtc = best?.ValidUntilUtc, SummaryText = best is null ? "No eligible construction." : "One unapproved strategy unit.",
+            Reasons = reasons,
+            ValidUntilUtc = best?.ValidUntilUtc,
+            SummaryText = best is null ? "No eligible construction." : "One unapproved strategy unit.",
             Ranking = bestRank
         };
     }
@@ -189,8 +206,13 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
                 : limit <= 0 || worst <= 0 || worst >= width || worst / width > p.MaximumDebitToWidth) return Reject("PREMIUM");
         }
         var risk = option ? Payoff(input.Select((x, i) => (instruments[i].Strike!.Value, instruments[i].IsCall!.Value, x.Sign)).ToArray(), worst, multiplier, cost)
-            : new CompositionRisk { RiskBound = "Unbounded", Notional = Math.Abs(limit) * multiplier,
-                PlannedLoss = p.FuturesPlannedDistance * multiplier + cost, StressLoss = p.FuturesStressDistance * multiplier + cost };
+            : new CompositionRisk
+            {
+                RiskBound = "Unbounded",
+                Notional = Math.Abs(limit) * multiplier,
+                PlannedLoss = p.FuturesPlannedDistance * multiplier + cost,
+                StressLoss = p.FuturesStressDistance * multiplier + cost
+            };
         if (option && (risk.MaximumLoss <= 0 || risk.MaximumProfit <= 0 || risk.PayoffRewardToRisk < p.MinimumRewardToRisk)) return Reject("PAYOFF");
         // A development/paper Risk binding observes quote age through the handoff.
         // Keep explicit snapshot/order lifetimes; do not turn the quote-age threshold into another deadline.
@@ -204,12 +226,19 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
         if (valid <= c.EvaluatedAtUtc) return Reject("NO_VALIDITY_REMAINING");
         var legs = input.Select((x, i) => new CompositionLeg
         {
-            InstrumentId = instruments[i].ContractId, RawSymbol = instruments[i].Pricing?.Contract.RawSymbol ?? instruments[i].ContractId,
+            InstrumentId = instruments[i].ContractId,
+            RawSymbol = instruments[i].Pricing?.Contract.RawSymbol ?? instruments[i].ContractId,
             UnderlyingInstrumentId = instruments[i].Pricing?.Contract.UnderlyingContractId ?? instruments[i].ContractId,
-            InstrumentClass = option ? "FuturesOption" : "Futures", Side = x.Sign > 0 ? "Buy" : "Sell", Ratio = 1,
-            Right = instruments[i].IsCall, Strike = instruments[i].Strike, ExpirationUtc = expiration, Multiplier = multiplier,
+            InstrumentClass = option ? "FuturesOption" : "Futures",
+            Side = x.Sign > 0 ? "Buy" : "Sell",
+            Ratio = 1,
+            Right = instruments[i].IsCall,
+            Strike = instruments[i].Strike,
+            ExpirationUtc = expiration,
+            Multiplier = multiplier,
             TickRuleId = instruments[i].Pricing?.Contract.TickRuleVersion ?? instruments[i].FutureDefinition!.DefinitionDigest,
-            Quote = instruments[i].Quote, Valuation = option ? values[instruments[i].ContractId] : null,
+            Quote = instruments[i].Quote,
+            Valuation = option ? values[instruments[i].ContractId] : null,
             DefinitionHash = instruments[i].Pricing?.Contract.DefinitionDigest ?? instruments[i].FutureDefinition!.DefinitionDigest
         }).ToImmutableArray();
         var neutral = c.SelectionBinding.SchemaVersion == 2;
@@ -221,27 +250,66 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
             PortfolioId = neutral ? 0 : c.Reservation!.Order.PortfolioId,
             FundId = neutral ? 0 : c.Reservation!.Order.FundId,
             AssignmentVersion = intent.AssignmentVersion,
-            DeploymentKey = intent.DeploymentKey, StrategyKey = intent.StrategyKey, StructureKey = intent.StructureKey, VariantKey = intent.VariantKey,
-            Product = intent.Product, TargetHorizon = c.CompositionBinding.Rules.SupportedHorizon, Side = intent.Side, Bias = intent.Bias,
-            PremiumMode = intent.PremiumMode, Legs = legs, LiquidityCapacityUnits = units,
-            Pricing = new() { NaturalDebit = natural, BestDebit = best, MidDebit = mid, LimitDebit = limit, WorstDebit = worst,
-                ComboTick = tick, ComboSpread = natural - best, CostReserve = cost },
-            Greeks = new() { Delta = delta, Gamma = option ? input.Sum(x => x.Sign * values[x.Instrument.Instrument.ContractId].Gamma) : 0,
+            DeploymentKey = intent.DeploymentKey,
+            StrategyKey = intent.StrategyKey,
+            StructureKey = intent.StructureKey,
+            VariantKey = intent.VariantKey,
+            Product = intent.Product,
+            TargetHorizon = c.CompositionBinding.Rules.SupportedHorizon,
+            Side = intent.Side,
+            Bias = intent.Bias,
+            PremiumMode = intent.PremiumMode,
+            Legs = legs,
+            LiquidityCapacityUnits = units,
+            Pricing = new()
+            {
+                NaturalDebit = natural,
+                BestDebit = best,
+                MidDebit = mid,
+                LimitDebit = limit,
+                WorstDebit = worst,
+                ComboTick = tick,
+                ComboSpread = natural - best,
+                CostReserve = cost
+            },
+            Greeks = new()
+            {
+                Delta = delta,
+                Gamma = option ? input.Sum(x => x.Sign * values[x.Instrument.Instrument.ContractId].Gamma) : 0,
                 Theta = option ? input.Sum(x => x.Sign * values[x.Instrument.Instrument.ContractId].Theta) : 0,
                 Vega = option ? input.Sum(x => x.Sign * values[x.Instrument.Instrument.ContractId].Vega) : 0,
-                Rho = option ? input.Sum(x => x.Sign * values[x.Instrument.Instrument.ContractId].Rho) : 0 },
-            RiskEvidence = risk, ExecutionEnvelope = new() { Atomic = option, ProposedSignedDebit = limit, WorstSignedDebit = worst,
-                Tick = tick, TickRuleVersion = legs[0].TickRuleId, ValidUntilUtc = valid }, ParameterResolutionHash = resolved.Hash,
-            SnapshotHash = c.MarketSnapshot.Digest, BindingHash = c.CompositionBinding.BindingSha256, PricerVersion = pricer.Version,
-            EvaluatedAtUtc = c.EvaluatedAtUtc, ValidUntilUtc = valid,
+                Rho = option ? input.Sum(x => x.Sign * values[x.Instrument.Instrument.ContractId].Rho) : 0
+            },
+            RiskEvidence = risk,
+            ExecutionEnvelope = new()
+            {
+                Atomic = option,
+                ProposedSignedDebit = limit,
+                WorstSignedDebit = worst,
+                Tick = tick,
+                TickRuleVersion = legs[0].TickRuleId,
+                ValidUntilUtc = valid
+            },
+            ParameterResolutionHash = resolved.Hash,
+            SnapshotHash = c.MarketSnapshot.Digest,
+            BindingHash = c.CompositionBinding.BindingSha256,
+            PricerVersion = pricer.Version,
+            EvaluatedAtUtc = c.EvaluatedAtUtc,
+            ValidUntilUtc = valid,
             VolatilityEvidence = volatilityEvidence
         };
         candidate = candidate with { CandidateHash = CompositionHash.Candidate(candidate) };
         var key = string.Join("|", legs.Select(x => string.Create(CultureInfo.InvariantCulture,
             $"{x.ExpirationUtc.Ticks:D19}:{x.UnderlyingInstrumentId}:{x.Right}:{x.Strike:00000000000000000000000000000.0000000000000000000000000000}:{x.InstrumentId}:{x.Side}:{x.Ratio}")));
-        var ranking = new CompositionRanking { DteDistance = option ? Math.Abs(dte - p.TargetDaysToExpiry) : 0,
-            DeltaDistance = Math.Abs(delta - p.TargetNetDelta), LegDeltaDistance = legError, SpreadTicks = (natural - best) / tick,
-            RewardToRisk = risk.PayoffRewardToRisk ?? 0, CanonicalKey = key };
+        var ranking = new CompositionRanking
+        {
+            DteDistance = option ? Math.Abs(dte - p.TargetDaysToExpiry) : 0,
+            DeltaDistance = Math.Abs(delta - p.TargetNetDelta),
+            LegDeltaDistance = legError,
+            SpreadTicks = (natural - best) / tick,
+            RewardToRisk = risk.PayoffRewardToRisk ?? 0,
+            CanonicalKey = key
+        };
         return (candidate, ranking, null);
     }
 

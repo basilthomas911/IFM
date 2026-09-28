@@ -66,12 +66,12 @@ public static class FuturesItiSignalEventExtensions
     /// <param name="timePeriod"></param>
     /// <param name="periodLength"></param>
     /// <returns></returns>
-    public static async ValueTask<FuturesRsiSignalReadModel?> GetFuturesRsiSignalAsync<TActor>(this IEventActorContext<TActor> context,  string contractId , DateOnly valueDate,TimeFrameType timePeriod, int periodLength)
+    public static async ValueTask<FuturesRsiSignalReadModel?> GetFuturesRsiSignalAsync<TActor>(this IEventActorContext<TActor> context, string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
         where TActor : IActor
     {
         var rsiSignal = default(FuturesRsiSignalReadModel);
         var entityId = new FuturesRsiSignalEntityId(contractId, valueDate, timePeriod, periodLength);
-        GetFuturesRsiSignalQuery query = new(contractId, valueDate,timePeriod, periodLength)
+        GetFuturesRsiSignalQuery query = new(contractId, valueDate, timePeriod, periodLength)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesRsiSignalQuery.Actor, GetFuturesRsiSignalQuery.Verb, entityId.Format()),
             EntityId = entityId,
@@ -249,7 +249,7 @@ public static class FuturesItiSignalEventExtensions
                trendDirectionMode: GetTrendDirectionMode(e.IntrinsicTimeMode),
                futuresPrice: Convert.ToSingle(e.IntrinsicPrice),
                trendExtreme: Convert.ToSingle(e.TrendExtreme),
-               futuresRsi:0
+               futuresRsi: 0
            );
         double predictedTrendDelta = 0.0;
         var entityId = new FuturesItiTrendEntityId(trendData.Symbol, trendData.ValueDate);
@@ -270,9 +270,9 @@ public static class FuturesItiSignalEventExtensions
                    IntrinsicTimeModeType.TrendDirectionChanged => 0,
                    IntrinsicTimeModeType.TrendExtremeChanged => 1,
                    IntrinsicTimeModeType.TrendReversalChanged => -1,
-                                   _ => 0
-                };
-     }
+                   _ => 0
+               };
+    }
 
     /// <summary>
     /// Retrieves the futures ITI trend coastline counters for a specified contract, value date, symbol, and predicted trend delta.

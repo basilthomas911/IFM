@@ -81,21 +81,27 @@ public sealed partial class TradeSelectionRuntimeTests
                 var entity = RegimeDiscoveryExecutionEntityId.Create(assessment.WorkflowEntityId, workflowId);
                 var command = new ExecuteRegimeDiscoveryPipelineCommand
                 {
-                    CommandId = Guid.NewGuid(), EntityId = entity,
+                    CommandId = Guid.NewGuid(),
+                    EntityId = entity,
                     Subject = new(ActorType.Function, ExecuteRegimeDiscoveryPipelineCommand.Actor, ExecuteRegimeDiscoveryPipelineCommand.Verb, entity.Format()),
                     InputWorkflowRevision = 1,
                     WorkflowView = assessment.WorkflowView with { WorkflowId = workflowId, CurrentStage = StrategyWorkflowStage.RegimeDiscovery, WorkflowRevision = 1 },
-                    TriggerEvent = assessment.TriggerEvent, CorrelationId = assessment.CorrelationId, CausationId = assessment.CausationId,
-                    RequestedAtUtc = assessment.RequestedAtUtc, ExpiresAtUtc = assessment.ExpiresAtUtc,
+                    TriggerEvent = assessment.TriggerEvent,
+                    CorrelationId = assessment.CorrelationId,
+                    CausationId = assessment.CausationId,
+                    RequestedAtUtc = assessment.RequestedAtUtc,
+                    ExpiresAtUtc = assessment.ExpiresAtUtc,
                     ParameterSet = assessment.WorkflowView.RegimeDiscoveryParameterSet!,
                     ParameterPayloadSha256 = assessment.WorkflowView.RegimeDiscoveryParameterPayloadSha256,
                     TargetHorizon = assessment.TargetHorizon,
                     Snapshot = new RegimeDiscoveryMarketSignalSnapshot
                     {
-                        SnapshotId = Guid.NewGuid(), CacheRevision = 1,
+                        SnapshotId = Guid.NewGuid(),
+                        CacheRevision = 1,
                         MarketSeriesIdentity = MarketSeriesIdentity.ForContract(assessment.TriggerEvent.EntityId.ContractId),
                         TargetHorizon = assessment.TargetHorizon,
-                        CapturedAtUtc = DateTime.UtcNow, MarketDataAsOfUtc = DateTime.UtcNow,
+                        CapturedAtUtc = DateTime.UtcNow,
+                        MarketDataAsOfUtc = DateTime.UtcNow,
                         Observations = [new RegimeDiscoverySignalObservation
                         {
                             Metric = RegimeDiscoverySignalMetric.Atr14,
@@ -138,12 +144,25 @@ public sealed partial class TradeSelectionRuntimeTests
             Calls++;
             return ValueTask.FromResult(new MarketConditionAssessmentSnapshot
             {
-                SnapshotId = Guid.NewGuid(), MarketProfileId = p.MarketProfileId, InstrumentRoot = p.InstrumentRoot,
-                TargetHorizon = p.TargetHorizon, ReferenceInstrumentId = "ES-Policy", EvaluatedAtUtc = at,
-                Quote = new(5000, 5000.25m, 10, 10), SessionState = MarketSessionStatus.Open, EventContext = AssessmentEventContext.Clear,
-                Observations = p.Sources.Select(x => new AssessmentObservation { SourceId = x.SourceId, ObservedAtUtc = at,
-                    ReceivedAtUtc = at, Sequence = 10, Value = 0m, Availability = MarketSourceAvailability.Available,
-                    Validity = MarketSourceValidity.Valid }).ToArray(),
+                SnapshotId = Guid.NewGuid(),
+                MarketProfileId = p.MarketProfileId,
+                InstrumentRoot = p.InstrumentRoot,
+                TargetHorizon = p.TargetHorizon,
+                ReferenceInstrumentId = "ES-Policy",
+                EvaluatedAtUtc = at,
+                Quote = new(5000, 5000.25m, 10, 10),
+                SessionState = MarketSessionStatus.Open,
+                EventContext = AssessmentEventContext.Clear,
+                Observations = p.Sources.Select(x => new AssessmentObservation
+                {
+                    SourceId = x.SourceId,
+                    ObservedAtUtc = at,
+                    ReceivedAtUtc = at,
+                    Sequence = 10,
+                    Value = 0m,
+                    Availability = MarketSourceAvailability.Available,
+                    Validity = MarketSourceValidity.Valid
+                }).ToArray(),
                 CalendarEvidence = new() { CheckedAtUtc = at, CoverageConfirmed = true, ValidUntilUtc = at.AddHours(1), Reason = "Controlled policy fixture" }
             }.Seal());
         }

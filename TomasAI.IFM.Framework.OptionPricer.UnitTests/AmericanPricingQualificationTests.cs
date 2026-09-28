@@ -80,15 +80,15 @@ public class AmericanPricingQualificationTests(Xunit.Abstractions.ITestOutputHel
     {
         var c = new OptionCalculator();
         foreach (var spot in new[] { 10d, 100d, 1000d })
-        foreach (var style in new[] { ExerciseKind.European, ExerciseKind.American })
-        foreach (var side in new[] { OptionSide.Call, OptionSide.Put })
-        {
-            var r = new OptionPricingRequest(UnderlyingKind.Futures, style, PremiumKind.PaidUpfront,
-                side, spot, 100, 1e-6, -.01);
-            var p = c.Price(r, .2);
-            Assert.True(p.Success, p.Failure.ToString());
-            Assert.InRange(p.Value!.Value.Price, 0, Math.Max(spot, 100) * 1.00001);
-        }
+            foreach (var style in new[] { ExerciseKind.European, ExerciseKind.American })
+                foreach (var side in new[] { OptionSide.Call, OptionSide.Put })
+                {
+                    var r = new OptionPricingRequest(UnderlyingKind.Futures, style, PremiumKind.PaidUpfront,
+                        side, spot, 100, 1e-6, -.01);
+                    var p = c.Price(r, .2);
+                    Assert.True(p.Success, p.Failure.ToString());
+                    Assert.InRange(p.Value!.Value.Price, 0, Math.Max(spot, 100) * 1.00001);
+                }
         Assert.Throws<ArgumentOutOfRangeException>(() => new OptionCalculator(new() { Steps = 0 }));
         Assert.Throws<ArgumentOutOfRangeException>(() => new OptionCalculator(new() { SpatialSteps = 1 }));
         Assert.Throws<ArgumentOutOfRangeException>(() => new OptionCalculator(new() { SorTolerance = double.NaN }));

@@ -68,8 +68,10 @@ public sealed class S3DatabaseBackupCatalog(
             var descriptor = await DescribeVersionAsync(version.Key, version.VersionId!, recordBytes, cancellationToken).ConfigureAwait(false);
             var entry = new AwsCatalogEntry
             {
-                RestorePointId = record.RestorePointId, ReplicaId = record.ReplicaId,
-                ProtectionSetId = record.ProtectionSetId, Engine = record.Engine,
+                RestorePointId = record.RestorePointId,
+                ReplicaId = record.ReplicaId,
+                ProtectionSetId = record.ProtectionSetId,
+                Engine = record.Engine,
                 PublicationRecord = descriptor,
                 PublicationRecordSha256 = Convert.ToHexString(SHA256.HashData(recordBytes)),
                 PublishedUtc = record.PublishedUtc
@@ -166,8 +168,10 @@ public sealed class S3DatabaseBackupCatalog(
         {
             var response = await s3.ListVersionsAsync(new ListVersionsRequest
             {
-                BucketName = _bucketName, Prefix = prefix,
-                KeyMarker = keyMarker, VersionIdMarker = versionMarker
+                BucketName = _bucketName,
+                Prefix = prefix,
+                KeyMarker = keyMarker,
+                VersionIdMarker = versionMarker
             }, cancellationToken).ConfigureAwait(false);
             result.AddRange((response.Versions ?? []).Where(value => value.IsDeleteMarker != true
                 && value.Key?.EndsWith(suffix, StringComparison.Ordinal) == true));
@@ -198,7 +202,9 @@ public sealed class S3DatabaseBackupCatalog(
     {
         using var response = await s3.GetObjectAsync(new GetObjectRequest
         {
-            BucketName = _bucketName, Key = key, VersionId = versionId
+            BucketName = _bucketName,
+            Key = key,
+            VersionId = versionId
         }, cancellationToken).ConfigureAwait(false);
         if (response.ContentLength > maximumBytes) throw new InvalidDataException("An AWS signed document exceeds its configured bound.");
         using var target = new MemoryStream();
@@ -211,12 +217,19 @@ public sealed class S3DatabaseBackupCatalog(
     {
         var metadata = await s3.GetObjectMetadataAsync(new GetObjectMetadataRequest
         {
-            BucketName = _bucketName, Key = key, VersionId = versionId, ChecksumMode = ChecksumMode.ENABLED
+            BucketName = _bucketName,
+            Key = key,
+            VersionId = versionId,
+            ChecksumMode = ChecksumMode.ENABLED
         }, cancellationToken).ConfigureAwait(false);
         return new AwsImmutableObjectVersion
         {
-            BucketName = _bucketName, Region = _region, ObjectKey = key,
-            VersionId = versionId, Length = content.LongLength, Sha256 = Convert.ToHexString(SHA256.HashData(content)),
+            BucketName = _bucketName,
+            Region = _region,
+            ObjectKey = key,
+            VersionId = versionId,
+            Length = content.LongLength,
+            Sha256 = Convert.ToHexString(SHA256.HashData(content)),
             S3ChecksumSha256 = metadata.ChecksumSHA256 ?? throw new InvalidDataException("The AWS publication lacks an S3 checksum."),
             EncryptionKeyArn = _encryptionKeyArn,
             EncryptionContextBase64 = string.Empty,

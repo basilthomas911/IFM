@@ -11,8 +11,8 @@ namespace TomasAI.IFM.Framework.Storage.SqlServer
     public class SqlServerObjectDataRepositoryConnection : IObjectRepositoryConnection<SqlConnection>
     {
         public TConnection As<TConnection>(string connectionString) where TConnection : class, IDbConnection
-        { 
-           return new SqlConnection(connectionString) as TConnection;
+        {
+            return new SqlConnection(connectionString) as TConnection;
         }
     }
 }

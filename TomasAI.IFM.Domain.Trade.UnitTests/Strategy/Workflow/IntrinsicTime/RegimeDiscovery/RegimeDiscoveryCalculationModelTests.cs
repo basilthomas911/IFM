@@ -192,25 +192,61 @@ public sealed class RegimeDiscoveryCalculationModelTests
     {
         var model = new MarketRegimeFusionModel();
         var established = model.Calculate(
-            new TrendRegimeResult { IsComplete = true, Direction = RegimeDirection.Up,
-                Phase = TrendRegimePhase.Established, Strength = TrendRegimeStrength.Strong,
-                Score = 0.8m, Confidence = 0.8m, TimeFrameAgreement = 0.9m },
-            new VolatilityRegimeResult { IsComplete = true, Level = VolatilityRegimeLevel.Normal,
-                Change = VolatilityRegimeChange.Stable, TermStructure = VxTermStructureRegime.Contango,
-                Score = 0.5m, Confidence = 0.8m },
-            new MarketStructureRegimeResult { IsComplete = true,
-                Classification = MarketStructureClassification.Trending, Direction = RegimeDirection.Up,
-                Score = 0.4m, Confidence = 0.8m }, new MarketRegimeFusionConfiguration());
+            new TrendRegimeResult
+            {
+                IsComplete = true,
+                Direction = RegimeDirection.Up,
+                Phase = TrendRegimePhase.Established,
+                Strength = TrendRegimeStrength.Strong,
+                Score = 0.8m,
+                Confidence = 0.8m,
+                TimeFrameAgreement = 0.9m
+            },
+            new VolatilityRegimeResult
+            {
+                IsComplete = true,
+                Level = VolatilityRegimeLevel.Normal,
+                Change = VolatilityRegimeChange.Stable,
+                TermStructure = VxTermStructureRegime.Contango,
+                Score = 0.5m,
+                Confidence = 0.8m
+            },
+            new MarketStructureRegimeResult
+            {
+                IsComplete = true,
+                Classification = MarketStructureClassification.Trending,
+                Direction = RegimeDirection.Up,
+                Score = 0.4m,
+                Confidence = 0.8m
+            }, new MarketRegimeFusionConfiguration());
         var reversing = model.Calculate(
-            new TrendRegimeResult { IsComplete = true, Direction = RegimeDirection.Up,
-                Phase = TrendRegimePhase.Reversing, Strength = TrendRegimeStrength.Strong,
-                Score = 0.8m, Confidence = 0.8m, TimeFrameAgreement = 0.9m },
-            new VolatilityRegimeResult { IsComplete = true, Level = VolatilityRegimeLevel.Normal,
-                Change = VolatilityRegimeChange.Expanding, TermStructure = VxTermStructureRegime.Backwardation,
-                Score = 0.5m, Confidence = 0.8m },
-            new MarketStructureRegimeResult { IsComplete = true,
-                Classification = MarketStructureClassification.Trending, Direction = RegimeDirection.Up,
-                Score = 0.4m, Confidence = 0.8m }, new MarketRegimeFusionConfiguration());
+            new TrendRegimeResult
+            {
+                IsComplete = true,
+                Direction = RegimeDirection.Up,
+                Phase = TrendRegimePhase.Reversing,
+                Strength = TrendRegimeStrength.Strong,
+                Score = 0.8m,
+                Confidence = 0.8m,
+                TimeFrameAgreement = 0.9m
+            },
+            new VolatilityRegimeResult
+            {
+                IsComplete = true,
+                Level = VolatilityRegimeLevel.Normal,
+                Change = VolatilityRegimeChange.Expanding,
+                TermStructure = VxTermStructureRegime.Backwardation,
+                Score = 0.5m,
+                Confidence = 0.8m
+            },
+            new MarketStructureRegimeResult
+            {
+                IsComplete = true,
+                Classification = MarketStructureClassification.Trending,
+                Direction = RegimeDirection.Up,
+                Score = 0.4m,
+                Confidence = 0.8m
+            }, new MarketRegimeFusionConfiguration());
 
         reversing.RiskAdjustedConviction.Should().BeLessThan(established.RiskAdjustedConviction);
         reversing.Confidence.Should().BeLessThan(established.Confidence);
@@ -302,15 +338,15 @@ public sealed class RegimeDiscoveryCalculationModelTests
         RegimeDiscoverySignalMetric metric,
         TimeFrameType timeFrame,
         decimal value) => input with
-    {
-        Snapshot = input.Snapshot with
         {
-            Observations = input.Snapshot.Observations.Select(observation =>
-                observation.Metric == metric && observation.SignalKey.TimeFrame == timeFrame
-                    ? observation with { Value = value }
-                    : observation).ToArray()
-        }
-    };
+            Snapshot = input.Snapshot with
+            {
+                Observations = input.Snapshot.Observations.Select(observation =>
+                    observation.Metric == metric && observation.SignalKey.TimeFrame == timeFrame
+                        ? observation with { Value = value }
+                        : observation).ToArray()
+            }
+        };
 
     static void Add(
         ICollection<RegimeDiscoverySignalObservation> observations,

@@ -9,26 +9,26 @@ namespace TomasAI.IFM.UI.Net.ViewModels.Strategy;
 
 public static class MarketAssessmentPresenter
 {
-    public static string Render(IntrinsicTimeStrategyWorkflowView workflow,MarketConditionAssessmentCompletedEvent? projected,DateTime now)
+    public static string Render(IntrinsicTimeStrategyWorkflowView workflow, MarketConditionAssessmentCompletedEvent? projected, DateTime now)
     {
         var marketCondition = workflow.MarketCondition;
-        if(workflow.AssessmentBinding is null)
+        if (workflow.AssessmentBinding is null)
         {
-            if(marketCondition is not { Result: { ResultType:nameof(MarketConditionResult) } legacy }) return "Legacy Market Condition — no result recorded.";
-            if(!legacy.HasValidPayloadSha256()) throw new ArgumentException("Invalid legacy result hash.");
-            var r=MessagePackSerializer.Deserialize<MarketConditionResult>(legacy.Payload);
+            if (marketCondition is not { Result: { ResultType: nameof(MarketConditionResult) } legacy }) return "Legacy Market Condition — no result recorded.";
+            if (!legacy.HasValidPayloadSha256()) throw new ArgumentException("Invalid legacy result hash.");
+            var r = MessagePackSerializer.Deserialize<MarketConditionResult>(legacy.Payload);
             return $"Legacy Market Condition (schema {r.SchemaVersion})\r\nTimeframe: {r.TargetHorizon}\r\nTradeability: {r.Tradeability}\r\n{r.SummaryText}\r\nEvaluated: {r.EvaluatedAtUtc:O}\r\nValid until: {r.ValidUntilUtc:O}";
         }
-        var accepted=marketCondition is { Result: { ResultType:nameof(MarketConditionAssessmentResult) } e }?e:null;
-        var projectedEnvelope=projected is { Result: { } value }?value:null;
-        var envelope=accepted??projectedEnvelope;
-        if(envelope is null) return $"Market assessment — {workflow.AssessmentBinding.Parameters.TargetHorizon}\r\nNo assessment recorded. Workflow: {workflow.Status}, stage: {workflow.CurrentStage}.";
-        var result=MarketConditionAssessmentContracts.ReadResult(envelope);
-        var a=result.Assessment;
-        if(accepted is not null) MarketConditionAssessmentContracts.ValidateAcceptance(result,workflow,workflow.MarketCondition.InputWorkflowRevision);
-        var projectionMatches=projectedEnvelope?.PayloadSha256==accepted?.PayloadSha256 && accepted is not null;
-        var current=accepted is not null && a.Availability==AssessmentAvailability.Available && a.ValidUntilUtc>now;
-        var lines=new List<string>
+        var accepted = marketCondition is { Result: { ResultType: nameof(MarketConditionAssessmentResult) } e } ? e : null;
+        var projectedEnvelope = projected is { Result: { } value } ? value : null;
+        var envelope = accepted ?? projectedEnvelope;
+        if (envelope is null) return $"Market assessment — {workflow.AssessmentBinding.Parameters.TargetHorizon}\r\nNo assessment recorded. Workflow: {workflow.Status}, stage: {workflow.CurrentStage}.";
+        var result = MarketConditionAssessmentContracts.ReadResult(envelope);
+        var a = result.Assessment;
+        if (accepted is not null) MarketConditionAssessmentContracts.ValidateAcceptance(result, workflow, workflow.MarketCondition.InputWorkflowRevision);
+        var projectionMatches = projectedEnvelope?.PayloadSha256 == accepted?.PayloadSha256 && accepted is not null;
+        var current = accepted is not null && a.Availability == AssessmentAvailability.Available && a.ValidUntilUtc > now;
+        var lines = new List<string>
         {
             $"Market assessment (schema {result.SchemaVersion}) — {result.TargetHorizon}",
             $"Market: {result.InstrumentRoot} | Profile: {result.MarketProfileId}",
@@ -43,8 +43,8 @@ public static class MarketAssessmentPresenter
             $"Evaluated: {a.EvaluatedAtUtc:O} | Valid until: {a.ValidUntilUtc?.ToString("O")??"Unavailable"}",
             $"Limitations: {string.Join(", ",a.LimitationReasons)}",result.SummaryText,"","Evidence:"
         };
-        lines.AddRange(a.EvidenceItems.Select(x=>string.Create(CultureInfo.InvariantCulture,$"{x.SourceId} / {x.Feature}: {x.Value} {x.Unit}; {x.Availability}; age at evaluation {x.AgeSeconds:0.###}s; observed {x.ObservedAtUtc:O}; sequence {x.Sequence}; {x.Reason}")));
+        lines.AddRange(a.EvidenceItems.Select(x => string.Create(CultureInfo.InvariantCulture, $"{x.SourceId} / {x.Feature}: {x.Value} {x.Unit}; {x.Availability}; age at evaluation {x.AgeSeconds:0.###}s; observed {x.ObservedAtUtc:O}; sequence {x.Sequence}; {x.Reason}")));
         lines.Add($"\r\nUpstream result: {result.RegimeResultId}\r\nUpstream hash: {result.RegimePayloadSha256}\r\nParameter hash: {result.ParameterPayloadSha256}\r\nSnapshot: {result.SnapshotId}\r\nSnapshot hash: {result.SnapshotSha256}");
-        return string.Join("\r\n",lines);
+        return string.Join("\r\n", lines);
     }
 }

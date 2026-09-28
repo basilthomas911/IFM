@@ -6,7 +6,7 @@ namespace TomasAI.IFM.Shared.Exceptions
 {
     public class ConcurrencyException : ApplicationException
     {
-       
+
 
         public ConcurrencyException(string errorMessage) : base(errorMessage)
         {

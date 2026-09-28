@@ -14,10 +14,10 @@ namespace TomasAI.IFM.UI.Net.Services.Trade;
 /// <summary>
 /// create strade plan query model
 /// </summary>
-public class TradePlanQueryService(ITradePlanQueryApi queryApi) 
+public class TradePlanQueryService(ITradePlanQueryApi queryApi)
     : UiServiceBase<TradePlanQueryService>
 {
-    readonly ITradePlanQueryApi _queryApi = IsArgumentNull.Set( queryApi);
+    readonly ITradePlanQueryApi _queryApi = IsArgumentNull.Set(queryApi);
 
     /// <summary>
     /// load iron condor forward delta
@@ -37,6 +37,6 @@ public class TradePlanQueryService(ITradePlanQueryApi queryApi)
     /// <param name="tradeId"></param>
     /// <param name="valueDate"></param>
     /// <param name="onCompleted"></param>
-    public async Task GetTradePlansAsync( int orderId, int tradeId, DateOnly valueDate, Action<TradePlanReadModel[]> onCompleted)
+    public async Task GetTradePlansAsync(int orderId, int tradeId, DateOnly valueDate, Action<TradePlanReadModel[]> onCompleted)
         => await ExecuteAsync(() => _queryApi.GetTradePlansAsync(orderId, tradeId, valueDate), onCompleted);
 }

@@ -39,7 +39,7 @@ public record GenerateFuturesTradeSignalLLMCommand : ICommand<FuturesTradeSignal
     /// End-of-day futures data used as input to trade signal generation.
     /// </summary>
     [Key(6)] public FuturesEodDataV2ReadModel FuturesEodData { get; init; }
-    
+
     [Key(7)] public TimeFrameType TimePeriod { get; init; }
 
     /// <summary>

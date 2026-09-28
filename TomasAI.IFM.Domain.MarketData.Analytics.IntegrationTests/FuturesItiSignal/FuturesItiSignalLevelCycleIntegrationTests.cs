@@ -24,9 +24,9 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesItiSig
 [Trait("Category", "Integration")]
 [Collection(ItiPipelineIntegrationCollection.Name)]
 public sealed class FuturesItiSignalLevelCycleIntegrationTests(
-    WebApplicationFactory<Program> factory,
+    TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory,
     MarketDataAnalyticsFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>,
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>,
       IClassFixture<MarketDataAnalyticsFixture>
 {
     const string ContractId = "ES-ITI-LEVEL-CYCLE";

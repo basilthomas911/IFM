@@ -17,22 +17,22 @@ public record GetFuturesAtrSignalQuery : IQuery<FuturesAtrSignalReadModel>
     [IgnoreMember] public const string Verb = "GetFuturesAtrSignal";
     [IgnoreMember] public const int ErrorId = 1023;
 
-    [Key(0)] public ActorSubject Subject { get; init; } 
-    [Key(1)] public IActorEntityId EntityId { get; init; } 
+    [Key(0)] public ActorSubject Subject { get; init; }
+    [Key(1)] public IActorEntityId EntityId { get; init; }
     [IgnoreMember] public int ErrorCode { get; init; }
     [IgnoreMember] public string? QueryParams { get; init; }
 
     [Key(2)]
-    public string ContractId { get; init; } 
+    public string ContractId { get; init; }
 
     [Key(3)]
     public DateOnly ValueDate { get; init; }
 
     [Key(4)]
     public TimeFrameType TimePeriod { get; init; }
-    
+
     [Key(5)]
-    public int  PeriodLength { get; init; }
+    public int PeriodLength { get; init; }
 
     public GetFuturesAtrSignalQuery()
     {

@@ -101,10 +101,10 @@ public class FuturesEodDataCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext,
         FuturesEodDataCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext,
         FuturesEodDataCommandState, ServiceResult<GuidResult>>>()
-    {
-        [typeof(InsertFuturesEodDataCommand)] = (cmd, context, state) => (cmd as InsertFuturesEodDataCommand)!.Execute(state),
-        [typeof(InsertVixFuturesEodDataCommand)] = (cmd, context, state) => (cmd as InsertVixFuturesEodDataCommand)!.Execute(state)
-    };
+        {
+            [typeof(InsertFuturesEodDataCommand)] = (cmd, context, state) => (cmd as InsertFuturesEodDataCommand)!.Execute(state),
+            [typeof(InsertVixFuturesEodDataCommand)] = (cmd, context, state) => (cmd as InsertVixFuturesEodDataCommand)!.Execute(state)
+        };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -127,29 +127,31 @@ public class FuturesEodDataCommandActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
-    {
-        [typeof(InsertFuturesEodDataCommand)] = cmd => {
-            var e = (InsertFuturesEodDataCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
-                .ValidateFuturesTickData(e.FuturesTickData)
-                .ValidateContract(e.Contract)
-                .ValidateEodDataToday(e.EodDataToday)
-                .ValidateEodDataRange(e.EodDataRange, e.CommandName)
-                .ValidateNormCurveData(e.NormCurveData)
-                .ValidateWindowSize(e.WindowSize, e.CommandName)
-                .ValidateVixEodData(e.VixEodData, e.CommandName);
-        },
-        [typeof(InsertVixFuturesEodDataCommand)] = cmd => {
-            var e = (InsertVixFuturesEodDataCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateVixFuturesTickData(e.VixFuturesTickData);
-        }
-    };
+        {
+            [typeof(InsertFuturesEodDataCommand)] = cmd =>
+            {
+                var e = (InsertFuturesEodDataCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
+                    .ValidateFuturesTickData(e.FuturesTickData)
+                    .ValidateContract(e.Contract)
+                    .ValidateEodDataToday(e.EodDataToday)
+                    .ValidateEodDataRange(e.EodDataRange, e.CommandName)
+                    .ValidateNormCurveData(e.NormCurveData)
+                    .ValidateWindowSize(e.WindowSize, e.CommandName)
+                    .ValidateVixEodData(e.VixEodData, e.CommandName);
+            },
+            [typeof(InsertVixFuturesEodDataCommand)] = cmd =>
+            {
+                var e = (InsertVixFuturesEodDataCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateVixFuturesTickData(e.VixFuturesTickData);
+            }
+        };
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.

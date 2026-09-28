@@ -195,8 +195,12 @@ public sealed class TradeStrategyFamilyEditorControl : DarkTradingView
         try
         {
             var result = _original is null ? await _commands.CreateTradeStrategyFamilyAsync(_lastRequest)
-                : await _commands.ChangeTradeStrategyFamilyAsync(new() { OperationId = _lastRequest.OperationId,
-                    Target = TradeStrategyFamilyReference.From(_original), Definition = _lastRequest });
+                : await _commands.ChangeTradeStrategyFamilyAsync(new()
+                {
+                    OperationId = _lastRequest.OperationId,
+                    Target = TradeStrategyFamilyReference.From(_original),
+                    Definition = _lastRequest
+                });
             if (IsDisposed) return;
             if (!result.Success) { _status.Text = result.ErrorMessage ?? "Save failed; retry uses the same operation ID."; return; }
             _saving = false; HasCreated = true; Created?.Invoke(this, EventArgs.Empty);

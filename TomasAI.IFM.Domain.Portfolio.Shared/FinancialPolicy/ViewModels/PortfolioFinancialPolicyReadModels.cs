@@ -152,7 +152,8 @@ public sealed record PortfolioFinancialPolicyReadModel
         var caps = new EffectiveTradeFamilyRiskCaps
         {
             TradeStrategyFamilyId = family.TradeStrategyFamilyId,
-            DefinitionVersion = family.DefinitionVersion, CatalogDeployment = family.CatalogDeployment,
+            DefinitionVersion = family.DefinitionVersion,
+            CatalogDeployment = family.CatalogDeployment,
             MaximumRiskPerTrade = Math.Min(Math.Min(MaximumRiskPerTrade, family.MaximumRiskPerTrade), envelope.MaximumRiskPerTrade),
             MaximumAggregateRisk = Math.Min(Math.Min(MaximumAggregateRisk, family.MaximumAggregateRisk), envelope.MaximumAggregateRisk),
             MaximumMargin = Math.Min(Math.Min(MaximumMargin, family.MaximumMargin), envelope.MaximumMargin),

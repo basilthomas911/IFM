@@ -23,8 +23,12 @@ public sealed partial class OrderCompositionWorkerTests
             rows.Add(row);
             File.WriteAllText(path, JsonSerializer.Serialize(rows, new JsonSerializerOptions { WriteIndented = true }));
         }
-        var calendar = Calendar() with { CoverageFrom = Date, CoverageUntil = new(2026, 10, 2),
-            TradingDates = Calendar().TradingDates.Where(x => x >= Date && x <= new DateOnly(2026, 10, 2)).ToImmutableArray() };
+        var calendar = Calendar() with
+        {
+            CoverageFrom = Date,
+            CoverageUntil = new(2026, 10, 2),
+            TradingDates = Calendar().TradingDates.Where(x => x >= Date && x <= new DateOnly(2026, 10, 2)).ToImmutableArray()
+        };
         var definitions = Enumerable.Range(0, 512).Select(i => new WorkerOptionDefinition(Context() with
         { Calendar = calendar, Contract = Contract() with { ContractId = $"load-{i}", InstrumentId = (uint)(10 + i), RawSymbol = $"load-{i}" } }, 5000m, true)).ToImmutableArray();
         var resetTimes = new List<double>();
@@ -43,8 +47,14 @@ public sealed partial class OrderCompositionWorkerTests
                 Assert.False((await runtime.ReleaseAsync(new(request.ScopeId, request.LeaseId, Generation), default)).Active);
             }
             resetTimes.Add(timer.Elapsed.TotalMilliseconds);
-            if (cycle % 10 == 9) Record(new { Stage = "RuntimeReconstruction", Cycle = cycle + 1,
-                Milliseconds = timer.Elapsed.TotalMilliseconds, Heap = GC.GetTotalMemory(false), Rss = Process.GetCurrentProcess().WorkingSet64 });
+            if (cycle % 10 == 9) Record(new
+            {
+                Stage = "RuntimeReconstruction",
+                Cycle = cycle + 1,
+                Milliseconds = timer.Elapsed.TotalMilliseconds,
+                Heap = GC.GetTotalMemory(false),
+                Rss = Process.GetCurrentProcess().WorkingSet64
+            });
         }
         using var store = CreatePrices(); using var source = new ChainFeed(); var clock = new MutableClock();
         await using var active = Runtime(Factory(source), store, clock);
@@ -74,21 +84,37 @@ public sealed partial class OrderCompositionWorkerTests
                 latencies.Add(timer.Elapsed.TotalMilliseconds);
                 Assert.Null(capture.Failure); Assert.Equal(512, capture.Snapshot!.Instruments.Length);
                 Assert.All(capture.Snapshot.Instruments, x => Assert.NotNull(x.Valuation));
-                Record(new { Stage = "SustainedLoad", Seconds = elapsed.Elapsed.TotalSeconds, Quotes = count,
-                    AllocatedBytes = GC.GetTotalAllocatedBytes(true) - startAlloc, Heap = GC.GetTotalMemory(false),
+                Record(new
+                {
+                    Stage = "SustainedLoad",
+                    Seconds = elapsed.Elapsed.TotalSeconds,
+                    Quotes = count,
+                    AllocatedBytes = GC.GetTotalAllocatedBytes(true) - startAlloc,
+                    Heap = GC.GetTotalMemory(false),
                     Collections = Enumerable.Range(0, 3).Select(i => GC.CollectionCount(i) - collections[i]).ToArray(),
                     PauseMilliseconds = (GC.GetTotalPauseDuration() - startPause).TotalMilliseconds,
-                    Rss = Process.GetCurrentProcess().WorkingSet64, SnapshotMilliseconds = timer.Elapsed.TotalMilliseconds });
+                    Rss = Process.GetCurrentProcess().WorkingSet64,
+                    SnapshotMilliseconds = timer.Elapsed.TotalMilliseconds
+                });
                 nextReport = elapsed.Elapsed + TimeSpan.FromSeconds(10);
             }
             var delay = TimeSpan.FromMilliseconds(50) - (elapsed.Elapsed - batchStart);
             if (delay > TimeSpan.Zero) await Task.Delay(delay);
         }
         latencies.Sort(); resetTimes.Sort();
-        Record(new { Stage = "Completed", Seconds = elapsed.Elapsed.TotalSeconds, Quotes = count, QuotesPerSecond = count / elapsed.Elapsed.TotalSeconds,
-            RuntimeReconstructions = 100, ResetP95Milliseconds = resetTimes[95], ResetP99Milliseconds = resetTimes[99],
-            SnapshotP95Milliseconds = latencies[(int)(latencies.Count * .95)], SnapshotP99Milliseconds = latencies[(int)(latencies.Count * .99)],
-            AllocatedBytesPerSecond = (GC.GetTotalAllocatedBytes(true) - startAlloc) / elapsed.Elapsed.TotalSeconds });
+        Record(new
+        {
+            Stage = "Completed",
+            Seconds = elapsed.Elapsed.TotalSeconds,
+            Quotes = count,
+            QuotesPerSecond = count / elapsed.Elapsed.TotalSeconds,
+            RuntimeReconstructions = 100,
+            ResetP95Milliseconds = resetTimes[95],
+            ResetP99Milliseconds = resetTimes[99],
+            SnapshotP95Milliseconds = latencies[(int)(latencies.Count * .95)],
+            SnapshotP99Milliseconds = latencies[(int)(latencies.Count * .99)],
+            AllocatedBytesPerSecond = (GC.GetTotalAllocatedBytes(true) - startAlloc) / elapsed.Elapsed.TotalSeconds
+        });
         Assert.False((await active.ReleaseAsync(new(initial.ScopeId, Guid.Empty, Generation,
             new(2, "load", [], WorkerOptionChainRuntime.PhysicalDigest(definitions))), default)).Active);
 

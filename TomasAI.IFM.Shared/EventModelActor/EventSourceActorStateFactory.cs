@@ -14,10 +14,10 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// current version. Ensure the concrete implementation of the requested state type is registered in the container.
 /// </remarks>
 /// <param name="stateFactoryResolver">Resolver used to obtain actor state instances from the dependency injection container.</param>
-public class EventSourceActorStateFactory(IActorStateFactoryResolver stateFactoryResolver) 
+public class EventSourceActorStateFactory(IActorStateFactoryResolver stateFactoryResolver)
     : IEventSourceActorStateFactory
 {
-    readonly IActorStateFactoryResolver _actorStateFactoryResolver = IsArgumentNull.Set( stateFactoryResolver);
+    readonly IActorStateFactoryResolver _actorStateFactoryResolver = IsArgumentNull.Set(stateFactoryResolver);
 
     /// <summary>
     /// Creates and initializes an actor state by replaying the provided domain events.
@@ -29,7 +29,7 @@ public class EventSourceActorStateFactory(IActorStateFactoryResolver stateFactor
     /// <returns>
     /// The initialized state instance after replaying the supplied domain events.
     /// </returns>
-    public IEventSourceActorState<TState> CreateState<TState>(DomainEventCollection domainEvents) 
+    public IEventSourceActorState<TState> CreateState<TState>(DomainEventCollection domainEvents)
         where TState : IEventSourceActorState<TState>
     {
         // load actor state from DI container...
@@ -59,7 +59,7 @@ public class EventSourceActorStateFactory(IActorStateFactoryResolver stateFactor
     /// <returns>
     /// The initialized state instance after replaying the supplied event stream.
     /// </returns>
-    public IEventSourceActorState<TState> CreateState<TState>(ICollection<EventStreamReadModel> eventStream) 
+    public IEventSourceActorState<TState> CreateState<TState>(ICollection<EventStreamReadModel> eventStream)
         where TState : IEventSourceActorState<TState>
     {
         // load actor state from DI container...
@@ -94,5 +94,5 @@ public class EventSourceActorStateFactory(IActorStateFactoryResolver stateFactor
         var actorState = _actorStateFactoryResolver.Resolve(actorStateGenericType) as IEventSourceActorState<TState>;
         return actorState!;
     }
-    
+
 }

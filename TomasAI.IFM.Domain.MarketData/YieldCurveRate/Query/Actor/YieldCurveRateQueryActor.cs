@@ -76,16 +76,16 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
 
     static readonly IReadOnlyDictionary<Type,
         Func<YieldCurveRateQueryActor, IYieldCurveRateQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<YieldCurveRateQueryActor, IYieldCurveRateQueryContext, IQuery, CancellationToken, ValueTask>>()
-    {
-        [typeof(GetLastYieldCurveRateQuery)] = static (actor, context, query, cancellationToken) =>
-            actor.ReceiveAsync(context, (GetLastYieldCurveRateQuery)query, cancellationToken),
-        [typeof(GetYieldCurveRatesQuery)] = static (actor, context, query, cancellationToken) =>
-            actor.ReceiveAsync(context, (GetYieldCurveRatesQuery)query, cancellationToken),
-        [typeof(GetYieldCurveRateExistsQuery)] = static (actor, context, query, cancellationToken) =>
-            actor.ReceiveAsync(context, (GetYieldCurveRateExistsQuery)query, cancellationToken),
-        [typeof(GetYieldCurveRateYearsQuery)] = static (actor, context, query, cancellationToken) =>
-            actor.ReceiveAsync(context, (GetYieldCurveRateYearsQuery)query, cancellationToken)
-    };
+        {
+            [typeof(GetLastYieldCurveRateQuery)] = static (actor, context, query, cancellationToken) =>
+                actor.ReceiveAsync(context, (GetLastYieldCurveRateQuery)query, cancellationToken),
+            [typeof(GetYieldCurveRatesQuery)] = static (actor, context, query, cancellationToken) =>
+                actor.ReceiveAsync(context, (GetYieldCurveRatesQuery)query, cancellationToken),
+            [typeof(GetYieldCurveRateExistsQuery)] = static (actor, context, query, cancellationToken) =>
+                actor.ReceiveAsync(context, (GetYieldCurveRateExistsQuery)query, cancellationToken),
+            [typeof(GetYieldCurveRateYearsQuery)] = static (actor, context, query, cancellationToken) =>
+                actor.ReceiveAsync(context, (GetYieldCurveRateYearsQuery)query, cancellationToken)
+        };
 
     async ValueTask ReceiveAsync(
         IQueryActorContext<YieldCurveRateQueryActor> context,
@@ -153,5 +153,5 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
         string verb,
         Exception exception)
         => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
-   
+
 }

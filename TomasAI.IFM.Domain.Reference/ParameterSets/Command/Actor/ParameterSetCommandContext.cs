@@ -16,7 +16,7 @@ public interface IParameterSetCommandContext
     : ICommandActorContext<ParameterSetCommandActor>
 {
     IParameterAccessPolicy AccessPolicy { get; }
-    IEventSourceActorStateRepository<ParameterStartupCommandState> Startups {get;}
+    IEventSourceActorStateRepository<ParameterStartupCommandState> Startups { get; }
     /// <summary>Gets EventSourceDb.</summary>
     IEventSourceActorDbContext DbEventSource { get; }
     /// <summary>Gets ConfigurationDb.</summary>
@@ -33,7 +33,7 @@ public interface IParameterSetCommandContext
     IEventSourceActorStateFactory StateFactory { get; }
     /// <summary>Gets actor infrastructure.</summary>
     IActorService ActorService { get; }
-    IEventSourceActorStateRepository<ParameterAssignmentCommandState> Assignments {get;}
+    IEventSourceActorStateRepository<ParameterAssignmentCommandState> Assignments { get; }
     /// <summary>Gets the logger.</summary>
     ILogger<ParameterSetCommandActor> Logger { get; }
 }
@@ -45,7 +45,7 @@ public sealed class ParameterSetCommandContext
       IParameterSetCommandContext
 {
     readonly Lazy<IEventSourceActorStateRepository<ParameterStartupCommandState>> startups;
-    public IEventSourceActorStateRepository<ParameterStartupCommandState> Startups=>startups.Value;
+    public IEventSourceActorStateRepository<ParameterStartupCommandState> Startups => startups.Value;
     readonly Lazy<IParameterAccessPolicy> accessPolicy;
     public IParameterAccessPolicy AccessPolicy => accessPolicy.Value;
 
@@ -67,7 +67,7 @@ public sealed class ParameterSetCommandContext
     {
         BlackboardService = IsArgumentNull.Set(blackboardService);
         Logger = IsArgumentNull.Set(logger);
-        startups = new(()=>IsArgumentNull.Set(Container.Resolve<IEventSourceActorStateRepository<ParameterStartupCommandState>>())!);
+        startups = new(() => IsArgumentNull.Set(Container.Resolve<IEventSourceActorStateRepository<ParameterStartupCommandState>>())!);
         accessPolicy = new(() => IsArgumentNull.Set(Container.Resolve<IParameterAccessPolicy>())!);
         assignments = ResolveOnce<IEventSourceActorStateRepository<ParameterAssignmentCommandState>>();
         dbEventSource = ResolveOnce<IEventSourceActorDbContext>();

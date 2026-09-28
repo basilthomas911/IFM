@@ -38,7 +38,7 @@ public class MarketDataUIEventConsumer(
         await base.StartAsync();
     }
 
-    protected override void ConnectEvents() 
+    protected override void ConnectEvents()
         => Subscribe($"{_siteId}", _consumeEvents, _eventAction);
 
 }

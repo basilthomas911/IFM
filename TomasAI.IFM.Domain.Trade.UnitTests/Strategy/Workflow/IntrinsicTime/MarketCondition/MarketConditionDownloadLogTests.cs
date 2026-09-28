@@ -243,11 +243,18 @@ internal static class CalendarDownloadFixture
         var end = finished ?? At.AddHours(-1);
         var outcome = new MarketDataDownloadOutcome
         {
-            Dataset = dataset, Scope = scope, ValueDate = date ?? DateOnly.FromDateTime(At),
-            ImportCommandId = Guid.NewGuid(), SourceTerminalEventId = Guid.NewGuid(),
-            RequestedAtUtc = end.AddSeconds(-2), StartedAtUtc = end.AddSeconds(-1), FinishedAtUtc = end,
-            Status = status, DownloadedRecordCount = status == MarketDataDownloadStatus.Completed ? 0 : null,
-            PersistedRecordCount = status == MarketDataDownloadStatus.Completed ? 0 : null, ElapsedMilliseconds = 1000,
+            Dataset = dataset,
+            Scope = scope,
+            ValueDate = date ?? DateOnly.FromDateTime(At),
+            ImportCommandId = Guid.NewGuid(),
+            SourceTerminalEventId = Guid.NewGuid(),
+            RequestedAtUtc = end.AddSeconds(-2),
+            StartedAtUtc = end.AddSeconds(-1),
+            FinishedAtUtc = end,
+            Status = status,
+            DownloadedRecordCount = status == MarketDataDownloadStatus.Completed ? 0 : null,
+            PersistedRecordCount = status == MarketDataDownloadStatus.Completed ? 0 : null,
+            ElapsedMilliseconds = 1000,
             ErrorCode = status == MarketDataDownloadStatus.Failed ? "FAILED" : null,
             ErrorMessage = status == MarketDataDownloadStatus.Failed ? "Import failed." : null
         };

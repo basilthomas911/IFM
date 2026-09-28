@@ -40,13 +40,19 @@ public static class CompleteTradeSelection
             var failure = TimeoutFailure(now);
             var timedOut = current with
             {
-                Status = WorkflowStrategyMachineStatus.TimedOut, Outcome = StrategyWorkflowOutcome.TimedOut, WorkflowRevision = current.WorkflowRevision + 1,
-                CausationId = command.SourceEventId, UpdatedAtUtc = now, TerminalAtUtc = now,
+                Status = WorkflowStrategyMachineStatus.TimedOut,
+                Outcome = StrategyWorkflowOutcome.TimedOut,
+                WorkflowRevision = current.WorkflowRevision + 1,
+                CausationId = command.SourceEventId,
+                UpdatedAtUtc = now,
+                TerminalAtUtc = now,
                 StopReasonCode = "WorkflowExecutionExpired",
                 TradeSelection = current.TradeSelection with
                 {
-                    ProcessingStatus = StrategyActorProcessingStatus.TimedOut, FailedAtUtc = now,
-                    Failure = failure, SourceEventId = command.SourceEventId
+                    ProcessingStatus = StrategyActorProcessingStatus.TimedOut,
+                    FailedAtUtc = now,
+                    Failure = failure,
+                    SourceEventId = command.SourceEventId
                 }
             };
             AppendSnapshot(state, command, current.Status, timedOut, now);
@@ -57,51 +63,74 @@ public static class CompleteTradeSelection
         TradeSelectionResult result;
         try
         {
-            result=TradeSelectionContracts.ReadResult(command.Result);
-            var dispatch=current.SelectionDispatch??throw new ArgumentException("Missing durable selector dispatch.");
-            var expected=TradeSelectionEvaluator.Evaluate(dispatch);
-            TradeSelectionContracts.Require(command.SourceEventId==result.ResultId && result.InputWorkflowRevision==command.InputWorkflowRevision
-                && TradeSelectionContracts.EvidenceHash(expected)==TradeSelectionContracts.EvidenceHash(result),"TS.RESULT.INVALID","Selector result differs from the deterministic decision over the saved request.");
+            result = TradeSelectionContracts.ReadResult(command.Result);
+            var dispatch = current.SelectionDispatch ?? throw new ArgumentException("Missing durable selector dispatch.");
+            var expected = TradeSelectionEvaluator.Evaluate(dispatch);
+            TradeSelectionContracts.Require(command.SourceEventId == result.ResultId && result.InputWorkflowRevision == command.InputWorkflowRevision
+                && TradeSelectionContracts.EvidenceHash(expected) == TradeSelectionContracts.EvidenceHash(result), "TS.RESULT.INVALID", "Selector result differs from the deterministic decision over the saved request.");
         }
-        catch(Exception ex) when(ex is ArgumentException or InvalidOperationException)
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
-            var invalid=current with {Status=WorkflowStrategyMachineStatus.Failed,Outcome=StrategyWorkflowOutcome.PipelineFailed,WorkflowRevision=current.WorkflowRevision+1,UpdatedAtUtc=now,TerminalAtUtc=now,StopReasonCode="TS.RESULT.INVALID",
-                TradeSelection=current.TradeSelection with {ProcessingStatus=StrategyActorProcessingStatus.Failed,FailedAtUtc=now,SourceEventId=command.SourceEventId,Failure=new(){ErrorCode=23023,ErrorType="SelectionResultInvalid",ErrorMessage=ex.Message,FailedAtUtc=now}}};
-            AppendSnapshot(state,command,current.Status,invalid,now);return Ok(command);
+            var invalid = current with
+            {
+                Status = WorkflowStrategyMachineStatus.Failed,
+                Outcome = StrategyWorkflowOutcome.PipelineFailed,
+                WorkflowRevision = current.WorkflowRevision + 1,
+                UpdatedAtUtc = now,
+                TerminalAtUtc = now,
+                StopReasonCode = "TS.RESULT.INVALID",
+                TradeSelection = current.TradeSelection with { ProcessingStatus = StrategyActorProcessingStatus.Failed, FailedAtUtc = now, SourceEventId = command.SourceEventId, Failure = new() { ErrorCode = 23023, ErrorType = "SelectionResultInvalid", ErrorMessage = ex.Message, FailedAtUtc = now } }
+            };
+            AppendSnapshot(state, command, current.Status, invalid, now); return Ok(command);
         }
         if (now >= result.ValidUntilUtc)
         {
             var timedOut = current with
             {
-                Status = WorkflowStrategyMachineStatus.TimedOut, Outcome = StrategyWorkflowOutcome.TimedOut,
-                WorkflowRevision = current.WorkflowRevision + 1, UpdatedAtUtc = now, TerminalAtUtc = now,
-                CausationId = command.SourceEventId, StopReasonCode = "TS.TIME.EXPIRED",
+                Status = WorkflowStrategyMachineStatus.TimedOut,
+                Outcome = StrategyWorkflowOutcome.TimedOut,
+                WorkflowRevision = current.WorkflowRevision + 1,
+                UpdatedAtUtc = now,
+                TerminalAtUtc = now,
+                CausationId = command.SourceEventId,
+                StopReasonCode = "TS.TIME.EXPIRED",
                 TradeSelection = current.TradeSelection with
                 {
-                    ProcessingStatus = StrategyActorProcessingStatus.TimedOut, FailedAtUtc = now,
-                    Failure = TimeoutFailure(now), SourceEventId = command.SourceEventId, Result = null
+                    ProcessingStatus = StrategyActorProcessingStatus.TimedOut,
+                    FailedAtUtc = now,
+                    Failure = TimeoutFailure(now),
+                    SourceEventId = command.SourceEventId,
+                    Result = null
                 }
             };
             AppendSnapshot(state, command, current.Status, timedOut, now);
             return Ok(command);
         }
-        var noTrade=result.Outcome==SelectionOutcome.NoTrade;
+        var noTrade = result.Outcome == SelectionOutcome.NoTrade;
         var neutral = current.SelectionBinding?.SchemaVersion == 2;
         var revision = current.WorkflowRevision + 1;
         var updated = current with
         {
-            CausationId = command.CausationId, WorkflowRevision = revision, UpdatedAtUtc = now,
+            CausationId = command.CausationId,
+            WorkflowRevision = revision,
+            UpdatedAtUtc = now,
             CurrentStage = noTrade || !neutral ? StrategyWorkflowStage.TradeSelection : StrategyWorkflowStage.OrderComposition,
-            Status=noTrade?WorkflowStrategyMachineStatus.Completed:WorkflowStrategyMachineStatus.Started,
-            Outcome=noTrade?StrategyWorkflowOutcome.NoTrade:StrategyWorkflowOutcome.None,
-            TerminalAtUtc=noTrade?now:null,StopReasonCode=noTrade?result.PrimaryReasonCode:string.Empty,
+            Status = noTrade ? WorkflowStrategyMachineStatus.Completed : WorkflowStrategyMachineStatus.Started,
+            Outcome = noTrade ? StrategyWorkflowOutcome.NoTrade : StrategyWorkflowOutcome.None,
+            TerminalAtUtc = noTrade ? now : null,
+            StopReasonCode = noTrade ? result.PrimaryReasonCode : string.Empty,
             TradeSelection = current.TradeSelection with
             {
                 ProcessingStatus = StrategyActorProcessingStatus.Completed,
-                ContinuationDecision = noTrade?StrategyWorkflowContinuationDecision.Stop:StrategyWorkflowContinuationDecision.Proceed,
-                CompletedAtUtc = now, FailedAtUtc = null, Result = command.Result, Failure = null,
-                SourceEventId = command.SourceEventId, ContinuationRuleSetId = "ts-rank-v1",
-                ContinuationRuleSetVersion = 1, ContinuationReasonCodes = [result.PrimaryReasonCode]
+                ContinuationDecision = noTrade ? StrategyWorkflowContinuationDecision.Stop : StrategyWorkflowContinuationDecision.Proceed,
+                CompletedAtUtc = now,
+                FailedAtUtc = null,
+                Result = command.Result,
+                Failure = null,
+                SourceEventId = command.SourceEventId,
+                ContinuationRuleSetId = "ts-rank-v1",
+                ContinuationRuleSetVersion = 1,
+                ContinuationReasonCodes = [result.PrimaryReasonCode]
             },
             CompositionHandoff = noTrade || neutral ? null
                 : TradeSelectionHandoff.Pending(result, command.Result, revision, command.SourceEventId, now),
@@ -124,17 +153,27 @@ public static class CompleteTradeSelection
         {
             Subject = new ActorSubject(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor,
                 WorkflowStrategyStateUpdatedEvent.Verb, command.EntityId.Format()),
-            Id = Guid.CreateVersion7(new DateTimeOffset(now, TimeSpan.Zero)), EntityId = command.EntityId,
-            CommandId = command.CommandId, AggregateId = command.EntityId.Format(), EventSource = command.EventSource,
-            ReceivedOn = now, WorkflowId = view.WorkflowId, WorkflowRevision = view.WorkflowRevision,
-            CorrelationId = view.CorrelationId, CausationId = view.CausationId, PreviousStatus = previousStatus,
-            State = view, UpdatedAtUtc = now
+            Id = Guid.CreateVersion7(new DateTimeOffset(now, TimeSpan.Zero)),
+            EntityId = command.EntityId,
+            CommandId = command.CommandId,
+            AggregateId = command.EntityId.Format(),
+            EventSource = command.EventSource,
+            ReceivedOn = now,
+            WorkflowId = view.WorkflowId,
+            WorkflowRevision = view.WorkflowRevision,
+            CorrelationId = view.CorrelationId,
+            CausationId = view.CausationId,
+            PreviousStatus = previousStatus,
+            State = view,
+            UpdatedAtUtc = now
         }, command);
 
     static StrategyPipelineFailure TimeoutFailure(DateTime now) => new()
     {
-        ErrorCode = 23103, ErrorMessage = "The fixed workflow execution deadline was reached.",
-        ErrorType = "TradeSelectionTimedOut", FailedAtUtc = now
+        ErrorCode = 23103,
+        ErrorMessage = "The fixed workflow execution deadline was reached.",
+        ErrorType = "TradeSelectionTimedOut",
+        FailedAtUtc = now
     };
 
     static ServiceResult<GuidResult> Ok(CompleteTradeSelectionCommand command)

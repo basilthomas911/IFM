@@ -26,7 +26,7 @@ public record FuturesRsiDailySignalEntityId : IActorEntityId
     public TimeFrameType TimePeriod { get; init; }
 
     [Key(2)]
-    public int PeriodLength { get; init; }  
+    public int PeriodLength { get; init; }
 
     /// <summary>
     /// Parameterless constructor required for MessagePack and some serializers.
@@ -52,7 +52,7 @@ public record FuturesRsiDailySignalEntityId : IActorEntityId
     /// <param name="contractId">The futures contract identifier.</param>
     /// <param name="timePeriod">The type of RSI signal.</param>
     /// <param name="periodLength">The length of the RSI period.</param>
-    public static FuturesRsiDailySignalEntityId Create(string contractId, TimeFrameType timePeriod, int periodLength) 
+    public static FuturesRsiDailySignalEntityId Create(string contractId, TimeFrameType timePeriod, int periodLength)
         => new(contractId, timePeriod, periodLength);
 
     /// <summary>

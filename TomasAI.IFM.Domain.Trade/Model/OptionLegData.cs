@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Domain.Trade.Model;
 public class OptionLegData : IDataValidation, IOptionLegData
 {
     static IValidator<OptionLegData>? _validator;
-  
+
     public OptionLegData(
         int orderId,
         int tradeId,
@@ -88,7 +88,7 @@ public class OptionLegData : IDataValidation, IOptionLegData
         DateTime createdOn,
         string createdBy,
         DateTime updatedOn,
-        string updatedBy):this(key.OrderId, key.TradeId, key.TradeType, key.ValueDate, key.DaysToExpiry, key.TradeStatus, 
+        string updatedBy) : this(key.OrderId, key.TradeId, key.TradeType, key.ValueDate, key.DaysToExpiry, key.TradeStatus,
             model.OptionLeg?.ContractId ?? string.Empty, model.BidPrice, model.AskPrice, model.ImpliedVolatility, model.Delta, model.Gamma, model.Theta,
             model.Vega, model.Rho, createdOn, createdBy, updatedOn, updatedBy)
     {
@@ -156,7 +156,7 @@ public static class OptionLegDataReadModelExtension
         string createdBy,
         DateTime updatedOn,
         string updatedBy)
-    => new (
+    => new(
         key: tradeDataKey,
         model: e,
         createdOn: createdOn,

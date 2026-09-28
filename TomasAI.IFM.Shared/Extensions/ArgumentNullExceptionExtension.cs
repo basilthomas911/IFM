@@ -16,7 +16,7 @@ public static class IsArgumentNull
     }
 
     public static void Check<TResult>(TResult arg, [CallerArgumentExpression("arg")] string? argName = null)
-    { 
+    {
         if (arg is null)
             throw new ArgumentNullException(argName);
     }

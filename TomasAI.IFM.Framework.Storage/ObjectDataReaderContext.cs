@@ -45,7 +45,7 @@ public class ObjectDataReaderContext : IObjectDataReaderContext
             _ => throw new NotImplementedException()
         };
 
-        async ValueTask< ICollection<TResult>> GetCsvDataAsync()
+        async ValueTask<ICollection<TResult>> GetCsvDataAsync()
         {
             using var dataReader = new CsvDataReader<TResult>(SplitLines(content));
             resultSet = ReadAll(dataReader, cancellationToken);

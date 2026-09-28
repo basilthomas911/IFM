@@ -52,7 +52,7 @@ public sealed class BrokerAccountingIntentStore(IPostgresEventTransaction transa
         var rows = await db.QueryAsync("""
             SELECT evidence_hash,command_payload::text,command_hash
             FROM portfolio_financial.broker_accounting_intent WHERE portfolio_id=$1 AND operation_id=$2;
-            """, [portfolioId, operationId], r => (Evidence:r.GetString(0), Payload:r.GetString(1), Hash:r.GetString(2)), token);
+            """, [portfolioId, operationId], r => (Evidence: r.GetString(0), Payload: r.GetString(1), Hash: r.GetString(2)), token);
         if (rows.Count == 0) return null;
         var row = rows.Single();
         Require(row.Evidence == evidenceHash, FinancialReasons.RequestMismatch,

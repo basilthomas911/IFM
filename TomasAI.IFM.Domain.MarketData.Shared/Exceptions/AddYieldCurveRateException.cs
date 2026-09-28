@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.Exceptions;
 /// <summary>
 /// add yield curve rate exception
 /// </summary>
-public class AddYieldCurveRateException : ApplicationException , IErrorEventConverter
+public class AddYieldCurveRateException : ApplicationException, IErrorEventConverter
 {
     public AddYieldCurveRateException()
     {

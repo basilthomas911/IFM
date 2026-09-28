@@ -6,7 +6,7 @@ namespace TomasAI.IFM.Framework.Storage
 {
     public abstract class DbProvider : IObjectCreateProvider
     {
-        readonly  IObjectRepository _repo;
+        readonly IObjectRepository _repo;
         readonly ILogger<DbProvider> _logger;
         readonly Lazy<object> _connectionIdentity;
 
@@ -27,11 +27,11 @@ namespace TomasAI.IFM.Framework.Storage
                 LazyThreadSafetyMode.ExecutionAndPublication);
         }
 
-          /// <summary>
+        /// <summary>
         /// create ado.net IDbConnection object
         /// </summary>
         /// <returns></returns>
-        public  IObjectRepositoryConnection CreateConnection()
+        public IObjectRepositoryConnection CreateConnection()
             => ObjectDataRepositoryConnection.Create(_repo.ProviderName);
 
         /// <summary>
@@ -125,7 +125,7 @@ namespace TomasAI.IFM.Framework.Storage
         /// </summary>
         /// <param name="repo"></param>
         /// <returns></returns>
-        public IObjectBulkCopyContext CreateBulkCopyContext(DataTable bulkCopyDataTable) 
+        public IObjectBulkCopyContext CreateBulkCopyContext(DataTable bulkCopyDataTable)
             => new ObjectDataBulkCopyContext(_repo, bulkCopyDataTable);
 
         public IObjectDataReaderContext CreateDataReaderContext(IDataReaderOptions dataReaderOptions)

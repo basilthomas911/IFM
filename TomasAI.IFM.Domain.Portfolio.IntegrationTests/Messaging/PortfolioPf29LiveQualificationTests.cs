@@ -22,7 +22,7 @@ public sealed class PortfolioPf29LiveQualificationTests(ITestOutputHelper output
     {
         const int workers = 8;
         const int queriesPerWorker = 8;
-        var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
+        var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? DomainActorIntegrationInfrastructureFixture.NatsUrl;
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
         var latencies = new ConcurrentBag<double>();
         var total = Stopwatch.StartNew();

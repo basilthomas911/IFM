@@ -30,18 +30,40 @@ public sealed class PortfolioCompositionCatalogVerificationTests
         var snapshot = Snapshot(workflow, horizon, family, template, profile);
         var request = new ReserveFundOrderCompositionRequest
         {
-            WorkflowId = workflow, WorkflowRevision = 1, TradeSelectionInvocationId = Guid.NewGuid(), TradeSelectionResultId = Guid.NewGuid(),
-            TradeSelectionResultSha256 = new string('d', 64), PortfolioId = 501, PortfolioVersion = 2, FundId = 600 + tradeCount,
-            FundMandateVersion = 3, TradeTemplateId = template, TradeTemplateVersion = 1, OrderCompositionProfileId = profile,
-            OrderCompositionProfileVersion = 1, UnderlyingRoot = "ES", DecisionHorizon = horizon, RequestedTradeDate = DateOnly.FromDateTime(Now),
+            WorkflowId = workflow,
+            WorkflowRevision = 1,
+            TradeSelectionInvocationId = Guid.NewGuid(),
+            TradeSelectionResultId = Guid.NewGuid(),
+            TradeSelectionResultSha256 = new string('d', 64),
+            PortfolioId = 501,
+            PortfolioVersion = 2,
+            FundId = 600 + tradeCount,
+            FundMandateVersion = 3,
+            TradeTemplateId = template,
+            TradeTemplateVersion = 1,
+            OrderCompositionProfileId = profile,
+            OrderCompositionProfileVersion = 1,
+            UnderlyingRoot = "ES",
+            DecisionHorizon = horizon,
+            RequestedTradeDate = DateOnly.FromDateTime(Now),
             TradeInstructions = Enumerable.Range(0, tradeCount).Select(i => new TradeInstruction
             {
-                TradeFamily = family, TradeRole = i == 0 ? "Primary" : "Related", DirectionOrBias = bias,
-                TradeAction = i % 2 == 0 ? "Buy" : "Sell", IsPrimaryTrade = i == 0, UnderlyingRoot = "ES",
-                RequestedTradeDate = DateOnly.FromDateTime(Now), Reference = $"{family}-{i + 1}", CreatedOnUtc = Now, CreatedBy = "verification",
+                TradeFamily = family,
+                TradeRole = i == 0 ? "Primary" : "Related",
+                DirectionOrBias = bias,
+                TradeAction = i % 2 == 0 ? "Buy" : "Sell",
+                IsPrimaryTrade = i == 0,
+                UnderlyingRoot = "ES",
+                RequestedTradeDate = DateOnly.FromDateTime(Now),
+                Reference = $"{family}-{i + 1}",
+                CreatedOnUtc = Now,
+                CreatedBy = "verification",
             }).ToArray(),
-            Origin = CompositionOrigin.StrategyWorkflow, IdempotencyKey = Guid.NewGuid(), RequestedAtUtc = Now,
-            ExpiresAtUtc = Now.AddMinutes(5), PortfolioFundStrategySnapshotSha256 = snapshot.PayloadSha256,
+            Origin = CompositionOrigin.StrategyWorkflow,
+            IdempotencyKey = Guid.NewGuid(),
+            RequestedAtUtc = Now,
+            ExpiresAtUtc = Now.AddMinutes(5),
+            PortfolioFundStrategySnapshotSha256 = snapshot.PayloadSha256,
         };
         var ids = Enumerable.Range(8101, tradeCount).ToArray();
 
@@ -71,9 +93,13 @@ public sealed class PortfolioCompositionCatalogVerificationTests
     {
         var request = new CreateManualFundOrderRequest
         {
-            PortfolioId = 501, PortfolioVersion = 2, FundId = 601, FundMandateVersion = 3,
+            PortfolioId = 501,
+            PortfolioVersion = 2,
+            FundId = 601,
+            FundMandateVersion = 3,
             IdempotencyKey = Guid.NewGuid(),
-            RequestedAtUtc = Now, ExpiresAtUtc = Now.AddDays(1),
+            RequestedAtUtc = Now,
+            ExpiresAtUtc = Now.AddDays(1),
         };
         var manual = new PortfolioFundCompositionAggregate().CreateManualDraft(request, 7101, Now, "verification");
         var template = Guid.NewGuid();
@@ -82,16 +108,32 @@ public sealed class PortfolioCompositionCatalogVerificationTests
         var snapshot = Snapshot(workflow, "Daily", "DirectionalFuture", template, profile);
         var automatedRequest = new ReserveFundOrderCompositionRequest
         {
-            WorkflowId = workflow, WorkflowRevision = 1, TradeSelectionInvocationId = Guid.NewGuid(), TradeSelectionResultId = Guid.NewGuid(),
-            TradeSelectionResultSha256 = new string('a', 64), PortfolioId = 501, PortfolioVersion = 2, FundId = 601,
-            FundMandateVersion = 3, TradeTemplateId = template, TradeTemplateVersion = 1, OrderCompositionProfileId = profile,
-            OrderCompositionProfileVersion = 1, UnderlyingRoot = "ES", DecisionHorizon = "Daily",
-            RequestedTradeDate = DateOnly.FromDateTime(Now), TradeInstructions = [new()
+            WorkflowId = workflow,
+            WorkflowRevision = 1,
+            TradeSelectionInvocationId = Guid.NewGuid(),
+            TradeSelectionResultId = Guid.NewGuid(),
+            TradeSelectionResultSha256 = new string('a', 64),
+            PortfolioId = 501,
+            PortfolioVersion = 2,
+            FundId = 601,
+            FundMandateVersion = 3,
+            TradeTemplateId = template,
+            TradeTemplateVersion = 1,
+            OrderCompositionProfileId = profile,
+            OrderCompositionProfileVersion = 1,
+            UnderlyingRoot = "ES",
+            DecisionHorizon = "Daily",
+            RequestedTradeDate = DateOnly.FromDateTime(Now),
+            TradeInstructions = [new()
             {
                 TradeFamily = "DirectionalFuture", TradeRole = "Primary", DirectionOrBias = "Bullish", TradeAction = "Buy",
                 IsPrimaryTrade = true, UnderlyingRoot = "ES", RequestedTradeDate = DateOnly.FromDateTime(Now), CreatedOnUtc = Now, CreatedBy = "verification",
-            }], Origin = CompositionOrigin.StrategyWorkflow, IdempotencyKey = Guid.NewGuid(), RequestedAtUtc = Now,
-            ExpiresAtUtc = Now.AddMinutes(5), PortfolioFundStrategySnapshotSha256 = snapshot.PayloadSha256,
+            }],
+            Origin = CompositionOrigin.StrategyWorkflow,
+            IdempotencyKey = Guid.NewGuid(),
+            RequestedAtUtc = Now,
+            ExpiresAtUtc = Now.AddMinutes(5),
+            PortfolioFundStrategySnapshotSha256 = snapshot.PayloadSha256,
         };
         var automated = new PortfolioFundCompositionAggregate().Reserve(automatedRequest, snapshot, 7102, [8101], Now, "verification");
 
@@ -105,14 +147,17 @@ public sealed class PortfolioCompositionCatalogVerificationTests
         var fundId = 600 + (family == "DirectionalFuture" ? 1 : family == "VerticalSpread" ? 2 : 4);
         var snapshot = new PortfolioFundStrategySnapshot
         {
-            WorkflowId = workflow, WorkflowRevision = 1, CorrelationId = workflow,
+            WorkflowId = workflow,
+            WorkflowRevision = 1,
+            CorrelationId = workflow,
             Portfolio = new() { PortfolioId = 501, PortfolioVersion = 2, Name = "Verification", OperatingState = PortfolioOperatingState.Active, EffectiveFromUtc = Now.AddDays(-1), ActivePolicyId = 9001, ActivePolicyVersion = 1, CreatedOnUtc = Now.AddDays(-1), CreatedBy = "verification" },
             FinancialPolicy = new() { PortfolioId = 501, PolicyId = 9001, PolicyVersion = 1, Name = "Verification limits", OperatingState = PortfolioFinancialPolicyState.Active, CapitalBase = 1_000_000m, MaximumDeployableCapital = 900_000m, MaximumRiskPerTrade = 10_000m, MaximumAggregateRisk = 100_000m, MaximumMargin = 500_000m, MaximumGrossNotional = 5_000_000m, MaximumOpenPositions = 100, MaximumDrawdownAmount = 200_000m, TradeFamilyLimits = [new() { TradeStrategyFamilyId = family == "DirectionalFuture" ? 1 : family == "VerticalSpread" ? 2 : 3, DefinitionVersion = 1, Enabled = true, MaximumRiskPerTrade = 10_000m, MaximumAggregateRisk = 100_000m, MaximumMargin = 500_000m, MaximumGrossNotional = 5_000_000m, MaximumOpenPositions = 100 }], EffectiveFromUtc = Now.AddDays(-1), CreatedOnUtc = Now.AddDays(-1), CreatedBy = "verification" },
             Fund = new() { PortfolioId = 501, FundId = fundId, FundMandateVersion = 3, FundCode = horizon, Name = horizon, TradingYear = 2026, OperatingState = FundOperatingState.Active, EffectiveFromUtc = Now.AddDays(-1), DecisionHorizon = horizon, Objective = "ES", UnderlyingUniverse = ["ES"], EligibleAssetTypes = [family == "DirectionalFuture" ? "Futures" : "FuturesOptions"], PermittedTradeFamilies = [family], CreatedOnUtc = Now.AddDays(-1), CreatedBy = "verification" },
             Allocation = new() { PortfolioId = 501, PortfolioVersion = 2, FundId = fundId, FundMandateVersion = 3, AllocationVersion = 1, SourcePolicyId = 9001, SourcePolicyVersion = 1 },
             RiskEnvelope = new() { PortfolioId = 501, PortfolioVersion = 2, FundId = fundId, FundMandateVersion = 3, EnvelopeId = Guid.NewGuid(), EnvelopeVersion = 1, CapacityState = FundCapacityState.Available, SourcePolicyId = 9001, SourcePolicyVersion = 1, EffectiveFromUtc = Now.AddHours(-1), ExpiresAtUtc = Now.AddHours(1) },
             Assignments = [new() { PortfolioId = 501, PortfolioVersion = 2, FundId = fundId, FundMandateVersion = 3, AssignmentVersion = 1, TradeTemplateId = template, TradeTemplateVersion = 1, Enabled = true, DecisionHorizon = horizon, UnderlyingUniverse = ["ES"], AssetType = family == "DirectionalFuture" ? "Futures" : "FuturesOptions", TradeFamily = family, EffectiveFromUtc = Now.AddHours(-1), TradeSelectionHintProfileId = Guid.NewGuid(), TradeSelectionHintProfileVersion = 1, OrderCompositionProfileId = profile, OrderCompositionProfileVersion = 1, CreatedOnUtc = Now.AddHours(-1), CreatedBy = "verification" }],
-            ResolvedAtUtc = Now, ValidUntilUtc = Now.AddHours(1),
+            ResolvedAtUtc = Now,
+            ValidUntilUtc = Now.AddHours(1),
         };
         return snapshot with { PayloadSha256 = PortfolioCanonicalHash.Compute(snapshot) };
     }

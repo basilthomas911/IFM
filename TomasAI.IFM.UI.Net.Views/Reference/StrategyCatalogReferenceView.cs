@@ -139,8 +139,16 @@ public sealed class StrategyCatalogReferenceView : DarkTradingView, IControlComm
         if (!CanAdd || kind.SelectedItem is not StrategyCatalogKind value) return;
         var id = Guid.NewGuid();
         var definition = template.SelectedItem is TemplateChoice t ? t.Value with { Key = new(value, id, 1), Code = t.Value.Code + "-" + id.ToString("N")[..6] }
-            : new StrategyCatalogDefinition { Key = new(value, id, 1), Code = "", Name = "", Horizon = value == StrategyCatalogKind.Deployment ? TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily : default,
-                Side = value == StrategyCatalogKind.Variant ? "Long" : "", Bias = value == StrategyCatalogKind.Variant ? "Balanced" : "", PremiumMode = value == StrategyCatalogKind.Variant ? "None" : "" };
+            : new StrategyCatalogDefinition
+            {
+                Key = new(value, id, 1),
+                Code = "",
+                Name = "",
+                Horizon = value == StrategyCatalogKind.Deployment ? TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily : default,
+                Side = value == StrategyCatalogKind.Variant ? "Long" : "",
+                Bias = value == StrategyCatalogKind.Variant ? "Balanced" : "",
+                PremiumMode = value == StrategyCatalogKind.Variant ? "None" : ""
+            };
         IsEditing = true; IsChanging = false; retry = null; ++generation; ShowEditor(definition, true); action(false); Notify();
     }
     public void Change(Action<bool> action)

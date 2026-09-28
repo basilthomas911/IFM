@@ -6,7 +6,7 @@ namespace TomasAI.IFM.UI.Net.Contracts;
 public interface IAppRoot
 {
     /// <summary>Gets the configured application environment name.</summary>
-    string AppEnvironment { get;  }
+    string AppEnvironment { get; }
 
     /// <summary>Gets the typed UI domain-service catalog.</summary>
     IUiServiceCatalog Services { get; }

@@ -94,12 +94,12 @@ public sealed class ApplicationCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<ApplicationCommandActor>,
         ApplicationCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<ApplicationCommandActor>,
         ApplicationCommandState, ServiceResult<GuidResult>>>()
-    {
-        [typeof(StartApplicationCommand)] = static (command, _, state) =>
-            ((StartApplicationCommand)command).Execute(state),
-        [typeof(ShutdownApplicationCommand)] = static (command, _, state) =>
-            ((ShutdownApplicationCommand)command).Execute(state)
-    };
+        {
+            [typeof(StartApplicationCommand)] = static (command, _, state) =>
+                ((StartApplicationCommand)command).Execute(state),
+            [typeof(ShutdownApplicationCommand)] = static (command, _, state) =>
+                ((ShutdownApplicationCommand)command).Execute(state)
+        };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -120,26 +120,26 @@ public sealed class ApplicationCommandActor(
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
-    {
-        [typeof(StartApplicationCommand)] = command =>
         {
-            var typed = (StartApplicationCommand)command;
-            return new List<ValidationError>()
-                .ValidateCommandId(typed.CommandId, typed.CommandName)
-                .ValidateEntityId(typed.EntityId, typed.CommandName)
-                .ValidateEntityId(typed.EntityId, typed.CommandName)
-                .ValidateApplicationEntityId(typed.EntityId, typed.CommandName);
-        },
-        [typeof(ShutdownApplicationCommand)] = command =>
-        {
-            var typed = (ShutdownApplicationCommand)command;
-            return new List<ValidationError>()
-                .ValidateCommandId(typed.CommandId, typed.CommandName)
-                .ValidateEntityId(typed.EntityId, typed.CommandName)
-                .ValidateEntityId(typed.EntityId, typed.CommandName)
-                .ValidateApplicationEntityId(typed.EntityId, typed.CommandName);
-        }
-    };
+            [typeof(StartApplicationCommand)] = command =>
+            {
+                var typed = (StartApplicationCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateApplicationEntityId(typed.EntityId, typed.CommandName);
+            },
+            [typeof(ShutdownApplicationCommand)] = command =>
+            {
+                var typed = (ShutdownApplicationCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateApplicationEntityId(typed.EntityId, typed.CommandName);
+            }
+        };
 
     protected override async ValueTask OnShutdown(ICommandActorContext<ApplicationCommandActor> context)
         => await ActorContext.EventProjector.StopAsync().ConfigureAwait(false);

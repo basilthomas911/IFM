@@ -37,7 +37,7 @@ public class FuturesItiSignalAveragePredictedTrendDeltaRangeCacheModel
     /// <param name="endDate"></param>
     /// <param name="getFuturesItiSignalAveragePredictedTrendDeltaRange"></param>
     /// <returns></returns>
-    public virtual async ValueTask<FuturesItiSignalAveragePredictedTrendDeltaRangeReadModel?> GetAsync(string symbol, DateTime startDate, DateTime endDate, 
+    public virtual async ValueTask<FuturesItiSignalAveragePredictedTrendDeltaRangeReadModel?> GetAsync(string symbol, DateTime startDate, DateTime endDate,
         Func<string, DateTime, DateTime, Task<FuturesItiSignalAveragePredictedTrendDeltaRangeReadModel>> getFuturesItiSignalAveragePredictedTrendDeltaRange)
     {
         var key = $"{CacheName}:{symbol}.{startDate:yyyyMMdd}.{endDate:yyyyMMdd}";

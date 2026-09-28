@@ -24,13 +24,13 @@ namespace TomasAI.IFM.UI.Net.Services.Trade
         /// </summary>
         /// <param name="listenerAction"></param>
         public async Task StartTradePlacementListenerAsync(Func<IEvent, ValueTask> listenerAction)
-            => await ExecuteValueTaskAsync( () => _tradePlacementEventConsumer.StartAsync(listenerAction));
+            => await ExecuteValueTaskAsync(() => _tradePlacementEventConsumer.StartAsync(listenerAction));
 
         /// <summary>
         /// stop listening for trade placement notification events
         /// </summary>
-        public async Task StopTradePlacementListenerAsync() 
-            => await ExecuteValueTaskAsync( _tradePlacementEventConsumer.StopAsync );
-        
+        public async Task StopTradePlacementListenerAsync()
+            => await ExecuteValueTaskAsync(_tradePlacementEventConsumer.StopAsync);
+
     }
 }

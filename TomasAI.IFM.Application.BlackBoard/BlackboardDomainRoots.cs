@@ -19,9 +19,11 @@ public interface IMarketDataBlackboard
 public interface IMarketDataAnalyticsBlackboard
 {
     FuturesItiSignalAveragePredictedTrendDeltaCacheModel
-        FuturesItiSignalAveragePredictedTrendDelta { get; }
+        FuturesItiSignalAveragePredictedTrendDelta
+    { get; }
     FuturesItiSignalAveragePredictedTrendDeltaRangeCacheModel
-        FuturesItiSignalAveragePredictedTrendDeltaRange { get; }
+        FuturesItiSignalAveragePredictedTrendDeltaRange
+    { get; }
     FuturesItiSignalMDICacheModel FuturesItiSignalMDI { get; }
     FuturesRsiSignalCacheModel FuturesRsiSignal { get; }
     FuturesRsiDailySignalCacheModel FuturesRsiDailySignal { get; }
@@ -31,7 +33,8 @@ public interface IMarketDataFeedBlackboard
 {
     FuturesTickDataStreamingParameterCacheModel FuturesTickDataStreamingParameter { get; }
     FuturesOptionTickDataStreamingParameterCacheModel
-        FuturesOptionTickDataStreamingParameter { get; }
+        FuturesOptionTickDataStreamingParameter
+    { get; }
     FuturesEodDataCacheModel FuturesEodData { get; }
     VixFuturesEodDataCacheModel VixFuturesEodData { get; }
     FuturesEodDataRangeCacheModel FuturesEodDataRange { get; }
@@ -89,11 +92,13 @@ internal sealed class MarketDataAnalyticsBlackboard(
     IJsonSerializer jsonSerializer) : IMarketDataAnalyticsBlackboard
 {
     public FuturesItiSignalAveragePredictedTrendDeltaCacheModel
-        FuturesItiSignalAveragePredictedTrendDelta { get; } =
+        FuturesItiSignalAveragePredictedTrendDelta
+    { get; } =
             new(redisCache, jsonSerializer);
 
     public FuturesItiSignalAveragePredictedTrendDeltaRangeCacheModel
-        FuturesItiSignalAveragePredictedTrendDeltaRange { get; } =
+        FuturesItiSignalAveragePredictedTrendDeltaRange
+    { get; } =
             new(redisCache, jsonSerializer);
 
     public FuturesItiSignalMDICacheModel FuturesItiSignalMDI { get; } =
@@ -125,7 +130,8 @@ internal sealed class MarketDataFeedBlackboard : IMarketDataFeedBlackboard
 
     public FuturesTickDataStreamingParameterCacheModel FuturesTickDataStreamingParameter { get; }
     public FuturesOptionTickDataStreamingParameterCacheModel
-        FuturesOptionTickDataStreamingParameter { get; }
+        FuturesOptionTickDataStreamingParameter
+    { get; }
     public FuturesEodDataCacheModel FuturesEodData { get; }
     public VixFuturesEodDataCacheModel VixFuturesEodData { get; }
     public FuturesEodDataRangeCacheModel FuturesEodDataRange { get; }

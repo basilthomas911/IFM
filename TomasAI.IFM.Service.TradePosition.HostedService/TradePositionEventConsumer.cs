@@ -49,6 +49,6 @@ public class TradePositionEventConsumer : NatsEventConsumer, ITradePositionEvent
             new OptionTradeSpreadDistributionStatisticsChangedEvent{ },
         };
         @events.ForEach(e => e.SetEventSource($"{EventTopic.TradeEvents}"));
-        Subscribe($"{_siteId}", @events, async e => await _tradePositionService.ExecuteAsync((dynamic )e));
+        Subscribe($"{_siteId}", @events, async e => await _tradePositionService.ExecuteAsync((dynamic)e));
     }
 }

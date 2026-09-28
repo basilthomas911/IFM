@@ -32,14 +32,14 @@ public interface IActorMessageRingBuffer<TMessage> where TMessage : struct
     /// </summary>
     bool IsFull { get; }
 
-   /// <summary>
-   /// Attempts to enqueue the specified message into the queue.
-   /// </summary>
-   /// <remarks>This method does not guarantee that the message will be enqueued successfully. The caller
-   /// should handle scenarios where the operation may fail due to queue constraints or cancellation.</remarks>
-   /// <param name="item">The message to enqueue. The message is passed by reference to avoid unnecessary copying.</param>
-   /// <param name="cancellationToken">A token that can be used to cancel the enqueue operation.</param>
-   void TryEnqueue(in TMessage item, CancellationToken? cancellationToken);
+    /// <summary>
+    /// Attempts to enqueue the specified message into the queue.
+    /// </summary>
+    /// <remarks>This method does not guarantee that the message will be enqueued successfully. The caller
+    /// should handle scenarios where the operation may fail due to queue constraints or cancellation.</remarks>
+    /// <param name="item">The message to enqueue. The message is passed by reference to avoid unnecessary copying.</param>
+    /// <param name="cancellationToken">A token that can be used to cancel the enqueue operation.</param>
+    void TryEnqueue(in TMessage item, CancellationToken? cancellationToken);
 
     /// <summary>
     /// Attempts to remove and return an item from the queue.

@@ -16,7 +16,9 @@ public sealed class DynamoDbMultipartCheckpointStore(
     {
         var response = await dynamoDb.GetItemAsync(new GetItemRequest
         {
-            TableName = options.JournalTableName, Key = Key(key), ConsistentRead = true
+            TableName = options.JournalTableName,
+            Key = Key(key),
+            ConsistentRead = true
         }, cancellationToken).ConfigureAwait(false);
         var item = response.Item;
         if (item is not { Count: > 0 }) return null;
@@ -38,10 +40,14 @@ public sealed class DynamoDbMultipartCheckpointStore(
             TableName = options.JournalTableName,
             Item = new()
             {
-                ["PK"] = Text(_partition), ["SK"] = Text(Sort(checkpoint.ObjectKey)),
-                ["schema_version"] = Number(1), ["record_type"] = Text("replica"),
-                ["bucket_name"] = Text(checkpoint.BucketName), ["object_key"] = Text(checkpoint.ObjectKey),
-                ["upload_id"] = Text(checkpoint.UploadId), ["completed_parts"] = Number(checkpoint.CompletedPartCount),
+                ["PK"] = Text(_partition),
+                ["SK"] = Text(Sort(checkpoint.ObjectKey)),
+                ["schema_version"] = Number(1),
+                ["record_type"] = Text("replica"),
+                ["bucket_name"] = Text(checkpoint.BucketName),
+                ["object_key"] = Text(checkpoint.ObjectKey),
+                ["upload_id"] = Text(checkpoint.UploadId),
+                ["completed_parts"] = Number(checkpoint.CompletedPartCount),
                 ["uploaded_bytes"] = Number(checkpoint.UploadedBytes),
                 ["updated_utc"] = Text(checkpoint.UpdatedUtc.UtcDateTime.ToString("O"))
             }
@@ -51,7 +57,8 @@ public sealed class DynamoDbMultipartCheckpointStore(
     public ValueTask RemoveAsync(AwsGeneratedObjectKey key, CancellationToken cancellationToken)
         => new(dynamoDb.DeleteItemAsync(new DeleteItemRequest
         {
-            TableName = options.JournalTableName, Key = Key(key)
+            TableName = options.JournalTableName,
+            Key = Key(key)
         }, cancellationToken));
 
     Dictionary<string, AttributeValue> Key(AwsGeneratedObjectKey key)

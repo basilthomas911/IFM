@@ -118,9 +118,14 @@ public sealed class PortfolioRiskPolicyMessageLoopAcceptanceTests
 
     static PortfolioReadModel Portfolio() => new()
     {
-        PortfolioId = 7001, PortfolioVersion = 2, Name = "Core", BaseCurrency = "USD",
-        OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = DateTime.UtcNow.AddMinutes(-1),
-        CreatedOnUtc = DateTime.UtcNow.AddMinutes(-1), CreatedBy = "PF-27 acceptance",
+        PortfolioId = 7001,
+        PortfolioVersion = 2,
+        Name = "Core",
+        BaseCurrency = "USD",
+        OperatingState = PortfolioOperatingState.Draft,
+        EffectiveFromUtc = DateTime.UtcNow.AddMinutes(-1),
+        CreatedOnUtc = DateTime.UtcNow.AddMinutes(-1),
+        CreatedBy = "PF-27 acceptance",
     };
 
     static T Field<T>(object owner, string name) =>
@@ -164,7 +169,8 @@ public sealed class PortfolioRiskPolicyMessageLoopAcceptanceTests
                 {
                     ready.TrySetException(exception);
                 }
-            }) { IsBackground = true, Name = "PF-27 Risk Policy acceptance" };
+            })
+            { IsBackground = true, Name = "PF-27 Risk Policy acceptance" };
             thread.SetApartmentState(ApartmentState.STA);
             thread.Start();
             var result = await ready.Task.WaitAsync(TimeSpan.FromSeconds(10));

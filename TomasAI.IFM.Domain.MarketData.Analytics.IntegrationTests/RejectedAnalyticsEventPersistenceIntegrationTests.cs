@@ -26,7 +26,8 @@ public sealed class RejectedAnalyticsEventPersistenceIntegrationTests
             NullLogger<MarketOutlookSnapshotStateRepository>.Instance);
         var command = new InsertMarketOutlookSnapshotCommand(new MarketOutlookReadModel
         {
-            ContractId = "ESU6", ValueDate = new DateOnly(2026, 9, 15)
+            ContractId = "ESU6",
+            ValueDate = new DateOnly(2026, 9, 15)
         });
         var state = new MarketOutlookSnapshotCommandState { Id = command.Subject.ThreadId };
         Assert.False(state.Update(Substitute.For<IEvent>()));

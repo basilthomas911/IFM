@@ -271,8 +271,11 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
     }
     OptionGreeksSnapshot Pending(DatabentoOptionChainRoute route, string code) => new()
     {
-        IsValid = false, FuturesContractId = route.Definition.Underlying, CalculatedAtUtc = clock.GetUtcNow(),
-        FailureReason = OptionGreeksFailureReason.PricingContextUnavailable, PricingFailure = Failure(route.FuturesOptionContractId, code)
+        IsValid = false,
+        FuturesContractId = route.Definition.Underlying,
+        CalculatedAtUtc = clock.GetUtcNow(),
+        FailureReason = OptionGreeksFailureReason.PricingContextUnavailable,
+        PricingFailure = Failure(route.FuturesOptionContractId, code)
     };
     static OptionPricingFailure Failure(string id, string code) => new(code, "OptionPricing", id, "Qualified calculation is unavailable.");
     public async ValueTask DisposeAsync()

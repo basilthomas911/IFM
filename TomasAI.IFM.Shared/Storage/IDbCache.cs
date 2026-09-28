@@ -22,7 +22,7 @@ namespace TomasAI.IFM.Shared.Storage
     }
 
     public interface IDbSingleCache
-    { 
+    {
     }
 
 }

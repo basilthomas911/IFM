@@ -333,13 +333,13 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
         if (type == typeof(string[]))
             return new[] { "VALID_RESULT", "PROCEED" };
 
-        if(type==typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.TradeSelectionBinding)) return TradeSelection.TradeSelectionFixture.Command().GetAwaiter().GetResult().SelectionBinding;
-        if(type==typeof(TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult)) return new TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult();
-        if(type==typeof(CompositionEvidenceReference)) return new CompositionEvidenceReference(Guid.NewGuid(), 1, new('a',64), Guid.NewGuid(), new('b',64), DateTimeOffset.UtcNow);
-        if(type==typeof(CompositionContractSelection)) return new CompositionContractSelection(new('c',64), ["ES-leg-a", "ES-leg-b"]);
-        if(type==typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskFinancialHandoffPhase))
+        if (type == typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.TradeSelectionBinding)) return TradeSelection.TradeSelectionFixture.Command().GetAwaiter().GetResult().SelectionBinding;
+        if (type == typeof(TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult)) return new TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult();
+        if (type == typeof(CompositionEvidenceReference)) return new CompositionEvidenceReference(Guid.NewGuid(), 1, new('a', 64), Guid.NewGuid(), new('b', 64), DateTimeOffset.UtcNow);
+        if (type == typeof(CompositionContractSelection)) return new CompositionContractSelection(new('c', 64), ["ES-leg-a", "ES-leg-b"]);
+        if (type == typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskFinancialHandoffPhase))
             return Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskFinancialHandoffPhase.ConsumePending;
-        if(type==typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.PortfolioRiskDecision))
+        if (type == typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.PortfolioRiskDecision))
             return new Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.PortfolioRiskDecision
             {
                 CompositionId = Guid.Parse("0198E212-3C00-7000-8000-000000000021"),

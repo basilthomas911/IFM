@@ -21,7 +21,7 @@ public record ApplicationEntityId(
     /// <summary>
     /// Formats the identifier as a dot-separated key.
     /// </summary>
-    public string Format() 
+    public string Format()
         => ValueDate.ToString("yyyy-MM-dd");
 }
 

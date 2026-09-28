@@ -102,7 +102,9 @@ public sealed class OrderCompositionSnapshotTests
     }
 
     [Theory]
-    [InlineData("Daily")] [InlineData("Weekly")] [InlineData("Monthly")]
+    [InlineData("Daily")]
+    [InlineData("Weekly")]
+    [InlineData("Monthly")]
     public async Task Futures_snapshot_needs_no_treasury_options_or_greeks_on_any_horizon(string horizon)
     {
         var future = new CompositionMarketInstrument("ES-future", Quote("ES-future", 5000), null, null, null, null,
@@ -189,8 +191,13 @@ public sealed class OrderCompositionSnapshotTests
     static OptionDefinitionCandidate Candidate(OptionPricingConvention c) => new(c.ContractId, c.MappingVersion, c.DefinitionDigest,
         new OptionContractDefinition
         {
-            Dataset = c.Dataset, RawSymbol = c.RawSymbol, Ticker = "ES", Underlying = "ES-future",
-            Instrument = new(c.PublisherId, c.InstrumentId), Right = OptionRightSelection.Call, StrikePrice = 5000,
+            Dataset = c.Dataset,
+            RawSymbol = c.RawSymbol,
+            Ticker = "ES",
+            Underlying = "ES-future",
+            Instrument = new(c.PublisherId, c.InstrumentId),
+            Right = OptionRightSelection.Call,
+            StrikePrice = 5000,
             MaturityDate = DateOnly.FromDateTime(c.ExpirationUtc.UtcDateTime),
             ExpirationTimestampNanoseconds = checked((ulong)(c.ExpirationUtc - DateTimeOffset.UnixEpoch).Ticks * 100)
         });

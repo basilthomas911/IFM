@@ -14,7 +14,7 @@ public interface IActorState
 /// Represents the state of an actor with a specific type parameter.
 /// </summary>
 /// <typeparam name="TState">The type of the actor state. Must implement <see cref="IActorState"/>.</typeparam>
-public interface IActorState<TState> : IActorState 
+public interface IActorState<TState> : IActorState
     where TState : IActorState
 {
 }

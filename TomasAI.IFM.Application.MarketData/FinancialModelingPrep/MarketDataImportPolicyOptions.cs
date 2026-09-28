@@ -17,8 +17,3 @@ public sealed class MarketDataImportPolicyOptions
         return this;
     }
 }
-
-public static class FmpMarketDataRoutes
-{
-    public const string Import = "/api/marketdata/fmp/import";
-}

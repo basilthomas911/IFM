@@ -45,9 +45,13 @@ public sealed class DatabentoLifecycleRuntime(
         if (!DatabentoNativeWatchdog.TryRead(out var native, out var nativeFailure))
             return ValueTask.FromResult(new DatabentoBulkWatchdogSnapshot
             {
-                Complete = false, NativeBackend = options.NativeBackend, NativeAbiVersion = 3,
-                NativeGeneration = Generation, ObservedOnUtc = timeProvider.GetUtcNow().UtcDateTime,
-                Feeds = [], FailureDetail = nativeFailure
+                Complete = false,
+                NativeBackend = options.NativeBackend,
+                NativeAbiVersion = 3,
+                NativeGeneration = Generation,
+                ObservedOnUtc = timeProvider.GetUtcNow().UtcDateTime,
+                Feeds = [],
+                FailureDetail = nativeFailure
             });
         var registrationSnapshot = registrations.Snapshot();
         var epoch = health.Epoch;
@@ -97,25 +101,35 @@ public sealed class DatabentoLifecycleRuntime(
         {
             FeedInstanceId = native.FeedInstanceId,
             GenerationId = datasetHealth?.GenerationId ?? Generation,
-            Dataset = native.Dataset, FeedKind = native.FeedKind == 2 ? "OptionChain" : "Ticker", Criticality = isCore
+            Dataset = native.Dataset,
+            FeedKind = native.FeedKind == 2 ? "OptionChain" : "Ticker",
+            Criticality = isCore
                 ? DatabentoFeedCriticality.Core : DatabentoFeedCriticality.Optional,
             MajorStatus = up ? DatabentoMajorStatus.Up : major,
-            NativeState = native.State.ToString(), TerminalStatus = (int)native.TerminalStatus,
-            ProducerAlive = native.ProducerAlive, AggregationWorkerRunning = managedReady,
-            TransportRunning = native.ProducerAlive, ExpectedSubscriptions = checked((int)native.ExpectedSubscriptions),
+            NativeState = native.State.ToString(),
+            TerminalStatus = (int)native.TerminalStatus,
+            ProducerAlive = native.ProducerAlive,
+            AggregationWorkerRunning = managedReady,
+            TransportRunning = native.ProducerAlive,
+            ExpectedSubscriptions = checked((int)native.ExpectedSubscriptions),
             ReceivedSubscriptions = checked((int)native.ReceivedSubscriptions),
-            HeartbeatCount = native.HeartbeatCount, ProviderMessageCount = native.ProviderMessageCount,
+            HeartbeatCount = native.HeartbeatCount,
+            ProviderMessageCount = native.ProviderMessageCount,
             LastHeartbeatAge = Age(observedMonotonicNanoseconds, native.LastHeartbeatMonotonicNanoseconds, major),
             LastProviderMessageAge = Age(observedMonotonicNanoseconds, native.LastProviderMessageMonotonicNanoseconds, major),
-            RecordsProduced = native.RecordsProduced, RecordsConsumed = native.RecordsConsumed,
-            RingCapacity = native.RingCapacityRecords, RingUsed = native.RingUsedRecords,
-            RingHighWater = native.RingHighWaterRecords, RingOverruns = native.RingOverruns,
+            RecordsProduced = native.RecordsProduced,
+            RecordsConsumed = native.RecordsConsumed,
+            RingCapacity = native.RingCapacityRecords,
+            RingUsed = native.RingUsedRecords,
+            RingHighWater = native.RingHighWaterRecords,
+            RingOverruns = native.RingOverruns,
             BatchesPublished = datasetHealth?.Health.BatchesPublished ?? 0,
             ChannelFullCount = datasetHealth?.Health.ChannelFullCount ?? 0,
             PoolMissCount = datasetHealth?.Health.PoolMissCount ?? 0,
             ChannelBatchCount = datasetHealth?.Health.ChannelBatchCount ?? 0,
             ChannelBatchCapacity = datasetHealth?.Health.ChannelBatchCapacity ?? 0,
-            FailureDetail = native.FailureDetail, ContractRoles = roles,
+            FailureDetail = native.FailureDetail,
+            ContractRoles = roles,
             ContractIds = members.Select(registration => registration.DomainContractId).ToArray(),
             DrainDiagnostics = datasetHealth is { Dataset: not null }
                 ? datasetHealth.Value.Health.DrainDiagnostics

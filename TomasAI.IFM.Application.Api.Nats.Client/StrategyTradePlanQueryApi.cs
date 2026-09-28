@@ -33,7 +33,9 @@ public sealed class StrategyTradePlanQueryApi(IActorProducer producer)
         var id = new StrategyIronCondorTradePlanId(positionId, valueDate);
         var query = new GetIronCondorTradePlanHistoryQuery
         {
-            PlanId = id, PageSize = pageSize, PagingState = pagingState,
+            PlanId = id,
+            PageSize = pageSize,
+            PagingState = pagingState,
             Subject = Subject(GetIronCondorTradePlanHistoryQuery.Actor,
                 GetIronCondorTradePlanHistoryQuery.Verb, id.Format())
         };
@@ -62,7 +64,9 @@ public sealed class StrategyTradePlanQueryApi(IActorProducer producer)
         var id = new VerticalSpreadTradePlanId(positionId, valueDate);
         var query = new GetVerticalSpreadTradePlanHistoryQuery
         {
-            PlanId = id, PageSize = pageSize, PagingState = pagingState,
+            PlanId = id,
+            PageSize = pageSize,
+            PagingState = pagingState,
             Subject = Subject(GetVerticalSpreadTradePlanHistoryQuery.Actor,
                 GetVerticalSpreadTradePlanHistoryQuery.Verb, id.Format())
         };
@@ -91,7 +95,9 @@ public sealed class StrategyTradePlanQueryApi(IActorProducer producer)
         var id = new FuturesTradePlanId(positionId, valueDate);
         var query = new GetFuturesTradePlanHistoryQuery
         {
-            PlanId = id, PageSize = pageSize, PagingState = pagingState,
+            PlanId = id,
+            PageSize = pageSize,
+            PagingState = pagingState,
             Subject = Subject(GetFuturesTradePlanHistoryQuery.Actor,
                 GetFuturesTradePlanHistoryQuery.Verb, id.Format())
         };

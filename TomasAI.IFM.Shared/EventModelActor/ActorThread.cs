@@ -36,7 +36,7 @@ sealed class ActorThread : IActorThread
     /// <param name="threadId">The unique identifier for the thread managing the actor. Cannot be <see langword="null"/>.</param>
     /// <param name="logger">An optional logger for capturing event channel activity. Can be <see langword="null"/>.</param>
     /// <param name="timeout">The maximum duration to wait for operations to complete before timing out.</param>
-    public ActorThread(IActorThreadPool threadPool,ILogger logger, TimeSpan timeout)
+    public ActorThread(IActorThreadPool threadPool, ILogger logger, TimeSpan timeout)
     {
         _threadPool = IsArgumentNull.Set(threadPool);
         _logger = IsArgumentNull.Set(logger);
@@ -81,7 +81,7 @@ sealed class ActorThread : IActorThread
         Id = threadId;
         if (!IsStarted)
         {
-            _actor = IsArgumentNull.Set(actor); 
+            _actor = IsArgumentNull.Set(actor);
             _threadId = IsArgumentNull.Set(threadId);
             var threadQueue = actor.Mailbox.ThreadQueues.GetThreadQueue(threadId);
             _threadScheduler.Start(threadQueue);
@@ -124,7 +124,8 @@ sealed class ActorThread : IActorThread
                 _timer?.Dispose();
             }
             catch { }
-            finally { 
+            finally
+            {
                 _state = ActorThreadState.Stopped;
                 _threadPool.ReleaseThread(_threadId);
             }

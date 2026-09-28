@@ -288,11 +288,11 @@ public sealed class MarketDataRuntimeHealthCheck(
                 && (!routeActive
                     || status is { ContractConfigured: true, ContractRunning: true }
                     && (marketState switch
-                        {
-                            FuturesMarketState.Closed => true,
-                            FuturesMarketState.OffTrading => routeHealth == MarketDataFeedSessionHealthState.OffHoursActive,
-                            _ => routeHealth == MarketDataFeedSessionHealthState.Green
-                        }));
+                    {
+                        FuturesMarketState.Closed => true,
+                        FuturesMarketState.OffTrading => routeHealth == MarketDataFeedSessionHealthState.OffHoursActive,
+                        _ => routeHealth == MarketDataFeedSessionHealthState.Green
+                    }));
         }
     }
 }

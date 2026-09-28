@@ -23,7 +23,7 @@ public class FuturesOptionTickDataUIEventConsumer(INatsEventListenerOptions opti
     readonly ILogger _logger = logger;
     readonly Dictionary<ActorMailboxId, List<string>> _eventMap = new()
     {
-        [new (ActorType.Notify, OptionTradeTickPriceDataUpdatedEvent.Actor)] = [OptionTradeTickPriceDataUpdatedEvent.Verb]
+        [new(ActorType.Notify, OptionTradeTickPriceDataUpdatedEvent.Actor)] = [OptionTradeTickPriceDataUpdatedEvent.Verb]
     };
 
     public async ValueTask StartAsync(Func<OptionTradeTickPriceDataUpdatedEvent, ValueTask> eventAction)
@@ -36,7 +36,7 @@ public class FuturesOptionTickDataUIEventConsumer(INatsEventListenerOptions opti
             {
                 await (eventVerb switch
                 {
-                    _ when eventVerb == OptionTradeTickPriceDataUpdatedEvent.Verb 
+                    _ when eventVerb == OptionTradeTickPriceDataUpdatedEvent.Verb
                         => HandleEvent(eventMsg.AsEvent<OptionTradeTickPriceDataUpdatedEvent>(), eventAction),
                     _ => ValueTask.CompletedTask
                 });

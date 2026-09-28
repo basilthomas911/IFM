@@ -10,5 +10,5 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
         (ICollection<OptionSpreadResult> PutSpreadResult, ICollection<OptionSpreadResult> CallSpreadResult, double Duration) PriceIronCondor(CreditSpreadPricerArgs pcsArgs, CreditSpreadPricerArgs ccsArgs);
         void Reset();
     }
-    
+
 }

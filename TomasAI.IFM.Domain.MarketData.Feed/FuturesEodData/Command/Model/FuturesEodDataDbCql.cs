@@ -2,7 +2,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Model;
 
 internal static class FuturesEodDataDbCql
 {
-	public const string GetLastFuturesEodData = """
+    public const string GetLastFuturesEodData = """
 		SELECT
 			contractId AS "ContractId",
 			valueDate AS "ValueDate",
@@ -30,7 +30,7 @@ internal static class FuturesEodDataDbCql
 		LIMIT 1;
 		""";
 
-	public const string GetFuturesEodDataByDateRange = """
+    public const string GetFuturesEodDataByDateRange = """
 		SELECT
 			contractId AS "ContractId",
 			valueDate AS "ValueDate",
@@ -58,7 +58,7 @@ internal static class FuturesEodDataDbCql
 		ORDER BY valueDate DESC;
 		""";
 
-	public const string GetLastVixFuturesEodData = """
+    public const string GetLastVixFuturesEodData = """
 		SELECT
 			contractId AS "ContractId",
 			valueDate AS "ValueDate",
@@ -75,7 +75,7 @@ internal static class FuturesEodDataDbCql
 		LIMIT 1;
 		""";
 
-	public const string GetVixFuturesEodData = """
+    public const string GetVixFuturesEodData = """
 		SELECT
 			contractId AS "ContractId",
 			valueDate AS "ValueDate",
@@ -92,7 +92,7 @@ internal static class FuturesEodDataDbCql
 		LIMIT 1;
 		""";
 
-	public const string GetNormalCurveData = """
+    public const string GetNormalCurveData = """
 		SELECT
 			StdDevIndex AS "StdDevIndex",
 			Percent AS "Percent"

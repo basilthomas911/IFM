@@ -23,8 +23,12 @@ public static class CreateBrokerOrder
             return command.UpdateFailed(reason);
         var next = new BrokerOrderDefinition
         {
-            Id = command.EntityId, Order = command.Order, OperationId = command.OperationId,
-            Status = BrokerOrderStatus.PlacePending, Revision = 1, ChangedAtUtc = command.EffectiveAtUtc,
+            Id = command.EntityId,
+            Order = command.Order,
+            OperationId = command.OperationId,
+            Status = BrokerOrderStatus.PlacePending,
+            Revision = 1,
+            ChangedAtUtc = command.EffectiveAtUtc,
             CurrentSignedNetDebitLimit = command.Order.Components
                 .Single(component => component.ComponentId == command.EntityId.ComponentId)
                 .SignedNetDebitLimit ?? 0m,

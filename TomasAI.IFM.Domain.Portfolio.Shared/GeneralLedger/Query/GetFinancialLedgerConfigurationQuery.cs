@@ -35,7 +35,8 @@ public sealed record GetFinancialLedgerConfigurationQuery : IFinancialQueryMessa
     [Key(3)] public Guid CorrelationId { get; init; }
     [Key(4)] public DateTime RequestedAtUtc { get; init; }
 
-    [IgnoreMember] public GetFinancialLedgerConfigurationRequest Parameters
+    [IgnoreMember]
+    public GetFinancialLedgerConfigurationRequest Parameters
     {
         get => new();
         init

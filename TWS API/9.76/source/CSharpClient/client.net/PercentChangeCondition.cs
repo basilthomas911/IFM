@@ -14,7 +14,7 @@ namespace IBApi
     */
     public class PercentChangeCondition : ContractCondition
     {
-        
+
         protected override string Value
         {
             get
@@ -24,7 +24,7 @@ namespace IBApi
             set
             {
                 ChangePercent = double.Parse(value, NumberFormatInfo.InvariantInfo);
-            }           
+            }
         }
 
         public double ChangePercent { get; set; }

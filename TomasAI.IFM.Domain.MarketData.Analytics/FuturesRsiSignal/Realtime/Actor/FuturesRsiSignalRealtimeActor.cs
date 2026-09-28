@@ -31,10 +31,10 @@ public class FuturesRsiSignalRealtimeActor(IRealtimeActorContext<FuturesRsiSigna
     readonly ILogger<FuturesRsiSignalRealtimeActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesRsiSignalRealtimeContext, ILogger, ValueTask<bool>>> _receiveMap =
         new Dictionary<Type, Func<IEvent, IFuturesRsiSignalRealtimeContext, ILogger, ValueTask<bool>>>
-    {
-        [typeof(FuturesTradeSessionBarClosedRealtimeEvent)] = async (@event, context, logger) =>
-            await ((FuturesTradeSessionBarClosedRealtimeEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false)
-    };
+        {
+            [typeof(FuturesTradeSessionBarClosedRealtimeEvent)] = async (@event, context, logger) =>
+                await ((FuturesTradeSessionBarClosedRealtimeEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false)
+        };
 
     /// <summary>Registers the shared observation route.</summary>
     protected override ValueTask OnStartup(IEventActorContext<FuturesRsiSignalRealtimeActor> context)

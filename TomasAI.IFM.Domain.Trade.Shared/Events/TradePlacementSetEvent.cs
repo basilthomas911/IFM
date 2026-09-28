@@ -67,9 +67,9 @@ public record TradePlacementSetEvent : IEvent
     public ICompleteEvent ToCompletedEvent() => new TradePlacementSetCompleteEvent
     {
         TradePlacementId = this.TradePlacementId,
-        FuturesTradeSignal= this.FuturesTradeSignal,
+        FuturesTradeSignal = this.FuturesTradeSignal,
         SetOn = this.SetOn,
-        SetBy= this.SetBy,
+        SetBy = this.SetBy,
     };
     public IErrorEvent ToFailedEvent(Exception ex) => new TradePlacementSetFailEvent
     {

@@ -22,7 +22,7 @@ public class TradeTypeLimit : IDataValidation, ITradeTypeLimit
         decimal maxLossLimit,
         decimal minProfitLimit,
         decimal maxProfitLimit)
-   {
+    {
         TradeId = tradeId;
         TradeType = tradeType;
         MaxLossLimit = maxLossLimit;

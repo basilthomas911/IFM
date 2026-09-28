@@ -11,7 +11,9 @@ namespace TomasAI.IFM.Domain.Trade.VerificationTests;
 public sealed class OrderCompositionQualificationTests
 {
     [Theory]
-    [InlineData(TimeFrameType.Daily)] [InlineData(TimeFrameType.Weekly)] [InlineData(TimeFrameType.Monthly)]
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
     public async Task Accepted_selection_reservation_snapshot_and_candidate_remain_identical_across_transport_and_acceptance(TimeFrameType horizon)
     {
         var c = await CompositionFixture.Command("LongBullishIronCondor", horizon);

@@ -49,7 +49,7 @@ internal sealed class ClosingBasisIntentClaim(IPostgresEventTransaction transact
                 LEFT JOIN portfolio_financial.financial_operation_receipt r
                   ON r.portfolio_id=c.portfolio_id AND r.operation_id=c.operation_id
                 WHERE c.portfolio_id=$1 AND c.position_key=$2;
-                """, [portfolio, key], r => new Claim(r.GetGuid(0),r.GetString(1),r.GetDecimal(2),r.GetDecimal(3),r.GetGuid(4),r.GetBoolean(5)), ct);
+                """, [portfolio, key], r => new Claim(r.GetGuid(0), r.GetString(1), r.GetDecimal(2), r.GetDecimal(3), r.GetGuid(4), r.GetBoolean(5)), ct);
             if (previous.Any(x => !x.Posted))
                 throw new InvalidOperationException("PORTFOLIO_ACCOUNTING.PRIOR_CLOSE_PENDING_RECONCILIATION");
             if (trade.ClosingFills.Any(x => previous.All(p => p.Attempt != x.ExecutionAttemptId) &&
@@ -87,17 +87,17 @@ internal sealed class ClosingBasisIntentClaim(IPostgresEventTransaction transact
                 if (consumed.Any(x => x.Hash != openingHash))
                     throw new InvalidOperationException("PORTFOLIO_ACCOUNTING.OPENING_EVIDENCE_CHANGED");
                 var allocation = WeightedAverageClosingBasis.Allocate(
-                    fills.Select(x => new OpeningBasisLot(x.SignedQuantity,x.Price,leg.CashMultiplier)).ToArray(),
+                    fills.Select(x => new OpeningBasisLot(x.SignedQuantity, x.Price, leg.CashMultiplier)).ToArray(),
                     quantity, consumed.Sum(x => x.Quantity), consumed.Sum(x => x.Basis));
                 basis.Add(closeLeg.TradeLegId, allocation.AllocatedSignedBasis);
-                claims.Add(new(leg.TradeLegId,openingHash,Math.Abs(quantity),allocation.AllocatedSignedBasis,execution.ExecutionAttemptId,false));
+                claims.Add(new(leg.TradeLegId, openingHash, Math.Abs(quantity), allocation.AllocatedSignedBasis, execution.ExecutionAttemptId, false));
             }
             var proposed = build(basis);
             var valuation = await db.QueryAsync("""
                 SELECT amount,source_sequence FROM portfolio_financial.ledger_valuation
                 WHERE book_id=$1 AND fund_id=$2 AND position_key=$3;
-                """, [proposed.Body.BookId,position.Trade.FundId,$"{position.Trade.OrderId}:{position.Trade.TradeId}"],
-                r => (Amount:r.GetDecimal(0),Sequence:r.GetInt64(1)), ct);
+                """, [proposed.Body.BookId, position.Trade.FundId, $"{position.Trade.OrderId}:{position.Trade.TradeId}"],
+                r => (Amount: r.GetDecimal(0), Sequence: r.GetInt64(1)), ct);
             var previousUnrealized = valuation.FirstOrDefault().Amount;
             // A zero net valuation can hide offsetting leg gains/losses; it still requires a uniform close ratio.
             var remainingUnrealized = valuation.Count == 0 ? 0 : ProportionalCloseValuation.Remaining(previousUnrealized,
@@ -106,10 +106,15 @@ internal sealed class ClosingBasisIntentClaim(IPostgresEventTransaction transact
                         - previous.Where(x => x.Leg == leg.TradeLegId).Sum(x => x.Quantity),
                     claims.Where(x => x.Leg == leg.TradeLegId).Sum(x => x.Quantity))).ToArray());
             var sequence = checked(valuation.FirstOrDefault().Sequence + 1);
-            var items = proposed.Body.Items.Select(item => item with { Source = item.Source with
+            var items = proposed.Body.Items.Select(item => item with
             {
-                OrderId=position.Trade.OrderId, TradeId=position.Trade.TradeId, SourceSequence=sequence
-            } }).ToArray();
+                Source = item.Source with
+                {
+                    OrderId = position.Trade.OrderId,
+                    TradeId = position.Trade.TradeId,
+                    SourceSequence = sequence
+                }
+            }).ToArray();
             if (remainingUnrealized != 0)
             {
                 var rules = configuration.Rules.Where(x => x.Kind == LedgerTransactionKind.Valuation).ToArray();
@@ -122,25 +127,30 @@ internal sealed class ClosingBasisIntentClaim(IPostgresEventTransaction transact
                     System.Text.Encoding.UTF8.GetBytes($"restore-close-valuation|{operationId:N}"))[..16]);
                 var restore = realized with
                 {
-                    TransactionKind=LedgerTransactionKind.Valuation, Amount=remainingUnrealized,
-                    Description="Retain unrealized P&L for the remaining position after a proportional close",
-                    PostingRule=new() { RuleId=rules[0].RuleId,Version=rules[0].Version,ContentHash=rules[0].ContentHash },
-                    Source=realized.Source with { SourceEventId=restoreId,SourceSequence=checked(sequence+1),
-                        FillId=$"{execution.ExecutionAttemptId:N}:remaining-valuation",
-                        SourceContentHash=FinancialCanonicalHash.Compute(new { operationId,previousUnrealized,remainingUnrealized }) }
+                    TransactionKind = LedgerTransactionKind.Valuation,
+                    Amount = remainingUnrealized,
+                    Description = "Retain unrealized P&L for the remaining position after a proportional close",
+                    PostingRule = new() { RuleId = rules[0].RuleId, Version = rules[0].Version, ContentHash = rules[0].ContentHash },
+                    Source = realized.Source with
+                    {
+                        SourceEventId = restoreId,
+                        SourceSequence = checked(sequence + 1),
+                        FillId = $"{execution.ExecutionAttemptId:N}:remaining-valuation",
+                        SourceContentHash = FinancialCanonicalHash.Compute(new { operationId, previousUnrealized, remainingUnrealized })
+                    }
                 };
                 // Both reversal and restoration commit within the same fenced ledger transaction.
-                items=[..items,restore];
+                items = [.. items, restore];
             }
-            proposed = proposed with { Body = proposed.Body with { Items=items,ManifestHash=FinancialCanonicalHash.Compute(items) } };
-            proposed = proposed with { InputSha256=FinancialCanonicalHash.Request(proposed) };
+            proposed = proposed with { Body = proposed.Body with { Items = items, ManifestHash = FinancialCanonicalHash.Compute(items) } };
+            proposed = proposed with { InputSha256 = FinancialCanonicalHash.Request(proposed) };
             var command = await BrokerAccountingIntentStore.ClaimEnlistedAsync(db, proposed, evidenceHash, ct);
             foreach (var claim in claims)
                 await db.ExecuteAsync("""
                     INSERT INTO portfolio_financial.broker_closing_basis_claim
                     (portfolio_id,position_key,opening_leg_id,operation_id,execution_attempt_id,opening_hash,closed_quantity,allocated_signed_basis)
                     VALUES($1,$2,$3,$4,$5,$6,$7,$8);
-                    """, [portfolio,key,claim.Leg,operationId,claim.Attempt,claim.Hash,claim.Quantity,claim.Basis], ct);
+                    """, [portfolio, key, claim.Leg, operationId, claim.Attempt, claim.Hash, claim.Quantity, claim.Basis], ct);
             return command;
         }, token);
     }

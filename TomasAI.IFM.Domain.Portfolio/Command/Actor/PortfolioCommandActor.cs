@@ -39,16 +39,16 @@ public sealed class PortfolioCommandActor(
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
-    {
-        [CreatePortfolioCommand.Verb] = static message => message.AsCommand<CreatePortfolioCommand>()!,
-        [AddPortfolioVersionCommand.Verb] = static message => message.AsCommand<AddPortfolioVersionCommand>()!,
-        [ChangePortfolioOperatingStateCommand.Verb] = static message => message.AsCommand<ChangePortfolioOperatingStateCommand>()!,
-        [AddFundToPortfolioCommand.Verb] = static message => message.AsCommand<AddFundToPortfolioCommand>()!,
-        [DelegateFundAllocationCommand.Verb] = static message => message.AsCommand<DelegateFundAllocationCommand>()!,
-        [DelegateFundRiskEnvelopeCommand.Verb] = static message => message.AsCommand<DelegateFundRiskEnvelopeCommand>()!,
-        [RetirePortfolioCommand.Verb] = static message => message.AsCommand<RetirePortfolioCommand>()!,
-        [DeleteDraftPortfolioCommand.Verb] = static message => message.AsCommand<DeleteDraftPortfolioCommand>()!,
-    };
+        {
+            [CreatePortfolioCommand.Verb] = static message => message.AsCommand<CreatePortfolioCommand>()!,
+            [AddPortfolioVersionCommand.Verb] = static message => message.AsCommand<AddPortfolioVersionCommand>()!,
+            [ChangePortfolioOperatingStateCommand.Verb] = static message => message.AsCommand<ChangePortfolioOperatingStateCommand>()!,
+            [AddFundToPortfolioCommand.Verb] = static message => message.AsCommand<AddFundToPortfolioCommand>()!,
+            [DelegateFundAllocationCommand.Verb] = static message => message.AsCommand<DelegateFundAllocationCommand>()!,
+            [DelegateFundRiskEnvelopeCommand.Verb] = static message => message.AsCommand<DelegateFundRiskEnvelopeCommand>()!,
+            [RetirePortfolioCommand.Verb] = static message => message.AsCommand<RetirePortfolioCommand>()!,
+            [DeleteDraftPortfolioCommand.Verb] = static message => message.AsCommand<DeleteDraftPortfolioCommand>()!,
+        };
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>

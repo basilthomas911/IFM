@@ -26,7 +26,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared
                 .SingleOrDefault();
 
         public OptionTradeReadModel PrimaryTrade => GetPrimaryTrade();
-        
+
         public bool Exists(OptionTradeEntityId key) => _optionTrades.Exists(e => e.OrderId == key.OrderId && e.TradeId == key.TradeId);
 
         public void Add(OptionTradeReadModel optionTrade)
@@ -41,7 +41,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared
             _primaryTrade = null;
         }
 
-        public IEnumerator<OptionTradeReadModel> GetEnumerator()  => _optionTrades.GetEnumerator();
+        public IEnumerator<OptionTradeReadModel> GetEnumerator() => _optionTrades.GetEnumerator();
 
         public bool Remove(OptionTradeReadModel optionTrade)
         {

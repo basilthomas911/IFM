@@ -18,6 +18,7 @@ public sealed class GetDatabentoCurrentContractsQuery : IQuery<DatabentoContract
     [IgnoreMember] public int ErrorCode { get; set; } = ErrorId;
     [IgnoreMember] public string? QueryParams { get; set; }
     public GetDatabentoCurrentContractsQuery() { }
-    [SerializationConstructor] public GetDatabentoCurrentContractsQuery(ActorSubject subject, IActorEntityId entityId)
+    [SerializationConstructor]
+    public GetDatabentoCurrentContractsQuery(ActorSubject subject, IActorEntityId entityId)
     { Subject = subject; EntityId = new GetDatabentoCurrentContractsParameter(); }
 }

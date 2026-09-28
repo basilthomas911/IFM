@@ -24,10 +24,10 @@ internal static class IronCondorPositionTransition
             return TradeCommandResult.Rejected(command.ErrorCode, decision);
 
         if (!state.Update(new IronCondorPositionChangedEvent
-            {
-                EntityId = command.EntityId,
-                State = decision.Value
-            }, command))
+        {
+            EntityId = command.EntityId,
+            State = decision.Value
+        }, command))
             return new ServiceFailed<GuidResult>(command.ErrorCode, "POSITION.STATE.APPLY_FAILED");
         return TradeCommandResult.Accepted(command.CommandId);
     }

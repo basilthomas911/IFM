@@ -669,8 +669,14 @@ public sealed class DatabentoMarketDataWatchdogService(
         var core = snapshot.Feeds.Where(feed => feed.Criticality == DatabentoFeedCriticality.Core).ToArray();
         var representedRoles = core.SelectMany(feed => feed.ContractRoles).Distinct().ToHashSet();
         if (Enum.GetValues<DatabentoContractRole>().Any(role => !representedRoles.Contains(role)))
+        {
+            var missingRoles = Enum.GetValues<DatabentoContractRole>()
+                .Where(role => !representedRoles.Contains(role));
+            var feedRoles = snapshot.Feeds.Select(feed =>
+                $"{feed.Dataset}:{feed.FeedKind}=[{string.Join(',', feed.ContractRoles)}]");
             return (false, DatabentoMajorStatus.Down, DatabentoDisplayHealth.Red,
-                "One or more required ES/VX contract roles are absent from the runtime snapshot.");
+                $"Required contract roles are absent from the runtime snapshot. Missing=[{string.Join(',', missingRoles)}]; Feeds=[{string.Join(';', feedRoles)}].");
+        }
         if (core.Length == 0 || core.Any(feed => !Operational(feed)))
             return (false, DatabentoMajorStatus.Down, DatabentoDisplayHealth.Red, "One or more core feeds are not operational.");
         if (snapshot.Feeds.Any(feed => feed.Criticality == DatabentoFeedCriticality.Optional
@@ -705,13 +711,21 @@ public sealed class DatabentoMarketDataWatchdogService(
     {
         var observation = new DatabentoWatchdogObservation
         {
-            ObservationId = Guid.CreateVersion7(timeProvider.GetUtcNow()), CorrelationId = correlationId,
+            ObservationId = Guid.CreateVersion7(timeProvider.GetUtcNow()),
+            CorrelationId = correlationId,
             ValueDate = runtime.ActiveValueDate ?? sessionAuthority.Current.OperationalValueDate,
-            ObservedOnUtc = UtcNow(), OperationReason = reason, MajorStatus = major,
-            DisplayHealth = health, CoreContractsReady = coreReady, RecoveryAttempt = attempt,
-            NativeBackend = native.NativeBackend, NativeAbiVersion = native.NativeAbiVersion,
-            NativeGeneration = native.NativeGeneration, FailureStage = Bound(failureStage),
-            FailureDetail = Bound(failureDetail), FeedStatusDetails = native.Feeds
+            ObservedOnUtc = UtcNow(),
+            OperationReason = reason,
+            MajorStatus = major,
+            DisplayHealth = health,
+            CoreContractsReady = coreReady,
+            RecoveryAttempt = attempt,
+            NativeBackend = native.NativeBackend,
+            NativeAbiVersion = native.NativeAbiVersion,
+            NativeGeneration = native.NativeGeneration,
+            FailureStage = Bound(failureStage),
+            FailureDetail = Bound(failureDetail),
+            FeedStatusDetails = native.Feeds
         };
         DatabentoWatchdogObservation? persisted = null;
         Exception? persistenceFailure = null;
@@ -773,9 +787,14 @@ public sealed class DatabentoMarketDataWatchdogService(
         {
             _current = _current with
             {
-                State = state, StateRevision = checked(_current.StateRevision + 1), ValueDate = valueDate,
-                CorrelationId = correlationId, NativeGeneration = generation ?? _current.NativeGeneration,
-                RecoveryAttempt = attempt, Reason = Bound(reason), ChangedOnUtc = UtcNow(),
+                State = state,
+                StateRevision = checked(_current.StateRevision + 1),
+                ValueDate = valueDate,
+                CorrelationId = correlationId,
+                NativeGeneration = generation ?? _current.NativeGeneration,
+                RecoveryAttempt = attempt,
+                Reason = Bound(reason),
+                ChangedOnUtc = UtcNow(),
                 AttemptStartedOnUtc = attemptStarted ?? _current.AttemptStartedOnUtc,
                 AttemptCompletedOnUtc = attemptCompleted,
                 NextRetryOnUtc = state == DatabentoLifecycleState.Resetting && attempt < MaximumRecoveryAttempts
@@ -786,15 +805,25 @@ public sealed class DatabentoMarketDataWatchdogService(
 
     DatabentoBulkWatchdogSnapshot EmptyNative(string failure = "No active native runtime.") => new()
     {
-        Complete = false, NativeBackend = "Unavailable", NativeAbiVersion = 0,
-        NativeGeneration = Guid.Empty, ObservedOnUtc = UtcNow(), Feeds = [], FailureDetail = failure
+        Complete = false,
+        NativeBackend = "Unavailable",
+        NativeAbiVersion = 0,
+        NativeGeneration = Guid.Empty,
+        ObservedOnUtc = UtcNow(),
+        Feeds = [],
+        FailureDetail = failure
     };
 
     static DatabentoLifecycleSnapshot NewSnapshot() => new()
     {
-        State = DatabentoLifecycleState.ScheduledStopped, StateRevision = 0, ValueDate = null,
-        CorrelationId = Guid.Empty, NativeGeneration = Guid.Empty, RecoveryAttempt = 0,
-        Reason = "Lifecycle has not started.", ChangedOnUtc = DateTime.UnixEpoch
+        State = DatabentoLifecycleState.ScheduledStopped,
+        StateRevision = 0,
+        ValueDate = null,
+        CorrelationId = Guid.Empty,
+        NativeGeneration = Guid.Empty,
+        RecoveryAttempt = 0,
+        Reason = "Lifecycle has not started.",
+        ChangedOnUtc = DateTime.UnixEpoch
     };
 
     DateTime UtcNow() => timeProvider.GetUtcNow().UtcDateTime;

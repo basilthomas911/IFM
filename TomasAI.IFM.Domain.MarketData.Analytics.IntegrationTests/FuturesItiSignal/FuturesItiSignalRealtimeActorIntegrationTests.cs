@@ -27,7 +27,7 @@ public sealed class FuturesItiSignalRealtimeActorIntegrationTests
     const string EsContractId = "ES-ITI-INGRESS-INTEGRATION";
     const string VxContractId = "VX-ITI-INGRESS-INTEGRATION";
     static readonly DateOnly ValueDate = new(2026, 9, 14);
-    readonly string url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
+    readonly string url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? DomainActorIntegrationInfrastructureFixture.NatsUrl;
 
     [Fact]
     public async Task CoreNatsCurrentEsTradeRoutesToExactlyOneDailyCommand()

@@ -73,7 +73,9 @@ public sealed class UsTreasuryCurve(HttpClient client, TimeProvider? timeProvide
                     await using var stream = await response.Content.ReadAsStreamAsync(linked.Token).ConfigureAwait(false);
                     using var reader = XmlReader.Create(stream, new XmlReaderSettings
                     {
-                        Async = true, DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null,
+                        Async = true,
+                        DtdProcessing = DtdProcessing.Prohibit,
+                        XmlResolver = null,
                         MaxCharactersInDocument = 1_048_576
                     });
                     var document = await XDocument.LoadAsync(reader, LoadOptions.None, linked.Token).ConfigureAwait(false);

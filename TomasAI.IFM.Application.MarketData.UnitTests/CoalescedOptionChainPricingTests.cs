@@ -14,9 +14,14 @@ public sealed class CoalescedOptionChainPricingTests
         FuturesOptionContractId = c.Contract.ContractId,
         Definition = new()
         {
-            Dataset = c.Contract.Dataset, RawSymbol = c.Contract.RawSymbol, Ticker = "ES",
-            Underlying = c.Contract.UnderlyingContractId, Instrument = new(c.Contract.PublisherId, c.Contract.InstrumentId),
-            StrikePrice = 5000, Right = OptionRightSelection.Call, MaturityDate = new(2026, 10, 2)
+            Dataset = c.Contract.Dataset,
+            RawSymbol = c.Contract.RawSymbol,
+            Ticker = "ES",
+            Underlying = c.Contract.UnderlyingContractId,
+            Instrument = new(c.Contract.PublisherId, c.Contract.InstrumentId),
+            StrikePrice = 5000,
+            Right = OptionRightSelection.Call,
+            MaturityDate = new(2026, 10, 2)
         }
     };
     static LastQuoteTickSnapshot Tick(string id, long sequence, DateTimeOffset at) =>
@@ -87,8 +92,11 @@ public sealed class CoalescedOptionChainPricingTests
         var clock = new ManualClock();
         var c = ReviewedFuturesPricingRoutingTests.Reviewed(OptionExerciseStyle.European);
         var store = new OptionChainPricingInputStore();
-        var contexts = Enumerable.Range(0, 3).Select(i => c with { Contract = c.Contract with
-        { ContractId = "option-" + i, InstrumentId = (uint)(10 + i) } }).ToArray();
+        var contexts = Enumerable.Range(0, 3).Select(i => c with
+        {
+            Contract = c.Contract with
+            { ContractId = "option-" + i, InstrumentId = (uint)(10 + i) }
+        }).ToArray();
         foreach (var context in contexts) store.Set(new(context, Quote("ES-future", 5000)));
         await using var scheduler = new CoalescedOptionChainPricing(store, Generation,
             new() { MaximumContracts = 3, MaximumContractsPerPass = 1 }, _ => Quote("ES-future", 5000), clock);
@@ -108,8 +116,11 @@ public sealed class CoalescedOptionChainPricingTests
         var clock = new ManualClock();
         var c = ReviewedFuturesPricingRoutingTests.Reviewed(OptionExerciseStyle.European);
         var store = new OptionChainPricingInputStore();
-        var contexts = Enumerable.Range(0, 512).Select(i => c with { Contract = c.Contract with
-        { ContractId = "sweep-" + i, InstrumentId = (uint)(10 + i) } }).ToArray();
+        var contexts = Enumerable.Range(0, 512).Select(i => c with
+        {
+            Contract = c.Contract with
+            { ContractId = "sweep-" + i, InstrumentId = (uint)(10 + i) }
+        }).ToArray();
         foreach (var context in contexts) store.Set(new(context, Quote("ES-future", 5000)));
         await using var scheduler = new CoalescedOptionChainPricing(store, Generation,
             new() { MaximumContractsPerPass = 16 }, _ => Quote("ES-future", 5000), clock);

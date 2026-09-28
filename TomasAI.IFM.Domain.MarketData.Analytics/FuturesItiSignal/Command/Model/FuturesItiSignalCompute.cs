@@ -287,7 +287,7 @@ public sealed class FuturesItiSignalCompute
     static double CalculateLambda(
         double vixFuturesPrice,
         double baselineVix = 15.7,
-        double baseLambdaFactor = 0.003)
+        double baseLambdaFactor = 0.002)
     {
         var normalizedVolatility = vixFuturesPrice / baselineVix;
         var volatilityFactor = normalizedVolatility > 1
@@ -297,6 +297,18 @@ public sealed class FuturesItiSignalCompute
         return Math.Max(minimumLambda, baseLambdaFactor * volatilityFactor);
     }
 
+    /// <summary>
+    /// Calculates the minimum threshold for a new signal to be published. 
+    /// The threshold is based on the intrinsic price,
+    /// the number of trading days in the time frame, 
+    /// and the futures price tick size. 
+    /// If the trend is down, the minimum target delta is returned. 
+    /// If the trend is up, the method checks if the trend extreme has moved sufficiently away from the intrinsic price 
+    /// and returns either the maximum of the trend delta and minimum target delta or just the minimum target delta.
+    /// </summary>
+    /// <param name="signal"></param>
+    /// <param name="lambda"></param>
+    /// <returns></returns>
     static double CalculateThreshold(
         FuturesItiSignalV2ReadModel signal,
         double lambda)
@@ -317,8 +329,8 @@ public sealed class FuturesItiSignalCompute
         => timePeriod switch
         {
             TimeFrameType.Daily => 1,
-            TimeFrameType.Weekly => 10,
-            TimeFrameType.Monthly => 30,
+            TimeFrameType.Weekly => 20,
+            TimeFrameType.Monthly => 60,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(timePeriod),
                 $"Unsupported ITI time period: {timePeriod}")

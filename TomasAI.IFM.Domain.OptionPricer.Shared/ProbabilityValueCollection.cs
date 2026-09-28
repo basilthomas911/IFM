@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
         readonly ICollection<OptionSpreadResult>? _csParams;
         double[]? _spreadValues;
 
-        public  ProbabilityValueCollection()
+        public ProbabilityValueCollection()
         {
         }
 
@@ -53,7 +53,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
                 ? meanPrice * (1 + (skewDelta * 2.0))
                 : meanPrice * (1 - (skewDelta * 2.0));
 
-            return new SpreadDistribution(expiryDays,  forwardPrice);
+            return new SpreadDistribution(expiryDays, forwardPrice);
         }
 
         double[] CreateSpreadValues()

@@ -20,7 +20,7 @@ public interface IEventActorContext
     bool SetMessageInfo(ActorThreadId threadId, ActorMessageInfo info);
     ActorMessageInfo? GetMessageInfo(ActorThreadId threadId);
 
-    ValueTask SendAsync<TEvent, TEntityId>(TEvent @event) 
+    ValueTask SendAsync<TEvent, TEntityId>(TEvent @event)
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId;
 

@@ -27,7 +27,7 @@ public sealed class PortfolioLiveHostEndToEndTests
     [Trait("Category", "PortfolioLiveHostReference")]
     public async Task Production_Reference_actor_returns_all_canonical_starter_families()
     {
-        var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
+        var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? DomainActorIntegrationInfrastructureFixture.NatsUrl;
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         var producer = new NatsActorProducer(new NatsProducerOptions { Url = url }, Substitute.For<ILogger<NatsActorProducer>>());
         await producer.StartAsync(new ActorMailboxId(ActorType.Query, $"PortfolioReferenceTest{Guid.NewGuid():N}"), timeout.Token);
@@ -56,7 +56,7 @@ public sealed class PortfolioLiveHostEndToEndTests
     [Trait("Category", "PortfolioLiveHostIdentity")]
     public async Task Production_NATS_actor_allocates_all_typed_business_identities()
     {
-        var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
+        var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? DomainActorIntegrationInfrastructureFixture.NatsUrl;
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         var producer = new NatsActorProducer(new NatsProducerOptions { Url = url }, Substitute.For<ILogger<NatsActorProducer>>());
         await producer.StartAsync(new ActorMailboxId(ActorType.Query, $"PortfolioIdentityTest{Guid.NewGuid():N}"), timeout.Token);
@@ -101,7 +101,7 @@ public sealed class PortfolioLiveHostEndToEndTests
     [Trait("Category", "PortfolioLiveHostPipeline")]
     public async Task Production_NATS_actors_execute_configuration_resolution_reservation_composition_and_risk()
     {
-        var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
+        var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? DomainActorIntegrationInfrastructureFixture.NatsUrl;
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         var producer = new NatsActorProducer(new NatsProducerOptions { Url = url }, Substitute.For<ILogger<NatsActorProducer>>());
         await producer.StartAsync(new ActorMailboxId(ActorType.Command, $"PortfolioPipelineTest{Guid.NewGuid():N}"), timeout.Token);
@@ -137,13 +137,24 @@ public sealed class PortfolioLiveHostEndToEndTests
             };
             var policy = new PortfolioFinancialPolicyReadModel
             {
-                PortfolioId = portfolioId, PolicyId = policyId, PolicyVersion = 1, Name = "Live pipeline limits",
-                OperatingState = PortfolioFinancialPolicyState.Draft, BaseCurrency = "USD", CapitalBase = 1_000_000m,
-                MaximumDeployableCapital = 900_000m, MaximumRiskPerTrade = 10_000m, MaximumAggregateRisk = 100_000m,
-                MaximumMargin = 500_000m, MaximumGrossNotional = 5_000_000m, MaximumOpenPositions = 100,
+                PortfolioId = portfolioId,
+                PolicyId = policyId,
+                PolicyVersion = 1,
+                Name = "Live pipeline limits",
+                OperatingState = PortfolioFinancialPolicyState.Draft,
+                BaseCurrency = "USD",
+                CapitalBase = 1_000_000m,
+                MaximumDeployableCapital = 900_000m,
+                MaximumRiskPerTrade = 10_000m,
+                MaximumAggregateRisk = 100_000m,
+                MaximumMargin = 500_000m,
+                MaximumGrossNotional = 5_000_000m,
+                MaximumOpenPositions = 100,
                 MaximumDrawdownAmount = 200_000m,
                 TradeFamilyLimits = [new() { CatalogDeployment = catalog.Deployment, Enabled = true, MaximumRiskPerTrade = 5_000m, MaximumAggregateRisk = 50_000m, MaximumMargin = 250_000m, MaximumGrossNotional = 2_500_000m, MaximumOpenPositions = 50 }],
-                EffectiveFromUtc = now.AddMinutes(-1), CreatedOnUtc = now, CreatedBy = "portfolio-live-pipeline-test"
+                EffectiveFromUtc = now.AddMinutes(-1),
+                CreatedOnUtc = now,
+                CreatedBy = "portfolio-live-pipeline-test"
             };
             var mandate = new FundMandateReadModel
             {
@@ -400,7 +411,7 @@ public sealed class PortfolioLiveHostEndToEndTests
     [Trait("Category", "PortfolioLiveHost")]
     public async Task Production_NATS_actors_execute_create_read_update_read_with_real_projection()
     {
-        var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
+        var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? DomainActorIntegrationInfrastructureFixture.NatsUrl;
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         var producer = new NatsActorProducer(new NatsProducerOptions { Url = url }, Substitute.For<ILogger<NatsActorProducer>>());
         await producer.StartAsync(new ActorMailboxId(ActorType.Command, $"PortfolioLiveTest{Guid.NewGuid():N}"), timeout.Token);
@@ -450,7 +461,7 @@ public sealed class PortfolioLiveHostEndToEndTests
         }
     }
 
-    [Fact]
+    [PortfolioEnvironmentFact("IFM_PORTFOLIO_LIVE_ID")]
     [Trait("Gate", "PF-07")]
     [Trait("Gate", "PF-09")]
     [Trait("Gate", "PF-10")]
@@ -459,7 +470,7 @@ public sealed class PortfolioLiveHostEndToEndTests
     {
         var portfolioId = int.Parse(Environment.GetEnvironmentVariable("IFM_PORTFOLIO_LIVE_ID")
             ?? throw new InvalidOperationException("IFM_PORTFOLIO_LIVE_ID must identify the pre-restart Portfolio."));
-        var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
+        var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? DomainActorIntegrationInfrastructureFixture.NatsUrl;
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         var producer = new NatsActorProducer(new NatsProducerOptions { Url = url }, Substitute.For<ILogger<NatsActorProducer>>());
         await producer.StartAsync(new ActorMailboxId(ActorType.Query, $"PortfolioRestartTest{Guid.NewGuid():N}"), timeout.Token);
@@ -478,7 +489,7 @@ public sealed class PortfolioLiveHostEndToEndTests
         }
     }
 
-    [Fact]
+    [PortfolioEnvironmentFact("IFM_PORTFOLIO_LIVE_ID", "IFM_PORTFOLIO_FUND_LIVE_ID", "IFM_PORTFOLIO_LIVE_WORKFLOW_ID")]
     [Trait("Gate", "PF-04")]
     [Trait("Gate", "PF-05")]
     [Trait("Gate", "PF-06")]
@@ -497,7 +508,7 @@ public sealed class PortfolioLiveHostEndToEndTests
             ?? throw new InvalidOperationException("IFM_PORTFOLIO_LIVE_WORKFLOW_ID must identify the pre-restart workflow."));
         portfolioId.Should().BePositive("IFM_PORTFOLIO_LIVE_ID must identify the pre-restart Portfolio");
         fundId.Should().BePositive("IFM_PORTFOLIO_FUND_LIVE_ID must identify the pre-restart Fund");
-        var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
+        var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? DomainActorIntegrationInfrastructureFixture.NatsUrl;
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         var producer = new NatsActorProducer(new NatsProducerOptions { Url = url }, Substitute.For<ILogger<NatsActorProducer>>());
         await producer.StartAsync(new ActorMailboxId(ActorType.Query, $"PortfolioPipelineRestart{Guid.NewGuid():N}"), timeout.Token);

@@ -47,9 +47,18 @@ public static class CompositionBindingResolver
                 && !rule.AllowedWidths.IsEmpty && rule.AllowedWidths.All(w => w >= outer.MinimumWingWidth && w <= outer.MaximumWingWidth
                     && w >= v.GetProperty("MinimumWingWidth").GetDecimal() && w <= v.GetProperty("MaximumWingWidth").GetDecimal()), "OC.CONFIG.RULE_INVALID");
         Require(structure.Legs.Length <= outer.MaximumLegs, "OC.CONFIG.RULE_INVALID");
-        var resolved = new CompositionBinding { SchemaVersion = 1, Selected = intent, RulesDefinition = definition, RulesSchema = schema,
-            Rules = rules, BuilderCode = builder.Code, BuilderVersion = builder.Version, FrozenAtUtc = frozenAtUtc,
-            ValidUntilUtc = new[] { binding.ValidUntilUtc, selected.ValidUntilUtc }.Min() };
+        var resolved = new CompositionBinding
+        {
+            SchemaVersion = 1,
+            Selected = intent,
+            RulesDefinition = definition,
+            RulesSchema = schema,
+            Rules = rules,
+            BuilderCode = builder.Code,
+            BuilderVersion = builder.Version,
+            FrozenAtUtc = frozenAtUtc,
+            ValidUntilUtc = new[] { binding.ValidUntilUtc, selected.ValidUntilUtc }.Min()
+        };
         return resolved with { BindingSha256 = CompositionHash.Binding(resolved) };
     }
     /// <summary>Checks adjusted values against the original immutable outer constraints; adjustments cannot relax safeguards.</summary>

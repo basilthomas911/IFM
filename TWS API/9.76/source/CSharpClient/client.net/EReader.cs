@@ -55,7 +55,8 @@ namespace IBApi
                 }
 
                 eReaderSignal.issueSignal();
-            }) { IsBackground = true }.Start();
+            })
+            { IsBackground = true }.Start();
         }
 
         EMessage getMsg()
@@ -126,17 +127,17 @@ namespace IBApi
                 }
                 catch (EndOfStreamException)
                 {
-                    if (inBuf.Count >= inBuf.Capacity * 3/4)
+                    if (inBuf.Count >= inBuf.Capacity * 3 / 4)
                         inBuf.Capacity *= 2;
 
                     AppendInBuf();
                 }
-            
+
             var msgBuf = new byte[msgSize];
 
             inBuf.CopyTo(0, msgBuf, 0, msgSize);
             inBuf.RemoveRange(0, msgSize);
-          
+
             if (inBuf.Count < defaultInBufSize && inBuf.Capacity > defaultInBufSize)
                 inBuf.Capacity = defaultInBufSize;
 

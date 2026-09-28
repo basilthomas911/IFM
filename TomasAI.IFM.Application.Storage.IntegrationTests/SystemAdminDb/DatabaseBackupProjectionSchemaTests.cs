@@ -127,15 +127,26 @@ public sealed class DatabaseBackupProjectionSchemaTests
         };
         var domainEvent = new DatabaseBackupRequestedDomainEvent
         {
-            Id = sourceEventId, EventId = eventId, CommandId = Guid.NewGuid(), EntityId = operationId,
-            AggregateId = operationId.Format(), EventSource = "DatabaseBackupCommandActor", ReceivedOn = DateTime.UtcNow,
+            Id = sourceEventId,
+            EventId = eventId,
+            CommandId = Guid.NewGuid(),
+            EntityId = operationId,
+            AggregateId = operationId.Format(),
+            EventSource = "DatabaseBackupCommandActor",
+            ReceivedOn = DateTime.UtcNow,
             BackupLineage = lineage,
             Source = new DatabaseSourceEnvelope
             {
-                SourceEventId = sourceEventId, OperationId = operationId, Source = BackupSource.LocalWorkstation,
-                ProtectionSetId = new DatabaseProtectionSetId("gate4-core"), PolicyRevision = 7,
-                OperationKind = DatabaseRecoveryOperationKind.Backup, Phase = DatabaseRecoveryPhase.Requested,
-                CorrelationId = Guid.NewGuid(), CausationId = Guid.NewGuid(), ObservedUtc = DateTimeOffset.UtcNow
+                SourceEventId = sourceEventId,
+                OperationId = operationId,
+                Source = BackupSource.LocalWorkstation,
+                ProtectionSetId = new DatabaseProtectionSetId("gate4-core"),
+                PolicyRevision = 7,
+                OperationKind = DatabaseRecoveryOperationKind.Backup,
+                Phase = DatabaseRecoveryPhase.Requested,
+                CorrelationId = Guid.NewGuid(),
+                CausationId = Guid.NewGuid(),
+                ObservedUtc = DateTimeOffset.UtcNow
             }
         };
 
@@ -151,11 +162,17 @@ public sealed class DatabaseBackupProjectionSchemaTests
             var verificationSourceEventId = Guid.NewGuid();
             var verification = new DatabaseOperationVerificationRecordedEvent
             {
-                Id = verificationSourceEventId, EventId = eventId + 1, CommandId = domainEvent.CommandId,
-                EntityId = operationId, AggregateId = operationId.Format(),
-                EventSource = domainEvent.EventSource, ReceivedOn = DateTime.UtcNow,
-                RestorePointId = restorePointId, VerificationLevel = DatabaseVerificationLevel.Native,
-                ManifestRevision = 17, BackupLineage = lineage,
+                Id = verificationSourceEventId,
+                EventId = eventId + 1,
+                CommandId = domainEvent.CommandId,
+                EntityId = operationId,
+                AggregateId = operationId.Format(),
+                EventSource = domainEvent.EventSource,
+                ReceivedOn = DateTime.UtcNow,
+                RestorePointId = restorePointId,
+                VerificationLevel = DatabaseVerificationLevel.Native,
+                ManifestRevision = 17,
+                BackupLineage = lineage,
                 Source = domainEvent.Source with
                 {
                     SourceEventId = verificationSourceEventId,
@@ -166,11 +183,13 @@ public sealed class DatabaseBackupProjectionSchemaTests
             await db.ApplyDatabaseBackupEventAsync("Gate4Integration", verification);
             var row = await db.GetBackupOperationAsync(new GetDatabaseBackupOperationQuery
             {
-                EntityId = operationId, OperationId = operationId
+                EntityId = operationId,
+                OperationId = operationId
             }, CancellationToken.None);
             var restorePoint = await db.GetRestorePointAsync(new GetDatabaseRestorePointQuery
             {
-                EntityId = operationId, RestorePointId = restorePointId,
+                EntityId = operationId,
+                RestorePointId = restorePointId,
                 Source = BackupSource.LocalWorkstation
             }, CancellationToken.None);
 
@@ -235,7 +254,8 @@ public sealed class DatabaseBackupProjectionSchemaTests
             var result = await new DatabaseBackupProjectionRebuilder(db).RebuildAsync([completed, requested]);
             var row = await db.GetBackupOperationAsync(new GetDatabaseBackupOperationQuery
             {
-                EntityId = operationId, OperationId = operationId
+                EntityId = operationId,
+                OperationId = operationId
             }, CancellationToken.None);
 
             result.Should().Be(new DatabaseBackupProjectionRebuildResult(2, 0, 0, firstRevision + 1));
@@ -259,15 +279,26 @@ public sealed class DatabaseBackupProjectionSchemaTests
         var id = Guid.NewGuid();
         return (TEvent)(new TEvent() with
         {
-            Id = id, EventId = eventId, CommandId = Guid.NewGuid(), EntityId = operationId,
-            AggregateId = operationId.Format(), EventSource = "DatabaseBackupCommandActor", ReceivedOn = DateTime.UtcNow,
+            Id = id,
+            EventId = eventId,
+            CommandId = Guid.NewGuid(),
+            EntityId = operationId,
+            AggregateId = operationId.Format(),
+            EventSource = "DatabaseBackupCommandActor",
+            ReceivedOn = DateTime.UtcNow,
             Outcome = outcome,
             Source = new DatabaseSourceEnvelope
             {
-                SourceEventId = id, OperationId = operationId, Source = BackupSource.LocalWorkstation,
-                ProtectionSetId = new DatabaseProtectionSetId("gate4-rebuild"), PolicyRevision = 2,
-                OperationKind = DatabaseRecoveryOperationKind.Backup, Phase = phase,
-                CorrelationId = Guid.NewGuid(), CausationId = Guid.NewGuid(), ObservedUtc = DateTimeOffset.UtcNow
+                SourceEventId = id,
+                OperationId = operationId,
+                Source = BackupSource.LocalWorkstation,
+                ProtectionSetId = new DatabaseProtectionSetId("gate4-rebuild"),
+                PolicyRevision = 2,
+                OperationKind = DatabaseRecoveryOperationKind.Backup,
+                Phase = phase,
+                CorrelationId = Guid.NewGuid(),
+                CausationId = Guid.NewGuid(),
+                ObservedUtc = DateTimeOffset.UtcNow
             }
         });
     }

@@ -5,4 +5,5 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
-[MessagePackObject] public sealed record CloseIronCondorPositionCommand : TimedPositionCommand { public const string Verb="CloseIronCondorPosition"; private ExecutionFillEvidence[] closingFills=[]; [Key(5)] public ExecutionFillEvidence[] ClosingFills { get=>closingFills; init=>closingFills=value??[]; } [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesIronCondorTradePositionBoundedContext; }
+
+[MessagePackObject] public sealed record CloseIronCondorPositionCommand : TimedPositionCommand { public const string Verb = "CloseIronCondorPosition"; private ExecutionFillEvidence[] closingFills = []; [Key(5)] public ExecutionFillEvidence[] ClosingFills { get => closingFills; init => closingFills = value ?? []; } [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesIronCondorTradePositionBoundedContext; }

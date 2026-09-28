@@ -84,21 +84,21 @@ public sealed class PostgresCommittedBusinessEventJournal : ICommittedBusinessEv
         return result;
     }
 
-    public async Task RejectAsync(long eventId,string reasonCode,string detail,CancellationToken cancellationToken)
+    public async Task RejectAsync(long eventId, string reasonCode, string detail, CancellationToken cancellationToken)
     {
-        if(eventId<=0 || string.IsNullOrWhiteSpace(reasonCode) || reasonCode.Length>128 || string.IsNullOrWhiteSpace(detail) || detail.Length>4096)
+        if (eventId <= 0 || string.IsNullOrWhiteSpace(reasonCode) || reasonCode.Length > 128 || string.IsNullOrWhiteSpace(detail) || detail.Length > 4096)
             throw new ArgumentException("A bounded committed-event rejection is required.");
         await using var db = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(connection);
         await db.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var transaction=await db.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        await using(var issue=new NpgsqlCommand("INSERT INTO business_subscription_projection_issue(event_id,reason_code,detail) VALUES($1,$2,$3) ON CONFLICT DO NOTHING;",db,transaction){CommandTimeout=10})
+        await using var transaction = await db.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await using (var issue = new NpgsqlCommand("INSERT INTO business_subscription_projection_issue(event_id,reason_code,detail) VALUES($1,$2,$3) ON CONFLICT DO NOTHING;", db, transaction) { CommandTimeout = 10 })
         {
-            issue.Parameters.Add(new NpgsqlParameter {Value=eventId}); issue.Parameters.Add(new NpgsqlParameter {Value=reasonCode}); issue.Parameters.Add(new NpgsqlParameter {Value=detail});
+            issue.Parameters.Add(new NpgsqlParameter { Value = eventId }); issue.Parameters.Add(new NpgsqlParameter { Value = reasonCode }); issue.Parameters.Add(new NpgsqlParameter { Value = detail });
             await issue.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
-        await using(var receipt=new NpgsqlCommand("INSERT INTO business_subscription_projection_receipt(event_id) VALUES($1) ON CONFLICT DO NOTHING;",db,transaction){CommandTimeout=10})
+        await using (var receipt = new NpgsqlCommand("INSERT INTO business_subscription_projection_receipt(event_id) VALUES($1) ON CONFLICT DO NOTHING;", db, transaction) { CommandTimeout = 10 })
         {
-            receipt.Parameters.Add(new NpgsqlParameter {Value=eventId});
+            receipt.Parameters.Add(new NpgsqlParameter { Value = eventId });
             await receipt.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);

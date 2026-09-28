@@ -23,11 +23,11 @@ namespace IBApi
          * 0 = Unknown, 1 = Added liquidity, 2 = Removed liquidity, 3 = Liquidity routed out
          */
 
-        static readonly Dictionary<int, string> Values = new Dictionary<int, string> 
-        { 
-            {0, "None"}, 
-            {1, "Added Liquidity"}, 
-            {2, "Removed Liquidity"}, 
+        static readonly Dictionary<int, string> Values = new Dictionary<int, string>
+        {
+            {0, "None"},
+            {1, "Added Liquidity"},
+            {2, "Removed Liquidity"},
             {3, "Liquidity Routed Out" }
         };
 

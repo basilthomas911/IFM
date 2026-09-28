@@ -84,10 +84,10 @@ public sealed record ApplicationStartupStatus
 /// </summary>
 public interface IApplicationStartupActivities
 {
-    ValueTask<ApplicationStartupActivityOutcome> ApplyParameterSetsAsync(ApplicationStartupContext context,CancellationToken cancellationToken)
-        =>ValueTask.FromResult(ApplicationStartupActivityOutcome.AlreadySatisfied);
-    ValueTask<ApplicationStartupActivityOutcome> PrepareParameterSignalsAsync(ApplicationStartupContext context,CancellationToken cancellationToken)
-        =>ValueTask.FromResult(ApplicationStartupActivityOutcome.AlreadySatisfied);
+    ValueTask<ApplicationStartupActivityOutcome> ApplyParameterSetsAsync(ApplicationStartupContext context, CancellationToken cancellationToken)
+        => ValueTask.FromResult(ApplicationStartupActivityOutcome.AlreadySatisfied);
+    ValueTask<ApplicationStartupActivityOutcome> PrepareParameterSignalsAsync(ApplicationStartupContext context, CancellationToken cancellationToken)
+        => ValueTask.FromResult(ApplicationStartupActivityOutcome.AlreadySatisfied);
     ValueTask<ApplicationStartupActivityOutcome> ResolveAuthorityAsync(
         ApplicationStartupContext context,
         CancellationToken cancellationToken);

@@ -214,56 +214,56 @@ public sealed class DatabentoOptionChainSessionManager :
         switch (record.Header.RecordKind)
         {
             case MarketRecordKind.Quote:
-            {
-                var quote = record.Quote;
-                var tick = new LastQuoteTickSnapshot(
-                    route.FuturesOptionContractId,
-                    session.ValueDate,
-                    ScaleNullable(quote.BidPrice),
-                    quote.BidSize,
-                    quote.BidCount,
-                    ScaleNullable(quote.AskPrice),
-                    quote.AskSize,
-                    quote.AskCount,
-                    quote.Header.Sequence,
-                    FromUnixNanoseconds(quote.Header.EventTimestampNanoseconds),
-                    FromUnixNanoseconds(quote.Header.ReceiveTimestampNanoseconds));
-                var enriched = new LastQuoteTickWithGreeksSnapshot(
-                    tick, _enricher.EnrichQuote(route, tick));
-                if (!_lastPrices.TryUpdateQuoteWithGreeks(enriched))
+                {
+                    var quote = record.Quote;
+                    var tick = new LastQuoteTickSnapshot(
+                        route.FuturesOptionContractId,
+                        session.ValueDate,
+                        ScaleNullable(quote.BidPrice),
+                        quote.BidSize,
+                        quote.BidCount,
+                        ScaleNullable(quote.AskPrice),
+                        quote.AskSize,
+                        quote.AskCount,
+                        quote.Header.Sequence,
+                        FromUnixNanoseconds(quote.Header.EventTimestampNanoseconds),
+                        FromUnixNanoseconds(quote.Header.ReceiveTimestampNanoseconds));
+                    var enriched = new LastQuoteTickWithGreeksSnapshot(
+                        tick, _enricher.EnrichQuote(route, tick));
+                    if (!_lastPrices.TryUpdateQuoteWithGreeks(enriched))
+                        break;
+                    _state.UpdateQuote(session.Key, route.FuturesOptionContractId, enriched);
+                    await _publisher.PublishAsync(new FuturesOptionChainQuoteChangedServiceEvent(
+                        Guid.NewGuid(), session.Key.FuturesContractId,
+                        route.FuturesOptionContractId, session.ValueDate,
+                        session.Key.MaturityDate, tick, enriched.Greeks)).ConfigureAwait(false);
                     break;
-                _state.UpdateQuote(session.Key, route.FuturesOptionContractId, enriched);
-                await _publisher.PublishAsync(new FuturesOptionChainQuoteChangedServiceEvent(
-                    Guid.NewGuid(), session.Key.FuturesContractId,
-                    route.FuturesOptionContractId, session.ValueDate,
-                    session.Key.MaturityDate, tick, enriched.Greeks)).ConfigureAwait(false);
-                break;
-            }
+                }
             case MarketRecordKind.Trade:
-            {
-                var trade = record.Trade;
-                var tick = new LastTradeTickSnapshot(
-                    route.FuturesOptionContractId,
-                    session.ValueDate,
-                    trade.Price / PriceScale,
-                    trade.Size,
-                    trade.Header.Sequence,
-                    FromUnixNanoseconds(trade.Header.EventTimestampNanoseconds),
-                    FromUnixNanoseconds(trade.Header.ReceiveTimestampNanoseconds));
-                var enriched = new LastTradeTickWithGreeksSnapshot(
-                    tick, _enricher is IRetainedOptionTradeEnricher retained
-                        ? await retained.EnrichTradeAsync(route, tick, checked((long)trade.Header.EventTimestampNanoseconds),
-                            trade.Header.ReceiveTimestampNanoseconds, CancellationToken.None).ConfigureAwait(false)
-                        : _enricher.EnrichTrade(route, tick));
-                if (!_lastPrices.TryUpdateTradeWithGreeks(enriched))
+                {
+                    var trade = record.Trade;
+                    var tick = new LastTradeTickSnapshot(
+                        route.FuturesOptionContractId,
+                        session.ValueDate,
+                        trade.Price / PriceScale,
+                        trade.Size,
+                        trade.Header.Sequence,
+                        FromUnixNanoseconds(trade.Header.EventTimestampNanoseconds),
+                        FromUnixNanoseconds(trade.Header.ReceiveTimestampNanoseconds));
+                    var enriched = new LastTradeTickWithGreeksSnapshot(
+                        tick, _enricher is IRetainedOptionTradeEnricher retained
+                            ? await retained.EnrichTradeAsync(route, tick, checked((long)trade.Header.EventTimestampNanoseconds),
+                                trade.Header.ReceiveTimestampNanoseconds, CancellationToken.None).ConfigureAwait(false)
+                            : _enricher.EnrichTrade(route, tick));
+                    if (!_lastPrices.TryUpdateTradeWithGreeks(enriched))
+                        break;
+                    _state.UpdateTrade(session.Key, route.FuturesOptionContractId, enriched);
+                    await _publisher.PublishAsync(new FuturesOptionChainTradeChangedServiceEvent(
+                        Guid.NewGuid(), session.Key.FuturesContractId,
+                        route.FuturesOptionContractId, session.ValueDate,
+                        session.Key.MaturityDate, tick, enriched.Greeks)).ConfigureAwait(false);
                     break;
-                _state.UpdateTrade(session.Key, route.FuturesOptionContractId, enriched);
-                await _publisher.PublishAsync(new FuturesOptionChainTradeChangedServiceEvent(
-                    Guid.NewGuid(), session.Key.FuturesContractId,
-                    route.FuturesOptionContractId, session.ValueDate,
-                    session.Key.MaturityDate, tick, enriched.Greeks)).ConfigureAwait(false);
-                break;
-            }
+                }
             case MarketRecordKind.Statistics:
                 ApplyStatistics(session, route, record.Statistics);
                 break;
@@ -285,7 +285,7 @@ public sealed class DatabentoOptionChainSessionManager :
             throw new AggregateException("Option-chain session shutdown failed.", failures);
     }
 
-    private void ApplyStatistics(Session session,DatabentoOptionChainRoute route,StatisticsRecord64 record)
+    private void ApplyStatistics(Session session, DatabentoOptionChainRoute route, StatisticsRecord64 record)
     {
         if (record.UpdateAction != NewStatistic || record.Quantity < 0
             || record.Quantity == UndefinedStatisticQuantity) return;
@@ -295,7 +295,7 @@ public sealed class DatabentoOptionChainSessionManager :
             && referenceDate == session.ValueDate ? record.Quantity : null;
         long? interest = record.StatisticType == OpenInterestStatistic ? record.Quantity : null;
         if (volume is null && interest is null) return;
-        _state.UpdateStatistics(session.Key,route.FuturesOptionContractId,volume,interest,
+        _state.UpdateStatistics(session.Key, route.FuturesOptionContractId, volume, interest,
             FromUnixNanoseconds(record.Header.EventTimestampNanoseconds));
     }
 

@@ -14,7 +14,7 @@ public interface IMarketDataAnalyticsCommandApi
         Guid processBootId = default,
         Guid startupCommandId = default);
     Task<ServiceResult<Guid>> UpdateFuturesTradeSignalAsync(
-        FuturesEodDataV2ReadModel futuresEodData, 
+        FuturesEodDataV2ReadModel futuresEodData,
         FuturesRsiSignalReadModel futuresRsiSignal,
         FuturesTdiSignalReadModel futuresTdiSignal,
         FuturesItiSignalDataReadModel futuresItiSignalData,

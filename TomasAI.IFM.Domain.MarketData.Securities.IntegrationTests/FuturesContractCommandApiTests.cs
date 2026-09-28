@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -24,8 +24,8 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.IntegrationTests;
 /// </summary>
 /// <param name="factory">The web application factory used to create test HTTP clients for simulating API requests.</param>
 /// <param name="dbFixture">The database fixture that provides access to test database instances and utilities for securities-related data setup and cleanup.</param>
-public class FuturesContractFuturesContractCommandApiTests(WebApplicationFactory<Program> factory, SecuritiesDatabaseFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<SecuritiesDatabaseFixture>
+public class FuturesContractFuturesContractCommandApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory, SecuritiesDatabaseFixture dbFixture)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<SecuritiesDatabaseFixture>
 {
     static readonly TimeSpan EventTimeout = TimeSpan.FromSeconds(30);
     readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
@@ -89,176 +89,176 @@ public class FuturesContractFuturesContractCommandApiTests(WebApplicationFactory
         savedContract.Multiplier.Should().Be(futuresContract.Multiplier);
         savedContract.LastTradeDate.Should().Be(futuresContract.LastTradeDate);
         savedContract.OnTheRun.Should().Be(futuresContract.OnTheRun);
-        
+
         await eventListener.StopAsync();
 
-                async ValueTask EventHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
-                {
-                    IEvent receivedEvent = eventVerb switch
-                    {
-                        _ when eventVerb == FuturesContractAddedEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesContractAddedEvent>()!),
-                        _ when eventVerb == FuturesContractAddedCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesContractAddedCompleteEvent>()!),
-                        _ when eventVerb == FuturesContractAddedFailEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesContractAddedFailEvent>()!),
-                        _ => default!
-                    };
-                    await ValueTask.CompletedTask;
-
-                    IEvent SetEvent(IEvent @event)
-                    {
-                        switch (@event)
-                        {
-                            case FuturesContractAddedEvent e:
-                                futuresContractAddedEvent = e;
-                                break;
-                            case FuturesContractAddedCompleteEvent e:
-                                futuresContractAddedCompleteEvent = e;
-                                addCompleted.TrySetResult(true);
-                                break;
-                            case FuturesContractAddedFailEvent e:
-                                futuresContractAddedFailEvent = e;
-                                addCompleted.TrySetResult(true);
-                                break;
-                        }
-                        return @event;
-                    }
-                }
-            }
-
-            [Fact]
-            public async Task ChangeFuturesContract_Ok()
+        async ValueTask EventHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
+        {
+            IEvent receivedEvent = eventVerb switch
             {
-                // arrange...
-                var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
-                FuturesContractAddedEvent futuresContractAddedEvent = default!;
-                FuturesContractAddedCompleteEvent futuresContractAddedCompleteEvent = default!;
-                FuturesContractAddedFailEvent futuresContractAddedFailEvent = default!;
-                FuturesContractChangedEvent futuresContractChangedEvent = default!;
-                FuturesContractChangedCompleteEvent futuresContractChangedCompleteEvent = default!;
-                FuturesContractChangedFailEvent futuresContractChangedFailEvent = default!;
-                var addCompleted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-                var changeCompleted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                _ when eventVerb == FuturesContractAddedEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesContractAddedEvent>()!),
+                _ when eventVerb == FuturesContractAddedCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesContractAddedCompleteEvent>()!),
+                _ when eventVerb == FuturesContractAddedFailEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesContractAddedFailEvent>()!),
+                _ => default!
+            };
+            await ValueTask.CompletedTask;
 
-                await eventListener.StartAsync(
-                    "TestEventListener",
-                    new()
-                    {
-                        [new ActorMailboxId(ActorType.Event, FuturesContractAddedEvent.Actor)] =
-                        [
-                            FuturesContractAddedEvent.Verb,
+            IEvent SetEvent(IEvent @event)
+            {
+                switch (@event)
+                {
+                    case FuturesContractAddedEvent e:
+                        futuresContractAddedEvent = e;
+                        break;
+                    case FuturesContractAddedCompleteEvent e:
+                        futuresContractAddedCompleteEvent = e;
+                        addCompleted.TrySetResult(true);
+                        break;
+                    case FuturesContractAddedFailEvent e:
+                        futuresContractAddedFailEvent = e;
+                        addCompleted.TrySetResult(true);
+                        break;
+                }
+                return @event;
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ChangeFuturesContract_Ok()
+    {
+        // arrange...
+        var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
+        FuturesContractAddedEvent futuresContractAddedEvent = default!;
+        FuturesContractAddedCompleteEvent futuresContractAddedCompleteEvent = default!;
+        FuturesContractAddedFailEvent futuresContractAddedFailEvent = default!;
+        FuturesContractChangedEvent futuresContractChangedEvent = default!;
+        FuturesContractChangedCompleteEvent futuresContractChangedCompleteEvent = default!;
+        FuturesContractChangedFailEvent futuresContractChangedFailEvent = default!;
+        var addCompleted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var changeCompleted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await eventListener.StartAsync(
+            "TestEventListener",
+            new()
+            {
+                [new ActorMailboxId(ActorType.Event, FuturesContractAddedEvent.Actor)] =
+                [
+                    FuturesContractAddedEvent.Verb,
                             FuturesContractAddedCompleteEvent.Verb,
                             FuturesContractAddedFailEvent.Verb,
                             FuturesContractChangedEvent.Verb,
                             FuturesContractChangedCompleteEvent.Verb,
                             FuturesContractChangedFailEvent.Verb
-                        ]
-                    },
-                    EventHandlerAsync
-                );
+                ]
+            },
+            EventHandlerAsync
+        );
 
-                var futuresContract = SampleData.NewFuturesContract;
-                var changedContract = SampleData.ChangedFuturesContract;
-        
-                // Clean up any existing data
-                var addSubject = new ActorSubject(ActorType.Command, AddFuturesContractCommand.Actor, AddFuturesContractCommand.Verb, $"{futuresContract.Id.Format()}");
-                dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{addSubject.ThreadId}");
-                var addEventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{addSubject.ThreadId}");
-                if (addEventStreamId > 0)
-                    await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(addEventStreamId);
-                await dbFixture.Db.DeleteFuturesContractAsync(futuresContract.Id);
+        var futuresContract = SampleData.NewFuturesContract;
+        var changedContract = SampleData.ChangedFuturesContract;
 
-                // act - add futures contract first...
-                var marketDataApi = new MarketDataCommandApi(_actorProducer);
-                var addResponse = await marketDataApi.AddFuturesContractAsync(futuresContract, overwrite: false);
+        // Clean up any existing data
+        var addSubject = new ActorSubject(ActorType.Command, AddFuturesContractCommand.Actor, AddFuturesContractCommand.Verb, $"{futuresContract.Id.Format()}");
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{addSubject.ThreadId}");
+        var addEventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{addSubject.ThreadId}");
+        if (addEventStreamId > 0)
+            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(addEventStreamId);
+        await dbFixture.Db.DeleteFuturesContractAsync(futuresContract.Id);
 
-                addResponse.Should().NotBeNull();
-                addResponse.Success.Should().BeTrue(addResponse.ErrorMessage);
-                addResponse.Value.Should().NotBe(Guid.Empty);
-                await addCompleted.Task.WaitAsync(EventTimeout);
+        // act - add futures contract first...
+        var marketDataApi = new MarketDataCommandApi(_actorProducer);
+        var addResponse = await marketDataApi.AddFuturesContractAsync(futuresContract, overwrite: false);
 
-                // assert - verify add was successful...
-                futuresContractAddedEvent.Should().NotBeNull();
-                futuresContractAddedCompleteEvent.Should().NotBeNull();
-                futuresContractAddedFailEvent.Should().BeNull();
+        addResponse.Should().NotBeNull();
+        addResponse.Success.Should().BeTrue(addResponse.ErrorMessage);
+        addResponse.Value.Should().NotBe(Guid.Empty);
+        await addCompleted.Task.WaitAsync(EventTimeout);
 
-                var savedContract = await dbFixture.Db.GetFuturesContractAsync(futuresContract.Id);
-                savedContract.Should().NotBeNull();
-                savedContract!.ContractId.Should().Be(futuresContract.ContractId);
-                savedContract.Symbol.Should().Be(futuresContract.Symbol);
-                savedContract.Description.Should().Be(futuresContract.Description);
+        // assert - verify add was successful...
+        futuresContractAddedEvent.Should().NotBeNull();
+        futuresContractAddedCompleteEvent.Should().NotBeNull();
+        futuresContractAddedFailEvent.Should().BeNull();
 
-                // act - change futures contract...
-                var changeResponse = await marketDataApi.ChangeFuturesContractAsync(futuresContract.Id, changedContract, overwrite: true);
+        var savedContract = await dbFixture.Db.GetFuturesContractAsync(futuresContract.Id);
+        savedContract.Should().NotBeNull();
+        savedContract!.ContractId.Should().Be(futuresContract.ContractId);
+        savedContract.Symbol.Should().Be(futuresContract.Symbol);
+        savedContract.Description.Should().Be(futuresContract.Description);
 
-                changeResponse.Should().NotBeNull();
-                changeResponse.Success.Should().BeTrue(changeResponse.ErrorMessage);
-                changeResponse.Value.Should().NotBe(Guid.Empty);
-                await changeCompleted.Task.WaitAsync(EventTimeout);
+        // act - change futures contract...
+        var changeResponse = await marketDataApi.ChangeFuturesContractAsync(futuresContract.Id, changedContract, overwrite: true);
 
-                // assert - verify change was successful...
-                futuresContractChangedEvent.Should().NotBeNull();
-                futuresContractChangedCompleteEvent.Should().NotBeNull();
-                futuresContractChangedFailEvent.Should().BeNull();
+        changeResponse.Should().NotBeNull();
+        changeResponse.Success.Should().BeTrue(changeResponse.ErrorMessage);
+        changeResponse.Value.Should().NotBe(Guid.Empty);
+        await changeCompleted.Task.WaitAsync(EventTimeout);
 
-                var updatedContract = await dbFixture.Db.GetFuturesContractAsync(changedContract.Id);
-                updatedContract.Should().NotBeNull();
-                updatedContract!.ContractId.Should().Be(changedContract.ContractId);
-                updatedContract.Symbol.Should().Be(changedContract.Symbol);
-                updatedContract.Description.Should().Be(changedContract.Description);
-                updatedContract.LocalSymbol.Should().Be(changedContract.LocalSymbol);
-                updatedContract.SecurityType.Should().Be(changedContract.SecurityType);
-                updatedContract.Currency.Should().Be(changedContract.Currency);
-                updatedContract.Exchange.Should().Be(changedContract.Exchange);
-                updatedContract.Multiplier.Should().Be(changedContract.Multiplier);
-                updatedContract.LastTradeDate.Should().Be(changedContract.LastTradeDate);
-                updatedContract.OnTheRun.Should().Be(changedContract.OnTheRun);
+        // assert - verify change was successful...
+        futuresContractChangedEvent.Should().NotBeNull();
+        futuresContractChangedCompleteEvent.Should().NotBeNull();
+        futuresContractChangedFailEvent.Should().BeNull();
 
-                await eventListener.StopAsync();
+        var updatedContract = await dbFixture.Db.GetFuturesContractAsync(changedContract.Id);
+        updatedContract.Should().NotBeNull();
+        updatedContract!.ContractId.Should().Be(changedContract.ContractId);
+        updatedContract.Symbol.Should().Be(changedContract.Symbol);
+        updatedContract.Description.Should().Be(changedContract.Description);
+        updatedContract.LocalSymbol.Should().Be(changedContract.LocalSymbol);
+        updatedContract.SecurityType.Should().Be(changedContract.SecurityType);
+        updatedContract.Currency.Should().Be(changedContract.Currency);
+        updatedContract.Exchange.Should().Be(changedContract.Exchange);
+        updatedContract.Multiplier.Should().Be(changedContract.Multiplier);
+        updatedContract.LastTradeDate.Should().Be(changedContract.LastTradeDate);
+        updatedContract.OnTheRun.Should().Be(changedContract.OnTheRun);
 
-                async ValueTask EventHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
+        await eventListener.StopAsync();
+
+        async ValueTask EventHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
+        {
+            IEvent receivedEvent = eventVerb switch
+            {
+                _ when eventVerb == FuturesContractAddedEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesContractAddedEvent>()!),
+                _ when eventVerb == FuturesContractAddedCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesContractAddedCompleteEvent>()!),
+                _ when eventVerb == FuturesContractAddedFailEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesContractAddedFailEvent>()!),
+                _ when eventVerb == FuturesContractChangedEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesContractChangedEvent>()!),
+                _ when eventVerb == FuturesContractChangedCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesContractChangedCompleteEvent>()!),
+                _ when eventVerb == FuturesContractChangedFailEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesContractChangedFailEvent>()!),
+                _ => default!
+            };
+            await ValueTask.CompletedTask;
+
+            IEvent SetEvent(IEvent @event)
+            {
+                switch (@event)
                 {
-                    IEvent receivedEvent = eventVerb switch
-                    {
-                        _ when eventVerb == FuturesContractAddedEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesContractAddedEvent>()!),
-                        _ when eventVerb == FuturesContractAddedCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesContractAddedCompleteEvent>()!),
-                        _ when eventVerb == FuturesContractAddedFailEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesContractAddedFailEvent>()!),
-                        _ when eventVerb == FuturesContractChangedEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesContractChangedEvent>()!),
-                        _ when eventVerb == FuturesContractChangedCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesContractChangedCompleteEvent>()!),
-                        _ when eventVerb == FuturesContractChangedFailEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesContractChangedFailEvent>()!),
-                        _ => default!
-                    };
-                    await ValueTask.CompletedTask;
-
-                    IEvent SetEvent(IEvent @event)
-                    {
-                        switch (@event)
-                        {
-                            case FuturesContractAddedEvent e:
-                                futuresContractAddedEvent = e;
-                                break;
-                            case FuturesContractAddedCompleteEvent e:
-                                futuresContractAddedCompleteEvent = e;
-                                addCompleted.TrySetResult(true);
-                                break;
-                            case FuturesContractAddedFailEvent e:
-                                futuresContractAddedFailEvent = e;
-                                addCompleted.TrySetResult(true);
-                                break;
-                            case FuturesContractChangedEvent e:
-                                futuresContractChangedEvent = e;
-                                break;
-                            case FuturesContractChangedCompleteEvent e:
-                                futuresContractChangedCompleteEvent = e;
-                                changeCompleted.TrySetResult(true);
-                                break;
-                            case FuturesContractChangedFailEvent e:
-                                futuresContractChangedFailEvent = e;
-                                changeCompleted.TrySetResult(true);
-                                break;
-                        }
-                        return @event;
-                    }
+                    case FuturesContractAddedEvent e:
+                        futuresContractAddedEvent = e;
+                        break;
+                    case FuturesContractAddedCompleteEvent e:
+                        futuresContractAddedCompleteEvent = e;
+                        addCompleted.TrySetResult(true);
+                        break;
+                    case FuturesContractAddedFailEvent e:
+                        futuresContractAddedFailEvent = e;
+                        addCompleted.TrySetResult(true);
+                        break;
+                    case FuturesContractChangedEvent e:
+                        futuresContractChangedEvent = e;
+                        break;
+                    case FuturesContractChangedCompleteEvent e:
+                        futuresContractChangedCompleteEvent = e;
+                        changeCompleted.TrySetResult(true);
+                        break;
+                    case FuturesContractChangedFailEvent e:
+                        futuresContractChangedFailEvent = e;
+                        changeCompleted.TrySetResult(true);
+                        break;
                 }
+                return @event;
             }
+        }
+    }
 
     [Fact]
     public async Task RemoveFuturesContract_Ok()

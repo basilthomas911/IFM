@@ -25,7 +25,7 @@ public class TradePosition(
     DateTime createdOn,
     string createdBy,
     DateTime updatedOn,
-    string updatedBy) :  ITradePosition
+    string updatedBy) : ITradePosition
 {
     public TradePositionEntityId Id => new(OrderId, TradeId, ValueDate, TradeType, TradeStatus, DaysToExpiry);
     public int OrderId { get; private set; } = orderId;
@@ -65,7 +65,7 @@ public class TradePosition(
     {
     }
 
-    public TradePosition(TradePositionReadModel e, DateTime createdOn, string createdBy) :this(
+    public TradePosition(TradePositionReadModel e, DateTime createdOn, string createdBy) : this(
         orderId: e.EntityId.OrderId,
         tradeId: e.EntityId.TradeId,
         tradeType: e.EntityId.TradeType,
@@ -91,7 +91,7 @@ public class TradePosition(
         foreach (var o in e.OptionLegData)
             OptionLegData.Add(o.ToOptionLegData(e.EntityId, createdOn, createdBy, createdOn, createdBy));
     }
-   
+
     /// <summary>
     /// add option leg data
     /// </summary>
@@ -211,7 +211,7 @@ public class TradePosition(
     }
 
     public TradePositionReadModel ToViewModel()
-        => new TradePositionReadModel (
+        => new TradePositionReadModel(
             orderId: Id.OrderId,
             tradeId: Id.TradeId,
             tradeType: Id.TradeType,

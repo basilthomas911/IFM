@@ -39,10 +39,17 @@ public sealed class TradeStrategyFamilyCreationService(IMarketDataApi marketData
         if (product.Validate().Count != 0) throw new InvalidOperationException("Incomplete product metadata cannot create a family.");
         var candidate = new TradeStrategyFamilyReadModel
         {
-            Family = request.Family, Strategy = request.Strategy, TimeFrame = request.TimeFrame,
+            Family = request.Family,
+            Strategy = request.Strategy,
+            TimeFrame = request.TimeFrame,
             SystemKey = TradeStrategyFamilyReadModel.ComposeSystemKey(request.Family, request.Strategy),
-            TradeStrategySymbolId = product.Id, Symbol = product.Symbol, Currency = product.Currency, Exchange = product.Exchange,
-            Description = request.Description.Trim(), CreatedOnUtc = timeProvider.GetUtcNow().UtcDateTime, CreatedBy = principal
+            TradeStrategySymbolId = product.Id,
+            Symbol = product.Symbol,
+            Currency = product.Currency,
+            Exchange = product.Exchange,
+            Description = request.Description.Trim(),
+            CreatedOnUtc = timeProvider.GetUtcNow().UtcDateTime,
+            CreatedBy = principal
         };
         return candidate;
     }

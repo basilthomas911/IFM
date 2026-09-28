@@ -591,7 +591,8 @@ public sealed class StrategyOperationsViewModelTests
         subject.WorkflowEventSource.Publish(AtStage(
             Workflow(1),
             StrategyWorkflowStage.OrderComposition,
-            processingStatus) with { Status = machineStatus, Outcome = outcome });
+            processingStatus) with
+        { Status = machineStatus, Outcome = outcome });
 
         var row = subject.ViewModel.Workflows.Single();
         row.PipelineActors.Should().HaveCount(4);

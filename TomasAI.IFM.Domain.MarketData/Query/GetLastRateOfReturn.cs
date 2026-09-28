@@ -35,4 +35,4 @@ public static class GetLastRateOfReturn
             new ServiceResult<RateOfReturnReadModel>(result)).ConfigureAwait(false);
     }
 }
-    
+

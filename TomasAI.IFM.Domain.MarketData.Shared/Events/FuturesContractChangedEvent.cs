@@ -29,7 +29,7 @@ public record FuturesContractChangedEvent :
     [IgnoreMember] public const string Complete = "ChangedComplete";
     [IgnoreMember] public const string Fail = "ChangedFail";
     [IgnoreMember] public const int ErrorCode = 2002;
-    
+
     [Key(0)] public ActorSubject Subject { get; init; }
     [Key(1)] public Guid Id { get; init; }
     [Key(2)] public FuturesContractId EntityId { get; init; }

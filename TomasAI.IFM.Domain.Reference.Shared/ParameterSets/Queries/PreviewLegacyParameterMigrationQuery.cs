@@ -6,7 +6,7 @@ namespace TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 
 
 [MessagePackObject(AllowPrivate = true)]
-public sealed record PreviewLegacyParameterMigrationQuery:IQuery<CreateParameterSetCommand>
+public sealed record PreviewLegacyParameterMigrationQuery : IQuery<CreateParameterSetCommand>
 {
 
     /// <summary>Creates an empty query for serialization.</summary>
@@ -25,11 +25,11 @@ public sealed record PreviewLegacyParameterMigrationQuery:IQuery<CreateParameter
         SetId = setId;
         Version = version;
     }
- public const string Actor="ParameterSetQuery";public const string Verb="PreviewLegacyParameterMigration";
- [Key(0)]public ActorSubject Subject{get;init;}
- [Key(1)]public IActorEntityId EntityId{get;init;}=ActorEntityId.Default;
- [Key(2)]public Guid SetId{get;init;}
- [Key(3)]public int Version{get;init;}
- [IgnoreMember]public int ErrorCode{get;init;}=33101;
- [IgnoreMember]public string? QueryParams{get;init;}
+    public const string Actor = "ParameterSetQuery"; public const string Verb = "PreviewLegacyParameterMigration";
+    [Key(0)] public ActorSubject Subject { get; init; }
+    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
+    [Key(2)] public Guid SetId { get; init; }
+    [Key(3)] public int Version { get; init; }
+    [IgnoreMember] public int ErrorCode { get; init; } = 33101;
+    [IgnoreMember] public string? QueryParams { get; init; }
 }

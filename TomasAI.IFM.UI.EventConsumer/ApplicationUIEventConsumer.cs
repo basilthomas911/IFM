@@ -50,7 +50,7 @@ public class ApplicationUIEventConsumer(INatsEventListenerOptions options, ILogg
                     _ => default!
                 };
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogErrorEvent(EventConsumer, ex, "EventHandlerAsync: failed while processing event verb: {EventVerb}", eventVerb);
             }

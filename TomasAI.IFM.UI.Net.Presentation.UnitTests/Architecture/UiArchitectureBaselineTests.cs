@@ -390,6 +390,24 @@ public class UiArchitectureBaselineTests
     }
 
     [Fact]
+    public void ActorMessaging_HasNoLegacyHttpClientInfrastructure()
+    {
+        var solution = File.ReadAllText(Path.Combine(SolutionSource.RootPath, "TomasAI.IFM.sln"));
+
+        solution.Should().NotContain("TomasAI.IFM.Framework.Messaging.RestApi");
+        solution.Should().NotContain("TomasAI.IFM.Application.Api.Client");
+        solution.Should().NotContain("TomasAI.IFM.Application.SystemAdmin.Server");
+        Directory.Exists(Path.Combine(SolutionSource.RootPath, "TomasAI.IFM.Framework.Messaging.RestApi"))
+            .Should().BeFalse();
+        Directory.Exists(Path.Combine(SolutionSource.RootPath, "TomasAI.IFM.Application.Api.Client"))
+            .Should().BeFalse();
+        Directory.Exists(Path.Combine(SolutionSource.RootPath, "TomasAI.IFM.Application.SystemAdmin.Server"))
+            .Should().BeFalse();
+        Directory.Exists(Path.Combine(SolutionSource.RootPath, "TomasAI.IFM.Shared", "WebService"))
+            .Should().BeFalse();
+    }
+
+    [Fact]
     public void HighRateOptionConsumers_AreAwaitableAndHaveNoDetachedRegistrations()
     {
         var optionTickConsumer = File.ReadAllText(Path.Combine(

@@ -31,19 +31,32 @@ public static class CompleteOrderCompositionPipeline
 
         CompositionRulesContract.Require(MessagePackBinarySerializer.MeasureContent(result) <= 524288,
             "OC.CONTRACT.PAYLOAD_SIZE");
-        var completed=new OrderCompositionFunctionCompletedEvent
+        var completed = new OrderCompositionFunctionCompletedEvent
         {
-            Subject=new(ActorType.Function,ExecuteOrderCompositionPipelineCommand.Actor,OrderCompositionFunctionCompletedEvent.Verb,c.EntityId.Format()),
-            Id=result.ResultId,EntityId=c.WorkflowEntityId,CommandId=c.CommandId,AggregateId=c.EntityId.Format(),EventSource=c.EventSource,ReceivedOn=result.ProducedAtUtc,
-            WorkflowId=c.WorkflowId,InputWorkflowRevision=c.InputWorkflowRevision,CorrelationId=c.CorrelationId,CausationId=c.CausationId,PipelineStage=StrategyWorkflowStage.OrderComposition,
-            Result=StrategyStageResultEnvelope.CreateComposition(result, 524288),
-            CompletedAtUtc=result.ProducedAtUtc,ExpiresAtUtc=c.ExpiresAtUtc,ParameterPayloadSha256=c.CompositionBinding.BindingSha256,
-            EvaluatedAtUtc=result.EvaluatedAtUtc,ValidUntilUtc=result.ValidUntilUtc ?? default,RequestFingerprint=c.Fingerprint()
+            Subject = new(ActorType.Function, ExecuteOrderCompositionPipelineCommand.Actor, OrderCompositionFunctionCompletedEvent.Verb, c.EntityId.Format()),
+            Id = result.ResultId,
+            EntityId = c.WorkflowEntityId,
+            CommandId = c.CommandId,
+            AggregateId = c.EntityId.Format(),
+            EventSource = c.EventSource,
+            ReceivedOn = result.ProducedAtUtc,
+            WorkflowId = c.WorkflowId,
+            InputWorkflowRevision = c.InputWorkflowRevision,
+            CorrelationId = c.CorrelationId,
+            CausationId = c.CausationId,
+            PipelineStage = StrategyWorkflowStage.OrderComposition,
+            Result = StrategyStageResultEnvelope.CreateComposition(result, 524288),
+            CompletedAtUtc = result.ProducedAtUtc,
+            ExpiresAtUtc = c.ExpiresAtUtc,
+            ParameterPayloadSha256 = c.CompositionBinding.BindingSha256,
+            EvaluatedAtUtc = result.EvaluatedAtUtc,
+            ValidUntilUtc = result.ValidUntilUtc ?? default,
+            RequestFingerprint = c.Fingerprint()
         };
         CompositionRulesContract.Require(MessagePackBinarySerializer.MeasureContent(completed) <= 1048576 &&
             MessagePackBinarySerializer.MeasureEncoded(completed) <= 1048576,
             "OC.CONTRACT.PAYLOAD_SIZE");
         OrderCompositionContracts.ReadResult(completed.Result);
-        return FunctionResult<OrderCompositionFunctionCompletedEvent,OrderCompositionFunctionFailedEvent>.Complete(completed);
+        return FunctionResult<OrderCompositionFunctionCompletedEvent, OrderCompositionFunctionFailedEvent>.Complete(completed);
     }
 }

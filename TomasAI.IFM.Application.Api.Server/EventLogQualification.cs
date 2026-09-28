@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Application.Api.Server;
 public sealed class EventLogQualification
 {
     public const string Flag = "--event-log-qualification=";
-    public const string BrokerUrl = "nats://127.0.0.1:24223";
+    public string BrokerUrl { get; }
     public const string HttpUrl = "http://127.0.0.1:25443";
     public static EventLogQualification? Active { get; private set; }
     public string RunId { get; }
@@ -19,13 +19,15 @@ public sealed class EventLogQualification
             throw new InvalidOperationException("Qualification requires environment Test and a 12-digit lowercase hexadecimal run ID.");
         RunId = runId;
         var root = Path.GetFullPath(artifactRoot);
-        var pg = $"Host=127.0.0.1;Port=25432;Database=ifm_eventlog_bench_{runId}_synthetic_host";
+        var pg = RequiredLoopbackPostgres("IFM_QUALIFICATION_POSTGRES_CONNECTION", runId);
+        BrokerUrl = RequiredLoopbackUri("IFM_QUALIFICATION_NATS_URL", "nats");
+        var redis = RequiredLoopbackEndpoint("IFM_QUALIFICATION_REDIS_URL");
         var settings = new Dictionary<string, string?>
         {
             ["urls"] = HttpUrl,
             ["Telemetry:Metrics:Enabled"] = "false",
             ["Kestrel:Endpoints:Http:Url"] = HttpUrl,
-            ["AppSettings:RedisUri"] = "127.0.0.1:26379,abortConnect=false",
+            ["AppSettings:RedisUri"] = redis,
             ["AppSettings:Databento:DeploymentProfile"] = "SyntheticCi",
             ["AppSettings:Databento:DataSource"] = "Synthetic",
             ["AppSettings:Databento:Synthetic:RecordCount"] = "1000",
@@ -48,13 +50,45 @@ public sealed class EventLogQualification
             settings[$"ConnectionStrings:{key}DbConnection"] = pg;
         // A separately approved AIO-constrained run may use uniquely named keyspaces
         // on the existing local Scylla listener; all other qualification routing stays fixed.
-        var scyllaPort = useExistingScylla ? 9042 : 29042;
+        var scyllaPort = int.Parse(Environment.GetEnvironmentVariable("IFM_QUALIFICATION_SCYLLA_PORT")
+            ?? throw new InvalidOperationException("The isolated qualification CQL port is required."));
         foreach (var key in new[] { "Trade", "Fund", "Reference", "OptionPricer", "MarketData", "Securities" })
             settings[$"ConnectionStrings:{key}DbConnection"] =
                 $"Contact Points=127.0.0.1;Port={scyllaPort};Default Keyspace=ifm_synthetic_{runId}_{key.ToLowerInvariant()}";
         foreach (var key in new[] { "TelemetryServerBaseUri", "PredictiveModelServerBaseUri" })
             settings[$"AppSettings:{key}"] = HttpUrl;
         Settings = settings;
+    }
+
+    static string RequiredLoopbackPostgres(string name, string runId)
+    {
+        var value = Environment.GetEnvironmentVariable(name)
+            ?? throw new InvalidOperationException($"{name} is required.");
+        var connection = new NpgsqlConnectionStringBuilder(value);
+        if (connection.Host != "127.0.0.1" || connection.Port <= 0
+            || connection.Database != $"ifm_eventlog_bench_{runId}_synthetic_host")
+            throw new InvalidOperationException("Qualification PostgreSQL must be loopback and run-scoped.");
+        return value;
+    }
+
+    static string RequiredLoopbackUri(string name, string scheme)
+    {
+        var value = Environment.GetEnvironmentVariable(name)
+            ?? throw new InvalidOperationException($"{name} is required.");
+        var uri = new Uri(value);
+        if (uri.Scheme != scheme || uri.Host != "127.0.0.1" || uri.Port <= 0)
+            throw new InvalidOperationException($"{name} must be a loopback endpoint.");
+        return value;
+    }
+
+    static string RequiredLoopbackEndpoint(string name)
+    {
+        var value = Environment.GetEnvironmentVariable(name)
+            ?? throw new InvalidOperationException($"{name} is required.");
+        if (!System.Net.IPEndPoint.TryParse(value.Split(',')[0], out var endpoint)
+            || !System.Net.IPAddress.IsLoopback(endpoint.Address) || endpoint.Port <= 0)
+            throw new InvalidOperationException($"{name} must be a loopback endpoint.");
+        return value;
     }
 
     public void Validate(IConfiguration config)
@@ -97,7 +131,7 @@ public sealed class EventLogQualification
     {
         // Dedicated test server credentials only; never resolve application secrets here.
         var builder = new NpgsqlConnectionStringBuilder(Settings["ConnectionStrings:EventSourceActorDbConnection"])
-            { Username = "postgres", Password = "ifm-benchmark-only", Pooling = false };
+        { Username = "postgres", Password = "ifm-benchmark-only", Pooling = false };
         await using var db = new NpgsqlConnection(builder.ConnectionString);
         await db.OpenAsync(token);
         await using var transaction = await db.BeginTransactionAsync(token);

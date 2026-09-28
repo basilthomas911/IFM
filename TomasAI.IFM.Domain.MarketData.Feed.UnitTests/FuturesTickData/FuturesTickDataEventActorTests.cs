@@ -55,7 +55,8 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
             IStatusConsoleWriter status,
             ILogger<FuturesEodDataRealtimeActor> logger)
             : this(TypedActorContextFactory.Realtime(
-                supervisor, projector, marketDataApi, blackboard, status, logger)) { }
+                supervisor, projector, marketDataApi, blackboard, status, logger))
+        { }
 
         TestableRealtimeActor(IFuturesEodDataRealtimeContext context)
             : base(context) => Context = context;

@@ -37,6 +37,6 @@ public class SpreadDistributionJobUIEventConsumer
         _logger.LogInformation("SpreadDistributionJobUIEventConsumer started.");
         return ValueTask.CompletedTask;
     }
-   
+
 
 }

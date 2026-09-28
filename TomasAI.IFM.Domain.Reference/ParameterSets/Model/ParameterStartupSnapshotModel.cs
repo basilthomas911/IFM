@@ -7,9 +7,9 @@ namespace TomasAI.IFM.Domain.Reference.ParameterSets.Model;
 public sealed class ParameterStartupSnapshotModel
 {
     readonly Dictionary<Guid, AppliedParameterAssignment> assignments;
-    readonly Dictionary<Guid,ParameterAssignmentRevision> scopes = new();
-    public bool HasScope(ParameterAssignmentScope scope)=>scopes.ContainsKey(WorkflowParameterScopeModel.AssignmentId(scope));
-    public IReadOnlyList<ParameterAssignmentRevision> Scopes=>scopes.Values.OrderBy(x=>x.AssignmentId).ToArray();
+    readonly Dictionary<Guid, ParameterAssignmentRevision> scopes = new();
+    public bool HasScope(ParameterAssignmentScope scope) => scopes.ContainsKey(WorkflowParameterScopeModel.AssignmentId(scope));
+    public IReadOnlyList<ParameterAssignmentRevision> Scopes => scopes.Values.OrderBy(x => x.AssignmentId).ToArray();
     public Guid StartupRunId { get; }
     public string Fingerprint { get; }
     public IReadOnlyList<AppliedParameterAssignment> Assignments => assignments.Values.OrderBy(x => x.Assignment.AssignmentId).ToArray();
@@ -28,7 +28,7 @@ public sealed class ParameterStartupSnapshotModel
                 throw new ArgumentException("PARAM.ASSIGNMENT_ID_INVALID");
             if (assignment.Revision <= 0 || assignment.ApplicationPolicy != ParameterApplicationPolicy.NextStartup)
                 throw new ArgumentException("PARAM.ASSIGNMENT_INVALID");
-            scopes.Add(assignment.AssignmentId,assignment);
+            scopes.Add(assignment.AssignmentId, assignment);
             if (!assignment.Enabled) continue;
             if (!authoritativeVersions.TryGetValue(assignment.Reference, out var version) || version.Reference != assignment.Reference)
                 throw new InvalidOperationException("PARAM.EXACT_VERSION_MISSING");
@@ -37,7 +37,8 @@ public sealed class ParameterStartupSnapshotModel
                 assignment.CreatedAtUtc, assignment.CreatedBy);
             assignments.Add(assignment.AssignmentId, new(startupRunId, assignment, version));
         }
-        Fingerprint = ParameterCanonicalPayloadModel.Hash(JsonSerializer.Serialize(new {
+        Fingerprint = ParameterCanonicalPayloadModel.Hash(JsonSerializer.Serialize(new
+        {
             Assignments = Scopes
         }));
     }

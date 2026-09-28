@@ -28,7 +28,7 @@ public class SequenceIdFixture : IDisposable
         logger.When(_ => { }).Do(_ => { });
         DbFactory = new DbContextFactory(dbResolver);
         var dbCache = new DbCache();
-        diContainer.Add(typeof(IObjectRepository<SequenceIdDbContext>), new SequenceIdDbContext(dbConn, DbFactory,  logger));
+        diContainer.Add(typeof(IObjectRepository<SequenceIdDbContext>), new SequenceIdDbContext(dbConn, DbFactory, logger));
         Db = DbFactory.SequenceIdDb as SequenceIdDbContext;
         SequenceIdDatabaseInitializer.EnsureInitialized(new TomasAI.IFM.Application.Storage.SequenceIdDb.Schema.SequenceIdSchemaDb(dbConn, logger));
         SequenceIdGenerator = new PostgresSequenceIdGenerator(Db);
@@ -58,13 +58,13 @@ public class SequenceIdDbTests : IClassFixture<SequenceIdFixture>
         var db = _testFixture.DbFactory.SequenceIdDb as ISequenceIdDbContext;
         var sequenceId = await db.GetNextSequenceIdAsync(SequenceName.FuturesTickData_TickId);
         var nextSequenceId = await db.GetNextSequenceIdAsync(SequenceName.FuturesTickData_TickId);
-        nextSequenceId.Should().Be(sequenceId+100);
+        nextSequenceId.Should().Be(sequenceId + 100);
     }
 
     [Fact]
     public async Task GetCurrentSequenceId_Ok()
     {
-         var db = _testFixture.DbFactory.SequenceIdDb as ISequenceIdDbContext;
+        var db = _testFixture.DbFactory.SequenceIdDb as ISequenceIdDbContext;
         var curSequenceId = await _testFixture.SequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesTickData_TickId);
         var nextSequenceId = await _testFixture.SequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesTickData_TickId);
         nextSequenceId.Should().Be(curSequenceId + 1);

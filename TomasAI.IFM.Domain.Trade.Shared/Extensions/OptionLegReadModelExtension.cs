@@ -46,14 +46,14 @@ public static class OptionLegReadModelExtension
 
     public static int? GetQuantity(this OptionTradeLegReadModel[] optionLegs, OptionLegAction optionLegAction, OptionType optionType)
     {
-         var item = optionLegs.Get(optionLegAction, optionType);
-         return item?.Quantity;
+        var item = optionLegs.Get(optionLegAction, optionType);
+        return item?.Quantity;
     }
 
     public static decimal? GetStrikePrice(this OptionTradeLegReadModel[] optionLegs, OptionLegAction optionLegAction, OptionType optionType)
     {
-          var item = optionLegs.Get(optionLegAction, optionType);
-          return item?.StrikePrice;
+        var item = optionLegs.Get(optionLegAction, optionType);
+        return item?.StrikePrice;
     }
 
     public static void SetContractId(this OptionTradeLegReadModel[] optionLegs, int tradeId, string contractId, string newContractId)
@@ -132,7 +132,7 @@ public static class OptionLegDataReadModelExtension
     }
 
     public static void SetBidPrice(this OptionTradeLegDataReadModel[] optionLegs, string optionLegId, decimal bidPrice)
-        => SetOptionLegData(optionLegs,  optionLegId, optionLegData => optionLegData with { BidPrice = bidPrice });
+        => SetOptionLegData(optionLegs, optionLegId, optionLegData => optionLegData with { BidPrice = bidPrice });
 
     public static void SetAskPrice(this OptionTradeLegDataReadModel[] optionLegs, string optionLegId, decimal askPrice)
         => SetOptionLegData(optionLegs, optionLegId, optionLegData => optionLegData with { AskPrice = askPrice });

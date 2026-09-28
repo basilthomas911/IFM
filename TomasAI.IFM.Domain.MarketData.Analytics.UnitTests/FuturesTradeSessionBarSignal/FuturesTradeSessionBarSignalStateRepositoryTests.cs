@@ -73,7 +73,7 @@ public sealed class FuturesTradeSessionBarSignalStateRepositoryTests
                 FuturesTradeSessionBarSignalCommandState,
                 FuturesTradeSessionBarPublishedEvent>(
                 streamId,
-                Arg.Any<Action<IEnumerable<EventStreamReadModel>>>() )
+                Arg.Any<Action<IEnumerable<EventStreamReadModel>>>())
             .Returns(call =>
             {
                 call.Arg<Action<IEnumerable<EventStreamReadModel>>>()([

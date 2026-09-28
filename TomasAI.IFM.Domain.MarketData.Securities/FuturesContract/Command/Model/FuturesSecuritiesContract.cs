@@ -50,14 +50,14 @@ public class FuturesSecuritiesContract(
     public bool Rollover { get; } = rollover;
 
     public FuturesSecuritiesContract(FuturesContractV3ReadModel model)
-        :this(model.ContractId, model.Description, model.Symbol, model.LocalSymbol, model.SecurityType, model.Currency,
+        : this(model.ContractId, model.Description, model.Symbol, model.LocalSymbol, model.SecurityType, model.Currency,
              model.Exchange, model.Multiplier, model.LastTradeDate, model.OnTheRun, model.Rollover)
     {
         _source = model;
     }
 
     public FuturesContractV3ReadModel ToViewModel()
-        => _source ?? new (
+        => _source ?? new(
             contractId: ContractId,
             description: Description,
             symbol: Symbol,

@@ -256,12 +256,12 @@ internal static class IntrinsicTimeStrategyWorkflowQueryModel
         var last = ResolveCalendarBucketStart(endValueDate, timePeriod);
         List<DateOnly> result = [];
         for (var current = first; current <= last; current = timePeriod switch
-             {
-                 TimeFrameType.Daily => current.AddDays(1),
-                 TimeFrameType.Weekly => current.AddDays(7),
-                 TimeFrameType.Monthly => current.AddMonths(1),
-                 _ => throw new ArgumentOutOfRangeException(nameof(timePeriod))
-             })
+        {
+            TimeFrameType.Daily => current.AddDays(1),
+            TimeFrameType.Weekly => current.AddDays(7),
+            TimeFrameType.Monthly => current.AddMonths(1),
+            _ => throw new ArgumentOutOfRangeException(nameof(timePeriod))
+        })
             result.Add(current);
         return result;
     }
@@ -333,14 +333,20 @@ internal static class IntrinsicTimeStrategyWorkflowQueryModel
             .GetMarketConditionAsync(view.WorkflowId, cancellationToken).ConfigureAwait(false);
         var result = CreateObservation(entityText, view, regime, now, marketCondition);
         var projected = await services.DbFactory.TradeDb
-            .GetMarketConditionAssessmentAsync(view.WorkflowId,cancellationToken).ConfigureAwait(false);
+            .GetMarketConditionAssessmentAsync(view.WorkflowId, cancellationToken).ConfigureAwait(false);
         if (projected is not null)
         {
             var assessment = Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.MarketConditionAssessmentContracts.ReadResult(projected.Result);
             var accepted = view.MarketCondition.SourceEventId == projected.Id && view.MarketCondition.Result?.PayloadSha256 == projected.Result.PayloadSha256;
-            result = result with { MarketAssessment = assessment, WorkflowAcceptedMarketAssessment = accepted, MarketAssessmentOrphanSuspected = !accepted,
+            result = result with
+            {
+                MarketAssessment = assessment,
+                WorkflowAcceptedMarketAssessment = accepted,
+                MarketAssessmentOrphanSuspected = !accepted,
                 MarketAssessmentExpired = assessment.Assessment.ValidUntilUtc is { } until && until <= now,
-                IsOperationalIssue = result.IsOperationalIssue || !accepted, Diagnostic = !accepted ? "MarketAssessmentProjectionNotAccepted" : result.Diagnostic };
+                IsOperationalIssue = result.IsOperationalIssue || !accepted,
+                Diagnostic = !accepted ? "MarketAssessmentProjectionNotAccepted" : result.Diagnostic
+            };
         }
 
         if (result.OperationalStatus == IntrinsicTimeStrategyWorkflowOperationalStatus.ExpiredNotClosed)

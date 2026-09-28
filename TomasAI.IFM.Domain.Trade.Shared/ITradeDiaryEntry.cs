@@ -6,7 +6,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Shared
 {
-    public interface ITradeDiaryEntry: IEvent
+    public interface ITradeDiaryEntry : IEvent
     {
         OptionTradeEntityId EntityId { get; }
         new TradeDiaryId Id { get; }

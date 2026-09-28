@@ -68,8 +68,10 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryApi(IActorProducer actorPr
             new GetIntrinsicTimeStrategyWorkflowStartAttemptsQuery
             {
                 Subject = QuerySubject(GetIntrinsicTimeStrategyWorkflowStartAttemptsQuery.Verb, workflowEntityId),
-                EntityId = new ActorEntityId(workflowEntityId), WorkflowEntityId = workflowEntityId,
-                BeforeUtc = beforeUtc, PageSize = pageSize
+                EntityId = new ActorEntityId(workflowEntityId),
+                WorkflowEntityId = workflowEntityId,
+                BeforeUtc = beforeUtc,
+                PageSize = pageSize
             }).AsTask();
 
     /// <inheritdoc />
@@ -80,8 +82,10 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryApi(IActorProducer actorPr
             new GetIntrinsicTimeStrategyWorkflowStageStateQuery
             {
                 Subject = QuerySubject(GetIntrinsicTimeStrategyWorkflowStageStateQuery.Verb, workflowId.ToString()),
-                EntityId = new ActorEntityId(workflowId.ToString()), WorkflowId = workflowId,
-                Stage = stage, MinimumWorkflowRevision = minimumRevision
+                EntityId = new ActorEntityId(workflowId.ToString()),
+                WorkflowId = workflowId,
+                Stage = stage,
+                MinimumWorkflowRevision = minimumRevision
             }).AsTask();
 
     /// <inheritdoc />
@@ -92,8 +96,10 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryApi(IActorProducer actorPr
             new GetIntrinsicTimeStrategyWorkflowTimelineQuery
             {
                 Subject = QuerySubject(GetIntrinsicTimeStrategyWorkflowTimelineQuery.Verb, workflowId.ToString()),
-                EntityId = new ActorEntityId(workflowId.ToString()), WorkflowId = workflowId,
-                AfterEventId = afterEventId, PageSize = pageSize
+                EntityId = new ActorEntityId(workflowId.ToString()),
+                WorkflowId = workflowId,
+                AfterEventId = afterEventId,
+                PageSize = pageSize
             }).AsTask();
 
     /// <inheritdoc />
@@ -104,8 +110,10 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryApi(IActorProducer actorPr
             new GetRecentIntrinsicTimeStrategyWorkflowsQuery
             {
                 Subject = QuerySubject(GetRecentIntrinsicTimeStrategyWorkflowsQuery.Verb, workflowEntityId),
-                EntityId = new ActorEntityId(workflowEntityId), WorkflowEntityId = workflowEntityId,
-                BeforeUtc = beforeUtc, PageSize = pageSize
+                EntityId = new ActorEntityId(workflowEntityId),
+                WorkflowEntityId = workflowEntityId,
+                BeforeUtc = beforeUtc,
+                PageSize = pageSize
             }).AsTask();
 
     /// <inheritdoc />

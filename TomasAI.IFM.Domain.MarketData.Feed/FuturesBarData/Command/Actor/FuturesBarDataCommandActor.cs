@@ -100,12 +100,12 @@ public class FuturesBarDataCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext,
         FuturesBarDataCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext,
         FuturesBarDataCommandState, ServiceResult<GuidResult>>>()
-    {
-        [typeof(InsertFuturesBarDataCommand)] = (cmd, context, state) => (cmd as InsertFuturesBarDataCommand)!.Execute(state),
-        [typeof(DeleteFuturesBarDataCommand)] = (cmd, context, state) => (cmd as DeleteFuturesBarDataCommand)!.Execute(state),
-        [typeof(StartFuturesBarDataStreamingCommand)] = (cmd, context, state) => (cmd as StartFuturesBarDataStreamingCommand)!.Execute(state),
-        [typeof(StopFuturesBarDataStreamingCommand)] = (cmd, context, state) => (cmd as StopFuturesBarDataStreamingCommand)!.Execute(state)
-    };
+        {
+            [typeof(InsertFuturesBarDataCommand)] = (cmd, context, state) => (cmd as InsertFuturesBarDataCommand)!.Execute(state),
+            [typeof(DeleteFuturesBarDataCommand)] = (cmd, context, state) => (cmd as DeleteFuturesBarDataCommand)!.Execute(state),
+            [typeof(StartFuturesBarDataStreamingCommand)] = (cmd, context, state) => (cmd as StartFuturesBarDataStreamingCommand)!.Execute(state),
+            [typeof(StopFuturesBarDataStreamingCommand)] = (cmd, context, state) => (cmd as StopFuturesBarDataStreamingCommand)!.Execute(state)
+        };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -128,37 +128,41 @@ public class FuturesBarDataCommandActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
-    {
-        [typeof(InsertFuturesBarDataCommand)] = cmd => {
-            var e = (InsertFuturesBarDataCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesBarData(e.FuturesBarData);
-        },
-        [typeof(DeleteFuturesBarDataCommand)] = cmd => {
-            var e = (DeleteFuturesBarDataCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesBarDataId(e.Id);
-        },
-        [typeof(StartFuturesBarDataStreamingCommand)] = cmd => {
-            var e = (StartFuturesBarDataStreamingCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesContracts(e.Contracts, e.CommandName)
-                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
-        },
-        [typeof(StopFuturesBarDataStreamingCommand)] = cmd => {
-            var e = (StopFuturesBarDataStreamingCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
-        }
-    };
+        {
+            [typeof(InsertFuturesBarDataCommand)] = cmd =>
+            {
+                var e = (InsertFuturesBarDataCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFuturesBarData(e.FuturesBarData);
+            },
+            [typeof(DeleteFuturesBarDataCommand)] = cmd =>
+            {
+                var e = (DeleteFuturesBarDataCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFuturesBarDataId(e.Id);
+            },
+            [typeof(StartFuturesBarDataStreamingCommand)] = cmd =>
+            {
+                var e = (StartFuturesBarDataStreamingCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFuturesContracts(e.Contracts, e.CommandName)
+                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
+            },
+            [typeof(StopFuturesBarDataStreamingCommand)] = cmd =>
+            {
+                var e = (StopFuturesBarDataStreamingCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
+            }
+        };
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.

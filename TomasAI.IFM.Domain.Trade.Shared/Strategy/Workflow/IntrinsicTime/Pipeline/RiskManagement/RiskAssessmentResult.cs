@@ -8,14 +8,14 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
 
-public enum RiskAssessmentOutcome { Undefined=0, Approved=1, Rejected=2 }
+public enum RiskAssessmentOutcome { Undefined = 0, Approved = 1, Rejected = 2 }
 
 [MessagePackObject]
 public sealed record RiskSizedLeg([property: Key(0)] string InstrumentId, [property: Key(1)] string Side,
     [property: Key(2)] int Contracts, [property: Key(3)] long TradeId);
 
 /// <summary>An immutable sizing proposal; Approved is not execution authority until the exact capacity receipt is accepted.</summary>
-[MessagePackObject(AllowPrivate=true)]
+[MessagePackObject(AllowPrivate = true)]
 public sealed record RiskAssessmentResult
 {
     [IgnoreMember, Newtonsoft.Json.JsonIgnore, System.Text.Json.Serialization.JsonIgnore]
@@ -37,10 +37,11 @@ public sealed record RiskAssessmentResult
     [Key(14)] public RiskAssessmentOutcome Outcome { get; init; }
     [Key(15)] public int StrategyUnits { get; init; }
     [Key(16)] public RiskUnitResult? UnitRisk { get; init; }
-    [Key(17)] public CapacityRequirements? Requirements
+    [Key(17)]
+    public CapacityRequirements? Requirements
     {
-        get => _requirements is null ? null : _requirements with { Exposures=[.._requirements.Exposures] };
-        init => _requirements = value is null ? null : value with { Exposures=[..value.Exposures] };
+        get => _requirements is null ? null : _requirements with { Exposures = [.. _requirements.Exposures] };
+        init => _requirements = value is null ? null : value with { Exposures = [.. value.Exposures] };
     }
     [Key(18)] public FinancialAuthorityReference Authority { get; init; } = new();
     [Key(19)] public FinancialEvidenceReference? MarginEvidence { get; init; }
@@ -56,10 +57,23 @@ public sealed record RiskAssessmentResult
 
     public QualifiedCapacityAssessment ToCapacityAssessment() => new()
     {
-        InvocationId=InvocationId, ResultId=ResultId, ResultHash=RiskContracts.Hash(this), PortfolioId=PortfolioId, FundId=FundId,
-        WorkflowId=WorkflowId.Value, WorkflowRevision=InputWorkflowRevision, CompositionResultId=CompositionResultId,
-        CompositionResultHash=CompositionResultHash, UnitCandidateHash=UnitCandidateHash, SizedOrderHash=SizedOrderHash,
-        StrategyUnits=StrategyUnits, Requirements=Requirements ?? new(), Authority=Authority, MarginEvidence=MarginEvidence ?? new(),
-        Environment=Environment, ValidUntilUtc=ValidUntilUtc, Eligible=Outcome==RiskAssessmentOutcome.Approved
+        InvocationId = InvocationId,
+        ResultId = ResultId,
+        ResultHash = RiskContracts.Hash(this),
+        PortfolioId = PortfolioId,
+        FundId = FundId,
+        WorkflowId = WorkflowId.Value,
+        WorkflowRevision = InputWorkflowRevision,
+        CompositionResultId = CompositionResultId,
+        CompositionResultHash = CompositionResultHash,
+        UnitCandidateHash = UnitCandidateHash,
+        SizedOrderHash = SizedOrderHash,
+        StrategyUnits = StrategyUnits,
+        Requirements = Requirements ?? new(),
+        Authority = Authority,
+        MarginEvidence = MarginEvidence ?? new(),
+        Environment = Environment,
+        ValidUntilUtc = ValidUntilUtc,
+        Eligible = Outcome == RiskAssessmentOutcome.Approved
     };
 }

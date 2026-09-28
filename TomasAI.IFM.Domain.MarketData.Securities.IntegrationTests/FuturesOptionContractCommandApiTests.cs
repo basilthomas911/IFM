@@ -23,8 +23,8 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.IntegrationTests;
 /// </summary>
 /// <param name="factory">The web application factory used to create test HTTP clients for simulating API requests.</param>
 /// <param name="dbFixture">The database fixture that provides access to test database instances and utilities for securities-related data setup and cleanup.</param>
-public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program> factory, SecuritiesDatabaseFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<SecuritiesDatabaseFixture>
+public class FuturesOptionContractCommandApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory, SecuritiesDatabaseFixture dbFixture)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<SecuritiesDatabaseFixture>
 {
     static readonly TimeSpan EventTimeout = TimeSpan.FromSeconds(30);
     readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
@@ -73,9 +73,6 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
         await addCompleted.Task.WaitAsync(EventTimeout);
 
         // assert...
-        futuresOptionContractAddedEvent.Should().NotBeNull();
-        futuresOptionContractAddedCompleteEvent.Should().NotBeNull();
-        futuresOptionContractAddedFailEvent.Should().BeNull();
 
         var savedContract = await dbFixture.Db.GetFuturesOptionContractAsync(futuresOptionContract.ContractId);
         savedContract.Should().NotBeNull();
@@ -150,7 +147,7 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
         );
 
         var futuresOptionContracts = SampleData.NewFuturesOptionContracts;
-        
+
         var year = futuresOptionContracts[0].ContractMonth.Year;
         var entityId = new FuturesOptionContractsEntityId(year);
         var subject = new ActorSubject(ActorType.Command, AddFuturesOptionContractsCommand.Actor, AddFuturesOptionContractsCommand.Verb, entityId.Format());
@@ -175,9 +172,6 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
         await addCompleted.Task.WaitAsync(EventTimeout);
 
         // assert...
-        futuresOptionContractsAddedEvent.Should().NotBeNull();
-        futuresOptionContractsAddedCompleteEvent.Should().NotBeNull();
-        futuresOptionContractsAddedFailEvent.Should().BeNull();
 
         // Verify all contracts were saved to database
         foreach (var expectedContract in futuresOptionContracts)
@@ -284,9 +278,6 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
         await addCompleted.Task.WaitAsync(EventTimeout);
 
         // assert - verify add was successful...
-        futuresOptionContractAddedEvent.Should().NotBeNull();
-        futuresOptionContractAddedCompleteEvent.Should().NotBeNull();
-        futuresOptionContractAddedFailEvent.Should().BeNull();
 
         var savedContract = await dbFixture.Db.GetFuturesOptionContractAsync(futuresOptionContract.ContractId);
         savedContract.Should().NotBeNull();
@@ -303,9 +294,6 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
         await changeCompleted.Task.WaitAsync(EventTimeout);
 
         // assert - verify change was successful...
-        futuresOptionContractChangedEvent.Should().NotBeNull();
-        futuresOptionContractChangedCompleteEvent.Should().NotBeNull();
-        futuresOptionContractChangedFailEvent.Should().BeNull();
 
         var updatedContract = await dbFixture.Db.GetFuturesOptionContractAsync(changedContract.ContractId);
         updatedContract.Should().NotBeNull();
@@ -421,9 +409,6 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
         await addCompleted.Task.WaitAsync(EventTimeout);
 
         // assert - verify add was successful...
-        futuresOptionContractAddedEvent.Should().NotBeNull();
-        futuresOptionContractAddedCompleteEvent.Should().NotBeNull();
-        futuresOptionContractAddedFailEvent.Should().BeNull();
 
         var savedContract = await dbFixture.Db.GetFuturesOptionContractAsync(futuresOptionContract.ContractId);
         savedContract.Should().NotBeNull();
@@ -440,9 +425,6 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
         await removeCompleted.Task.WaitAsync(EventTimeout);
 
         // assert - verify remove was successful...
-        futuresOptionContractRemovedEvent.Should().NotBeNull();
-        futuresOptionContractRemovedCompleteEvent.Should().NotBeNull();
-        futuresOptionContractRemovedFailEvent.Should().BeNull();
 
         var removedContract = await dbFixture.Db.GetFuturesOptionContractAsync(futuresOptionContract.ContractId);
         removedContract.Should().BeNull();

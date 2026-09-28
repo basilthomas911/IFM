@@ -55,16 +55,22 @@ public sealed class UsTreasuryCurveTests(ITestOutputHelper output)
     }
 
     [Theory]
-    [InlineData("date")] [InlineData("number")] [InlineData("conflict")]
-    [InlineData("field")] [InlineData("root")] [InlineData("pagination")]
+    [InlineData("date")]
+    [InlineData("number")]
+    [InlineData("conflict")]
+    [InlineData("field")]
+    [InlineData("root")]
+    [InlineData("pagination")]
     public async Task Malformed_or_ambiguous_payloads_are_rejected(string kind)
     {
         var xml = kind switch
         {
-            "date" => Feed(Row("2026-08-31")), "number" => Feed(Row(rate: "NaN")),
+            "date" => Feed(Row("2026-08-31")),
+            "number" => Feed(Row(rate: "NaN")),
             "conflict" => Feed(Row() + Row(rate: "4.00")),
             "field" => Feed(Row().Replace("</m:properties>", "<d:BC_1MONTH>4</d:BC_1MONTH></m:properties>")),
-            "root" => "<html>Error</html>", _ => Feed("<link rel=\"next\" href=\"ignored\"/>" + Row())
+            "root" => "<html>Error</html>",
+            _ => Feed("<link rel=\"next\" href=\"ignored\"/>" + Row())
         };
         using var handler = new Handler((_, _) => Task.FromResult(Response(xml)));
         using var client = new HttpClient(handler); using var source = new UsTreasuryCurve(client);

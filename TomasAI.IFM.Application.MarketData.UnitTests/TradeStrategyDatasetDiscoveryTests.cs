@@ -15,19 +15,34 @@ public sealed class TradeStrategyDatasetDiscoveryTests
     }
     static ContractDetail Future(string symbol, uint id) => new()
     {
-        Dataset = "GLBX.MDP3", RawSymbol = symbol + "Z6", Ticker = symbol, Underlying = "", Instrument = new(1, id),
-        ContractKind = ContractKind.Future, MaturityDate = new(2026, 12, 18), Currency = "USD", Exchange = "XCME",
-        SettlementCurrency = "", SecurityType = "FUT", Cfi = "", UnitOfMeasure = ""
+        Dataset = "GLBX.MDP3",
+        RawSymbol = symbol + "Z6",
+        Ticker = symbol,
+        Underlying = "",
+        Instrument = new(1, id),
+        ContractKind = ContractKind.Future,
+        MaturityDate = new(2026, 12, 18),
+        Currency = "USD",
+        Exchange = "XCME",
+        SettlementCurrency = "",
+        SecurityType = "FUT",
+        Cfi = "",
+        UnitOfMeasure = ""
     };
     static ContractDetail Option(ContractDetail underlying) => underlying with
     {
-        RawSymbol = "different-root-" + underlying.RawSymbol, Ticker = "different-root", ContractKind = ContractKind.CallOption,
-        UnderlyingInstrumentId = underlying.Instrument.InstrumentId, Instrument = new(1, underlying.Instrument.InstrumentId + 10000)
+        RawSymbol = "different-root-" + underlying.RawSymbol,
+        Ticker = "different-root",
+        ContractKind = ContractKind.CallOption,
+        UnderlyingInstrumentId = underlying.Instrument.InstrumentId,
+        Instrument = new(1, underlying.Instrument.InstrumentId + 10000)
     };
     static DatabentoMarketDataRuntimeOptions Settings() => new()
     {
-        Contracts = [], FeedOptions = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3")
-            with { DataSource = FeedDataSourceMode.DatabentoLive }
+        Contracts = [],
+        FeedOptions = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3")
+            with
+        { DataSource = FeedDataSourceMode.DatabentoLive }
     };
 
     [Fact]

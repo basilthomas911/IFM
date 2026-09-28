@@ -7,7 +7,7 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Domain.OptionPricer.Shared
 {
-    public interface ISpreadPricer: IDisposable
+    public interface ISpreadPricer : IDisposable
     {
         int Id { get; }
         OptionPricerId OptionPricerId { get; }
@@ -23,6 +23,6 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
             int tradingDays,
             double assetPrice);
 
-        
+
     }
 }

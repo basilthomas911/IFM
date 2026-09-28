@@ -12,15 +12,16 @@ namespace TomasAI.IFM.UI.Net.ViewModels.MarketData
     {
         readonly FuturesTradeStatusReadModel _futuresTradeStatus;
         public FuturesTradeStatusUIViewModel(FuturesTradeStatusReadModel futuresTradeStatus)
-        { 
-            _futuresTradeStatus = futuresTradeStatus;   
+        {
+            _futuresTradeStatus = futuresTradeStatus;
         }
 
         public string TradeStatus
             => _futuresTradeStatus.TradeStatus;
 
         public bool TradeStatusEnabled
-            => _futuresTradeStatus.TradeExecuteState switch {
+            => _futuresTradeStatus.TradeExecuteState switch
+            {
                 TradeExecuteState.Enter => true,
                 TradeExecuteState.ExitOnTrendReversion => true,
                 TradeExecuteState.ExitOnEntryLimit => true,
@@ -28,7 +29,8 @@ namespace TomasAI.IFM.UI.Net.ViewModels.MarketData
             };
 
         public PresentationColorRole TradeStatusForeColor
-            => _futuresTradeStatus.TradeExecuteState switch  {
+            => _futuresTradeStatus.TradeExecuteState switch
+            {
                 null => PresentationColorRole.LightText,
                 TradeExecuteState.Enter => PresentationColorRole.DarkText,
                 TradeExecuteState.ExitOnTrendReversion => PresentationColorRole.DarkText,
@@ -41,7 +43,8 @@ namespace TomasAI.IFM.UI.Net.ViewModels.MarketData
             };
 
         public PresentationColorRole TradeStatusBackColor
-            => _futuresTradeStatus.TradeExecuteState switch  {
+            => _futuresTradeStatus.TradeExecuteState switch
+            {
                 null => PresentationColorRole.DarkSurface,
                 TradeExecuteState.Enter => PresentationColorRole.Positive,
                 TradeExecuteState.ExitOnTrendReversion => PresentationColorRole.Negative,

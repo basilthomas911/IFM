@@ -38,7 +38,7 @@ public class MarketDataFeedCommandState
         _ => false
     };
 
-    internal  bool IsTradeLiveFeedOn 
+    internal bool IsTradeLiveFeedOn
         => tradeLiveFeedState == TradeLiveFeedStateType.On;
     /// <summary>
     /// market data feed started

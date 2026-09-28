@@ -12,11 +12,11 @@ namespace TomasAI.IFM.Framework.Storage;
 /// <param name="logger"></param>
 /// <param name="storedProcName"></param>
 public class ObjectDataStoredProcedureContext(IObjectRepository db, ILogger<DbProvider> logger, string storedProcName = null!)
-    : ObjectDataRepositoryContext(db, logger  )
+    : ObjectDataRepositoryContext(db, logger)
 {
     readonly string _storedProcName = storedProcName;
 
-    public new string CommandText => _storedProcName;   
+    public new string CommandText => _storedProcName;
 
     /// <summary>
     /// set command type to stored procedure
@@ -41,8 +41,9 @@ public class ObjectDataStoredProcedureContext(IObjectRepository db, ILogger<DbPr
     /// </summary>
     /// <param name="parameterName"></param>
     /// <returns></returns>
-    public override string GetParameterName(string parameterName) 
-        => Repository.ProviderName switch {
+    public override string GetParameterName(string parameterName)
+        => Repository.ProviderName switch
+        {
             "System.Data.Cassandra" => parameterName,
             "System.Data.Scylla" => parameterName,
             "System.Data.Postgres" => $"_{parameterName}",

@@ -28,11 +28,11 @@ public static class PublishFuturesTradeSessionBar
 
     static FuturesTradeSessionBarPublishedEvent CreatePublishedEvent(
         this PublishFuturesTradeSessionBarCommand command) => new()
-    {
-        Subject = new(ActorType.Event, FuturesTradeSessionBarPublishedEvent.Actor,
+        {
+            Subject = new(ActorType.Event, FuturesTradeSessionBarPublishedEvent.Actor,
             FuturesTradeSessionBarPublishedEvent.Verb, command.EntityId.Format()),
-        EntityId = command.EntityId,
-        Bar = command.Bar
-    };
+            EntityId = command.EntityId,
+            Bar = command.Bar
+        };
 
 }

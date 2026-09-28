@@ -177,22 +177,22 @@ public sealed class DatabentoCurrentFuturesContractResolverTests
         string exchange = "CME",
         string currency = "USD",
         string settlementCurrency = "USD") => new()
-    {
-        Dataset = "test",
-        RawSymbol = rawSymbol,
-        Ticker = ticker,
-        Underlying = ticker,
-        Instrument = new InstrumentKey(1, (uint)rawSymbol.GetHashCode()),
-        ContractKind = ContractKind.Future,
-        MaturityDate = maturity,
-        ContractMultiplier = 50,
-        Currency = currency,
-        SettlementCurrency = settlementCurrency,
-        Exchange = exchange,
-        SecurityType = "FUT",
-        Cfi = string.Empty,
-        UnitOfMeasure = "USD"
-    };
+        {
+            Dataset = "test",
+            RawSymbol = rawSymbol,
+            Ticker = ticker,
+            Underlying = ticker,
+            Instrument = new InstrumentKey(1, (uint)rawSymbol.GetHashCode()),
+            ContractKind = ContractKind.Future,
+            MaturityDate = maturity,
+            ContractMultiplier = 50,
+            Currency = currency,
+            SettlementCurrency = settlementCurrency,
+            Exchange = exchange,
+            SecurityType = "FUT",
+            Cfi = string.Empty,
+            UnitOfMeasure = "USD"
+        };
 
     private sealed class FakeFeedFactory(IReadOnlyList<ContractDetail> details)
         : IDatabentoFeedFactory

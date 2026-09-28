@@ -24,9 +24,15 @@ public sealed class PortfolioProjectionRebuilderTests
         var aggregate = new PortfolioAggregate();
         var committed = (PortfolioCreatedEvent)aggregate.Create(Guid.NewGuid(), new PortfolioReadModel
         {
-            PortfolioId = id.Id, Name = "Core", PortfolioVersion = 1,
-            OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "test",
-        }, now, "test") with { EventId = 55, AggregateId = id.Format(), ReceivedOn = now };
+            PortfolioId = id.Id,
+            Name = "Core",
+            PortfolioVersion = 1,
+            OperatingState = PortfolioOperatingState.Draft,
+            EffectiveFromUtc = now,
+            CreatedOnUtc = now,
+            CreatedBy = "test",
+        }, now, "test") with
+        { EventId = 55, AggregateId = id.Format(), ReceivedOn = now };
         var events = new StubEventStore(id, aggregate, committed);
         var writer = new FailOnceWriter();
         var rebuilder = new PortfolioProjectionRebuilder(events, writer);

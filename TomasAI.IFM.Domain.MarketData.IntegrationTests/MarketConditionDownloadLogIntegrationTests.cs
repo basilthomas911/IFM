@@ -16,24 +16,15 @@ namespace TomasAI.IFM.Domain.MarketData.IntegrationTests;
 [Collection("DownloadLog runtime")]
 public sealed class MarketConditionDownloadLogIntegrationTests : IAsyncLifetime
 {
-    readonly string keyspace = "mc_dl_test_" + Guid.NewGuid().ToString("N");
-    Cluster cluster = null!;
-    ISession session = null!;
     MarketDataFixture fixture = null!;
-    WebApplicationFactory<Program> root = null!;
-    WebApplicationFactory<Program> host = null!;
+    TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> root = null!;
+    TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> host = null!;
 
     public async Task InitializeAsync()
     {
-        cluster = Cluster.Builder().AddContactPoint("localhost").Build();
-        session = await cluster.ConnectAsync();
-        await session.ExecuteAsync(new SimpleStatement($"CREATE KEYSPACE {keyspace} WITH replication = {{'class':'SimpleStrategy','replication_factor':1}};"));
-        fixture = new MarketDataFixture(keyspace);
-        root = new WebApplicationFactory<Program>();
-        host = root.WithWebHostBuilder(builder => builder
-            .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.MarketData")
-            .UseSetting("IFM_TEST_NATS_URL", Environment.GetEnvironmentVariable("IFM_DOWNLOADLOG_TEST_NATS_URL") ?? "nats://127.0.0.1:14222")
-            .UseSetting("IFM_TEST_MARKET_DATA_CONNECTION", $"Contact Points=localhost;Port=9042;Default Keyspace={keyspace}"));
+        fixture = new MarketDataFixture();
+        root = new TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>();
+        host = root;
         _ = host.Services;
     }
 
@@ -43,37 +34,61 @@ public sealed class MarketConditionDownloadLogIntegrationTests : IAsyncLifetime
         var commands = host.Services.GetRequiredService<IDownloadLogCommandApi>();
         var queries = host.Services.GetRequiredService<IDownloadLogQueryApi>();
         var adapter = new MarketConditionEventRiskAdapter(fixture.DbFactory, queries);
-        var at = DateTime.UtcNow;
+        var at = UtcNowMilliseconds();
+        var coverageDates = new[]
+        {
+            DateOnly.FromDateTime(at).AddDays(-1),
+            DateOnly.FromDateTime(at),
+            DateOnly.FromDateTime(at).AddDays(1)
+        };
+        foreach (var date in coverageDates)
+        {
+            await RecordAndWait(Outcome(date) with
+            {
+                Status = MarketDataDownloadStatus.Failed,
+                DownloadedRecordCount = 1,
+                PersistedRecordCount = null,
+                ErrorCode = "BaselineFailed",
+                ErrorMessage = "This test owns the latest baseline for its coverage window."
+            });
+        }
+        at = UtcNowMilliseconds();
         var missing = await adapter.ReadOnceAsync(new(), at, default);
         Assert.False(missing.DownloadEvidence!.CoverageConfirmed);
-        Assert.Equal(MarketEventRiskStatus.Unknown, missing.Status);
+        Assert.Equal("CalendarDownloadFailed", missing.DownloadEvidence.Reason);
 
         // Treasury completion cannot satisfy economic-calendar coverage.
         var treasury = Outcome(DateOnly.FromDateTime(at), "US", MarketDataDownloadDataset.TreasuryCurve);
         await RecordAndWait(treasury);
-        Assert.False((await adapter.ReadOnceAsync(new(), DateTime.UtcNow, default)).DownloadEvidence!.CoverageConfirmed);
+        at = UtcNowMilliseconds();
+        Assert.False((await adapter.ReadOnceAsync(new(), at, default)).DownloadEvidence!.CoverageConfirmed);
 
         // Cover dates on either side of a possible UTC-midnight event window.
-        foreach (var date in new[] { DateOnly.FromDateTime(at).AddDays(-1), DateOnly.FromDateTime(at), DateOnly.FromDateTime(at).AddDays(1) })
+        foreach (var date in coverageDates)
             await RecordAndWait(Outcome(date));
-        var clear = await adapter.ReadOnceAsync(new(), DateTime.UtcNow, default);
+        at = UtcNowMilliseconds();
+        var clear = await adapter.ReadOnceAsync(new(), at, default);
         Assert.True(clear.DownloadEvidence!.CoverageConfirmed);
         Assert.Equal(MarketEventRiskStatus.Clear, clear.Status);
         Assert.All(clear.DownloadEvidence.Attempts, x => Assert.Equal(MarketDataDownloadDataset.EconomicCalendar, x.Outcome.Dataset));
 
         // A real stored event is still classified by the production adapter.
-        var eventAt = DateTime.UtcNow;
+        var eventAt = at;
         await fixture.MarketDataDb.InsertEconomicCalendarsAsync(
             [new EconomicCalendarReadModel(eventAt.AddMinutes(5), "US", "FOMC Rate Decision", null, null, null, eventAt, "test", "High")]);
-        Assert.Equal(MarketEventRiskStatus.Blocked, (await adapter.ReadOnceAsync(new(), DateTime.UtcNow, default)).Status);
+        Assert.Equal(MarketEventRiskStatus.Blocked, (await adapter.ReadOnceAsync(new(), at, default)).Status);
 
-        var failed = Outcome(DateOnly.FromDateTime(DateTime.UtcNow), "US") with
+        var failed = Outcome(DateOnly.FromDateTime(at), "US") with
         {
-            Status = MarketDataDownloadStatus.Failed, DownloadedRecordCount = 1, PersistedRecordCount = null,
-            ErrorCode = "StorageFailed", ErrorMessage = "Partial write could not be confirmed."
+            Status = MarketDataDownloadStatus.Failed,
+            DownloadedRecordCount = 1,
+            PersistedRecordCount = null,
+            ErrorCode = "StorageFailed",
+            ErrorMessage = "Partial write could not be confirmed."
         };
         await RecordAndWait(failed);
-        var unavailable = await adapter.ReadOnceAsync(new(), DateTime.UtcNow, default);
+        at = UtcNowMilliseconds();
+        var unavailable = await adapter.ReadOnceAsync(new(), at, default);
         Assert.False(unavailable.DownloadEvidence!.CoverageConfirmed);
         Assert.Equal("CalendarDownloadFailed", unavailable.DownloadEvidence.Reason);
         Assert.Equal(MarketSourceAvailability.Unavailable, unavailable.Observation.Availability);
@@ -93,16 +108,33 @@ public sealed class MarketConditionDownloadLogIntegrationTests : IAsyncLifetime
         }
     }
 
-    static MarketDataDownloadOutcome Outcome(DateOnly date, string scope = "ALL", MarketDataDownloadDataset dataset = MarketDataDownloadDataset.EconomicCalendar)
+    static MarketDataDownloadOutcome Outcome(DateOnly date, string scope = "ALL",
+        MarketDataDownloadDataset dataset = MarketDataDownloadDataset.EconomicCalendar,
+        DateTime? finishedAtUtc = null)
     {
-        var finished = MarketDataDownloadOutcome.MillisecondUtc(DateTime.UtcNow.AddMilliseconds(-10));
+        var timestamp = finishedAtUtc ?? DateTime.UtcNow;
+        var finished = new DateTime(timestamp.Ticks - timestamp.Ticks % TimeSpan.TicksPerMillisecond, DateTimeKind.Utc);
         return new()
         {
-            Dataset = dataset, Scope = scope, ValueDate = date,
-            ImportCommandId = Guid.NewGuid(), SourceTerminalEventId = Guid.NewGuid(),
-            RequestedAtUtc = finished.AddMilliseconds(-2), StartedAtUtc = finished.AddMilliseconds(-1), FinishedAtUtc = finished,
-            Status = MarketDataDownloadStatus.Completed, DownloadedRecordCount = 0, PersistedRecordCount = 0, ElapsedMilliseconds = 1
+            Dataset = dataset,
+            Scope = scope,
+            ValueDate = date,
+            ImportCommandId = Guid.NewGuid(),
+            SourceTerminalEventId = Guid.NewGuid(),
+            RequestedAtUtc = finished.AddMilliseconds(-2),
+            StartedAtUtc = finished.AddMilliseconds(-1),
+            FinishedAtUtc = finished,
+            Status = MarketDataDownloadStatus.Completed,
+            DownloadedRecordCount = 0,
+            PersistedRecordCount = 0,
+            ElapsedMilliseconds = 1
         };
+    }
+
+    static DateTime UtcNowMilliseconds()
+    {
+        var now = DateTime.UtcNow;
+        return new DateTime(now.Ticks - now.Ticks % TimeSpan.TicksPerMillisecond, DateTimeKind.Utc);
     }
 
     public async Task DisposeAsync()
@@ -110,12 +142,5 @@ public sealed class MarketConditionDownloadLogIntegrationTests : IAsyncLifetime
         if (host is not null) await host.DisposeAsync();
         if (root is not null) await root.DisposeAsync();
         fixture?.Dispose();
-        if (session is not null)
-        {
-            // This identifier is generated exclusively by this fixture, never supplied externally.
-            await session.ExecuteAsync(new SimpleStatement($"DROP KEYSPACE IF EXISTS {keyspace};"));
-            session.Dispose();
-        }
-        cluster?.Dispose();
     }
 }

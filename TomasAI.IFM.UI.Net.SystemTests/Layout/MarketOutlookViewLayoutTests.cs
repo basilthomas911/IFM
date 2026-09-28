@@ -61,7 +61,8 @@ public sealed class MarketOutlookViewLayoutTests
             {
                 completion.SetException(exception);
             }
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
 
@@ -170,7 +171,8 @@ public sealed class MarketOutlookViewLayoutTests
             {
                 completion.SetException(exception);
             }
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
 

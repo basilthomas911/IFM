@@ -11,9 +11,9 @@ namespace TomasAI.IFM.Domain.MarketData.Shared;
 /// typically parsed from a string format. The identifier includes the contract symbol, maturity date, option type (put
 /// or call), and strike price. Instances of this class can be used to validate, format, and retrieve these components
 /// in a strongly-typed manner.</remarks>
-public class FuturesOptionContractId: IActorEntityId
+public class FuturesOptionContractId : IActorEntityId
 {
-     readonly string _contractId;
+    readonly string _contractId;
 
     public FuturesOptionContractId()
     {

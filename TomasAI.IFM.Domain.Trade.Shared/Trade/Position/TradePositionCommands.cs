@@ -58,7 +58,8 @@ public sealed record ChangeTradeLegDataCommand : ICommand<StrategyPositionId>
     [Key(10)] public TradeStrategyKind TradeType { get; init; }
 
     [IgnoreMember] public string CommandName => nameof(ChangeTradeLegDataCommand);
-    [IgnoreMember] public BoundedContextName RouteTo => TradeType switch
+    [IgnoreMember]
+    public BoundedContextName RouteTo => TradeType switch
     {
         TradeStrategyKind.FuturesOutright => BoundedContextName.FuturesTradePositionBoundedContext,
         TradeStrategyKind.IronCondor => BoundedContextName.FuturesIronCondorTradePositionBoundedContext,

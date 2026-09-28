@@ -10,10 +10,10 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 
-public enum SelectionOutcome : byte { Unknown=0, Selected=1, NoTrade=2 }
-public enum SelectionRuleStatus : byte { NotApplicable=0, Passed=1, Rejected=2 }
-public enum SelectionCandidateStatus : byte { NotEvaluated=0, Ineligible=1, EligibleNotSelected=2, Selected=3 }
-public enum CompositionHandoffStatus : byte { None=0, ReservationPending=1, Reserved=2, Stopped=3 }
+public enum SelectionOutcome : byte { Unknown = 0, Selected = 1, NoTrade = 2 }
+public enum SelectionRuleStatus : byte { NotApplicable = 0, Passed = 1, Rejected = 2 }
+public enum SelectionCandidateStatus : byte { NotEvaluated = 0, Ineligible = 1, EligibleNotSelected = 2, Selected = 3 }
+public enum CompositionHandoffStatus : byte { None = 0, ReservationPending = 1, Reserved = 2, Stopped = 3 }
 
 [MessagePackObject]
 public sealed record SelectionProduct
@@ -337,7 +337,8 @@ public sealed record TradeSelectionResult
     /// <summary>Copies owned collections; nested records expose only init setters and defensive collection accessors.</summary>
     public TradeSelectionResult CopyContent() => this with
     {
-        GlobalEvidence = GlobalEvidence, CandidateDecisions = CandidateDecisions,
+        GlobalEvidence = GlobalEvidence,
+        CandidateDecisions = CandidateDecisions,
         DecisionContext = DecisionContext with { SelectionBinding = DecisionContext.SelectionBinding with { } },
         SelectedCandidate = SelectedCandidate is null ? null : SelectedCandidate with { }
     };
@@ -357,12 +358,12 @@ public sealed record WorkflowCompositionHandoffState
     [Key(2)] public long AcceptedSelectionRevision { get; init; }
     ReserveFundOrderCompositionRequest _request;
     [Newtonsoft.Json.JsonProperty(ObjectCreationHandling = Newtonsoft.Json.ObjectCreationHandling.Replace)]
-    [Key(3)] public ReserveFundOrderCompositionRequest Request { get => Copy(_request); init => _request=Copy(value); }
+    [Key(3)] public ReserveFundOrderCompositionRequest Request { get => Copy(_request); init => _request = Copy(value); }
     FundCompositionReservationResult? _reservation;
     [Newtonsoft.Json.JsonProperty(ObjectCreationHandling = Newtonsoft.Json.ObjectCreationHandling.Replace)]
-    [Key(4)] public FundCompositionReservationResult? Reservation { get => Copy(_reservation); init => _reservation=Copy(value); }
+    [Key(4)] public FundCompositionReservationResult? Reservation { get => Copy(_reservation); init => _reservation = Copy(value); }
     static ReserveFundOrderCompositionRequest Copy(ReserveFundOrderCompositionRequest value) => value?.DefensiveCopy()!;
-    static FundCompositionReservationResult? Copy(FundCompositionReservationResult? value) => value is null ? null : value with {Trades=[..value.Trades]};
+    static FundCompositionReservationResult? Copy(FundCompositionReservationResult? value) => value is null ? null : value with { Trades = [.. value.Trades] };
     [Key(5)] public string ReservationRequestSha256 { get; init; } = string.Empty;
     [Key(6)] public DateTime UpdatedAtUtc { get; init; }
 }

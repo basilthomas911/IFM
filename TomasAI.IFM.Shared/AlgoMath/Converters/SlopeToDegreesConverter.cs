@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Shared.AlgoMath.Converters
             var radians = Math.Atan(slope);
 
             // convert radians to degrees...
-            var degrees =  radians * (180.0 / Math.PI);
+            var degrees = radians * (180.0 / Math.PI);
             return degrees;
         }
     }

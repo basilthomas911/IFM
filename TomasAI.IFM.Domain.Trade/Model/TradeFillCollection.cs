@@ -7,7 +7,7 @@ public class TradeFillCollection() : ITradeFillCollection
     readonly List<ITradeFill> _tradeFills = [];
 
     public int Count => _tradeFills.Count;
-    
+
     public void Add(ITradeFill item) => _tradeFills.Add(item);
 
     public void Add(ICollection<ITradeFill> items) => _tradeFills.AddRange(items);

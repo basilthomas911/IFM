@@ -22,17 +22,17 @@ public record FuturesAtrSignalId : IActorEntityId
     /// <summary>Value date associated with the ATR signal.</summary>
     [Key(1)]
     public DateOnly ValueDate { get; init; }
-    
+
     /// <summary>
     /// Gets the time period for which the futures contract is valid.
     /// </summary>
     /// <remarks>The time period determines the duration over which the contract's terms apply. Understanding
     /// the time period is essential for analyzing contract performance and assessing market conditions.</remarks>
     [Key(2)]
-    public TimeFrameType TimePeriod { get; init; } 
+    public TimeFrameType TimePeriod { get; init; }
 
     [Key(3)]
-    public int PeriodLength { get; init; } 
+    public int PeriodLength { get; init; }
 
     /// <summary>Timestamp (intraday time component) linked to the signal generation.</summary>
     [Key(4)]
@@ -51,12 +51,12 @@ public record FuturesAtrSignalId : IActorEntityId
     /// <param name="timePeriod">Time period of the signal.</param>
     /// <param name="periodLength">ATR signal source type.</param>   
     /// <param name="timestamp">Intraday timestamp component.</param>
-    public FuturesAtrSignalId(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength,  TimeOnly timestamp)
+    public FuturesAtrSignalId(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength, TimeOnly timestamp)
     {
         ContractId = contractId;
         ValueDate = valueDate;
         TimePeriod = timePeriod;
-        PeriodLength = periodLength;  
+        PeriodLength = periodLength;
         Timestamp = timestamp;
     }
 
@@ -76,7 +76,7 @@ public record FuturesAtrSignalId : IActorEntityId
     /// </summary>
     public override string ToString() => JsonConvert.SerializeObject(this, Formatting.None);
 
-    public FuturesAtrSignalEntityId ToEntityId() 
+    public FuturesAtrSignalEntityId ToEntityId()
         => new(ContractId, ValueDate, TimePeriod, PeriodLength);
 
     public FuturesAtrDailySignalEntityId ToDailyEntityId()

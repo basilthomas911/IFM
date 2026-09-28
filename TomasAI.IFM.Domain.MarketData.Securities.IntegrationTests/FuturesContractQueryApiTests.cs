@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -15,8 +15,8 @@ using TomasAI.IFM.Domain.MarketData.Shared.Events;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.IntegrationTests;
 
-public class FuturesContractQueryApiTests(WebApplicationFactory<Program> factory, SecuritiesDatabaseFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<SecuritiesDatabaseFixture>
+public class FuturesContractQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory, SecuritiesDatabaseFixture dbFixture)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<SecuritiesDatabaseFixture>
 {
     readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
@@ -25,7 +25,7 @@ public class FuturesContractQueryApiTests(WebApplicationFactory<Program> factory
     public async Task GetOnTheRunFuturesContract_Ok()
     {
         // arrange...
-        var futuresContract = SampleData.NewFuturesContract with { OnTheRun = true};
+        var futuresContract = SampleData.NewFuturesContract with { OnTheRun = true };
         await dbFixture.Db.DeleteOnTheRunFuturesContractAsync(futuresContract.Symbol);
         await dbFixture.Db.InsertFuturesContractAsync(futuresContract);
 

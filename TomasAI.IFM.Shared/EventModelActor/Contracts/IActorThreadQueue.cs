@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 /// <remarks>This interface is designed to facilitate message handling in actor-based systems. It allows for
 /// setting an identifier, reading messages asynchronously,  writing messages to the queue, and controlling the queue's
 /// operational state.</remarks>
-public interface IActorThreadQueue 
+public interface IActorThreadQueue
 {
     IActorThreadQueue SetId(ActorThreadId id);
     ActorThreadId Id { get; }
@@ -22,7 +22,7 @@ public interface IActorThreadQueue
     void Stop();
 }
 
-public interface IActorThreadQueue<TQueue> : IActorThreadQueue 
+public interface IActorThreadQueue<TQueue> : IActorThreadQueue
     where TQueue : IActorThreadQueue
-{ 
+{
 }

@@ -28,12 +28,12 @@ namespace TomasAI.IFM.Application.EventProjector;
 /// The base implementation owns both delivery lanes. Descriptors use the durable process/replay queue by default;
 /// descriptors that explicitly opt out run once through a bounded process-local queue.
 /// </remarks>
-public abstract class BaseEventProjector<TActor> (
+public abstract class BaseEventProjector<TActor>(
     IDurableReplayQueue durableReplayQueue,
     IEventSourceActorDbContext dbEventSource,
     IBlackboardService blackboardService,
     ILogger logger,
-    EventProjectorReliabilityOptions? reliabilityOptions = null): IEventProjector<TActor>, IEventProjectorReadiness, ISupervisorProjectorMetricsSource
+    EventProjectorReliabilityOptions? reliabilityOptions = null) : IEventProjector<TActor>, IEventProjectorReadiness, ISupervisorProjectorMetricsSource
     where TActor : ICommandActor<TActor>
 {
     readonly EventProjectorReliabilityOptions _reliabilityOptions =
@@ -141,7 +141,7 @@ public abstract class BaseEventProjector<TActor> (
     /// <summary>
     /// Gets the logger used for operational and diagnostic messages.
     /// </summary>
-    public ILogger Logger { get; init; }  = IsArgumentNull.Set(logger);
+    public ILogger Logger { get; init; } = IsArgumentNull.Set(logger);
 
     /// <summary>
     /// Starts the durable and/or non-durable workers required by the projector's descriptors.

@@ -38,7 +38,8 @@ public sealed record GetCapacityReservationQuery : IFinancialQueryMessage<GetCap
     [Key(4)] public Guid CorrelationId { get; init; }
     [Key(5)] public DateTime RequestedAtUtc { get; init; }
 
-    [IgnoreMember] public GetCapacityReservationRequest Parameters
+    [IgnoreMember]
+    public GetCapacityReservationRequest Parameters
     {
         get => new(ReservationId);
         init

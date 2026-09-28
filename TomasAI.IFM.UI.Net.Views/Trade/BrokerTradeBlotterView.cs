@@ -134,8 +134,11 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
 
         var header = new TableLayoutPanel
         {
-            Name = "tradeBlotterHeader", Dock = DockStyle.Fill, ColumnCount = 7,
-            BackColor = Color.FromArgb(32, 32, 32), Padding = new Padding(6, 5, 6, 3)
+            Name = "tradeBlotterHeader",
+            Dock = DockStyle.Fill,
+            ColumnCount = 7,
+            BackColor = Color.FromArgb(32, 32, 32),
+            Padding = new Padding(6, 5, 6, 3)
         };
         var directionWidth = Enum.GetNames<TradeBlotterDirection>()
             .Select(value => TextRenderer.MeasureText(value, Font).Width).Max() + 24;
@@ -150,9 +153,14 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         _strategySelector.Visible = false;
         _strategyValue = new Label
         {
-            Name = "tradeStrategyValue", Text = strategy, Dock = DockStyle.Fill,
-            ForeColor = Color.White, BackColor = Color.Black, BorderStyle = BorderStyle.FixedSingle,
-            TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(6, 0, 4, 0)
+            Name = "tradeStrategyValue",
+            Text = strategy,
+            Dock = DockStyle.Fill,
+            ForeColor = Color.White,
+            BackColor = Color.Black,
+            BorderStyle = BorderStyle.FixedSingle,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(6, 0, 4, 0)
         };
         _directionValue = ReadOnlyValue("directionValue", direction);
         _brokerModeValue = ReadOnlyValue("brokerModeValue", capabilities.Environment.ToString());
@@ -168,7 +176,9 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
 
         var tabs = new TomasAI.IFM.UI.Net.Views.App.DarkTabControl
         {
-            Name = "tradeBlotterTabs", Dock = DockStyle.Fill, Appearance = TabAppearance.Normal
+            Name = "tradeBlotterTabs",
+            Dock = DockStyle.Fill,
+            Appearance = TabAppearance.Normal
         };
         var market = new TabPage("Market Selection") { Name = "marketSelectionTab", BackColor = Color.Black, ForeColor = Color.White };
         _stagingTab = new TabPage("Leg Staging") { Name = "legStagingTab", BackColor = Color.Black, ForeColor = Color.White };
@@ -177,7 +187,9 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         {
             var brokerPreview = new TabPage("Broker Order/Fills")
             {
-                Name = "brokerOrderFillsTab", BackColor = Color.Black, ForeColor = Color.White
+                Name = "brokerOrderFillsTab",
+                BackColor = Color.Black,
+                ForeColor = Color.White
             };
             brokerPreview.Controls.Add(new BrokerOrderFillsPreviewControl(portfolioId, fund, order, trade));
             tabs.TabPages.AddRange([market, brokerPreview]);
@@ -269,9 +281,13 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         };
         var blotterLayout = new TableLayoutPanel
         {
-            Name = "threeTabTradeBlotterLayout", Dock = DockStyle.Fill,
-            ColumnCount = 1, RowCount = 4, BackColor = Color.Black,
-            Margin = new Padding(0), Padding = new Padding(4, 4, 4, 1)
+            Name = "threeTabTradeBlotterLayout",
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 4,
+            BackColor = Color.Black,
+            Margin = new Padding(0),
+            Padding = new Padding(4, 4, 4, 1)
         };
         blotterLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         blotterLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
@@ -344,8 +360,12 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     {
         var layout = new TableLayoutPanel
         {
-            Name = "marketSelectionLayout", Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5,
-            BackColor = Color.Black, Padding = new Padding(0)
+            Name = "marketSelectionLayout",
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 5,
+            BackColor = Color.Black,
+            Padding = new Padding(0)
         };
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
@@ -355,8 +375,11 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
 
         var information = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
-            BackColor = Color.FromArgb(20, 20, 20), Padding = new Padding(5, 3, 5, 2)
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            BackColor = Color.FromArgb(20, 20, 20),
+            Padding = new Padding(5, 3, 5, 2)
         };
         information.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         information.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
@@ -395,16 +418,22 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
 
     private static FlowLayoutPanel MarketInformationRow() => new()
     {
-        Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false,
-        BackColor = Color.FromArgb(20, 20, 20), Margin = new Padding(0)
+        Dock = DockStyle.Fill,
+        FlowDirection = FlowDirection.LeftToRight,
+        WrapContents = false,
+        BackColor = Color.FromArgb(20, 20, 20),
+        Margin = new Padding(0)
     };
 
     private static void AddMarketMetric(FlowLayoutPanel row, string caption, Control value, int width)
     {
         row.Controls.Add(new Label
         {
-            Text = caption, AutoSize = true, ForeColor = Color.Silver,
-            TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(7, 5, 3, 0)
+            Text = caption,
+            AutoSize = true,
+            ForeColor = Color.Silver,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(7, 5, 3, 0)
         });
         value.Width = width;
         value.Height = 25;
@@ -416,8 +445,11 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     {
         var header = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 13, RowCount = 1,
-            BackColor = Color.FromArgb(38, 38, 38), Margin = new Padding(0)
+            Dock = DockStyle.Fill,
+            ColumnCount = 13,
+            RowCount = 1,
+            BackColor = Color.FromArgb(38, 38, 38),
+            Margin = new Padding(0)
         };
         for (var index = 0; index < 13; index++)
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / 13f));
@@ -438,9 +470,13 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
 
     private static Label MarketValueLabel(string text) => new()
     {
-        Text = text, ForeColor = Color.White, BackColor = Color.Black,
-        BorderStyle = BorderStyle.FixedSingle, TextAlign = ContentAlignment.MiddleLeft,
-        AutoEllipsis = true, Margin = new Padding(0)
+        Text = text,
+        ForeColor = Color.White,
+        BackColor = Color.Black,
+        BorderStyle = BorderStyle.FixedSingle,
+        TextAlign = ContentAlignment.MiddleLeft,
+        AutoEllipsis = true,
+        Margin = new Padding(0)
     };
 
     private void SeedOptionChainPreview()
@@ -808,9 +844,11 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
 
     private GetEvaluatedOptionChainQuery CreateChainQuery(DateOnly expiry) => new()
     {
-        UnderlyingContractId = _underlyingContractId, UnderlyingSymbol = _underlyingSymbol,
+        UnderlyingContractId = _underlyingContractId,
+        UnderlyingSymbol = _underlyingSymbol,
         ProviderRoots = ProviderRootsFor(expiry),
-        ExpiryDate = expiry, StandardDeviationAmount = _standardDeviationAmount,
+        ExpiryDate = expiry,
+        StandardDeviationAmount = _standardDeviationAmount,
         StandardDeviationMultiplier = 2.5,
         RequiredContractIds = _selectedMarketContractIds
     };
@@ -870,17 +908,17 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         {
             var strike = strikes[index];
             var pair = byStrike[strike];
-            nextRows.Add(new(strike,null,null,
-                CallDelta:FormatDelta(pair.Call?.Delta),
-                CallOi:FormatCount(pair.Call?.OpenInterest),
-                CallVolume:FormatCount(pair.Call?.Volume),
-                PutDelta:FormatDelta(pair.Put?.Delta),
-                PutOi:FormatCount(pair.Put?.OpenInterest),
-                PutVolume:FormatCount(pair.Put?.Volume),
-                CallContractId:pair.Call?.ContractId,
-                PutContractId:pair.Put?.ContractId,
-                CallEvaluated:pair.Call,
-                PutEvaluated:pair.Put));
+            nextRows.Add(new(strike, null, null,
+                CallDelta: FormatDelta(pair.Call?.Delta),
+                CallOi: FormatCount(pair.Call?.OpenInterest),
+                CallVolume: FormatCount(pair.Call?.Volume),
+                PutDelta: FormatDelta(pair.Put?.Delta),
+                PutOi: FormatCount(pair.Put?.OpenInterest),
+                PutVolume: FormatCount(pair.Put?.Volume),
+                CallContractId: pair.Call?.ContractId,
+                PutContractId: pair.Put?.ContractId,
+                CallEvaluated: pair.Call,
+                PutEvaluated: pair.Put));
         }
         var shapeChanged = _optionChainRows.Count != nextRows.Count;
         for (var index = 0; !shapeChanged && index < nextRows.Count; index++)
@@ -1257,16 +1295,28 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             if (_selectedMarketContracts.Contains(ContractKey(row, true) ?? ""))
                 _selectedLegRows.Add(row with
                 {
-                    Put = null, PutEvaluated = null, PutContractId = null,
-                    PutSelected = "", PutDelta = "", PutOi = "", PutVolume = "",
-                    PutBid = "", PutAsk = ""
+                    Put = null,
+                    PutEvaluated = null,
+                    PutContractId = null,
+                    PutSelected = "",
+                    PutDelta = "",
+                    PutOi = "",
+                    PutVolume = "",
+                    PutBid = "",
+                    PutAsk = ""
                 });
             if (_selectedMarketContracts.Contains(ContractKey(row, false) ?? ""))
                 _selectedLegRows.Add(row with
                 {
-                    Call = null, CallEvaluated = null, CallContractId = null,
-                    CallSelected = "", CallDelta = "", CallOi = "", CallVolume = "",
-                    CallBid = "", CallAsk = ""
+                    Call = null,
+                    CallEvaluated = null,
+                    CallContractId = null,
+                    CallSelected = "",
+                    CallDelta = "",
+                    CallOi = "",
+                    CallVolume = "",
+                    CallBid = "",
+                    CallAsk = ""
                 });
         }
         _selectedLegGrid.RowCount = _selectedLegRows.Count;
@@ -1293,18 +1343,30 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
 
     private static DataGridView Grid(string name) => new()
     {
-        Name = name, Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false,
-        AllowUserToDeleteRows = false, AllowUserToOrderColumns = false, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-        BackgroundColor = Color.Black, ForeColor = Color.White, GridColor = Color.FromArgb(70, 70, 70),
-        RowHeadersVisible = false, SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-        EnableHeadersVisualStyles = false, ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing
+        Name = name,
+        Dock = DockStyle.Fill,
+        ReadOnly = true,
+        AllowUserToAddRows = false,
+        AllowUserToDeleteRows = false,
+        AllowUserToOrderColumns = false,
+        AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+        BackgroundColor = Color.Black,
+        ForeColor = Color.White,
+        GridColor = Color.FromArgb(70, 70, 70),
+        RowHeadersVisible = false,
+        SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+        EnableHeadersVisualStyles = false,
+        ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing
     };
 
     private static Label HeaderLabel(string text) => new() { AutoSize = true, ForeColor = Color.White, Text = text, Padding = new Padding(4, 4, 4, 0) };
     private static Label ReadOnlyValue(string name, string text) => new()
     {
-        Name = name, Text = text, Dock = DockStyle.Fill,
-        ForeColor = Color.White, BackColor = Color.Black,
+        Name = name,
+        Text = text,
+        Dock = DockStyle.Fill,
+        ForeColor = Color.White,
+        BackColor = Color.Black,
         BorderStyle = BorderStyle.FixedSingle,
         TextAlign = ContentAlignment.MiddleLeft,
         Padding = new Padding(6, 0, 4, 0)

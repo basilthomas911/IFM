@@ -4,5 +4,6 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Order.Execution;
+
 [MessagePackObject]
 public sealed record RejectOrderExecutionCommand : OrderExecutionCommand { public const string Verb = "RejectOrderExecution"; }

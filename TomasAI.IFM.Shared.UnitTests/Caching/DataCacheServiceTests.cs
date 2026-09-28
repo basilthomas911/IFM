@@ -20,7 +20,7 @@ namespace TomasAI.IFM.Shared.UnitTests.Caching
         {
             // given...
             var dcs = new DataCacheService();
-            var testItem = new TestItem { Name = "basilt", Address = "1850 kirkwall Crescent"};
+            var testItem = new TestItem { Name = "basilt", Address = "1850 kirkwall Crescent" };
 
             // when..
             dcs.Add<string, TestItem>(DataCacheName.boundedContextState, "TestKey", testItem);
@@ -41,7 +41,7 @@ namespace TomasAI.IFM.Shared.UnitTests.Caching
             var testItem = new TestItem { Name = "basilt", Address = "1850 kirkwall Crescent" };
 
             // when..
-            Action thenAction = () =>  dcs.Add<string, TestItem>(DataCacheName.Undefined, "TestKey", testItem);
+            Action thenAction = () => dcs.Add<string, TestItem>(DataCacheName.Undefined, "TestKey", testItem);
 
             // then...
             thenAction.Should().Throw<ArgumentNullException>();

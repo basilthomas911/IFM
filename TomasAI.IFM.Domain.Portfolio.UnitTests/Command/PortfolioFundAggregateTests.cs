@@ -52,11 +52,22 @@ public sealed class PortfolioFundAggregateTests
 
     internal static FundMandateReadModel Draft() => new()
     {
-        PortfolioId = 101, FundId = 205, FundCode = "DAILY", Name = "Daily Directional",
-        FundMandateVersion = 1, TradingYear = 2026, OperatingState = FundOperatingState.Draft,
-        EffectiveFromUtc = Now, DecisionHorizon = "Daily", Objective = "Directional ES",
-        UnderlyingUniverse = ["ES"], EligibleAssetTypes = ["Futures"],
-        PermittedDirections = ["Bullish", "Bearish"], PermittedConditions = ["Trending"],
-        PermittedTradeFamilies = ["DirectionalFuture"], CreatedOnUtc = Now, CreatedBy = "fund-admin",
+        PortfolioId = 101,
+        FundId = 205,
+        FundCode = "DAILY",
+        Name = "Daily Directional",
+        FundMandateVersion = 1,
+        TradingYear = 2026,
+        OperatingState = FundOperatingState.Draft,
+        EffectiveFromUtc = Now,
+        DecisionHorizon = "Daily",
+        Objective = "Directional ES",
+        UnderlyingUniverse = ["ES"],
+        EligibleAssetTypes = ["Futures"],
+        PermittedDirections = ["Bullish", "Bearish"],
+        PermittedConditions = ["Trending"],
+        PermittedTradeFamilies = ["DirectionalFuture"],
+        CreatedOnUtc = Now,
+        CreatedBy = "fund-admin",
     };
 }

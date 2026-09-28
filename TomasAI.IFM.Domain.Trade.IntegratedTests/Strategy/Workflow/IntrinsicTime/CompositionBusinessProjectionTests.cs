@@ -38,11 +38,20 @@ public sealed partial class CompositionBusinessProjectionTests
         await using var fixture = await Fixture.Create();
         var workflow = new WorkflowStrategyStateUpdatedEvent
         {
-            Id = Guid.NewGuid(), WorkflowId = new(Guid.NewGuid()), WorkflowRevision = 1,
+            Id = Guid.NewGuid(),
+            WorkflowId = new(Guid.NewGuid()),
+            WorkflowRevision = 1,
             State = new() { Status = WorkflowStrategyMachineStatus.Started }
         };
-        workflow = workflow with { State = workflow.State with { WorkflowId = workflow.WorkflowId,
-            WorkflowRevision = workflow.WorkflowRevision, EntityId = workflow.EntityId } };
+        workflow = workflow with
+        {
+            State = workflow.State with
+            {
+                WorkflowId = workflow.WorkflowId,
+                WorkflowRevision = workflow.WorkflowRevision,
+                EntityId = workflow.EntityId
+            }
+        };
         await fixture.Append(workflow, 1);
         Assert.Equal(1, await fixture.Projector().ProjectPendingAsync(default));
         Assert.Empty((await fixture.Store.ReadAsync(fixture.Scope, "GLBX.MDP3")).Authorities);
@@ -54,8 +63,13 @@ public sealed partial class CompositionBusinessProjectionTests
     public async Task Composer_NoTrade_without_selected_legs_projects_terminal_authority_for_discovery_release()
     {
         await using var fixture = await Fixture.Create();
-        var workflow = new WorkflowStrategyStateUpdatedEvent { Id = Guid.NewGuid(), WorkflowId = new(Guid.NewGuid()), WorkflowRevision = 6,
-            State = new() { Status = WorkflowStrategyMachineStatus.Completed, Outcome = StrategyWorkflowOutcome.NoTrade } };
+        var workflow = new WorkflowStrategyStateUpdatedEvent
+        {
+            Id = Guid.NewGuid(),
+            WorkflowId = new(Guid.NewGuid()),
+            WorkflowRevision = 6,
+            State = new() { Status = WorkflowStrategyMachineStatus.Completed, Outcome = StrategyWorkflowOutcome.NoTrade }
+        };
         workflow = workflow with { State = workflow.State with { WorkflowId = workflow.WorkflowId, WorkflowRevision = 6, EntityId = workflow.EntityId } };
         await fixture.Append(workflow, 6);
         Assert.Equal(1, await fixture.Projector().ProjectPendingAsync(default));
@@ -65,19 +79,31 @@ public sealed partial class CompositionBusinessProjectionTests
     }
 
     [Theory]
-    [InlineData(2)] [InlineData(4)]
+    [InlineData(2)]
+    [InlineData(4)]
     public async Task Committed_order_position_and_terminal_events_project_all_legs_and_replay_after_restart(int count)
     {
         await using var fixture = await Fixture.Create();
         var plan = Plan(count, fixture.Scope);
         await fixture.SavePlan(plan);
         var selected = new CompositionContractSelection(plan.PlanId, plan.Options.Select(x => x.ContractId).ToImmutableArray());
-        var trade = new OptionTradeReadModel { OrderId = 9876, TradeId = 1, TradeState = TradeState.OrderPlaced,
-            CompositionContracts = selected, UnderlyingContractId = "ES-future" }
+        var trade = new OptionTradeReadModel
+        {
+            OrderId = 9876,
+            TradeId = 1,
+            TradeState = TradeState.OrderPlaced,
+            CompositionContracts = selected,
+            UnderlyingContractId = "ES-future"
+        }
             .AddOptionLegs(selected.ContractIds.Select(x => new OptionTradeLegReadModel { ContractId = x, Quantity = 1 }).ToArray());
         var entity = trade.EntityId;
-        var placed = new OptionTradeOrderPlacedEvent { Id = Guid.NewGuid(), EntityId = entity, OptionTrade = trade,
-            Subject = new(ActorType.Event, OptionTradeOrderPlacedEvent.Actor, OptionTradeOrderPlacedEvent.Verb, entity.Format()) };
+        var placed = new OptionTradeOrderPlacedEvent
+        {
+            Id = Guid.NewGuid(),
+            EntityId = entity,
+            OptionTrade = trade,
+            Subject = new(ActorType.Event, OptionTradeOrderPlacedEvent.Actor, OptionTradeOrderPlacedEvent.Verb, entity.Format())
+        };
         var placedId = await fixture.Append(placed, 10);
         var uncertain = new FailReceiptOnce(fixture.Journal);
         var failedProjector = new CommittedCompositionSubscriptionProjector(uncertain,
@@ -94,24 +120,38 @@ public sealed partial class CompositionBusinessProjectionTests
         var row = (await fixture.Events.GetEventLogByEventIdAsync(placedId))!;
         var fact = (await fixture.Source().ReadAsync(CommittedCompositionSubscriptionSource.Reference(row, BusinessSubscriptionSourceKind.TradeOrder), default))!;
         Assert.Equal(DurableIntentResultCode.AlreadyApplied, (await fixture.Store.ApplyAsync(fact)).Code);
-        var opened = new OptionTradePositionOpenedEvent { Id = Guid.NewGuid(), EntityId = entity, OptionTradeId = entity,
+        var opened = new OptionTradePositionOpenedEvent
+        {
+            Id = Guid.NewGuid(),
+            EntityId = entity,
+            OptionTradeId = entity,
             TradePositionState = TradePositionState.Opened,
-            Subject = new(ActorType.Event, OptionTradePositionOpenedEvent.Actor, OptionTradePositionOpenedEvent.Verb, entity.Format()) };
+            Subject = new(ActorType.Event, OptionTradePositionOpenedEvent.Actor, OptionTradePositionOpenedEvent.Verb, entity.Format())
+        };
         await fixture.Append(opened, 18);
         // New projector and adapter instances reconstruct exact legs from the earlier committed snapshot.
         Assert.Equal(1, await fixture.Projector().ProjectPendingAsync(default));
         var position = await fixture.Store.ReadAsync(fixture.Scope, "GLBX.MDP3");
         Assert.Empty(position.Authorities.Single(x => x.Owner.WorkflowType == "TradeOrder").Leases);
         Assert.Equal(count, position.Authorities.Single(x => x.Owner.WorkflowType == "TradePosition").Leases.Count);
-        var deleted = new OptionTradeDeletedEvent { Id = Guid.NewGuid(), EntityId = entity,
-            Subject = new(ActorType.Event, OptionTradeDeletedEvent.Actor, OptionTradeDeletedEvent.Verb, entity.Format()) };
+        var deleted = new OptionTradeDeletedEvent
+        {
+            Id = Guid.NewGuid(),
+            EntityId = entity,
+            Subject = new(ActorType.Event, OptionTradeDeletedEvent.Actor, OptionTradeDeletedEvent.Verb, entity.Format())
+        };
         await fixture.Append(deleted, 24);
         await fixture.Projector().ProjectPendingAsync(default);
         Assert.Equal(count, (await fixture.Store.ReadAsync(fixture.Scope, "GLBX.MDP3")).Authorities
             .Single(x => x.Owner.WorkflowType == "TradePosition").Leases.Count);
-        var closed = new OptionTradePositionClosedEvent { Id = Guid.NewGuid(), EntityId = entity, OptionTradeId = entity,
+        var closed = new OptionTradePositionClosedEvent
+        {
+            Id = Guid.NewGuid(),
+            EntityId = entity,
+            OptionTradeId = entity,
             TradePositionState = TradePositionState.Closed,
-            Subject = new(ActorType.Event, OptionTradePositionClosedEvent.Actor, OptionTradePositionClosedEvent.Verb, entity.Format()) };
+            Subject = new(ActorType.Event, OptionTradePositionClosedEvent.Actor, OptionTradePositionClosedEvent.Verb, entity.Format())
+        };
         await fixture.Append(closed, 31);
         await fixture.Projector().ProjectPendingAsync(default);
         Assert.All((await fixture.Store.ReadAsync(fixture.Scope, "GLBX.MDP3")).Authorities, x => Assert.Empty(x.Leases));
@@ -125,12 +165,24 @@ public sealed partial class CompositionBusinessProjectionTests
         await fixture.SavePlan(plan);
         var workflow = new WorkflowStrategyStateUpdatedEvent
         {
-            Id = Guid.NewGuid(), WorkflowId = new(Guid.NewGuid()), WorkflowRevision = 7,
-            State = new() { Status = WorkflowStrategyMachineStatus.Started,
-                CompositionContracts = new(plan.PlanId, plan.Options.Select(x => x.ContractId).ToImmutableArray()) }
+            Id = Guid.NewGuid(),
+            WorkflowId = new(Guid.NewGuid()),
+            WorkflowRevision = 7,
+            State = new()
+            {
+                Status = WorkflowStrategyMachineStatus.Started,
+                CompositionContracts = new(plan.PlanId, plan.Options.Select(x => x.ContractId).ToImmutableArray())
+            }
         };
-        workflow = workflow with { State = workflow.State with { WorkflowId = workflow.WorkflowId,
-            WorkflowRevision = workflow.WorkflowRevision, EntityId = workflow.EntityId } };
+        workflow = workflow with
+        {
+            State = workflow.State with
+            {
+                WorkflowId = workflow.WorkflowId,
+                WorkflowRevision = workflow.WorkflowRevision,
+                EntityId = workflow.EntityId
+            }
+        };
         var id = await fixture.Append(workflow, 7);
         await fixture.Projector().ProjectPendingAsync(default);
         Assert.Single(await fixture.Journal.ReadPendingHandoffsAsync(default));
@@ -150,8 +202,16 @@ public sealed partial class CompositionBusinessProjectionTests
     static CompositionRoutePlan Plan(int count, string id)
     {
         var options = Enumerable.Range(1, count).Select(i => new OptionDefinitionCandidate(id + "-leg-" + i, "fixture/v1", new('a', 64), new()
-        { Dataset = "GLBX.MDP3", Ticker = "ES", Underlying = "ES-future", Instrument = new(1, (uint)i), RawSymbol = id + i,
-            Right = TomasAI.IFM.Framework.MarketData.DataBento.OptionRightSelection.Call, StrikePrice = 5000 + i, MaturityDate = new(2026, 10, 2) })).ToImmutableArray();
+        {
+            Dataset = "GLBX.MDP3",
+            Ticker = "ES",
+            Underlying = "ES-future",
+            Instrument = new(1, (uint)i),
+            RawSymbol = id + i,
+            Right = TomasAI.IFM.Framework.MarketData.DataBento.OptionRightSelection.Call,
+            StrikePrice = 5000 + i,
+            MaturityDate = new(2026, 10, 2)
+        })).ToImmutableArray();
         return new CompositionRoutePlan(1, "", "GLBX.MDP3", new(2026, 10, 2), options, [],
             [new() { Dataset = "GLBX.MDP3", DomainContractId = "ES-future", ProviderContractName = "ESZ6", RootSymbol = "ES", AssetTypeId = AssetTypeId.Futures }],
             new("fixture/v1", "UTC", new(2026, 9, 8), new(2026, 10, 2), new(18, 0), [new(2026, 9, 8), new(2026, 10, 2)]),
@@ -183,8 +243,8 @@ public sealed partial class CompositionBusinessProjectionTests
             var c = new NpgsqlConnectionStringBuilder(raw);
             var conventional = c.Host is "localhost" or "127.0.0.1" &&
                 c.Port == 5432 && c.Database == "event-source-test-db";
-            var isolated = c.Host == "127.0.0.1" && c.Port == 25432 &&
-                System.Text.RegularExpressions.Regex.IsMatch(c.Database ?? string.Empty, "^ifm_trade_integration_[0-9]{8}$");
+            var isolated = c.Host == "127.0.0.1" && c.Port > 0 &&
+                System.Text.RegularExpressions.Regex.IsMatch(c.Database ?? string.Empty, "^ifm_eventlog_bench_[a-f0-9]{12}_synthetic_host$");
             if (!conventional && !isolated)
                 throw new InvalidOperationException("Refusing a non-test database.");
             c.SearchPath = f.schema + ",public";
@@ -247,7 +307,7 @@ public sealed partial class CompositionBusinessProjectionTests
         public Task<EventLogReadModel?> ReadPriorAsync(long stream, long version, IReadOnlyList<string> names, CancellationToken ct) => inner.ReadPriorAsync(stream, version, names, ct);
         public Task AcknowledgeAsync(long id, CancellationToken ct)
         { if (!failed) { failed = true; throw new IOException("Injected crash after ownership commit before receipt."); } return inner.AcknowledgeAsync(id, ct); }
-        public Task RejectAsync(long id,string code,string detail,CancellationToken ct)=>inner.RejectAsync(id,code,detail,ct);
+        public Task RejectAsync(long id, string code, string detail, CancellationToken ct) => inner.RejectAsync(id, code, detail, ct);
         public Task<IReadOnlyList<EventLogReadModel>> ReadPendingHandoffsAsync(CancellationToken ct) => inner.ReadPendingHandoffsAsync(ct);
         public Task CompleteHandoffAsync(long id, CancellationToken ct) => inner.CompleteHandoffAsync(id, ct);
     }

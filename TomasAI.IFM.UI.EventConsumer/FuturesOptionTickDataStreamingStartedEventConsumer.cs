@@ -33,9 +33,9 @@ public class FuturesOptionTickDataStreamingStartedEventConsumer(INatsEventListen
             {
                 _ = eventVerb switch
                 {
-                    _ when eventVerb == FuturesOptionTickDataStreamingStartedCompleteEvent.Verb 
+                    _ when eventVerb == FuturesOptionTickDataStreamingStartedCompleteEvent.Verb
                         => HandleEvent(eventMsg.AsEvent<FuturesOptionTickDataStreamingStartedCompleteEvent>()!, e => completeAction?.Invoke(e as FuturesOptionTickDataStreamingStartedCompleteEvent)),
-                    _ when eventVerb == FuturesOptionTickDataStreamingStartedFailEvent.Verb 
+                    _ when eventVerb == FuturesOptionTickDataStreamingStartedFailEvent.Verb
                         => HandleEvent(eventMsg.AsEvent<FuturesOptionTickDataStreamingStartedFailEvent>()!, e => failAction?.Invoke(e as FuturesOptionTickDataStreamingStartedFailEvent)),
                     _ => default!
                 };

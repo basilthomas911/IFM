@@ -27,7 +27,7 @@ public class TradePositionService : ITradePositionService
     /// <param name="logger"></param>
     /// <exception cref="ArgumentNullException"></exception>
     public TradePositionService(
-        ITradeEventProducer tradeEventProducer, 
+        ITradeEventProducer tradeEventProducer,
         IOptionPricerCommandApi optionPricerCommandApi,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<TradePositionService> logger)
@@ -48,29 +48,36 @@ public class TradePositionService : ITradePositionService
     {
         try
         {
-            IEvent updatedEvent = e.TradePositionChangeSource switch {
-                TradePositionChangeSourceType.PutCreditSpreadLeg => new TradePositionUpdatedEvent {
+            IEvent updatedEvent = e.TradePositionChangeSource switch
+            {
+                TradePositionChangeSourceType.PutCreditSpreadLeg => new TradePositionUpdatedEvent
+                {
                     CommandId = e.CommandId,
                     TradePositionChangeSource = TradePositionChangeSourceType.PutCreditSpreadLeg,
                     PutTradePosition = e.PutTradePosition,
                     CallTradePosition = e.CallTradePosition,
                     OptionLegId = e.OptionLegId,
                     UpdatedOn = e.UpdatedOn,
-                    UpdatedBy = e.UpdatedBy },
-                TradePositionChangeSourceType.CallCreditSpreadLeg => new TradePositionUpdatedEvent {
+                    UpdatedBy = e.UpdatedBy
+                },
+                TradePositionChangeSourceType.CallCreditSpreadLeg => new TradePositionUpdatedEvent
+                {
                     CommandId = e.CommandId,
                     TradePositionChangeSource = TradePositionChangeSourceType.CallCreditSpreadLeg,
                     PutTradePosition = e.PutTradePosition,
                     CallTradePosition = e.CallTradePosition,
                     OptionLegId = e.OptionLegId,
                     UpdatedOn = e.UpdatedOn,
-                    UpdatedBy = e.UpdatedBy },
-                TradePositionChangeSourceType.SpreadDistributionStatistics => new OptionTradeSpreadDistributionStatisticsChangedEvent {
+                    UpdatedBy = e.UpdatedBy
+                },
+                TradePositionChangeSourceType.SpreadDistributionStatistics => new OptionTradeSpreadDistributionStatisticsChangedEvent
+                {
                     CommandId = e.CommandId,
                     OrderId = e.TradePositionId.OrderId,
                     TradeId = e.TradePositionId.TradeId,
                     ForwardLossRatio = e.PutTradePosition.LossProbability,
-                    ValueDate = e.TradePositionId.ValueDate },
+                    ValueDate = e.TradePositionId.ValueDate
+                },
                 _ => default
             };
             if (updatedEvent is not null)
@@ -105,7 +112,7 @@ public class TradePositionService : ITradePositionService
                 UpdatedBy = e.UpdatedBy
             });
         }
-        catch(Exception ex)
+        catch (Exception ex)
         {
             await _tradeEventProducer.PostEventAsync(e.ToFailEvent<OptionTradeLegDataChangedFailEvent, OptionTradeEntityId>(ex));
             await _statusConsoleWriter.WriteConsoleAsync(LogSourceType.TradePosition, ex.GetErrorMessage());
@@ -126,12 +133,12 @@ public class TradePositionService : ITradePositionService
                 e.PutSpreadDistribution.ToSpreadDistributionReadModel(),
                 e.CallSpreadDistribution.ToSpreadDistributionReadModel());
         }
-        catch(Exception ex)
+        catch (Exception ex)
         {
             await _tradeEventProducer.PostEventAsync(e.ToFailEvent<OptionTradeSpreadDistributionStatisticsUpdatedFailEvent, OptionTradeEntityId>(ex));
             await _statusConsoleWriter.WriteConsoleAsync(LogSourceType.TradePosition, $"{e.GetType().Name} failed due to {ex.GetErrorMessage()}");
             _logger.LogError($"{LogSourceType.TradePosition}: {e.GetType().Name} failed due to {ex.GetErrorMessage()}");
         }
     }
-    
+
 }

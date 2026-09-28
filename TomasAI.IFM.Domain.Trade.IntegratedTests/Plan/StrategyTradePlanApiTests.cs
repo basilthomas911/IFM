@@ -13,8 +13,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Plan;
 
 /// <summary>Exercises the current strategy-specific Trade Plan Function and Query routes.</summary>
-public sealed class StrategyTradePlanApiTests(WebApplicationFactory<Program> sourceFactory)
-    : IClassFixture<WebApplicationFactory<Program>>
+public sealed class StrategyTradePlanApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> sourceFactory)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>
 {
     [Fact]
     public async Task Futures_plan_update_replays_and_is_visible_through_current_and_history_queries()
@@ -22,7 +22,7 @@ public sealed class StrategyTradePlanApiTests(WebApplicationFactory<Program> sou
         await using var host = sourceFactory.WithWebHostBuilder(builder => builder
             .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade")
             .UseSetting("IFM_TEST_NATS_URL", Environment.GetEnvironmentVariable("IFM_TEST_NATS_URL")
-                ?? "nats://127.0.0.1:14222"));
+                ?? DomainActorIntegrationInfrastructureFixture.NatsUrl));
         _ = host.CreateClient();
         var producer = host.Services.GetRequiredService<IActorProducer>();
         await producer.StartAsync(new ActorMailboxId(ActorType.Function, $"CurrentTradePlan{Guid.NewGuid():N}"));
@@ -32,15 +32,21 @@ public sealed class StrategyTradePlanApiTests(WebApplicationFactory<Program> sou
             var positionId = new StrategyPositionId(new TradeEntityId(101, 102, 103, 104), Guid.NewGuid());
             var position = new StrategyPositionSnapshot
             {
-                Id = positionId, StrategyKind = TradeStrategyKind.FuturesOutright,
-                Phase = StrategyPositionPhase.MarkToMarket, PositionSequence = 1, RouteGeneration = 1,
+                Id = positionId,
+                StrategyKind = TradeStrategyKind.FuturesOutright,
+                Phase = StrategyPositionPhase.MarkToMarket,
+                PositionSequence = 1,
+                RouteGeneration = 1,
                 Legs = [new StrategyPositionLeg
                 {
                     TradeLegId = Guid.NewGuid(), ContractId = "ESZ6", AssetFamily = TradeAssetFamily.Futures,
                     SignedQuantity = 1, OpeningPrice = 5_000m, CurrentPrice = 5_001m,
                     LastSourceSequence = 1, LastPriceAtUtc = now
                 }],
-                MarketValue = 5_001m, UnrealizedPnl = 1m, AsOfUtc = now, IsOpen = true
+                MarketValue = 5_001m,
+                UnrealizedPnl = 1m,
+                AsOfUtc = now,
+                IsOpen = true
             };
             var valueDate = DateOnly.FromDateTime(now);
             var id = new FuturesTradePlanId(positionId, valueDate);
@@ -49,8 +55,11 @@ public sealed class StrategyTradePlanApiTests(WebApplicationFactory<Program> sou
                 CommandId = Guid.NewGuid(),
                 Subject = new(ActorType.Function, UpdateFuturesTradePlanCommand.Actor,
                     UpdateFuturesTradePlanCommand.Verb, id.Format()),
-                EntityId = id, Position = position, Parameters = new TradePlanParameters(),
-                SourceEventId = Guid.NewGuid(), RequestedAtUtc = now
+                EntityId = id,
+                Position = position,
+                Parameters = new TradePlanParameters(),
+                SourceEventId = Guid.NewGuid(),
+                RequestedAtUtc = now
             };
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             var first = await producer.RequestFunctionAsync<UpdateFuturesTradePlanCommand,

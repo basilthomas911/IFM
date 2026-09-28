@@ -40,7 +40,7 @@ public class SpreadDistributionValidationRules : BaseValidationRules, IValidatio
             {
                 ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
             }
-            catch 
+            catch
             {
                 var validationResult = new ValidationResult();
                 validationResult.Errors.Add(new ValidationFailure("SpreadDistribution", InstanceErrorMessage));

@@ -690,7 +690,7 @@ namespace IBApi
 
 
             paramsList.AddParameter(OutgoingMessages.PlaceOrder);
-            
+
             if (serverVersion < MinServerVer.ORDER_CONTAINER)
             {
                 paramsList.AddParameter(MsgVersion);

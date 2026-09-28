@@ -117,17 +117,17 @@ public class MarketDataFeedCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext,
         MarketDataFeedCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext,
         MarketDataFeedCommandState, ServiceResult<GuidResult>>>()
-    {
-        [typeof(StartMarketDataFeedCommand)] = (cmd, context, state) => (cmd as StartMarketDataFeedCommand)!.Execute(state),
-        [typeof(StopMarketDataFeedCommand)] = (cmd, context, state) => (cmd as StopMarketDataFeedCommand)!.Execute(state),
-        [typeof(ResetMarketDataFeedCommand)] = (cmd, context, state) => (cmd as ResetMarketDataFeedCommand)!.Execute(state),
-        [typeof(AddTradeLiveFeedCommand)] = (cmd, context, state) => (cmd as AddTradeLiveFeedCommand)!.Execute(state),
-        [typeof(RemoveTradeLiveFeedCommand)] = (cmd, context, state) => (cmd as RemoveTradeLiveFeedCommand)!.Execute(state),
-        [typeof(TurnTradeLiveFeedOnCommand)] = (cmd, context, state) => (cmd as TurnTradeLiveFeedOnCommand)!.Execute(state),
-        [typeof(TurnTradeLiveFeedOffCommand)] = (cmd, context, state) => (cmd as TurnTradeLiveFeedOffCommand)!.Execute(state),
-        [typeof(DeleteStreamingRequestIdCommand)] = (cmd, context, state) => (cmd as DeleteStreamingRequestIdCommand)!.Execute(state),
-        [typeof(HaltTradeLiveFeedCommand)] = (cmd, context, state) => (cmd as HaltTradeLiveFeedCommand)!.Execute(state)
-    };
+        {
+            [typeof(StartMarketDataFeedCommand)] = (cmd, context, state) => (cmd as StartMarketDataFeedCommand)!.Execute(state),
+            [typeof(StopMarketDataFeedCommand)] = (cmd, context, state) => (cmd as StopMarketDataFeedCommand)!.Execute(state),
+            [typeof(ResetMarketDataFeedCommand)] = (cmd, context, state) => (cmd as ResetMarketDataFeedCommand)!.Execute(state),
+            [typeof(AddTradeLiveFeedCommand)] = (cmd, context, state) => (cmd as AddTradeLiveFeedCommand)!.Execute(state),
+            [typeof(RemoveTradeLiveFeedCommand)] = (cmd, context, state) => (cmd as RemoveTradeLiveFeedCommand)!.Execute(state),
+            [typeof(TurnTradeLiveFeedOnCommand)] = (cmd, context, state) => (cmd as TurnTradeLiveFeedOnCommand)!.Execute(state),
+            [typeof(TurnTradeLiveFeedOffCommand)] = (cmd, context, state) => (cmd as TurnTradeLiveFeedOffCommand)!.Execute(state),
+            [typeof(DeleteStreamingRequestIdCommand)] = (cmd, context, state) => (cmd as DeleteStreamingRequestIdCommand)!.Execute(state),
+            [typeof(HaltTradeLiveFeedCommand)] = (cmd, context, state) => (cmd as HaltTradeLiveFeedCommand)!.Execute(state)
+        };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -153,73 +153,82 @@ public class MarketDataFeedCommandActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
-    {
-        [typeof(StartMarketDataFeedCommand)] = cmd => {
-            var e = (StartMarketDataFeedCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesContracts(e.FuturesContracts)
-                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
-                .ValidateResetStream(e.ResetStream, e.CommandName);
-        },
-        [typeof(StopMarketDataFeedCommand)] = cmd => {
-            var e = (StopMarketDataFeedCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
-        },
-        [typeof(ResetMarketDataFeedCommand)] = cmd => {
-            var e = (ResetMarketDataFeedCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFuturesContracts(e.FuturesContracts)
-                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
-        },
-        [typeof(AddTradeLiveFeedCommand)] = cmd => {
-            var e = (AddTradeLiveFeedCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName))
-                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
-        },
-        [typeof(RemoveTradeLiveFeedCommand)] = cmd => {
-            var e = (RemoveTradeLiveFeedCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName))
-                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
-        },
-        [typeof(TurnTradeLiveFeedOnCommand)] = cmd => {
-            var e = (TurnTradeLiveFeedOnCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName))
-                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
-        },
-        [typeof(TurnTradeLiveFeedOffCommand)] = cmd => {
-            var e = (TurnTradeLiveFeedOffCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName))
-                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
-        },
-        [typeof(DeleteStreamingRequestIdCommand)] = cmd => {
-            var e = (DeleteStreamingRequestIdCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateFeedId(e.FeedId);
-        },
-        [typeof(HaltTradeLiveFeedCommand)] = cmd => {
-            var e = (HaltTradeLiveFeedCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName));
-        }
-    };
+        {
+            [typeof(StartMarketDataFeedCommand)] = cmd =>
+            {
+                var e = (StartMarketDataFeedCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFuturesContracts(e.FuturesContracts)
+                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
+                    .ValidateResetStream(e.ResetStream, e.CommandName);
+            },
+            [typeof(StopMarketDataFeedCommand)] = cmd =>
+            {
+                var e = (StopMarketDataFeedCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
+            },
+            [typeof(ResetMarketDataFeedCommand)] = cmd =>
+            {
+                var e = (ResetMarketDataFeedCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFuturesContracts(e.FuturesContracts)
+                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
+            },
+            [typeof(AddTradeLiveFeedCommand)] = cmd =>
+            {
+                var e = (AddTradeLiveFeedCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName))
+                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
+            },
+            [typeof(RemoveTradeLiveFeedCommand)] = cmd =>
+            {
+                var e = (RemoveTradeLiveFeedCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName))
+                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
+            },
+            [typeof(TurnTradeLiveFeedOnCommand)] = cmd =>
+            {
+                var e = (TurnTradeLiveFeedOnCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName))
+                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
+            },
+            [typeof(TurnTradeLiveFeedOffCommand)] = cmd =>
+            {
+                var e = (TurnTradeLiveFeedOffCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName))
+                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
+            },
+            [typeof(DeleteStreamingRequestIdCommand)] = cmd =>
+            {
+                var e = (DeleteStreamingRequestIdCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateFeedId(e.FeedId);
+            },
+            [typeof(HaltTradeLiveFeedCommand)] = cmd =>
+            {
+                var e = (HaltTradeLiveFeedCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName));
+            }
+        };
 
     static void ValidateTradeEntityId(
         TomasAI.IFM.Domain.Trade.Shared.TradeEntityId entityId,

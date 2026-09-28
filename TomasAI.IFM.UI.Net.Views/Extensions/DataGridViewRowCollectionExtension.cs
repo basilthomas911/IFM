@@ -6,7 +6,7 @@ namespace TomasAI.IFM.UI.Net.Extensions
 {
     public static class DataGridViewRowCollectionExtension
     {
-    
+
         public static DataGridViewRow? GetSpreadTypeRow(this DataGridViewRowCollection rows, string spreadTypeName)
         {
             for (var index = 0; index < rows.Count; index++)

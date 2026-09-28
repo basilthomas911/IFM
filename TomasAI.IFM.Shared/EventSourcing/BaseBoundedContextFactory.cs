@@ -11,10 +11,10 @@ namespace TomasAI.IFM.Shared.EventSourcing;
 /// injection container. It then replays the provided domain events to initialize the state of the bounded
 /// context.</remarks>
 /// <param name="boundedContextFactoryResolver"></param>
-public class BoundedContextFactory(IBoundedContextFactoryResolver boundedContextFactoryResolver) 
+public class BoundedContextFactory(IBoundedContextFactoryResolver boundedContextFactoryResolver)
     : IBoundedContextFactory
 {
-     readonly IBoundedContextFactoryResolver _boundedContextFactoryResolver = IsArgumentNull.Set( boundedContextFactoryResolver);
+    readonly IBoundedContextFactoryResolver _boundedContextFactoryResolver = IsArgumentNull.Set(boundedContextFactoryResolver);
 
     /// <summary>
     /// Creates a bounded context with the specified state type and replays domain events to initialize its state.
@@ -24,7 +24,7 @@ public class BoundedContextFactory(IBoundedContextFactoryResolver boundedContext
     /// <param name="domainEvents">The collection of domain events to replay in the bounded context state.</param>
     /// <returns>An instance of <see cref="IBoundedContext{TBoundedContextState}"/> with the current state initialized by the
     /// provided domain events.</returns>
-    public IBoundedContext<TBoundedContextState> CreateBoundedContext<TBoundedContextState>(DomainEventCollection domainEvents) 
+    public IBoundedContext<TBoundedContextState> CreateBoundedContext<TBoundedContextState>(DomainEventCollection domainEvents)
         where TBoundedContextState : IBoundedContextState<TBoundedContextState>
     {
         // load bounded context root from DI container...
@@ -50,7 +50,7 @@ public class BoundedContextFactory(IBoundedContextFactoryResolver boundedContext
     /// <param name="eventStream">A collection of domain events to replay in the bounded context state. Cannot be null.</param>
     /// <returns>An instance of <see cref="IBoundedContext{TBoundedContextState}"/> with the current state set by the replayed
     /// events.</returns>
-    public IBoundedContext<TBoundedContextState> CreateBoundedContext<TBoundedContextState>(ICollection<EventStreamReadModel> eventStream) 
+    public IBoundedContext<TBoundedContextState> CreateBoundedContext<TBoundedContextState>(ICollection<EventStreamReadModel> eventStream)
         where TBoundedContextState : IBoundedContextState<TBoundedContextState>
     {
         // load bounded context root from DI container...

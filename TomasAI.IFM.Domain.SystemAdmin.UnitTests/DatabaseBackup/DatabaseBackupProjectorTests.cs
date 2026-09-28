@@ -74,14 +74,25 @@ public sealed class DatabaseBackupProjectorTests
         var operationId = new DatabaseRecoveryOperationId(Guid.NewGuid());
         return new DatabaseBackupRequestedDomainEvent
         {
-            Id = Guid.NewGuid(), EventId = eventId, CommandId = Guid.NewGuid(), EntityId = operationId,
-            AggregateId = operationId.Format(), EventSource = "DatabaseBackupCommandActor", ReceivedOn = DateTime.UtcNow,
+            Id = Guid.NewGuid(),
+            EventId = eventId,
+            CommandId = Guid.NewGuid(),
+            EntityId = operationId,
+            AggregateId = operationId.Format(),
+            EventSource = "DatabaseBackupCommandActor",
+            ReceivedOn = DateTime.UtcNow,
             Source = new DatabaseSourceEnvelope
             {
-                SourceEventId = Guid.NewGuid(), OperationId = operationId, Source = BackupSource.LocalWorkstation,
-                ProtectionSetId = new DatabaseProtectionSetId("core"), PolicyRevision = 1,
-                OperationKind = DatabaseRecoveryOperationKind.Backup, Phase = DatabaseRecoveryPhase.Requested,
-                CorrelationId = Guid.NewGuid(), CausationId = Guid.NewGuid(), ObservedUtc = DateTimeOffset.UtcNow
+                SourceEventId = Guid.NewGuid(),
+                OperationId = operationId,
+                Source = BackupSource.LocalWorkstation,
+                ProtectionSetId = new DatabaseProtectionSetId("core"),
+                PolicyRevision = 1,
+                OperationKind = DatabaseRecoveryOperationKind.Backup,
+                Phase = DatabaseRecoveryPhase.Requested,
+                CorrelationId = Guid.NewGuid(),
+                CausationId = Guid.NewGuid(),
+                ObservedUtc = DateTimeOffset.UtcNow
             }
         };
     }

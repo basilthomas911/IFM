@@ -183,5 +183,5 @@ public class NatsJetStreamActorProducer(
             NatsMessagingMetrics.RecordOperation(started, NatsMessagingMetrics.JetStreamPublishOperation);
         }
     }
-   
+
 }

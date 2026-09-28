@@ -16,23 +16,23 @@ public sealed class PortfolioOperationalPolicyTests
         };
 
         foreach (var operation in Enum.GetValues<PortfolioOperation>())
-        foreach (var (persona, roles) in personas)
-        {
-            var expected = persona switch
+            foreach (var (persona, roles) in personas)
             {
-                "Anonymous" => false,
-                PortfolioOperationalPolicy.ReaderRole => operation == PortfolioOperation.Read,
-                PortfolioOperationalPolicy.AdministratorRole => operation is PortfolioOperation.Read or
-                    PortfolioOperation.AdministerPortfolio or PortfolioOperation.AdministerFund or
-                    PortfolioOperation.DelegateAllocation or PortfolioOperation.DelegateRiskEnvelope or
-                    PortfolioOperation.AssignTemplate,
-                PortfolioOperationalPolicy.WorkflowRole => operation is PortfolioOperation.Read or
-                    PortfolioOperation.ReserveComposition or PortfolioOperation.RecordCompositionResult or
-                    PortfolioOperation.RecordRiskResult,
-                _ => false,
-            };
-            yield return [operation, roles, expected];
-        }
+                var expected = persona switch
+                {
+                    "Anonymous" => false,
+                    PortfolioOperationalPolicy.ReaderRole => operation == PortfolioOperation.Read,
+                    PortfolioOperationalPolicy.AdministratorRole => operation is PortfolioOperation.Read or
+                        PortfolioOperation.AdministerPortfolio or PortfolioOperation.AdministerFund or
+                        PortfolioOperation.DelegateAllocation or PortfolioOperation.DelegateRiskEnvelope or
+                        PortfolioOperation.AssignTemplate,
+                    PortfolioOperationalPolicy.WorkflowRole => operation is PortfolioOperation.Read or
+                        PortfolioOperation.ReserveComposition or PortfolioOperation.RecordCompositionResult or
+                        PortfolioOperation.RecordRiskResult,
+                    _ => false,
+                };
+                yield return [operation, roles, expected];
+            }
     }
 
     [Theory]

@@ -41,7 +41,8 @@ public sealed record GetFundReservationsPageQuery : IFinancialQueryMessage<GetFu
     [Key(5)] public Guid CorrelationId { get; init; }
     [Key(6)] public DateTime RequestedAtUtc { get; init; }
 
-    [IgnoreMember] public GetFundReservationsPageRequest Parameters
+    [IgnoreMember]
+    public GetFundReservationsPageRequest Parameters
     {
         get => new(PageSize, Cursor);
         init

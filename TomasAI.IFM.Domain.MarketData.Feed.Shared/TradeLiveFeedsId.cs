@@ -27,7 +27,7 @@ public record TradeLiveFeedsId
     /// Initializes a new instance of the <see cref="TradeLiveFeedId"/> record.
     /// </summary>
     /// <param name="orderId">The order identifier.</param>
-    public TradeLiveFeedsId(int orderId)    
+    public TradeLiveFeedsId(int orderId)
     {
         OrderId = orderId;
     }

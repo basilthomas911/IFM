@@ -31,11 +31,11 @@ public class OptionTradePositionOpenedEventHandler : BaseEventServiceHandler,
     public OptionTradePositionOpenedEventHandler(
         ITradeQueryApi tradeQueryApi,
         IBlackboardService blackboardService,
-        IStatusConsoleWriter statusConsoleWriter, 
-        ILogger logger) 
+        IStatusConsoleWriter statusConsoleWriter,
+        ILogger logger)
         : base(statusConsoleWriter)
     {
-        _tradeQueryApi = IsArgumentNull.Set(tradeQueryApi); 
+        _tradeQueryApi = IsArgumentNull.Set(tradeQueryApi);
         _blackboardService = IsArgumentNull.Set(blackboardService);
         _logger = IsArgumentNull.Set(logger);
     }

@@ -89,7 +89,7 @@ public class ActorService(IActorSupervisor supervisor)
         where TQuery : class, IQuery<TResult>
         where TResult : class
     {
-        try 
+        try
         {
             IsArgumentNull.Check(query);
             var producer = _supervisor.GetProducer(query.Subject.ActorId);
@@ -118,12 +118,12 @@ public class ActorService(IActorSupervisor supervisor)
     /// <param name="command">The command to be sent to the actor. Cannot be <see langword="null"/>.</param>
     /// <returns>A <see cref="ValueTask{TResult}"/> that represents the asynchronous operation. The result contains a <see
     /// cref="ServiceResult{T}"/> with the unique identifier of the processed command.</returns>
-    public async ValueTask<ServiceResult<Guid>> RequestAsync<TCommand,TEntityId>(TCommand command) 
+    public async ValueTask<ServiceResult<Guid>> RequestAsync<TCommand, TEntityId>(TCommand command)
         where TEntityId : IActorEntityId
         where TCommand : class, ICommand<TEntityId>
         => await RequestAsync<TCommand, TEntityId>(command, CancellationToken.None).ConfigureAwait(false);
 
-    public async ValueTask<ServiceResult<Guid>> RequestAsync<TCommand,TEntityId>(
+    public async ValueTask<ServiceResult<Guid>> RequestAsync<TCommand, TEntityId>(
         TCommand command,
         CancellationToken cancellationToken)
         where TEntityId : IActorEntityId
@@ -155,7 +155,7 @@ public class ActorService(IActorSupervisor supervisor)
             };
         }
     }
- }
+}
 
 /// <summary>
 /// Provides an actor service implementation for UI clients that communicates through a single

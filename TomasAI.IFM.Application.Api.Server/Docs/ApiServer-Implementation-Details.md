@@ -6,7 +6,7 @@
 
 ## Purpose and scope
 
-`TomasAI.IFM.Application.Api.Server` is the ASP.NET Core composition root for the IFM actor runtime. It exposes the public HTTP command and query surface, translates HTTP requests into typed actor messages, starts the domain actors and NATS consumers, and hosts the currently enabled background services.
+`TomasAI.IFM.Application.Api.Server` is the ASP.NET Core composition root for the IFM actor runtime. Actor commands and queries are exposed through NATS only. HTTP remains for operational health and external-resource integration, while the host starts the domain actors, NATS consumers, and enabled background services.
 
 This document describes the implementation as it exists in the repository. Items under [Current implementation notes](#current-implementation-notes) record known behavior and configuration gaps; they are not descriptions of a future design.
 
@@ -19,12 +19,6 @@ The project is an ASP.NET Core Web SDK executable targeting .NET 10.
 | Host startup and top-level error handling | [`Program.cs`](../Program.cs) |
 | Service registration, Simple Injector, middleware, logging, and configuration | [`Startup.cs`](../Startup.cs) |
 | Actor discovery, producer/consumer wiring, and actor startup | [`ActorMaps.cs`](../ActorMaps.cs) |
-| HTTP command endpoints | [`CommandMaps.cs`](../CommandMaps.cs) |
-| HTTP query endpoints | [`QueryMaps.cs`](../QueryMaps.cs) |
-| Shared command route constants | [`CommandPaths.cs`](../../TomasAI.IFM.Shared/Application/CommandPaths.cs) |
-| Shared query route constants | [`QueryPaths.cs`](../../TomasAI.IFM.Shared/Application/QueryPaths.cs) |
-| Actor subject identity and wire subject format | [`ActorSubject.cs`](../../TomasAI.IFM.Shared/EventModelActor/ActorSubject.cs) |
-| HTTP-to-actor request adapter | [`ActorService.cs`](../../TomasAI.IFM.Shared/EventModelActor/ActorService.cs) |
 | Environment configuration | [`appsettings.Development.json`](../appsettings.Development.json), [`appsettings.Production.json`](../appsettings.Production.json) |
 | Project dependencies and publish settings | [`TomasAI.IFM.Application.Api.Server.csproj`](../TomasAI.IFM.Application.Api.Server.csproj) |
 
@@ -32,30 +26,29 @@ The project is an ASP.NET Core Web SDK executable targeting .NET 10.
 
 ```mermaid
 flowchart LR
-    Client[UI or external client]
-    Endpoint[ASP.NET Core minimal API endpoint]
-    ActorService[IActorService]
+    Client[UI or application client]
+    NatsClient[NATS actor API client]
     CoreNats[(Core NATS request/reply)]
     Consumer[Command or query consumer]
     Actor[Domain actor mailbox]
     Result[ServiceResult of T]
+    OpsClient[Operator or health probe]
+    OpsEndpoint[ASP.NET Core operational endpoint]
     JetStream[(NATS JetStream)]
     EventActor[Event actor]
     DirectQuery[IActor domain query API]
     DbFactory[IDbContextFactory]
     Storage[(Domain storage)]
 
-    Client -->|HTTP| Endpoint
-    Endpoint -->|typed command or query| ActorService
-    ActorService --> CoreNats
+    Client --> NatsClient
+    NatsClient --> CoreNats
     CoreNats --> Consumer
     Consumer --> Actor
     Actor --> Result
     Result --> CoreNats
-    CoreNats --> ActorService
-    ActorService --> Endpoint
-    Endpoint -->|JSON envelope| Client
-
+    CoreNats --> NatsClient
+    NatsClient --> Client
+    OpsClient -->|HTTP| OpsEndpoint
     Actor -->|domain events| JetStream
     JetStream --> EventActor
     Actor -->|in-process query| DirectQuery
@@ -63,7 +56,7 @@ flowchart LR
     DbFactory --> Storage
 ```
 
-Commands and queries use Core NATS request/reply. JetStream is used for the event actor path. Actor-only query APIs are a separate, in-process optimization for domain-to-domain queries and are not used by the HTTP endpoint mappings.
+Commands and queries use Core NATS request/reply through `TomasAI.IFM.Application.Api.Nats.Client`. JetStream is used for the event actor path. Actor-only query APIs remain a separate in-process optimization for domain-to-domain queries. The HTTP command/query facade and its REST client are legacy and are not mapped by this host.
 
 ## Host startup sequence
 
@@ -74,11 +67,10 @@ The startup order in [`Program.cs`](../Program.cs) is significant:
 3. `RegisterServices` adds infrastructure, public and actor-only APIs, storage, event producers, and hosted services to Microsoft DI, and registers the generic actor/repository implementations in Simple Injector before the host is built.
 4. `Build` creates the `WebApplication`.
 5. `ConfigureRequestPipeline` cross-wires the containers, verifies Simple Injector, and installs middleware.
-6. `MapApiCommands` maps the command endpoints.
-7. `MapApiQueries` maps the query endpoints.
-8. Normal startup initializes the required additive schemas and reference seeds. The verification-only mode exits before this step; bootstrap-only mode seeds reference families without starting the host.
-9. `StartAsync` starts Kestrel and the registered hosted infrastructure before any actor subscriptions are exposed.
-10. `MapEventModelActorsAsync` discovers actors, attaches transports and starts actors. `WaitForShutdownAsync` waits for shutdown; the supervisor shuts down started actors in `finally`.
+6. Normal startup initializes the required additive schemas and reference seeds. The verification-only mode exits before this step; bootstrap-only mode seeds reference families without starting the host.
+7. `StartAsync` starts Kestrel and the registered hosted infrastructure before any actor subscriptions are exposed.
+8. `MapEventModelActorsAsync` discovers actors, attaches transports and starts actors.
+9. The host maps operational-health endpoints and waits for shutdown; the supervisor shuts down started actors in `finally`.
 
 The top-level `try/catch` sets exit code 1 on failure, logs fatal startup exceptions and always closes and flushes Serilog. The exception is not rethrown after logging.
 
@@ -108,16 +100,16 @@ The real Scylla catalog integration now seeds persisted v2 rows (including an of
 
 Development verification on 2026-09-05 ran the API's normal `--bootstrap-trade-strategy-families-only` path twice successfully. The first run additively created the typed counterparts of legacy IDs 5901, 5902 and 5903; the second confirmed idempotency. Versions, original UTC audit timestamps and creator values were preserved; legacy rows were not modified. No operational actors, HTTP listeners or market feeds were started.
 
-## HTTP API implementation
+## Removed HTTP actor facade (historical inventory)
 
-The active HTTP surface consists entirely of minimal APIs. Controllers are registered, but there is no `MapControllers` call and there are no active controller routes in this project.
+The command/query endpoint inventory below documents the removed REST facade for historical context only. `CommandMaps.cs` and `QueryMaps.cs` are no longer present or invoked. Actor callers, including integration tests, use the NATS API client. The active HTTP surface is limited to operational endpoints and external-resource concerns.
 
 ### Endpoint summary
 
 | Surface | HTTP verbs | Count | Mapping source |
 | --- | --- | ---: | --- |
-| Commands | 83 POST | 83 | [`CommandMaps.cs`](../CommandMaps.cs) |
-| Queries | 86 GET, 3 POST | 89 | [`QueryMaps.cs`](../QueryMaps.cs) |
+| Historical commands | 83 POST | 83 | Removed `CommandMaps.cs` |
+| Historical queries | 86 GET, 3 POST | 89 | Removed `QueryMaps.cs` |
 | **Total** |  | **172** |  |
 
 Command groups:
@@ -151,7 +143,7 @@ Query groups:
 | Option trade | 10 |
 | System administration | 1 |
 
-The shared `*UriPath` constants define route text, but only constants actually mapped in `CommandMaps.cs` or `QueryMaps.cs` are active API endpoints. The route-constant files contain additional paths that this server does not currently map.
+The shared `*UriPath` constants and the inventory below describe the retired facade; they do not define active HTTP endpoints.
 
 Economic-calendar range reads use `GET /api/marketdata/economiccalendar/page`. The request requires UTC start/end
 bounds, comma-separated explicit country codes, a bounded page size, and an optional opaque continuation token. The
@@ -252,7 +244,7 @@ It also derives:
 
 ### Actor discovery and startup
 
-`MapEventModelActors` assembles the runtime after the HTTP endpoints have been mapped:
+`MapEventModelActors` assembles the runtime after the operational HTTP host has started:
 
 1. Resolve `IActorSupervisor`, `IActorRegistry`, and `IActorFactory`.
 2. Instantiate each actor type discovered by the registry.
@@ -296,14 +288,14 @@ The DI configuration intentionally exposes two kinds of domain API:
 
 | API kind | Intended caller | Implementation path |
 | --- | --- | --- |
-| Public `I*CommandApi` and `I*QueryApi` | UI or another application | REST clients using the configured command/query server base URI |
+| Public `I*CommandApi` and `I*QueryApi` | UI, integration test, or another application | NATS client over Core NATS request/reply |
 | Actor-only `IActor*QueryApi` | A domain actor | Direct in-process implementation using `IDbContextFactory`; no NATS request/reply |
 | Actor-only command API factory | A domain event handler | Creates a domain API around the handler's `IEventActorContext`; command messaging remains on the actor/NATS path |
 | Actor-only event API factory | A domain event handler | Creates the domain event API around the available actor context |
 
 The server currently registers direct actor query implementations for Fund, Market Data, Market Data Analytics, Market Data Feed, Option Pricer, Trade, Reference, and System Administration. It registers actor command API factories for Market Data Analytics, Market Data Feed, Option Pricer, and Trade, plus actor event API factories for Fund and Market Data Feed.
 
-The 172 HTTP endpoints do not call these higher-level API clients. They construct actor messages directly and call `IActorService`.
+The legacy REST client and the removed 172-route actor facade are not part of the standard runtime path.
 
 ## Dependency injection
 
@@ -405,8 +397,7 @@ The following settings are consumed during service registration:
 
 | Key or section | Purpose |
 | --- | --- |
-| `AppSettings:CommandServerBaseUri` | Base URI used by public command API clients |
-| `AppSettings:QueryServerBaseUri` | Base URI used by public query API clients |
+| `Nats:*` | NATS producer, consumer, and JetStream actor messaging configuration |
 | `AppSettings:RedisUri` | Redis connection |
 | `AppSettings:DomainDataStorageBaseUri` | Domain object-data storage base URI |
 | `AppSettings:QueryDataStorageBaseUri` | Query object-data storage base URI |
@@ -506,25 +497,19 @@ Production enables HTTPS redirection while its checked-in Kestrel endpoint is HT
 
 ## Adding an endpoint or actor capability
 
-### Add a command endpoint
+### Add a command capability
 
 1. Define the command contract and typed entity ID in the appropriate shared domain project.
-2. Add or reuse the route constant in `CommandPaths.cs`.
-3. Add the minimal API mapping to the appropriate group in `CommandMaps.cs`.
-4. Reconstruct the command from request values, assign a new `CommandId`, set `EntityId`, and build the command `ActorSubject`.
-5. Call `IActorService.RequestAsync<TCommand, TEntityId>`.
-6. Ensure the command actor is discoverable and its dependencies resolve from the two-container graph.
-7. Add binding, routing, successful-result, and failed-result tests.
+2. Add the operation to the NATS API client and construct its actor subject there.
+3. Ensure the command actor is discoverable and its dependencies resolve from the two-container graph.
+4. Add NATS routing, successful-result, failed-result, and production-host integration tests.
 
-### Add a query endpoint
+### Add a query capability
 
 1. Define the query and typed result contract in the appropriate shared domain project.
-2. Add or reuse the route constant in `QueryPaths.cs`.
-3. Prefer GET for scalar query inputs; use POST only when a complex body is necessary.
-4. Add the minimal API mapping to the appropriate group in `QueryMaps.cs`.
-5. Build the query `ActorSubject` and call `IActorService.RequestAsync<TResult, TQuery>`.
-6. If domain actors also need this query, expose it through the domain's `IActor*QueryApi` and direct `IDbContextFactory` implementation rather than coupling callers to the query actor or reusing the public REST client.
-7. Add endpoint tests and actor-only API unit tests.
+2. Add the operation to the NATS API client and construct its actor subject there.
+3. If domain actors also need the query, expose it through the domain's `IActor*QueryApi` and direct `IDbContextFactory` implementation.
+4. Add NATS routing, successful-result, failed-result, and actor-only API tests.
 
 ### Add an actor
 
@@ -534,15 +519,10 @@ Production enables HTTPS redirection while its checked-in Kestrel endpoint is HT
 4. Verify Simple Injector and start the server with NATS available.
 5. Confirm the actor is included in the startup actor count and that its command/query/event subject is consumed by the intended transport.
 
-After changing the route surface, update the endpoint counts in this document.
-
 ## Current implementation notes
 
 These observations are important when operating or extending the server:
 
-1. **Anonymous HTTP surface.** Authorization middleware is present, but authentication, policies, and route authorization metadata are not configured. `AllowedHosts` is `*`.
-2. **Service failures normally return HTTP 200.** The API exposes the `ServiceResult<T>` protocol directly instead of mapping failures to HTTP status codes or Problem Details.
-3. **Minimal API JSON is not explicitly configured.** MVC Newtonsoft and enum settings may not apply to these routes.
 4. **Configuration is not self-contained.** Several settings consumed by `Startup.cs` are absent from the checked-in environment files.
 5. **Secrets are checked in.** Environment files contain plaintext database credentials. Do not duplicate them; rotate and externalize them.
 6. **NATS settings use defaults.** The registered option objects are not bound from configuration and normally connect to `localhost:4222`.
@@ -557,9 +537,7 @@ These observations are important when operating or extending the server:
 15. **OpenAPI is registered twice.** NSwag and Swashbuckle services are both present, while only Swashbuckle middleware is used.
 16. **Launch tooling is stale.** `launchSettings.json` and the `.http` file use ports/routes that do not match the active Kestrel API.
 17. **Production HTTPS requires deployment support.** Production redirects to HTTPS but declares only an HTTP Kestrel endpoint.
-18. **Legacy trade-plan summary route remains mapped.** `/api/trade/tradeplansummary` currently constructs `GetTradePlanActionQuery`, while the actor-only `GetTradePlanSummaryAsync` contract is obsolete/not implemented pending UI cleanup.
-19. **Endpoint metadata is minimal.** Routes do not currently declare response types, names, cancellation tokens, endpoint filters, or explicit OpenAPI operation details.
 
 ## Validation references
 
-For an exact, current route inventory, run the application in Development and inspect Swagger at `/`, then compare it with `CommandMaps.cs` and `QueryMaps.cs`. Treat those two mapping files—not every constant in the shared path files—as the authoritative active HTTP surface.
+For the current HTTP inventory, inspect the operational mappings in `Program.cs` and the health mapping extensions. Actor command/query coverage belongs to `TomasAI.IFM.Application.Api.Nats.Client` and its production-host integration tests.

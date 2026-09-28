@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -27,9 +27,9 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests;
 /// <summary>Verifies the live-to-durable Futures Trade Session Bar Signal path.</summary>
 [Trait("Category", "Integration")]
 public sealed class FuturesTradeSessionBarSignalIntegrationTests(
-    WebApplicationFactory<Program> factory,
+    TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory,
     MarketDataAnalyticsFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataAnalyticsFixture>
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<MarketDataAnalyticsFixture>
 {
     readonly IActorProducer producer = factory.Services.GetRequiredService<IActorProducer>();
 
@@ -48,7 +48,6 @@ public sealed class FuturesTradeSessionBarSignalIntegrationTests(
         var timestamp = calendar.GetSession(valueDate).StartUtc.AddHours(1).AddSeconds(1);
         var epoch = Guid.NewGuid();
         var sourceSequence = Random.Shared.NextInt64(10_000, long.MaxValue - 10);
-        var marketDataApi = factory.Services.GetRequiredService<IMarketDataApi>();
         factory.Services.GetRequiredService<IDatabentoContractRegistrationRegistry>()
             .ReplaceFuturesRolloverSet("ES", [
                 new FuturesContractV3ReadModel(
@@ -82,7 +81,6 @@ public sealed class FuturesTradeSessionBarSignalIntegrationTests(
             },
             OnEventAsync);
 
-        await marketDataApi.StartAsync(valueDate);
         try
         {
             var marketEvent = CreateTrade(
@@ -123,7 +121,6 @@ public sealed class FuturesTradeSessionBarSignalIntegrationTests(
         }
         finally
         {
-            await marketDataApi.StopAsync(valueDate);
             await listener.StopAsync();
         }
 

@@ -19,8 +19,8 @@ using TomasAI.IFM.Domain.OptionPricer.Shared.Events;
 
 namespace TomasAI.IFM.Domain.OptionPricer.IntegrationTests.SpreadDistribution;
 
-public class SpreadDistributionCommandApiTests(WebApplicationFactory<Program> factory, OptionPricerFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<OptionPricerFixture>
+public class SpreadDistributionCommandApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory, OptionPricerFixture dbFixture)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<OptionPricerFixture>
 {
     static readonly TimeSpan EventTimeout = TimeSpan.FromSeconds(10);
     readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
@@ -161,7 +161,7 @@ public class SpreadDistributionCommandApiTests(WebApplicationFactory<Program> fa
         await WaitForSpreadDistributionAsync(dbFixture);
 
         // act...
-        var response = await optionPricerApi.DeleteSpreadDistributionAsync(entityId, global::TomasAI.IFM.Domain.Trade.Shared.TradeStatus.IntraDay,SampleData.DaysToExpiry);
+        var response = await optionPricerApi.DeleteSpreadDistributionAsync(entityId, global::TomasAI.IFM.Domain.Trade.Shared.TradeStatus.IntraDay, SampleData.DaysToExpiry);
 
         // assert...
         response.Should().NotBeNull();

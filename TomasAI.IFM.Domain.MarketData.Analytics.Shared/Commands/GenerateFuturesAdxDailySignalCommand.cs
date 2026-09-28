@@ -16,9 +16,9 @@ public record GenerateFuturesAdxDailySignalCommand : ICommand<FuturesAdxDailySig
 
     // Base command members (keys 0..5)
     [Key(0)] public Guid CommandId { get; init; }
-    [Key(1)] public ActorSubject Subject { get; init; } 
+    [Key(1)] public ActorSubject Subject { get; init; }
     [Key(2)] public bool PostEvents { get; init; }
-    [Key(3)] public FuturesAdxDailySignalEntityId EntityId { get; init; } 
+    [Key(3)] public FuturesAdxDailySignalEntityId EntityId { get; init; }
     [Key(4)] public int ErrorCode { get; init; }
     [Key(5)] public BoundedContextName RouteTo { get; init; }
 

@@ -10,7 +10,7 @@ public sealed class DownloadLogIntegrationTests(MarketDataFixture fixture) : ICl
     {
         var date = DateOnly.FromDayNumber(Random.Shared.Next(new DateOnly(7000, 1, 1).DayNumber, new DateOnly(8990, 1, 1).DayNumber));
         var outcome = Outcome(MarketDataDownloadDataset.TreasuryCurve, date) with
-            { Provider = "USTreasury", DownloadedRecordCount = 1, PersistedRecordCount = 1 };
+        { Provider = "USTreasury", DownloadedRecordCount = 1, PersistedRecordCount = 1 };
         await Insert(outcome); await Insert(outcome);
         var partition = new MarketDataDownloadPartition(outcome.Dataset, outcome.Provider, "US", date);
         var status = await fixture.MarketDataDb.GetMarketDataDownloadStatusAsync(partition, outcome.ImportCommandId);
@@ -19,16 +19,25 @@ public sealed class DownloadLogIntegrationTests(MarketDataFixture fixture) : ICl
     }
     static MarketDataDownloadOutcome Outcome(MarketDataDownloadDataset dataset, DateOnly date, int seconds = 0) => new()
     {
-        Dataset = dataset, Scope = "US", ValueDate = date, ImportCommandId = Guid.NewGuid(), SourceTerminalEventId = Guid.NewGuid(),
+        Dataset = dataset,
+        Scope = "US",
+        ValueDate = date,
+        ImportCommandId = Guid.NewGuid(),
+        SourceTerminalEventId = Guid.NewGuid(),
         RequestedAtUtc = new DateTime(2026, 9, 5, 12, 0, 0, DateTimeKind.Utc).AddSeconds(seconds),
         StartedAtUtc = new DateTime(2026, 9, 5, 12, 0, 1, DateTimeKind.Utc).AddSeconds(seconds),
         FinishedAtUtc = new DateTime(2026, 9, 5, 12, 0, 2, DateTimeKind.Utc).AddSeconds(seconds),
-        Status = MarketDataDownloadStatus.Completed, DownloadedRecordCount = 0, PersistedRecordCount = 0, ElapsedMilliseconds = 1000
+        Status = MarketDataDownloadStatus.Completed,
+        DownloadedRecordCount = 0,
+        PersistedRecordCount = 0,
+        ElapsedMilliseconds = 1000
     };
     Task Insert(MarketDataDownloadOutcome outcome) => fixture.MarketDataDb.InsertMarketDataDownloadLogAsync(
         outcome, MarketDataDownloadOutcome.LoggingCommandId(outcome.ImportCommandId), outcome.ComputeHash());
 
-    [Theory] [InlineData(MarketDataDownloadDataset.EconomicCalendar)] [InlineData(MarketDataDownloadDataset.TreasuryCurve)]
+    [Theory]
+    [InlineData(MarketDataDownloadDataset.EconomicCalendar)]
+    [InlineData(MarketDataDownloadDataset.TreasuryCurve)]
     public async Task Scylla_round_trip_replay_and_latest_failure_preserve_earlier_success(MarketDataDownloadDataset dataset)
     {
         var date = DateOnly.FromDayNumber(Random.Shared.Next(new DateOnly(7000, 1, 1).DayNumber, new DateOnly(8990, 1, 1).DayNumber));
@@ -50,7 +59,8 @@ public sealed class DownloadLogIntegrationTests(MarketDataFixture fixture) : ICl
         Assert.False((await fixture.MarketDataDb.GetMarketDataDownloadStatusAsync(partition with { ValueDate = date.AddDays(1) })).CompletionConfirmed);
     }
 
-    [Fact] public async Task Calendar_scope_isolation_and_bounded_search_do_not_invent_completion()
+    [Fact]
+    public async Task Calendar_scope_isolation_and_bounded_search_do_not_invent_completion()
     {
         var date = DateOnly.FromDayNumber(Random.Shared.Next(new DateOnly(7000, 1, 1).DayNumber, new DateOnly(8990, 1, 1).DayNumber));
         var partition = new MarketDataDownloadPartition(MarketDataDownloadDataset.EconomicCalendar, "FMP", "US", date);
@@ -64,7 +74,8 @@ public sealed class DownloadLogIntegrationTests(MarketDataFixture fixture) : ICl
         Assert.False((await fixture.MarketDataDb.GetMarketDataDownloadStatusAsync(partition with { Scope = "CA" })).CompletionConfirmed);
     }
 
-    [Fact] public async Task Paging_preserves_attempts_with_identical_millisecond_request_times()
+    [Fact]
+    public async Task Paging_preserves_attempts_with_identical_millisecond_request_times()
     {
         var date = DateOnly.FromDayNumber(Random.Shared.Next(new DateOnly(7000, 1, 1).DayNumber, new DateOnly(8990, 1, 1).DayNumber));
         var outcomes = Enumerable.Range(0, 4).Select(_ => Outcome(MarketDataDownloadDataset.EconomicCalendar, date)).ToArray();

@@ -109,10 +109,17 @@ internal static class EventLogIndexMigrationQualification
                         new EventLogPersistenceOptions { WriteMode = EventLogWriteMode.BinaryCopy }, layout);
                     var request = Request("MigrationProbe", streamId, eventNameId, expected);
                     var command = new EventLogV2Benchmark.BenchmarkCommand { CommandId = request.CommandId, StreamId = "MigrationProbe", Value = expected + count };
-                    request = request with {
+                    request = request with
+                    {
                         Events = Enumerable.Range(1, count).Select(i => new EventLogAppendEntry(eventNameId,
-                            new EventLogV2Benchmark.BenchmarkEvent { CommandId = request.CommandId, AggregateId = "MigrationProbe",
-                                Value = expected + i, RequiresDurableProjection = true, Payload = new string('x', 1024) })).ToArray(),
+                            new EventLogV2Benchmark.BenchmarkEvent
+                            {
+                                CommandId = request.CommandId,
+                                AggregateId = "MigrationProbe",
+                                Value = expected + i,
+                                RequiresDurableProjection = true,
+                                Payload = new string('x', 1024)
+                            })).ToArray(),
                         CommandAudit = CommandAuditEnvelope.Create(command, new CommandAuditMessagePackCodec())
                     };
                     await writer.AppendAsync(request);

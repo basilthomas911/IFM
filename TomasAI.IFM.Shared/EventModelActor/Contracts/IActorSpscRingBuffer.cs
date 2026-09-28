@@ -46,7 +46,7 @@ public interface IActorSpscRingBuffer<TMessage>
     /// <remarks>This method initiates the operation and transitions the instance to a running state.  Ensure
     /// that all required preconditions are met before calling this method.</remarks>
     void Start();
-    
+
     /// <summary>
     /// Stops the operation or process associated with this instance.
     /// </summary>

@@ -40,12 +40,12 @@ public interface IActorService
     }
 
     ValueTask<ServiceResult<Guid>> RequestAsync<TCommand, TEntityId>(TCommand command)
-        where TCommand: class, ICommand<TEntityId>
+        where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId;
     ValueTask<ServiceResult<Guid>> RequestAsync<TCommand, TEntityId>(
         TCommand command,
         CancellationToken cancellationToken)
-        where TCommand: class, ICommand<TEntityId>
+        where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
     {
         cancellationToken.ThrowIfCancellationRequested();

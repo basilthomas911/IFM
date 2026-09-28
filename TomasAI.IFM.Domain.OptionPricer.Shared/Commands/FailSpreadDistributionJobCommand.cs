@@ -47,7 +47,7 @@ public record FailSpreadDistributionJobCommand
 
     /// <summary>Error message describing the failure.</summary>
     [Key(8)]
-    public string ErrorMessage { get; init; } 
+    public string ErrorMessage { get; init; }
 
     /// <summary>Parameterless constructor required for MessagePack deserialization.</summary>
     public FailSpreadDistributionJobCommand() { }

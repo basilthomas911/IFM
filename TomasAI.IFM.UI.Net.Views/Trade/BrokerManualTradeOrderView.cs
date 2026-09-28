@@ -13,8 +13,11 @@ public sealed class BrokerManualTradeOrderView : DarkTradingView, ITradeOrderCon
     readonly NumericUpDown _quantity = new() { Name = "quantity", Minimum = 1, Maximum = 100000, Value = 1 };
     readonly NumericUpDown _limit = new()
     {
-        Name = "signedNetDebitLimit", Minimum = -1000000, Maximum = 1000000,
-        DecimalPlaces = 2, Increment = 0.05m
+        Name = "signedNetDebitLimit",
+        Minimum = -1000000,
+        Maximum = 1000000,
+        DecimalPlaces = 2,
+        Increment = 0.05m
     };
     readonly Label _account = ValueLabel("Loading emulator account...");
     readonly Label _gate = ValueLabel("Unknown");

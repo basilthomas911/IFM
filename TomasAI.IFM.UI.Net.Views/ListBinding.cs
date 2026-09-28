@@ -11,7 +11,7 @@ namespace TomasAI.IFM.UI.Net.Views;
 /// <param name="displayControl"></param>
 /// <param name="dataSource"></param>
 /// <param name="getValue"></param>
-public class ListBinding<TData>(string displayMember, Control displayControl,TData dataSource, Func<int, object> getValue = null!)
+public class ListBinding<TData>(string displayMember, Control displayControl, TData dataSource, Func<int, object> getValue = null!)
 {
     /// <summary>
     /// Loads the data source into the display control and sets the initial display state.
@@ -23,7 +23,7 @@ public class ListBinding<TData>(string displayMember, Control displayControl,TDa
     /// <returns>The current instance of <see cref="ListBinding{TData}"/>, allowing for method chaining.</returns>
     public ListBinding<TData> Load(Action loadComplete = null!)
     {
-        displayControl?.InvokeAsync( () =>
+        displayControl?.InvokeAsync(() =>
         {
             dynamic listControl = displayControl;
             listControl.DisplayMember = displayMember;
@@ -41,11 +41,11 @@ public class ListBinding<TData>(string displayMember, Control displayControl,TDa
     /// value is returned as a string without additional formatting.</param>
     /// <returns>A string representation of the selected item's value. If <paramref name="format"/> is provided,  the value is
     /// formatted according to the specified format string.</returns>
-    public string GetValue(string format=null!)
+    public string GetValue(string format = null!)
     {
         dynamic listControl = displayControl;
         var listIndex = listControl.SelectedIndex;
-        return format is null 
+        return format is null
             ? $"{getValue(listIndex)}"
             : getValue(listIndex).ToString(format);
     }

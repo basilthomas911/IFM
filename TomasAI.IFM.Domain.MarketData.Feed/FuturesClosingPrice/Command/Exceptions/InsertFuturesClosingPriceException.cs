@@ -2,7 +2,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Excepti
 
 public class InsertFuturesClosingPriceException : ApplicationException
 {
-    public InsertFuturesClosingPriceException(string errorMessage):base(errorMessage)
+    public InsertFuturesClosingPriceException(string errorMessage) : base(errorMessage)
     {
     }
 

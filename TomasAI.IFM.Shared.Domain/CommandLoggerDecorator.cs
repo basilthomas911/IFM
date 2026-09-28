@@ -6,7 +6,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Shared.Domain;
 
-public class CommandLoggerDecorator<TState>(ICommandContext<TState> commandContext, ILogger logger) 
+public class CommandLoggerDecorator<TState>(ICommandContext<TState> commandContext, ILogger logger)
     : ICommandContext<TState> where TState : IBoundedContextState
 {
     /// <summary>
@@ -25,7 +25,7 @@ public class CommandLoggerDecorator<TState>(ICommandContext<TState> commandConte
         var serviceResult = await commandContext.ExecuteAsync(command);
         sw.Stop();
         var queryElapsedTime = sw.Elapsed.ToString(@"ss\.fff");
-        if (! $"{command.RouteTo}".Equals("TelemetryLogsAggregate"))
+        if (!$"{command.RouteTo}".Equals("TelemetryLogsAggregate"))
             logger.LogInformationEvent(command.CommandName, "{CommandName} executed in {QueryElapsedTime} seconds", command.CommandName, queryElapsedTime);
         return serviceResult;
     }

@@ -18,7 +18,7 @@ public abstract class BaseEventServiceHandler(IStatusConsoleWriter statusConsole
     /// <param name="logSourceType"></param>
     /// <param name="statusMsg"></param>
     /// <returns></returns>
-    protected async Task WriteConsoleAsync(LogSourceType logSourceType, string statusMsg) 
+    protected async Task WriteConsoleAsync(LogSourceType logSourceType, string statusMsg)
         => await StatusConsole.WriteConsoleAsync(logSourceType, statusMsg);
 
     /// <summary>

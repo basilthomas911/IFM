@@ -21,10 +21,13 @@ public sealed class PortfolioNatsClientTests
     {
         var original = new CreatePortfolioCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = new(101),
+            CommandId = Guid.NewGuid(),
+            EntityId = new(101),
             Subject = new(ActorType.Command, CreatePortfolioCommand.Actor, CreatePortfolioCommand.Verb, "101"),
-            Portfolio = new PortfolioReadModel { PortfolioId = 101, Name = "Original" }, IdempotencyKey = Guid.NewGuid(),
-            CorrelationId = Guid.NewGuid(), RequestedOnUtc = DateTime.UtcNow,
+            Portfolio = new PortfolioReadModel { PortfolioId = 101, Name = "Original" },
+            IdempotencyKey = Guid.NewGuid(),
+            CorrelationId = Guid.NewGuid(),
+            RequestedOnUtc = DateTime.UtcNow,
             Access = PortfolioAccessContext.Administrator("admin")
         };
         var retry = original with { CorrelationId = Guid.NewGuid(), RequestedOnUtc = original.RequestedOnUtc.AddSeconds(1) };
@@ -49,8 +52,13 @@ public sealed class PortfolioNatsClientTests
         var subject = new ActorSubject(ActorType.Command, CreatePortfolioCommand.Actor, "ChangePortfolioOperatingState", id.Format());
         var command = new ChangePortfolioOperatingStateCommand
         {
-            CommandId = Guid.NewGuid(), Subject = subject, EntityId = id, ErrorCode = 34005,
-            ExpectedVersion = 2, State = PortfolioOperatingState.Paused, Reason = "test",
+            CommandId = Guid.NewGuid(),
+            Subject = subject,
+            EntityId = id,
+            ErrorCode = 34005,
+            ExpectedVersion = 2,
+            State = PortfolioOperatingState.Paused,
+            Reason = "test",
             Access = PortfolioAccessContext.Administrator("unit-admin"),
         };
 

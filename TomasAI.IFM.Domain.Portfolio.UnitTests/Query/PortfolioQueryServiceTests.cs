@@ -111,7 +111,7 @@ public sealed class PortfolioQueryServiceTests
 
     sealed class ProjectionCatalog : IPortfolioDbReadContext
     {
-        public Task<FinancialBookConfiguration?> ReadActiveBookByExecutionAccountAsync(string environment,string executionAccountReference,CancellationToken cancellationToken=default)
+        public Task<FinancialBookConfiguration?> ReadActiveBookByExecutionAccountAsync(string environment, string executionAccountReference, CancellationToken cancellationToken = default)
             => Task.FromResult<FinancialBookConfiguration?>(null);
         public DateTime Now { get; } = new(2026, 8, 30, 19, 0, 0, DateTimeKind.Utc);
         public PortfolioReadModel Portfolio { get; init; } = new();
@@ -152,8 +152,8 @@ public sealed class PortfolioQueryServiceTests
         public Task<FundMandateReadModel?> GetFundAsync(int fundId, CancellationToken cancellationToken = default) => Task.FromResult<FundMandateReadModel?>(fundId == Fund.FundId ? Fund : null);
         public Task<PortfolioProjectionRevision?> GetFundRevisionAsync(int fundId, CancellationToken cancellationToken = default) => Task.FromResult<PortfolioProjectionRevision?>(fundId == Fund.FundId ? new(Fund.PortfolioId, fundId, 5, 71) : null);
         public Task<IReadOnlyList<FundMandateReadModel>> GetActiveFundsAsync(int portfolioId, int tradingYear, string decisionHorizon, DateTime effectiveAtUtc, int pageSize, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<FundMandateReadModel>>([Fund]);
-        public Task<IReadOnlyList<FundTradeTemplateAssignmentReadModel>> GetSelectionAssignmentsAsync(int portfolioId,int fundId,long mandateVersion,string horizon,string root,DateTime asOfUtc,CancellationToken cancellationToken=default)
-            => Task.FromResult<IReadOnlyList<FundTradeTemplateAssignmentReadModel>>([..new[]{Assignment}.Where(x=>x.EffectiveFromUtc<=asOfUtc && !(x.EffectiveUntilUtc<=asOfUtc) && x.DecisionHorizon==horizon && x.UnderlyingUniverse.Contains(root))]);
+        public Task<IReadOnlyList<FundTradeTemplateAssignmentReadModel>> GetSelectionAssignmentsAsync(int portfolioId, int fundId, long mandateVersion, string horizon, string root, DateTime asOfUtc, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<FundTradeTemplateAssignmentReadModel>>([.. new[] { Assignment }.Where(x => x.EffectiveFromUtc <= asOfUtc && !(x.EffectiveUntilUtc <= asOfUtc) && x.DecisionHorizon == horizon && x.UnderlyingUniverse.Contains(root))]);
         public Task<IReadOnlyList<FundTradeTemplateAssignmentReadModel>> GetAssignmentsAsync(int portfolioId, int fundId, long mandateVersion, int pageSize, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<FundTradeTemplateAssignmentReadModel>>([Assignment]);
         public Task<FundAllocationReadModel?> GetCurrentAllocationAsync(int portfolioId, int fundId, CancellationToken cancellationToken = default) => Task.FromResult<FundAllocationReadModel?>(Allocation);
         public Task<FundRiskEnvelopeReadModel?> GetCurrentRiskEnvelopeAsync(int portfolioId, int fundId, CancellationToken cancellationToken = default) => Task.FromResult<FundRiskEnvelopeReadModel?>(Envelope);

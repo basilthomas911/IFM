@@ -53,13 +53,13 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
 
     public FuturesMarketHealthSnapshot GetFuturesMarketHealth(string contractId)
     {
-        lock(gate)
+        lock (gate)
         {
-            var state=datasets.Values.SingleOrDefault(x=>x.Contracts.ContainsKey(contractId));
-            var admission=state?.Admission;
-            return new(lastPrices is not null, lastPrices is not null&&admission.HasValue&&state!.Healthy,
-                admission is { } id?$"{id.Dataset}|{id.WorkerInstanceId:N}|{id.GenerationId:N}|{id.ManifestRevision}":string.Empty,
-                lastPrices?.ValueDate,DateTimeOffset.UtcNow,state?.LastSequence??0);
+            var state = datasets.Values.SingleOrDefault(x => x.Contracts.ContainsKey(contractId));
+            var admission = state?.Admission;
+            return new(lastPrices is not null, lastPrices is not null && admission.HasValue && state!.Healthy,
+                admission is { } id ? $"{id.Dataset}|{id.WorkerInstanceId:N}|{id.GenerationId:N}|{id.ManifestRevision}" : string.Empty,
+                lastPrices?.ValueDate, DateTimeOffset.UtcNow, state?.LastSequence ?? 0);
         }
     }
 
@@ -163,59 +163,59 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
             switch (envelope.Kind)
             {
                 case DatasetPublicationKind.OptionTradeEvidence:
-                {
-                    var evidence = MessagePackSerializer.Deserialize<Pricing.OptionTradeEvidence>(envelope.Payload);
-                    evidence.Validate();
-                    if (evidence.Source.Dataset != envelope.Dataset || evidence.Source.ValueDate != envelope.ValueDate
-                        || evidence.Source.GenerationId != envelope.GenerationId
-                        || evidence.Context is { } context && !state.Contracts.ContainsKey(context.Contract.UnderlyingContractId))
-                        return false;
-                    break;
-                }
+                    {
+                        var evidence = MessagePackSerializer.Deserialize<Pricing.OptionTradeEvidence>(envelope.Payload);
+                        evidence.Validate();
+                        if (evidence.Source.Dataset != envelope.Dataset || evidence.Source.ValueDate != envelope.ValueDate
+                            || evidence.Source.GenerationId != envelope.GenerationId
+                            || evidence.Context is { } context && !state.Contracts.ContainsKey(context.Contract.UnderlyingContractId))
+                            return false;
+                        break;
+                    }
                 case DatasetPublicationKind.MarketPrice:
-                {
-                    var price = MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(envelope.Payload).Price;
-                    if (!Matches(state, price.ContractId, price.ValueDate) || price.AssetTypeId != AssetTypeId.Futures)
-                        return false;
-                    prices[price.ContractId] = price;
-                    if (price.Trade is { } trade)
-                        lastPrices.TryUpdateTrade(new LastTradeTickSnapshot(price.ContractId, price.ValueDate,
-                            trade.LastPrice, trade.LastSize, trade.SourceSequence, trade.EventTimestamp, trade.ReceiveTimestamp));
-                    if (price.Quote is { } quote)
-                        lastPrices.TryUpdateQuote(new LastQuoteTickSnapshot(price.ContractId, price.ValueDate,
-                            quote.BidPrice, quote.BidSize, quote.BidCount, quote.AskPrice, quote.AskSize,
-                            quote.AskCount, quote.SourceSequence, quote.EventTimestamp, quote.ReceiveTimestamp));
-                    break;
-                }
+                    {
+                        var price = MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(envelope.Payload).Price;
+                        if (!Matches(state, price.ContractId, price.ValueDate) || price.AssetTypeId != AssetTypeId.Futures)
+                            return false;
+                        prices[price.ContractId] = price;
+                        if (price.Trade is { } trade)
+                            lastPrices.TryUpdateTrade(new LastTradeTickSnapshot(price.ContractId, price.ValueDate,
+                                trade.LastPrice, trade.LastSize, trade.SourceSequence, trade.EventTimestamp, trade.ReceiveTimestamp));
+                        if (price.Quote is { } quote)
+                            lastPrices.TryUpdateQuote(new LastQuoteTickSnapshot(price.ContractId, price.ValueDate,
+                                quote.BidPrice, quote.BidSize, quote.BidCount, quote.AskPrice, quote.AskSize,
+                                quote.AskCount, quote.SourceSequence, quote.EventTimestamp, quote.ReceiveTimestamp));
+                        break;
+                    }
                 case DatasetPublicationKind.SessionStatistics:
-                {
-                    var value = MessagePackSerializer.Deserialize<FuturesSessionStatisticsUpdatedRealtimeEvent>(envelope.Payload).Statistics;
-                    if (!Matches(state, value.ContractId, value.ValueDate)) return false;
-                    statistics[value.ContractId] = value;
-                    break;
-                }
+                    {
+                        var value = MessagePackSerializer.Deserialize<FuturesSessionStatisticsUpdatedRealtimeEvent>(envelope.Payload).Statistics;
+                        if (!Matches(state, value.ContractId, value.ValueDate)) return false;
+                        statistics[value.ContractId] = value;
+                        break;
+                    }
                 case DatasetPublicationKind.TradeReplayBatch:
-                {
-                    var value = MessagePackSerializer.Deserialize<FuturesTradeReplayBatchRealtimeEvent>(envelope.Payload);
-                    if (!Matches(state, value.EntityId.ContractId, value.EntityId.ValueDate))
-                        return false;
-                    break;
-                }
+                    {
+                        var value = MessagePackSerializer.Deserialize<FuturesTradeReplayBatchRealtimeEvent>(envelope.Payload);
+                        if (!Matches(state, value.EntityId.ContractId, value.EntityId.ValueDate))
+                            return false;
+                        break;
+                    }
                 case DatasetPublicationKind.Trade:
-                {
-                    var value = MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(envelope.Payload);
-                    if (!Matches(state, value.TickDataId.ContractId, value.TickDataId.ValueDate)
-                        || value.AssetTypeId != AssetTypeId.Futures || value.Dataset != envelope.Dataset) return false;
-                    break;
-                }
+                    {
+                        var value = MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(envelope.Payload);
+                        if (!Matches(state, value.TickDataId.ContractId, value.TickDataId.ValueDate)
+                            || value.AssetTypeId != AssetTypeId.Futures || value.Dataset != envelope.Dataset) return false;
+                        break;
+                    }
                 case DatasetPublicationKind.Quote:
-                {
-                    var value = MessagePackSerializer.Deserialize<FuturesTickQuoteDataChangedEvent>(envelope.Payload);
-                    if (!Matches(state, value.TickDataId.ContractId, value.TickDataId.ValueDate)
-                        || value.AssetTypeId != AssetTypeId.Futures || value.Dataset != envelope.Dataset
-                        || value.QuoteCount != value.QuoteData.Count) return false;
-                    break;
-                }
+                    {
+                        var value = MessagePackSerializer.Deserialize<FuturesTickQuoteDataChangedEvent>(envelope.Payload);
+                        if (!Matches(state, value.TickDataId.ContractId, value.TickDataId.ValueDate)
+                            || value.AssetTypeId != AssetTypeId.Futures || value.Dataset != envelope.Dataset
+                            || value.QuoteCount != value.QuoteData.Count) return false;
+                        break;
+                    }
                 default: return false;
             }
             state.LastSequence = envelope.PublicationSequence;

@@ -32,7 +32,7 @@ public sealed class RiskManagerPortfolioBehaviorTests
 
         var receipt = await PortfolioOrderCompositionModel.EvaluateAsync(
             request, book, 1, book.Funds.Select(fund => new PortfolioFundFinancialSnapshot(
-                fund.FundId,1_000_000,[])).ToArray(), new IdentityAllocator());
+                fund.FundId, 1_000_000, [])).ToArray(), new IdentityAllocator());
 
         receipt.Status.Should().Be(PortfolioOrderCompositionStatus.ExecuteTradeOrders);
         receipt.TradeOrders.Select(order => order.Id.FundId).Should().Equal(10, 12);
@@ -45,20 +45,20 @@ public sealed class RiskManagerPortfolioBehaviorTests
 
     static FinancialFundAuthority Fund(int id, bool canSpend,
         TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogKey deployment) => new()
-    {
-        FundId = id,
-        CanSpend = canSpend,
-        Limits = Limits(CapacityScopeKind.Portfolio,FinancialScopeKeys.Portfolio(1))
-            .Concat(Limits(CapacityScopeKind.Fund,FinancialScopeKeys.Fund(id))).ToArray(),
-        Deployments = [new FinancialDeploymentAuthority(
+        {
+            FundId = id,
+            CanSpend = canSpend,
+            Limits = Limits(CapacityScopeKind.Portfolio, FinancialScopeKeys.Portfolio(1))
+            .Concat(Limits(CapacityScopeKind.Fund, FinancialScopeKeys.Fund(id))).ToArray(),
+            Deployments = [new FinancialDeploymentAuthority(
             new FinancialAuthorityReference
             {
                 DeploymentKey = deployment,
                 ValidUntilUtc = new DateTime(2027, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             }, Limits(CapacityScopeKind.Deployment,FinancialScopeKeys.Deployment(deployment)), 0)]
-    };
+        };
 
-    static CapacityLimit[] Limits(CapacityScopeKind scope,string key) =>
+    static CapacityLimit[] Limits(CapacityScopeKind scope, string key) =>
     [
         new(scope,key,CapacityMeasure.SettlementCash,CapacityUnit.Usd,1_000_000),
         new(scope,key,CapacityMeasure.LossCharge,CapacityUnit.Usd,1_000_000),
@@ -77,7 +77,10 @@ public sealed class RiskManagerPortfolioBehaviorTests
         {
             Candidate = result.Candidate! with
             {
-                PortfolioId = 0, FundId = 0, OrderId = 0, PrimaryTradeId = 0
+                PortfolioId = 0,
+                FundId = 0,
+                OrderId = 0,
+                PrimaryTradeId = 0
             },
             DecisionContext = result.DecisionContext with { PortfolioId = 0, FundId = 0 }
         };

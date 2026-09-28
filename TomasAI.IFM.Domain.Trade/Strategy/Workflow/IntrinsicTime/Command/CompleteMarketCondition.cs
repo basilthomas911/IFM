@@ -79,12 +79,17 @@ public static class CompleteMarketCondition
                 Status = WorkflowStrategyMachineStatus.TimedOut,
                 Outcome = StrategyWorkflowOutcome.TimedOut,
                 WorkflowRevision = current.WorkflowRevision + 1,
-                CausationId = command.SourceEventId, UpdatedAtUtc = now, TerminalAtUtc = now,
+                CausationId = command.SourceEventId,
+                UpdatedAtUtc = now,
+                TerminalAtUtc = now,
                 StopReasonCode = MarketConditionReasonCodes.ResultExpired,
                 MarketCondition = current.MarketCondition with
                 {
-                    ProcessingStatus = StrategyActorProcessingStatus.TimedOut, FailedAtUtc = now,
-                    Failure = failure, Result = command.Result, SourceEventId = command.SourceEventId
+                    ProcessingStatus = StrategyActorProcessingStatus.TimedOut,
+                    FailedAtUtc = now,
+                    Failure = failure,
+                    Result = command.Result,
+                    SourceEventId = command.SourceEventId
                 }
             };
             AppendSnapshot(state, command, current.Status, timedOut, now);
@@ -131,7 +136,9 @@ public static class CompleteMarketCondition
         {
             Status = command.TradeSelectionInitializationFailure is null ? WorkflowStrategyMachineStatus.Started : WorkflowStrategyMachineStatus.Failed,
             Outcome = command.TradeSelectionInitializationFailure is null ? StrategyWorkflowOutcome.None : StrategyWorkflowOutcome.PipelineFailed,
-            CausationId = command.CausationId, WorkflowRevision = revision, UpdatedAtUtc = now,
+            CausationId = command.CausationId,
+            WorkflowRevision = revision,
+            UpdatedAtUtc = now,
             CurrentStage = StrategyWorkflowStage.TradeSelection,
             TerminalAtUtc = command.TradeSelectionInitializationFailure is null ? null : now,
             StopReasonCode = command.TradeSelectionInitializationFailure is null ? string.Empty : "TS.INIT.FAILED",
@@ -142,9 +149,14 @@ public static class CompleteMarketCondition
             {
                 ProcessingStatus = StrategyActorProcessingStatus.Completed,
                 ContinuationDecision = StrategyWorkflowContinuationDecision.Proceed,
-                CompletedAtUtc = now, FailedAtUtc = null, Result = command.Result, Failure = null,
-                SourceEventId = command.SourceEventId, ContinuationRuleSetId = "IntrinsicTimeStrategyWorkflow.Assessment.v2",
-                ContinuationRuleSetVersion = 2, ContinuationReasonCodes = result.Reasons,
+                CompletedAtUtc = now,
+                FailedAtUtc = null,
+                Result = command.Result,
+                Failure = null,
+                SourceEventId = command.SourceEventId,
+                ContinuationRuleSetId = "IntrinsicTimeStrategyWorkflow.Assessment.v2",
+                ContinuationRuleSetVersion = 2,
+                ContinuationReasonCodes = result.Reasons,
                 ParameterSetId = (command.AssessmentBinding ?? current.AssessmentBinding)?.Parameters.ParameterSetId ?? Guid.Empty,
                 ParameterSetVersion = (command.AssessmentBinding ?? current.AssessmentBinding)?.Parameters.Version ?? 0,
                 ParameterPayloadSha256 = (command.AssessmentBinding ?? current.AssessmentBinding)?.PayloadSha256 ?? string.Empty
@@ -156,7 +168,8 @@ public static class CompleteMarketCondition
                 StartedAtUtc = now,
                 FailedAtUtc = command.TradeSelectionInitializationFailure is null ? null : now,
                 Failure = command.TradeSelectionInitializationFailure,
-                InputWorkflowRevision = revision, ExpiresAtUtc = current.ExpiresAtUtc,
+                InputWorkflowRevision = revision,
+                ExpiresAtUtc = current.ExpiresAtUtc,
                 ParameterSetId = (command.SelectionBinding ?? current.SelectionBinding)?.CommonPolicy.Id ?? Guid.Empty,
                 ParameterSetVersion = (command.SelectionBinding ?? current.SelectionBinding)?.CommonPolicy.Version ?? 0,
                 ParameterPayloadSha256 = (command.SelectionBinding ?? current.SelectionBinding)?.PayloadSha256 ?? string.Empty
@@ -170,25 +183,39 @@ public static class CompleteMarketCondition
         CompleteMarketConditionCommand command, WorkflowStrategyMachineStatus previousStatus,
         IntrinsicTimeStrategyWorkflowView view, DateTime now)
     {
-        var snapshotId=Guid.CreateVersion7(new DateTimeOffset(now,TimeSpan.Zero));
-        if(view.Status==WorkflowStrategyMachineStatus.Started && view.CurrentStage==StrategyWorkflowStage.TradeSelection)
+        var snapshotId = Guid.CreateVersion7(new DateTimeOffset(now, TimeSpan.Zero));
+        if (view.Status == WorkflowStrategyMachineStatus.Started && view.CurrentStage == StrategyWorkflowStage.TradeSelection)
         {
-            try { view=view with {SelectionDispatch=TradeSelection.TradeSelectionDispatch.Create(view,snapshotId)}; }
-            catch(Exception ex) when(ex is ArgumentException or InvalidOperationException)
+            try { view = view with { SelectionDispatch = TradeSelection.TradeSelectionDispatch.Create(view, snapshotId) }; }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
-                view=view with {Status=WorkflowStrategyMachineStatus.Failed,Outcome=StrategyWorkflowOutcome.PipelineFailed,TerminalAtUtc=now,StopReasonCode="TS.CONFIG.INVALID",
-                    TradeSelection=view.TradeSelection with {ProcessingStatus=StrategyActorProcessingStatus.Failed,FailedAtUtc=now,Failure=new(){ErrorCode=23023,ErrorType="SelectionBindingInvalid",ErrorMessage=ex.Message,FailedAtUtc=now}}};
+                view = view with
+                {
+                    Status = WorkflowStrategyMachineStatus.Failed,
+                    Outcome = StrategyWorkflowOutcome.PipelineFailed,
+                    TerminalAtUtc = now,
+                    StopReasonCode = "TS.CONFIG.INVALID",
+                    TradeSelection = view.TradeSelection with { ProcessingStatus = StrategyActorProcessingStatus.Failed, FailedAtUtc = now, Failure = new() { ErrorCode = 23023, ErrorType = "SelectionBindingInvalid", ErrorMessage = ex.Message, FailedAtUtc = now } }
+                };
             }
         }
         state.UpdateRequired(new WorkflowStrategyStateUpdatedEvent
         {
             Subject = new ActorSubject(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor,
                 WorkflowStrategyStateUpdatedEvent.Verb, command.EntityId.Format()),
-            Id = snapshotId, EntityId = command.EntityId,
-            CommandId = command.CommandId, AggregateId = command.EntityId.Format(), EventSource = command.EventSource,
-            ReceivedOn = now, WorkflowId = view.WorkflowId, WorkflowRevision = view.WorkflowRevision,
-            CorrelationId = view.CorrelationId, CausationId = view.CausationId, PreviousStatus = previousStatus,
-            State = view, UpdatedAtUtc = now
+            Id = snapshotId,
+            EntityId = command.EntityId,
+            CommandId = command.CommandId,
+            AggregateId = command.EntityId.Format(),
+            EventSource = command.EventSource,
+            ReceivedOn = now,
+            WorkflowId = view.WorkflowId,
+            WorkflowRevision = view.WorkflowRevision,
+            CorrelationId = view.CorrelationId,
+            CausationId = view.CausationId,
+            PreviousStatus = previousStatus,
+            State = view,
+            UpdatedAtUtc = now
         }, command);
     }
 

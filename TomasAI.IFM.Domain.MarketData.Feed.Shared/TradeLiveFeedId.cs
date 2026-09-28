@@ -21,9 +21,9 @@ public record TradeLiveFeedId
     /// <summary>The trade identifier associated with the trade live feed.</summary>
     [Key(1)]
     public int TradeId { get; init; }
-    
+
     [Key(2)]
-    public DateOnly ValueDate {  get; init; }
+    public DateOnly ValueDate { get; init; }
 
     /// <summary>
     /// Parameterless constructor required for MessagePack and tooling scenarios.
@@ -36,7 +36,7 @@ public record TradeLiveFeedId
     /// <param name="orderId">The order identifier.</param>
     /// <param name="tradeId">The trade identifier.</param>
     /// <param name="valueDate">The value date.</param>
-    public TradeLiveFeedId(int orderId, int tradeId, DateOnly valueDate)    
+    public TradeLiveFeedId(int orderId, int tradeId, DateOnly valueDate)
     {
         OrderId = orderId;
         TradeId = tradeId;

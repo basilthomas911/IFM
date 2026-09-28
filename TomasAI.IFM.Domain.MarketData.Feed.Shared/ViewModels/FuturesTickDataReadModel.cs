@@ -97,7 +97,7 @@ public record FuturesTickDataV2ReadModel
             size: 0);
 
     [JsonIgnore]
-    [IgnoreMember]  
+    [IgnoreMember]
     public bool IsValid
         => ContractId != string.Empty && ValueDate > DateOnly.MinValue && TickId > 0L && TickTime > TimeOnly.MinValue;
 }

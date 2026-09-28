@@ -20,7 +20,8 @@ public static class StrategyCatalogExamples
         var condor = Structure("IronCondor", "Iron condor", [new("LowerPut", "FuturesOption", "Buy", "Put", 1, "Front"), new("UpperPut", "FuturesOption", "Sell", "Put", 1, "Front"), new("LowerCall", "FuturesOption", "Sell", "Call", 1, "Front"), new("UpperCall", "FuturesOption", "Buy", "Call", 1, "Front")]);
         var strategy = New(StrategyCatalogKind.Strategy, "RegimeAligned", "Regime-aligned strategy") with
         {
-            Families = [family.Key], Structures = [future.Key, call.Key, put.Key, condor.Key],
+            Families = [family.Key],
+            Structures = [future.Key, call.Key, put.Key, condor.Key],
             Description = "Engineering draft. Configure selection rules and qualified capabilities before publication.",
             Capabilities = [new("evaluator", "RegimeAligned", 1), new("data", "AcceptedMarketAssessment", 1)]
         };
@@ -39,19 +40,26 @@ public static class StrategyCatalogExamples
 
     static StrategyCatalogDefinition Structure(string code, string name, CatalogLeg[] legs) => New(StrategyCatalogKind.Structure, code, name) with
     {
-        ExpiryGroups = [new("Front")], Legs = legs,
+        ExpiryGroups = [new("Front")],
+        Legs = legs,
         Capabilities = [new("builder", code, 1), new("risk", code, 1)]
     };
     static StrategyCatalogDefinition Variant(StrategyCatalogDefinition structure, string code, string name, string side, string bias, string premium, bool invert) =>
         New(StrategyCatalogKind.Variant, code, name) with
         {
-            Parent = structure.Key, Side = side, Bias = bias, PremiumMode = premium,
+            Parent = structure.Key,
+            Side = side,
+            Bias = bias,
+            PremiumMode = premium,
             Capabilities = [new("validator", "StructureVariant", 1)],
             VariantLegs = structure.Legs.Select(l => new CatalogVariantLeg(l.Key, invert ? (l.Side == "Buy" ? "Sell" : "Buy") : l.Side, l.Ratio)).ToArray(),
             Settings = JsonSerializer.SerializeToElement(new
             {
                 TargetNetDelta = bias == "Balanced" ? 0m : bias == "Bullish" ? .15m : -.15m,
-                BalanceTolerance = .05m, SymmetricWings = true, MinimumWingWidth = 0m, MaximumWingWidth = 0m
+                BalanceTolerance = .05m,
+                SymmetricWings = true,
+                MinimumWingWidth = 0m,
+                MaximumWingWidth = 0m
             })
         };
 }

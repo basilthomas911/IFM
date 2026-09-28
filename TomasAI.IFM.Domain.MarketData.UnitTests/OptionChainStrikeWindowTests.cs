@@ -29,7 +29,7 @@ public sealed class OptionChainStrikeWindowTests
 
         var result = OptionChainStrikeWindow.SelectImpliedVolatility(definitions,
             7822m, 0.16, at.AddDays(1), at,
-            requiredContractIds:[definitions[0].ContractId]);
+            requiredContractIds: [definitions[0].ContractId]);
 
         Assert.Equal("ImpliedVolatility5Delta", result.Method);
         Assert.Contains(result.Contracts, x => x.ContractId == definitions[0].ContractId);

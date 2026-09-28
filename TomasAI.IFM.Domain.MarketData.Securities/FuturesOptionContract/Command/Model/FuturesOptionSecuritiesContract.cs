@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command
 /// <remarks>This class provides a comprehensive representation of a futures option contract, including its unique
 /// identifier,  descriptive details, and associated financial attributes. It supports conversion to and from a view
 /// model representation.</remarks>
-public class FuturesOptionSecuritiesContract 
+public class FuturesOptionSecuritiesContract
 {
     readonly FuturesOptionContractReadModel? _source;
     readonly string _contractId;
@@ -71,7 +71,7 @@ public class FuturesOptionSecuritiesContract
     }
 
     public FuturesOptionSecuritiesContract(FuturesOptionContractReadModel model)
-        :this(model.Description, model.Symbol, model.LocalSymbol, model.SecurityType, model.Currency,
+        : this(model.Description, model.Symbol, model.LocalSymbol, model.SecurityType, model.Currency,
              model.Exchange, model.Multiplier, model.ContractMonth, model.StrikePrice, model.OptionType)
     {
         _source = model;
@@ -79,7 +79,7 @@ public class FuturesOptionSecuritiesContract
     }
 
     public FuturesOptionContractReadModel ToViewModel()
-        => _source ?? new (
+        => _source ?? new(
             contractId: ContractId,
             symbol: Symbol,
             localSymbol: LocalSymbol,

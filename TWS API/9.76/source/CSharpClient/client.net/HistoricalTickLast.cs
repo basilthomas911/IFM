@@ -9,7 +9,7 @@ using System.Text;
 
 namespace IBApi
 {
-	/**
+    /**
      * @class HistoricalTickLast
      * @brief The historical last tick's description. Used when requesting historical tick data with whatToShow = TRADES
      * @sa EClient, EWrapper
@@ -31,7 +31,7 @@ namespace IBApi
             SpecialConditions = specialConditions;
         }
 
-		/**
+        /**
          * @brief The UNIX timestamp of the historical tick 
          */
         public long Time
@@ -41,18 +41,18 @@ namespace IBApi
             [param: MarshalAs(UnmanagedType.I8)]
             private set;
         }
-		
-		/**
+
+        /**
          * @brief Tick attribs of historical last tick
          */
         public TickAttribLast TickAttribLast { get; private set; }
 
-		/**
+        /**
          * @brief The last price of the historical tick 
          */
         public double Price { get; private set; }
 
-		/**
+        /**
          * @brief The last size of the historical tick 
          */
         public long Size
@@ -63,12 +63,12 @@ namespace IBApi
             private set;
         }
 
-		/**
+        /**
          * @brief The source exchange of the historical tick 
          */
         public string Exchange { get; private set; }
 
-		/**
+        /**
          * @brief The conditions of the historical tick. Refer to Trade Conditions page for more details: https://www.interactivebrokers.com/en/index.php?f=7235
          */
         public string SpecialConditions { get; private set; }

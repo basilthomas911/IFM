@@ -32,7 +32,7 @@ public class TradeOrderValidationRules : BaseValidationRules, IValidationRules<T
             {
                 ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
             }
-            catch 
+            catch
             {
                 var validationResult = new ValidationResult();
                 validationResult.Errors.Add(new ValidationFailure("TradeOrder", "TradeOrder instance is null"));

@@ -29,24 +29,22 @@ public class MarketDataFixture : IDisposable
     public EventSourceActorDbContext ActorEventSourceDb { get; private set; } = default!;
     public BlackboardService BlackboardService { get; private set; } = default!;
 
-    public MarketDataFixture() : this("market_data_test_db") { }
 
-    internal MarketDataFixture(string marketDataKeyspace)
+    public MarketDataFixture()
     {
-        if (!System.Text.RegularExpressions.Regex.IsMatch(marketDataKeyspace, "^[a-z][a-z0-9_]{0,47}$"))
-            throw new ArgumentException("Invalid test keyspace.", nameof(marketDataKeyspace));
         SetSeqIdDatabase();
-        SetDbFactory(marketDataKeyspace);
+        SetDbFactory();
         SetEventSourceDatabase();
     }
 
     void SetEventSourceDatabase()
     {
         var settings = new DbConnectionSettings()
-            .Add("EventSourceActorDbConnection", "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres");
+            .Add("EventSourceActorDbConnection", RequiredEnvironment("IFM_TEST_POSTGRES_CONNECTION"),
+                "System.Data.Postgres");
         var repositories = new Dictionary<Type, EventSourceActorDbContext>();
         var factory = new DbContextFactory(new DbContextResolver(type => repositories[type]));
-        var redisCache = new RedisCache(ConnectionMultiplexer.Connect("localhost:6379"));
+        var redisCache = new RedisCache(ConnectionMultiplexer.Connect(RequiredEnvironment("IFM_TEST_REDIS_URL")));
         BlackboardService = new BlackboardService(redisCache, new SystemTextJsonSerializer());
         var logger = Substitute.For<ILogger<DbProvider>>();
         repositories.Add(typeof(IObjectRepository<EventSourceActorDbContext>),
@@ -54,10 +52,11 @@ public class MarketDataFixture : IDisposable
         ActorEventSourceDb = (EventSourceActorDbContext)factory.ActorEventSourceDb;
     }
 
-    void SetDbFactory(string marketDataKeyspace)
+    void SetDbFactory()
     {
         var dbConn = new DbConnectionSettings()
-             .Add("MarketDataDbConnection", $"Contact Points=localhost;Port=9042;Default Keyspace={marketDataKeyspace}", "System.Data.ScyllaDb");
+             .Add("MarketDataDbConnection", RequiredEnvironment("IFM_TEST_MARKET_DATA_CONNECTION"),
+                 "System.Data.ScyllaDb");
         var diContainer = new Dictionary<Type, IObjectRepository>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var dbFactory = new DbContextFactory(dbResolver);
@@ -76,8 +75,7 @@ public class MarketDataFixture : IDisposable
                 "yield_curve_rate_by_date",
                 "yield_curve_rate_year",
                 "economic_calendar",
-                "economic_calendar_country_code",
-                "economic_calendar"
+                "economic_calendar_country_code"
             ])
             .GetAwaiter().GetResult();
         diContainer.Add(typeof(IObjectRepository<MarketDataDbContext>), new MarketDataDbContext(dbConn, dbFactory, blackboardService, SequenceIdGenerator, logger));
@@ -89,7 +87,8 @@ public class MarketDataFixture : IDisposable
     void SetSeqIdDatabase()
     {
         var dbConn = new DbConnectionSettings()
-             .Add("SequenceIdDbConnection", "Host=localhost;Port=5432;Database=sequence-id-test-db", "System.Data.Postgres");
+             .Add("SequenceIdDbConnection", RequiredEnvironment("IFM_TEST_POSTGRES_CONNECTION"),
+                 "System.Data.Postgres");
         var diContainer = new Dictionary<Type, SequenceIdDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
@@ -104,5 +103,10 @@ public class MarketDataFixture : IDisposable
     public void Dispose()
     {
     }
+
+    static string RequiredEnvironment(string name)
+        => Environment.GetEnvironmentVariable(name)
+            ?? throw new InvalidOperationException($"The assembly integration fixture did not set {name}.");
+
 }
 

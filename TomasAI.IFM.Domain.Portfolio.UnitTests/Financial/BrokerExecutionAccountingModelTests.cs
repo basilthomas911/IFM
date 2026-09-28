@@ -62,9 +62,9 @@ public sealed class BrokerExecutionAccountingModelTests
     [Fact]
     public void Break_even_close_still_emits_realization_to_clear_existing_MTM()
     {
-        var fixture=Fixture(TradeOrderPositionType.Closing,-1,100m,0m);
-        var input=fixture.Input with { OpeningSignedSettlementByLeg=new Dictionary<Guid,decimal> { [fixture.LegId]=5000m } };
-        BrokerExecutionAccountingModel.Create(input).Items.Single(x=>x.TransactionKind==LedgerTransactionKind.RealizedPnl)
+        var fixture = Fixture(TradeOrderPositionType.Closing, -1, 100m, 0m);
+        var input = fixture.Input with { OpeningSignedSettlementByLeg = new Dictionary<Guid, decimal> { [fixture.LegId] = 5000m } };
+        BrokerExecutionAccountingModel.Create(input).Items.Single(x => x.TransactionKind == LedgerTransactionKind.RealizedPnl)
             .Amount.Should().Be(0m);
     }
 
@@ -100,7 +100,9 @@ public sealed class BrokerExecutionAccountingModelTests
         var configuration = new FinancialPostingConfiguration(11, 2, new FinancialAuthorityReference(), rules, true, DateOnly.FromDateTime(now));
         var order = new TradeOrderDefinition
         {
-            Id = new(1, 2, 3), PositionType = positionType, ValueDate = DateOnly.FromDateTime(now),
+            Id = new(1, 2, 3),
+            PositionType = positionType,
+            ValueDate = DateOnly.FromDateTime(now),
             Components = [new TradeOrderComponentDefinition
             {
                 ComponentId = componentId, ReservedTradeId = 4, StrategyKind = TradeStrategyKind.FuturesOutright,
@@ -109,9 +111,16 @@ public sealed class BrokerExecutionAccountingModelTests
         };
         var fill = new ExecutionFillEvidence
         {
-            ExecutionFillId = Guid.NewGuid(), ExecutionAttemptId = Guid.NewGuid(), ComponentId = componentId,
-            TradeLegId = legId, ContractId = "ES", SignedQuantity = signedQuantity, Price = price,
-            Commission = commission, FilledAtUtc = now, ExternalExecutionId = "EM-EXEC-1"
+            ExecutionFillId = Guid.NewGuid(),
+            ExecutionAttemptId = Guid.NewGuid(),
+            ComponentId = componentId,
+            TradeLegId = legId,
+            ContractId = "ES",
+            SignedQuantity = signedQuantity,
+            Price = price,
+            Commission = commission,
+            FilledAtUtc = now,
+            ExternalExecutionId = "EM-EXEC-1"
         };
         return (new(configuration, order, [fill], "EM-MOVEMENT-1", now.AddMilliseconds(1)), legId);
     }

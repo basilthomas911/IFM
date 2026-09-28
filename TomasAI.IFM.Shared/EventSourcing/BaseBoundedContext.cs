@@ -12,8 +12,8 @@ namespace TomasAI.IFM.Shared.EventSourcing;
 /// context, allowing for flexible handling of domain commands.</remarks>
 /// <typeparam name="TState">The type of the state associated with the bounded context. Must implement the <see
 /// cref="IBoundedContextState{TState}"/> interface.</typeparam>
-public abstract class BaseBoundedContext<TState> 
-    : IBoundedContext<TState> where TState : class, IBoundedContextState<TState> 
+public abstract class BaseBoundedContext<TState>
+    : IBoundedContext<TState> where TState : class, IBoundedContextState<TState>
 {
     readonly static ConcurrentDictionary<string, (Type CmdHndlrType, object CmdHndlr, MethodInfo Command)> _boundCtxCmdHndlrMap = new();
     readonly IBoundedContextState<TState> _boundCtx;
@@ -68,7 +68,7 @@ public abstract class BaseBoundedContext<TState>
         if (mapEntry.CmdHndlr is not null)
             mapEntry.Command?.Invoke(mapEntry.CmdHndlr, [command, _boundCtx]);
         else
-             ((dynamic)this).Execute((dynamic)command);
+            ((dynamic)this).Execute((dynamic)command);
     }
 
     public async ValueTask ExecuteAsync(ICommand command)

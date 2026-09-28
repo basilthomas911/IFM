@@ -51,19 +51,19 @@ public static class StrategyExitFunctionEventMapping
             throw new ArgumentException("Exit composition outcome is required.");
         return FunctionResult<ExitOrderCompositionCompletedEvent,
             ExitPositionWorkflowFailedEvent>.Complete(new ExitOrderCompositionCompletedEvent
-        {
-            Subject = new(ActorType.Function, actorName, ExitOrderCompositionCompletedEvent.Verb,
+            {
+                Subject = new(ActorType.Function, actorName, ExitOrderCompositionCompletedEvent.Verb,
                 request.EntityId.Format()),
-            Id = TradePlanContractIdentity.DeterministicId(
+                Id = TradePlanContractIdentity.DeterministicId(
                 $"{request.CommandId:N}|{ExitOrderCompositionCompletedEvent.Verb}"),
-            EntityId = request.EntityId,
-            CommandId = request.CommandId,
-            AggregateId = request.EntityId.Format(),
-            EventSource = actorName,
-            ReceivedOn = clock.GetUtcNow().UtcDateTime,
-            Composition = composition,
-            RequestFingerprint = request.InputHash
-        });
+                EntityId = request.EntityId,
+                CommandId = request.CommandId,
+                AggregateId = request.EntityId.Format(),
+                EventSource = actorName,
+                ReceivedOn = clock.GetUtcNow().UtcDateTime,
+                Composition = composition,
+                RequestFingerprint = request.InputHash
+            });
     }
 
     /// <summary>Maps an exit-order composition failure to its terminal workflow event.</summary>
@@ -121,19 +121,19 @@ public static class StrategyExitFunctionEventMapping
             throw new ArgumentException("Position exit-risk decision is required.");
         return FunctionResult<PositionExitRiskCompletedEvent,
             ExitPositionWorkflowFailedEvent>.Complete(new PositionExitRiskCompletedEvent
-        {
-            Subject = new(ActorType.Function, actorName, PositionExitRiskCompletedEvent.Verb,
+            {
+                Subject = new(ActorType.Function, actorName, PositionExitRiskCompletedEvent.Verb,
                 request.EntityId.Format()),
-            Id = TradePlanContractIdentity.DeterministicId(
+                Id = TradePlanContractIdentity.DeterministicId(
                 $"{request.CommandId:N}|{PositionExitRiskCompletedEvent.Verb}"),
-            EntityId = request.EntityId,
-            CommandId = request.CommandId,
-            AggregateId = request.EntityId.Format(),
-            EventSource = actorName,
-            ReceivedOn = clock.GetUtcNow().UtcDateTime,
-            Decision = decision,
-            RequestFingerprint = request.InputHash
-        });
+                EntityId = request.EntityId,
+                CommandId = request.CommandId,
+                AggregateId = request.EntityId.Format(),
+                EventSource = actorName,
+                ReceivedOn = clock.GetUtcNow().UtcDateTime,
+                Decision = decision,
+                RequestFingerprint = request.InputHash
+            });
     }
 
     /// <summary>Maps a position exit-risk failure to its terminal workflow event.</summary>

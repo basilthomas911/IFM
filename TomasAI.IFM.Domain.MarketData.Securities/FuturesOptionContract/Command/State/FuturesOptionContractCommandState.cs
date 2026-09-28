@@ -14,7 +14,7 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command
 /// additions, updates, and removals. It provides mechanisms to determine the existence of contracts and ensures the
 /// state remains consistent with the events processed.</remarks>
 public class FuturesOptionContractCommandState
-    :  BaseEventSourceActorState<FuturesOptionContractCommandState>, IEventSourceActorState<FuturesOptionContractCommandState>
+    : BaseEventSourceActorState<FuturesOptionContractCommandState>, IEventSourceActorState<FuturesOptionContractCommandState>
 {
     readonly FuturesOptionContractModel _model = new();
 

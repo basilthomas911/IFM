@@ -30,7 +30,7 @@ namespace IBApi
         {
             string normalisedLhs = NormalizeString(lhs);
             string normalisedRhs = NormalizeString(rhs);
-            return String.Compare(normalisedLhs, normalisedRhs, true); 
+            return String.Compare(normalisedLhs, normalisedRhs, true);
         }
 
         public static bool VectorEqualsUnordered<T>(List<T> lhs, List<T> rhs)

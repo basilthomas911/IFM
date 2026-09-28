@@ -17,8 +17,8 @@ public record ApplicationStartupEvent : IEvent<ApplicationEntityId>
     [IgnoreMember] public const int ErrorCode = 10001;
 
     [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public Guid Id { get; init; }  
-    [Key(2)] public ApplicationEntityId EntityId{ get; init; }
+    [Key(1)] public Guid Id { get; init; }
+    [Key(2)] public ApplicationEntityId EntityId { get; init; }
     [Key(3)] public long EventId { get; init; }
     [Key(4)] public Guid CommandId { get; init; }
     [Key(5)] public string AggregateId { get; init; }
@@ -82,7 +82,7 @@ public record ApplicationStartupEvent : IEvent<ApplicationEntityId>
         where TEntityId : IActorEntityId
     {
         if (typeof(TEntityId) != typeof(ApplicationEntityId))
-            throw new InvalidOperationException($"ToCompletedEvent: unsupported entity id type {typeof(TEntityId).FullName}. Expected {typeof(ApplicationEntityId).FullName}.");        
+            throw new InvalidOperationException($"ToCompletedEvent: unsupported entity id type {typeof(TEntityId).FullName}. Expected {typeof(ApplicationEntityId).FullName}.");
         var completed = new ApplicationStartupCompleteEvent
         {
             Subject = new ActorSubject(ActorType.Event, ApplicationStartupCompleteEvent.Actor, ApplicationStartupCompleteEvent.Verb, Subject.EntityId),

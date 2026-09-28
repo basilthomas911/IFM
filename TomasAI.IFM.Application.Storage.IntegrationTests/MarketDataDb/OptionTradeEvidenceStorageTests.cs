@@ -45,12 +45,16 @@ public sealed class OptionTradeEvidenceStorageTests
             var restarted = MarketDataDbContextTestFactory.Create(settings["test"]);
             var retained = await restarted.ReadAsync(source.ContractId, source.ValueDate, source.Identity, token);
             Assert.Equal(original, retained);
-            var retry = original with { Source = source with { GenerationId = Guid.NewGuid(), ReceiveNanoseconds = source.ReceiveNanoseconds + 100 },
-                CalculatedAtUtc = original.CalculatedAtUtc.AddMinutes(1), Failure = original.Failure! with { Code = "DifferentRetryFailure" } };
+            var retry = original with
+            {
+                Source = source with { GenerationId = Guid.NewGuid(), ReceiveNanoseconds = source.ReceiveNanoseconds + 100 },
+                CalculatedAtUtc = original.CalculatedAtUtc.AddMinutes(1),
+                Failure = original.Failure! with { Code = "DifferentRetryFailure" }
+            };
             await restarted.WriteAsync(retry, token);
             Assert.Equal(original, await restarted.ReadAsync(source.ContractId, source.ValueDate, source.Identity, token));
             await Assert.ThrowsAsync<InvalidOperationException>(() => restarted.WriteAsync(original with
-                { Source = source with { Price = 13 } }, token).AsTask());
+            { Source = source with { Price = 13 } }, token).AsTask());
             Assert.Equal(original, await restarted.ReadAsync(source.ContractId, source.ValueDate, source.Identity, token));
             var count = await db.Use("TradeEvidence.Count", "SELECT count(*) FROM option_trade_evidence;")
                 .ExecuteQueryAsync(row => row.GetLong(0), token);

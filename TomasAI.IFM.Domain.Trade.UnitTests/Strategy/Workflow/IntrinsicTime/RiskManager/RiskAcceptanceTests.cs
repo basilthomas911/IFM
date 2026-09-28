@@ -17,17 +17,21 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Ris
 public sealed class RiskAcceptanceTests
 {
     [Theory]
-    [InlineData("quantity")] [InlineData("side")] [InlineData("priceHash")]
-    [InlineData("source")] [InlineData("legacy")] [InlineData("expiry")]
+    [InlineData("quantity")]
+    [InlineData("side")]
+    [InlineData("priceHash")]
+    [InlineData("source")]
+    [InlineData("legacy")]
+    [InlineData("expiry")]
     public async Task Rehashed_or_unbound_risk_results_cannot_authorize_execution(string change)
     {
         var request = await RiskFixture.Command();
         var result = new RiskEvaluator().Calculate(request);
-        if (change == "quantity") result = result with { StrategyUnits=result.StrategyUnits+1 };
-        if (change == "side") result = result with { Legs=result.Legs.SetItem(0, result.Legs[0] with { Side="Sell" }) };
-        if (change == "priceHash") result = result with { SizedOrderHash=new('F',64) };
+        if (change == "quantity") result = result with { StrategyUnits = result.StrategyUnits + 1 };
+        if (change == "side") result = result with { Legs = result.Legs.SetItem(0, result.Legs[0] with { Side = "Sell" }) };
+        if (change == "priceHash") result = result with { SizedOrderHash = new('F', 64) };
         var complete = Completion(request, result);
-        if (change == "source") complete = complete with { SourceEventId=Guid.NewGuid() };
+        if (change == "source") complete = complete with { SourceEventId = Guid.NewGuid() };
         var fixture = new Fixture(request, change == "legacy");
         if (change == "expiry") fixture.Clock.Now = request.ExpiresAtUtc;
         complete.Execute(fixture.Context, fixture.State);
@@ -58,44 +62,64 @@ public sealed class RiskAcceptanceTests
     public async Task No_feasible_size_is_a_completed_business_rejection()
     {
         var request = await RiskFixture.Command();
-        request = request with { SizingAuthority=request.SizingAuthority with { AvailableCash=0 } };
-        request = request with { InputSha256=request.Fingerprint() };
+        request = request with { SizingAuthority = request.SizingAuthority with { AvailableCash = 0 } };
+        request = request with { InputSha256 = request.Fingerprint() };
         var result = new RiskEvaluator().Calculate(request);
         result.Outcome.Should().Be(RiskAssessmentOutcome.Rejected);
         var fixture = new Fixture(request);
-        Completion(request,result).Execute(fixture.Context,fixture.State);
+        Completion(request, result).Execute(fixture.Context, fixture.State);
         fixture.State.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.Completed);
         fixture.State.CurrentView.Outcome.Should().Be(StrategyWorkflowOutcome.NoTrade);
         fixture.State.CurrentView.RiskManagement.ContinuationDecision.Should().Be(StrategyWorkflowContinuationDecision.Stop);
     }
 
     internal static CompleteRiskManagementCommand Completion(ExecuteRiskManagementPipelineCommand request, RiskAssessmentResult result)
-        => new() { CommandId=Guid.NewGuid(), EntityId=request.WorkflowEntityId, WorkflowId=request.WorkflowId,
-            InputWorkflowRevision=request.InputWorkflowRevision, SourceEventId=request.CommandId,
-            Result=StrategyStageResultEnvelope.CreateRisk(result), CorrelationId=request.CorrelationId,
-            CausationId=request.CommandId, CompletedAtUtc=result.ProducedAtUtc };
+        => new()
+        {
+            CommandId = Guid.NewGuid(),
+            EntityId = request.WorkflowEntityId,
+            WorkflowId = request.WorkflowId,
+            InputWorkflowRevision = request.InputWorkflowRevision,
+            SourceEventId = request.CommandId,
+            Result = StrategyStageResultEnvelope.CreateRisk(result),
+            CorrelationId = request.CorrelationId,
+            CausationId = request.CommandId,
+            CompletedAtUtc = result.ProducedAtUtc
+        };
 
     sealed class Fixture
     {
         public IntrinsicTimeStrategyWorkflowCommandState State { get; } = new();
         public IIntrinsicTimeStrategyWorkflowCommandContext Context { get; } = Substitute.For<IIntrinsicTimeStrategyWorkflowCommandContext>();
         public Clock Clock { get; }
-        public Fixture(ExecuteRiskManagementPipelineCommand request, bool legacy=false)
+        public Fixture(ExecuteRiskManagementPipelineCommand request, bool legacy = false)
         {
-            Clock=new(request.RequestedAtUtc.AddMilliseconds(1)); Context.TimeProvider.Returns(Clock);
+            Clock = new(request.RequestedAtUtc.AddMilliseconds(1)); Context.TimeProvider.Returns(Clock);
             Context.Logger.Returns(Substitute.For<ILogger<IntrinsicTimeStrategyWorkflowCommandActor>>());
-            var view=new IntrinsicTimeStrategyWorkflowView { EntityId=request.WorkflowEntityId, WorkflowId=request.WorkflowId,
-                WorkflowRevision=request.InputWorkflowRevision, Status=WorkflowStrategyMachineStatus.Started,
-                CurrentStage=StrategyWorkflowStage.RiskManagement, ExpiresAtUtc=request.ExpiresAtUtc,
-                CorrelationId=request.CorrelationId, RiskExecution=legacy ? null : request,
-                RiskManagement=new() { ProcessingStatus=StrategyActorProcessingStatus.Processing, InputWorkflowRevision=request.InputWorkflowRevision } };
-            State.Apply(new WorkflowStrategyStateUpdatedEvent { State=view, EntityId=view.EntityId,
-                WorkflowId=view.WorkflowId, WorkflowRevision=view.WorkflowRevision },false).Should().BeTrue();
+            var view = new IntrinsicTimeStrategyWorkflowView
+            {
+                EntityId = request.WorkflowEntityId,
+                WorkflowId = request.WorkflowId,
+                WorkflowRevision = request.InputWorkflowRevision,
+                Status = WorkflowStrategyMachineStatus.Started,
+                CurrentStage = StrategyWorkflowStage.RiskManagement,
+                ExpiresAtUtc = request.ExpiresAtUtc,
+                CorrelationId = request.CorrelationId,
+                RiskExecution = legacy ? null : request,
+                RiskManagement = new() { ProcessingStatus = StrategyActorProcessingStatus.Processing, InputWorkflowRevision = request.InputWorkflowRevision }
+            };
+            State.Apply(new WorkflowStrategyStateUpdatedEvent
+            {
+                State = view,
+                EntityId = view.EntityId,
+                WorkflowId = view.WorkflowId,
+                WorkflowRevision = view.WorkflowRevision
+            }, false).Should().BeTrue();
         }
     }
     sealed class Clock(DateTime now) : TimeProvider
     {
-        public DateTime Now=now;
-        public override DateTimeOffset GetUtcNow()=>new(Now);
+        public DateTime Now = now;
+        public override DateTimeOffset GetUtcNow() => new(Now);
     }
 }

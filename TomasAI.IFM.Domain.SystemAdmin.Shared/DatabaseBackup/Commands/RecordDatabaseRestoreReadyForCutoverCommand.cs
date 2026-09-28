@@ -6,4 +6,5 @@ using TomasAI.IFM.Shared.EventSourcing;
 #pragma warning disable MsgPack005 // Abstract contract base is never serialized directly.
 
 namespace TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Commands;
+
 [MessagePackObject] public sealed record RecordDatabaseRestoreReadyForCutoverCommand : DatabaseBackupInternalCommand { [IgnoreMember] public override string Verb => "RecordReadyForCutover"; }

@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Application.ServerManager
     public class ConsoleWindowStateModel : ObservableObject
     {
         WindowState _windowState;
-        
+
         public WindowState Value
         {
             get => _windowState;

@@ -22,7 +22,7 @@ namespace TomasAI.IFM.Framework.Storage.Postgres
         /// </summary>
         /// <param name="db"></param>
         /// <returns></returns>
-        public IObjectRepositoryTransaction<TRepo> BeginTransaction(ObjectDataRepository<TRepo> db) 
+        public IObjectRepositoryTransaction<TRepo> BeginTransaction(ObjectDataRepository<TRepo> db)
         {
             if (Transaction is not null) throw new StorageException($"{ClassName}.BeginTransaction: transaction already started");
             Repository = db ?? throw new ArgumentNullException(nameof(db));

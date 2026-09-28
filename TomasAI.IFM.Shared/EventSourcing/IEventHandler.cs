@@ -5,7 +5,7 @@ public interface IAsyncEventHandler<TEvent> where TEvent : IEvent
     Task ExecuteAsync(TEvent e);
 }
 
-public interface IAsyncEventHandler<TEvent, TService> where TEvent : IEvent where TService:IEventService
+public interface IAsyncEventHandler<TEvent, TService> where TEvent : IEvent where TService : IEventService
 {
     Task ExecuteAsync(TEvent e);
 }

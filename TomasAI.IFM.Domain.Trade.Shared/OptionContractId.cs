@@ -9,7 +9,7 @@ public partial class OptionContractId
 {
     string _contractId;
 
-    public static OptionContractId Create(string contractId) => new (contractId);
+    public static OptionContractId Create(string contractId) => new(contractId);
 
     [JsonConstructor]
     private OptionContractId(string contractId) => ParseContractId(contractId);
@@ -52,7 +52,7 @@ public partial class OptionContractId
                 month: int.Parse(maturityDateMatch.Value.Substring(4, 2)),
                 day: int.Parse(maturityDateMatch.Value.Substring(6, 2)));
         }
-        catch 
+        catch
         {
             throw new InvalidOperationException($"OptionContractId.SetMaturityDate: invalid maturity date '{maturityDateMatch.Value}'");
         }
@@ -60,7 +60,7 @@ public partial class OptionContractId
 
     private void SetOptionType(Match optionTypeMatch)
     {
-        switch(optionTypeMatch.Value.ToUpper())
+        switch (optionTypeMatch.Value.ToUpper())
         {
             case "C":
                 OptionType = OptionType.Call;
@@ -85,5 +85,5 @@ public partial class OptionContractId
         }
     }
 
-    public static  Regex MyRegex() => new Regex("([a-zA-Z]+)|([0-9]{8})|([a-zA-Z]{1})|([0-9]+)", RegexOptions.Singleline);
+    public static Regex MyRegex() => new Regex("([a-zA-Z]+)|([0-9]{8})|([a-zA-Z]{1})|([0-9]+)", RegexOptions.Singleline);
 }

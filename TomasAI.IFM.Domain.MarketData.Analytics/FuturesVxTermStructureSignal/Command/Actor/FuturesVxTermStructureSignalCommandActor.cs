@@ -60,10 +60,10 @@ public sealed class FuturesVxTermStructureSignalCommandActor(
         FuturesVxTermStructureSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand,
         ICommandActorContext<FuturesVxTermStructureSignalCommandActor>,
         FuturesVxTermStructureSignalCommandState, ServiceResult<GuidResult>>>()
-    {
-        [typeof(UpdateFuturesVxTermStructureSignalCommand)] = static (command, _, state) =>
-            ((UpdateFuturesVxTermStructureSignalCommand)command).Execute(state)
-    };
+        {
+            [typeof(UpdateFuturesVxTermStructureSignalCommand)] = static (command, _, state) =>
+                ((UpdateFuturesVxTermStructureSignalCommand)command).Execute(state)
+        };
     /// <inheritdoc />
     protected override ValueTask OnValidateAsync(ICommandActorContext<FuturesVxTermStructureSignalCommandActor> context,
         ActorThreadId threadId, ICommand command) => OnValidateAsync(context, threadId, command, CancellationToken.None);
@@ -77,16 +77,16 @@ public sealed class FuturesVxTermStructureSignalCommandActor(
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
-    {
-        [typeof(UpdateFuturesVxTermStructureSignalCommand)] = static command =>
         {
-            var update = (UpdateFuturesVxTermStructureSignalCommand)command;
-            return new List<ValidationError>()
-                .ValidateCommandId(update.CommandId, update.CommandName)
-                .ValidateEntityId(update.EntityId, update.CommandName)
-                .ValidateInputs(update);
-        }
-    };
+            [typeof(UpdateFuturesVxTermStructureSignalCommand)] = static command =>
+            {
+                var update = (UpdateFuturesVxTermStructureSignalCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(update.CommandId, update.CommandName)
+                    .ValidateEntityId(update.EntityId, update.CommandName)
+                    .ValidateInputs(update);
+            }
+        };
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(
         ICommandActorContext<FuturesVxTermStructureSignalCommandActor> context,

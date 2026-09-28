@@ -16,8 +16,8 @@ namespace TomasAI.IFM.UI.Net.Services.MarketData;
 public class MarketDataQueryService(IMarketDataQueryApi queryApi, IMarketDataFeedQueryApi queryFeedApi)
     : UiServiceBase<MarketDataQueryService>
 {
-    public Task<ServiceResult<EvaluatedOptionChainReadModel>> QueryEvaluatedOptionChainAsync(GetEvaluatedOptionChainQuery request,CancellationToken token=default)
-        => _queryApi.GetEvaluatedOptionChainAsync(request,token);
+    public Task<ServiceResult<EvaluatedOptionChainReadModel>> QueryEvaluatedOptionChainAsync(GetEvaluatedOptionChainQuery request, CancellationToken token = default)
+        => _queryApi.GetEvaluatedOptionChainAsync(request, token);
 
     public async Task<ServiceResult<FuturesEodDataV2ReadModel>> QueryFuturesEodDataAsync(
         string contractId, DateOnly valueDate, CancellationToken token = default)
@@ -163,7 +163,7 @@ public class MarketDataQueryService(IMarketDataQueryApi queryApi, IMarketDataFee
     ///return list of existing futures option contract ids
     /// </summary>
     /// <param name="contractIds"></param>
-    public async Task GetFuturesOptionContractIdsAsync(string[] contractIds , Action<string[]> onCompleted)
+    public async Task GetFuturesOptionContractIdsAsync(string[] contractIds, Action<string[]> onCompleted)
         => await ExecuteAsync(() => _queryApi.GetFuturesOptionContractIdsAsync(contractIds), onCompleted);
 
     /// <summary>
@@ -216,7 +216,7 @@ public class MarketDataQueryService(IMarketDataQueryApi queryApi, IMarketDataFee
         var serviceResult = await _queryApi.GetYieldCurveRateYearsAsync();
         if (serviceResult.Success)
         {
-            List<string> timePeriods = [ "Current Month"];
+            List<string> timePeriods = ["Current Month"];
             var modelYears = serviceResult.Value;
             if (modelYears != null)
                 foreach (var e in modelYears.Years.Distinct())
@@ -264,7 +264,7 @@ public class MarketDataQueryService(IMarketDataQueryApi queryApi, IMarketDataFee
     /// <param name="onCompleted"></param>
     /// <returns></returns>
     public async Task GetRiskFreeRateAsync(Action<double> onCompleted)
-        => await ExecuteAsync( _queryApi.GetLastYieldCurveRateAsync, ycr => onCompleted(ycr.OneMonth / 100));
+        => await ExecuteAsync(_queryApi.GetLastYieldCurveRateAsync, ycr => onCompleted(ycr.OneMonth / 100));
 
     /// <summary>
     /// get trading dates
@@ -334,7 +334,7 @@ public class MarketDataQueryService(IMarketDataQueryApi queryApi, IMarketDataFee
     /// <param name="valueDate"></param>
     /// <param name="onCompleted"></param>
     /// <returns></returns>
-    public async Task YieldCurveRateExistsAsync(DateOnly  valueDate, Action<ServiceResult<ScalarReadModel<bool>>> onCompleted)
+    public async Task YieldCurveRateExistsAsync(DateOnly valueDate, Action<ServiceResult<ScalarReadModel<bool>>> onCompleted)
     {
         var serviceResult = await _queryApi.YieldCurveRateExistsAsync(valueDate);
         onCompleted?.Invoke(serviceResult);

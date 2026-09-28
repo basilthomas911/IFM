@@ -27,7 +27,7 @@ namespace TomasAI.IFM.Service.TradePosition.EventHandlers
         /// <param name="tradeEventventProducer"></param>
         /// <param name="statusConsoleWriter"></param>
         /// <param name="logger"></param>
-        public TradePositionChangedEventHandler(ITradeEventProducer tradeEventventProducer, IStatusConsoleWriter statusConsoleWriter, ILogger logger) 
+        public TradePositionChangedEventHandler(ITradeEventProducer tradeEventventProducer, IStatusConsoleWriter statusConsoleWriter, ILogger logger)
             : base(statusConsoleWriter)
         {
             _tradeEventProducer = IsArgumentNull.Set(tradeEventventProducer);

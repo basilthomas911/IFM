@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using TomasAI.IFM.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventSourcing; 
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.Extensions;
 
@@ -89,5 +89,5 @@ public abstract class BaseExceptionDecorator<TState>(IEventProducer eventProduce
         EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorType), errorType);
         return e;
     }
-    
- }
+
+}

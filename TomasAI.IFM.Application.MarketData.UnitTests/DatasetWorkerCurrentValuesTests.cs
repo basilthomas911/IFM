@@ -257,8 +257,11 @@ public sealed class DatasetWorkerCurrentValuesTests
         Assert.Equal(batch[0], batch[1]);
         Assert.Null(await api.GetFuturesContractAsync("MISSING"));
         Assert.Throws<NotSupportedException>(() => { _ = api.StartStreamingFuturesTickDataAsync(MarketDataApiTestContext.FutureId); });
-        Assert.Throws<NotSupportedException>(() => { _ = api.StartStreamingFuturesOptionChainDataAsync(
-            MarketDataApiTestContext.FutureId, MarketDataApiTestContext.OptionMaturity, [MarketDataApiTestContext.CallId]); });
+        Assert.Throws<NotSupportedException>(() =>
+        {
+            _ = api.StartStreamingFuturesOptionChainDataAsync(
+            MarketDataApiTestContext.FutureId, MarketDataApiTestContext.OptionMaturity, [MarketDataApiTestContext.CallId]);
+        });
         Assert.Throws<NotSupportedException>(() => api.TryGetLastOptionTickPrice(MarketDataApiTestContext.CallId, out _));
         Assert.True(api.IsTickDataStreamActive(MarketDataApiTestContext.FutureId));
         Assert.Equal(0, context.EpochFactory.CreateCount);
@@ -346,7 +349,9 @@ public sealed class DatasetWorkerCurrentValuesTests
 
     static DatabentoContractRegistration Registration(string id, string dataset) => new()
     {
-        DomainContractId = id, Dataset = dataset, ProviderContractName = id,
+        DomainContractId = id,
+        Dataset = dataset,
+        ProviderContractName = id,
         AssetTypeId = AssetTypeId.Futures
     };
 
@@ -369,11 +374,16 @@ public sealed class DatasetWorkerCurrentValuesTests
 
     static DatasetPublicationEnvelope Envelope<T>(DatasetWorkerAdmission identity, DatasetPublicationKind kind,
         long sequence, T payload) => new()
-    {
-        Dataset = identity.Dataset, ValueDate = identity.ValueDate, WorkerInstanceId = identity.WorkerInstanceId,
-        GenerationId = identity.GenerationId, ManifestRevision = identity.ManifestRevision,
-        PublicationSequence = sequence, Kind = kind, Payload = MessagePackSerializer.Serialize(payload)
-    };
+        {
+            Dataset = identity.Dataset,
+            ValueDate = identity.ValueDate,
+            WorkerInstanceId = identity.WorkerInstanceId,
+            GenerationId = identity.GenerationId,
+            ManifestRevision = identity.ManifestRevision,
+            PublicationSequence = sequence,
+            Kind = kind,
+            Payload = MessagePackSerializer.Serialize(payload)
+        };
 
     sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {

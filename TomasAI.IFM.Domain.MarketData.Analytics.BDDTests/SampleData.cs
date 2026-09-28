@@ -1178,7 +1178,8 @@ public static class SampleData
         => (direction == FuturesTrendDirectionType.DownTrending
                 ? TradeSignalTdiSignalDownTrending
                 : TradeSignalTdiSignalUpTrending)
-            with { TDI = direction };
+            with
+        { TDI = direction };
 
     public static FuturesItiSignalDataReadModel TradeSignalItiDataFor(
         TimeFrameType timePeriod,

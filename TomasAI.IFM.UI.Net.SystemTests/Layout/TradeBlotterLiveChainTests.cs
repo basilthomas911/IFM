@@ -47,7 +47,8 @@ public sealed class TradeBlotterLiveChainTests
                     finally { context.ExitThread(); }
                 }));
                 System.Windows.Forms.Application.Run(context);
-            }) { IsBackground = true };
+            })
+            { IsBackground = true };
             thread.SetApartmentState(ApartmentState.STA);
             thread.Start();
             await completed.Task.WaitAsync(TimeSpan.FromSeconds(150));
@@ -73,9 +74,13 @@ public sealed class TradeBlotterLiveChainTests
         var order = new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel());
         var trade = new PortfolioFundOrderTradeEditorModel
         {
-            TradeType = TradeType.ShortIronCondor, TradeState = TradeState.NewTrade,
-            BaseContractId = "ES20261218", BaseContractSymbol = "ES", UnderlyingRoot = "ES",
-            RequestedTradeDate = new DateOnly(2026, 9, 23), RequestedMaturityDate = expiry
+            TradeType = TradeType.ShortIronCondor,
+            TradeState = TradeState.NewTrade,
+            BaseContractId = "ES20261218",
+            BaseContractSymbol = "ES",
+            UnderlyingRoot = "ES",
+            RequestedTradeDate = new DateOnly(2026, 9, 23),
+            RequestedMaturityDate = expiry
         };
         using var legacy = new FailingLegacyFeed();
         using var blotter = new EsTradeBlotterControl(root, fund, order, trade, 0, false,
@@ -137,7 +142,8 @@ public sealed class TradeBlotterLiveChainTests
                 finally { context.ExitThread(); }
             }));
             System.Windows.Forms.Application.Run(context);
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         await completed.Task.WaitAsync(TimeSpan.FromSeconds(20));
@@ -154,9 +160,13 @@ public sealed class TradeBlotterLiveChainTests
         var order = new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel());
         var trade = new PortfolioFundOrderTradeEditorModel
         {
-            TradeType = TradeType.ShortIronCondor, TradeState = TradeState.NewTrade,
-            BaseContractId = "ES20261218", BaseContractSymbol = "ES", UnderlyingRoot = "ES",
-            RequestedTradeDate = new DateOnly(2026, 9, 23), RequestedMaturityDate = expiry
+            TradeType = TradeType.ShortIronCondor,
+            TradeState = TradeState.NewTrade,
+            BaseContractId = "ES20261218",
+            BaseContractSymbol = "ES",
+            UnderlyingRoot = "ES",
+            RequestedTradeDate = new DateOnly(2026, 9, 23),
+            RequestedMaturityDate = expiry
         };
         using var legacy = new FailingLegacyFeed();
         using var blotter = new EsTradeBlotterControl(root, fund, order, trade, 0, false,
@@ -205,7 +215,8 @@ public sealed class TradeBlotterLiveChainTests
                 finally { context.ExitThread(); }
             }));
             System.Windows.Forms.Application.Run(context);
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         await completed.Task.WaitAsync(TimeSpan.FromSeconds(20));
@@ -222,9 +233,13 @@ public sealed class TradeBlotterLiveChainTests
         var order = new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel());
         var trade = new PortfolioFundOrderTradeEditorModel
         {
-            TradeType = TradeType.ShortIronCondor, TradeState = TradeState.NewTrade,
-            BaseContractId = "ES20261218", BaseContractSymbol = "ES", UnderlyingRoot = "ES",
-            RequestedTradeDate = new DateOnly(2026, 9, 23), RequestedMaturityDate = expiry
+            TradeType = TradeType.ShortIronCondor,
+            TradeState = TradeState.NewTrade,
+            BaseContractId = "ES20261218",
+            BaseContractSymbol = "ES",
+            UnderlyingRoot = "ES",
+            RequestedTradeDate = new DateOnly(2026, 9, 23),
+            RequestedMaturityDate = expiry
         };
         using var legacy = new FailingLegacyFeed();
         using var blotter = new EsTradeBlotterControl(root, fund, order, trade, 0, false,
@@ -326,7 +341,8 @@ public sealed class TradeBlotterLiveChainTests
                 finally { context.ExitThread(); }
             }));
             System.Windows.Forms.Application.Run(context);
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         await completed.Task.WaitAsync(TimeSpan.FromSeconds(20));
@@ -357,9 +373,13 @@ public sealed class TradeBlotterLiveChainTests
         var order = new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel());
         var trade = new PortfolioFundOrderTradeEditorModel
         {
-            TradeType = TradeType.ShortIronCondor, TradeState = TradeState.NewTrade,
-            BaseContractId = "ES20261218", BaseContractSymbol = "ES", UnderlyingRoot = "ES",
-            RequestedTradeDate = new DateOnly(2026, 9, 23), RequestedMaturityDate = expiry
+            TradeType = TradeType.ShortIronCondor,
+            TradeState = TradeState.NewTrade,
+            BaseContractId = "ES20261218",
+            BaseContractSymbol = "ES",
+            UnderlyingRoot = "ES",
+            RequestedTradeDate = new DateOnly(2026, 9, 23),
+            RequestedMaturityDate = expiry
         };
         using var legacy = new FailingLegacyFeed();
         using var blotter = new EsTradeBlotterControl(root, fund, order, trade, 0, false,

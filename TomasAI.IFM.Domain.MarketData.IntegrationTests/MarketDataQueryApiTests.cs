@@ -1,23 +1,21 @@
 using FluentAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Trade.Shared;
 using Xunit;
 
 namespace TomasAI.IFM.Domain.MarketData.IntegrationTests;
 
-public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory, MarketDataFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataFixture>
+public class MarketDataQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory, MarketDataFixture dbFixture)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<MarketDataFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     [Fact]
@@ -29,9 +27,7 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory, Mar
         await dbFixture.MarketDataDb.InsertRateOfReturnAsync(rateOfReturn);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var marketDataApi = new MarketDataQueryApi(queryServiceApi);
+        var marketDataApi = new MarketDataQueryApi(_actorProducer);
         var response = await marketDataApi.GetLastRateOfReturnAsync(rateOfReturn.Symbol, rateOfReturn.ValueDate);
 
         // assert...
@@ -56,9 +52,7 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory, Mar
         var endDate = new DateOnly(2025, 7, 4);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var marketDataApi = new MarketDataQueryApi(queryServiceApi);
+        var marketDataApi = new MarketDataQueryApi(_actorProducer);
         var response = await marketDataApi.GetTradingDaysAsync(startDate, endDate, MarketType.Futures, CurrencyType.USD);
 
         // assert...
@@ -82,9 +76,7 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory, Mar
         var endDate = new DateOnly(2025, 7, 4);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var marketDataApi = new MarketDataQueryApi(queryServiceApi);
+        var marketDataApi = new MarketDataQueryApi(_actorProducer);
         var response = await marketDataApi.GetTradingDatesAsync(startDate, endDate, MarketType.Futures, CurrencyType.USD);
 
         // assert...
@@ -103,9 +95,7 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory, Mar
         var now = DateTimeOffset.Now;
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var marketDataApi = new MarketDataQueryApi(queryServiceApi);
+        var marketDataApi = new MarketDataQueryApi(_actorProducer);
         var response = await marketDataApi.GetValueDateAsync();
 
         // assert...
@@ -127,12 +117,7 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory, Mar
     [Fact]
     public async Task GetMarketSessionQuery_AlwaysReturnsOperationalDateAndExplicitLiveState()
     {
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(
-            _httpClientFactory,
-            _jsonSerializer,
-            new QueryServiceApiOptions("http://localhost"));
-        var marketDataApi = new MarketDataQueryApi(queryServiceApi);
+        var marketDataApi = new MarketDataQueryApi(_actorProducer);
 
         var response = await marketDataApi.GetMarketSessionAsync();
 

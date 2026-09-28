@@ -20,7 +20,7 @@ using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.RiskManager;
 
-[Trait("Category","PortfolioFinancial")]
+[Trait("Category", "PortfolioFinancial")]
 public sealed class RiskFunctionTests
 {
     [Fact]
@@ -36,11 +36,11 @@ public sealed class RiskFunctionTests
         var clone = MessagePackBinarySerializer.Shared.Deserialize<RiskAssessmentResult>(MessagePackBinarySerializer.Shared.Serialize(result))!;
         RiskContracts.Hash(clone).Should().Be(RiskContracts.Hash(result));
         clone.ToCapacityAssessment().Requirements.ContentHash.Should().Be(FinancialCanonicalHash.Requirements(result.Requirements!));
-        var envelope=StrategyStageResultEnvelope.CreateRisk(clone);
-        var wire=MessagePackBinarySerializer.Shared.Deserialize<StrategyStageResultEnvelope>(MessagePackBinarySerializer.Shared.Serialize(envelope))!;
+        var envelope = StrategyStageResultEnvelope.CreateRisk(clone);
+        var wire = MessagePackBinarySerializer.Shared.Deserialize<StrategyStageResultEnvelope>(MessagePackBinarySerializer.Shared.Serialize(envelope))!;
         wire.HasContent.Should().BeTrue(); wire.Payload.IsEmpty.Should().BeTrue(); wire.HasValidPayloadSha256().Should().BeTrue();
         wire.ReadRiskResult().SizedOrderHash.Should().Be(result.SizedOrderHash);
-        var owned=wire.RiskResult!.Requirements!; owned.Exposures[0]=owned.Exposures[0] with { Amount=999 };
+        var owned = wire.RiskResult!.Requirements!; owned.Exposures[0] = owned.Exposures[0] with { Amount = 999 };
         wire.RiskResult.Requirements!.ContentHash.Should().Be(FinancialCanonicalHash.Requirements(wire.RiskResult.Requirements));
         wire.HasValidPayloadSha256().Should().BeTrue();
     }
@@ -50,41 +50,41 @@ public sealed class RiskFunctionTests
     {
         var command = await Command();
         var context = Substitute.For<IRiskManagementFunctionContext>();
-        var repository = Substitute.For<IEventSourceFunctionStateRepository<RiskManagementFunctionState,ExecuteRiskManagementPipelineCommand>>();
+        var repository = Substitute.For<IEventSourceFunctionStateRepository<RiskManagementFunctionState, ExecuteRiskManagementPipelineCommand>>();
         RiskManagementFunctionCompletedEvent? saved = null;
-        repository.LoadStateAsync(Arg.Any<ExecuteRiskManagementPipelineCommand>(),Arg.Any<CancellationToken>()).Returns(_ =>
+        repository.LoadStateAsync(Arg.Any<ExecuteRiskManagementPipelineCommand>(), Arg.Any<CancellationToken>()).Returns(_ =>
         {
             var state = new RiskManagementFunctionState();
-            if(saved is not null) state.TryComplete(saved,command);
+            if (saved is not null) state.TryComplete(saved, command);
             return ValueTask.FromResult(state);
         });
-        repository.SaveCompletedStateAsync(Arg.Any<IFunctionActorContext>(),Arg.Any<RiskManagementFunctionState>(),
-            Arg.Any<ExecuteRiskManagementPipelineCommand>(),Arg.Any<CancellationToken>()).Returns(call =>
-            { saved=call.Arg<RiskManagementFunctionState>().CompletedEvent; return ValueTask.CompletedTask; });
-        context.ActorId.Returns(new ActorMailboxId(ActorType.Function,RiskManagementFunctionActor.ActorName));
+        repository.SaveCompletedStateAsync(Arg.Any<IFunctionActorContext>(), Arg.Any<RiskManagementFunctionState>(),
+            Arg.Any<ExecuteRiskManagementPipelineCommand>(), Arg.Any<CancellationToken>()).Returns(call =>
+            { saved = call.Arg<RiskManagementFunctionState>().CompletedEvent; return ValueTask.CompletedTask; });
+        context.ActorId.Returns(new ActorMailboxId(ActorType.Function, RiskManagementFunctionActor.ActorName));
         context.StateRepository.Returns(repository); context.TimeProvider.Returns(new CompositionTestClock(command.EvaluatedAtUtc));
         context.Logger.Returns(NullLogger<RiskManagementFunctionActor>.Instance); context.CalculationModel.Returns(new RiskEvaluator());
         var actor = new RiskManagementFunctionActor(context);
-        var completed = await RiskManagementFunctionTestDriver.ExecuteAsync(actor,command);
+        var completed = await RiskManagementFunctionTestDriver.ExecuteAsync(actor, command);
         saved.Should().NotBeNull();
         saved!.Result.Outcome.Should().Be(RiskAssessmentOutcome.Approved);
-        var firstHash=RiskContracts.Hash(saved);
-        await RiskManagementFunctionTestDriver.ExecuteAsync(actor,command);
+        var firstHash = RiskContracts.Hash(saved);
+        await RiskManagementFunctionTestDriver.ExecuteAsync(actor, command);
         RiskContracts.Hash(saved).Should().Be(firstHash);
-        await repository.Received(1).SaveCompletedStateAsync(Arg.Any<IFunctionActorContext>(),Arg.Any<RiskManagementFunctionState>(),
-            Arg.Any<ExecuteRiskManagementPipelineCommand>(),Arg.Any<CancellationToken>());
-        var changed=command with { IncrementalLossReserve=1 }; changed=changed with { InputSha256=changed.Fingerprint() };
-        var conflict=await RiskManagementFunctionTestDriver.ExecuteAsync(actor,changed);
+        await repository.Received(1).SaveCompletedStateAsync(Arg.Any<IFunctionActorContext>(), Arg.Any<RiskManagementFunctionState>(),
+            Arg.Any<ExecuteRiskManagementPipelineCommand>(), Arg.Any<CancellationToken>());
+        var changed = command with { IncrementalLossReserve = 1 }; changed = changed with { InputSha256 = changed.Fingerprint() };
+        var conflict = await RiskManagementFunctionTestDriver.ExecuteAsync(actor, changed);
         conflict.Failed!.ReasonCode.Should().Be("RM.INPUT.CONFLICTING_DUPLICATE");
     }
 
     [Fact]
     public async Task Rehashed_cross_workflow_upstream_is_rejected_by_lineage_validation()
     {
-        var command=await Command();
-        command=command with { EntityId=command.EntityId with { WorkflowId=new(Guid.NewGuid()) } };
-        command=command with { Subject=new(ActorType.Function,ExecuteRiskManagementPipelineCommand.Actor,ExecuteRiskManagementPipelineCommand.Verb,command.EntityId.Format()) };
-        command=command with { InputSha256=command.Fingerprint() };
+        var command = await Command();
+        command = command with { EntityId = command.EntityId with { WorkflowId = new(Guid.NewGuid()) } };
+        command = command with { Subject = new(ActorType.Function, ExecuteRiskManagementPipelineCommand.Actor, ExecuteRiskManagementPipelineCommand.Verb, command.EntityId.Format()) };
+        command = command with { InputSha256 = command.Fingerprint() };
         new List<ValidationError>().ValidateRiskFields(command).Should().NotBeEmpty();
     }
 

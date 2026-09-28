@@ -37,7 +37,7 @@ public static class GetFuturesMacdDailySignal
                 q.SignalEmaPeriod,
                 q.FastEmaPeriod,
                 q.SlowEmaPeriod).ConfigureAwait(false);
-    
+
 
     /// <summary>Reads and replies to the GetFuturesMacdDailySignalQuery message.</summary>
     public static async ValueTask ExecuteAsync(

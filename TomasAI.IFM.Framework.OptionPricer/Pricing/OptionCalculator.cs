@@ -98,7 +98,7 @@ public sealed class OptionCalculator
         }
         return double.IsFinite(price) && double.IsFinite(delta)
             ? new(new(price, volatility, delta), PricingFailure.None, Engine(request), settings.Steps)
-                { Request = request, NumericalPolicy = settings }
+            { Request = request, NumericalPolicy = settings }
             : FailDelta(request, PricingFailure.NumericalFailure);
     }
 
@@ -211,7 +211,7 @@ public sealed class OptionCalculator
             if (!double.IsFinite(p)) return FailIv(request, PricingFailure.NumericalFailure);
             if (Math.Abs(p - marketPrice) <= tolerance)
                 return new(new(mid, p, p - marketPrice, i + 1), PricingFailure.None, Engine(request), settings.Steps)
-                    { Request = request, NumericalPolicy = settings };
+                { Request = request, NumericalPolicy = settings };
             if (p < marketPrice) lo = mid; else hi = mid;
         }
         return FailIv(request, PricingFailure.NonConvergence);
@@ -365,14 +365,14 @@ public sealed class OptionCalculator
             _ => "Unsupported"
         }
         : (r.Underlying, r.Exercise) switch
-    {
-        (UnderlyingKind.Futures, ExerciseKind.European) =>
-            OptionPricerBackend.UseRust ? "Black76.Rust/v1" : "Black76.Managed/v1",
-        (UnderlyingKind.Equity, ExerciseKind.European) => EuropeanEquityEngine,
-        (UnderlyingKind.Futures, ExerciseKind.American) => "AmericanFutures.CRR.Managed/v1",
-        (UnderlyingKind.Equity, ExerciseKind.American) => "AmericanEquity.CRR.Managed/v1",
-        _ => "Unsupported"
-    };
+        {
+            (UnderlyingKind.Futures, ExerciseKind.European) =>
+                OptionPricerBackend.UseRust ? "Black76.Rust/v1" : "Black76.Managed/v1",
+            (UnderlyingKind.Equity, ExerciseKind.European) => EuropeanEquityEngine,
+            (UnderlyingKind.Futures, ExerciseKind.American) => "AmericanFutures.CRR.Managed/v1",
+            (UnderlyingKind.Equity, ExerciseKind.American) => "AmericanEquity.CRR.Managed/v1",
+            _ => "Unsupported"
+        };
     private PricingResult Fail(in OptionPricingRequest r, PricingFailure failure) =>
         new(null, failure, Engine(r), settings.Steps) { Request = r, NumericalPolicy = settings };
     private PricingResult Complete(in OptionPricingRequest r, OptionValues v) =>

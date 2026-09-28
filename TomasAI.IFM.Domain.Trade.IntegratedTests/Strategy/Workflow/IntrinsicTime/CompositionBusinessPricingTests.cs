@@ -25,21 +25,41 @@ namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTi
 public sealed partial class CompositionBusinessProjectionTests
 {
     [Theory]
-    [InlineData(2, false)] [InlineData(4, false)] [InlineData(2, true)] [InlineData(4, true)]
+    [InlineData(2, false)]
+    [InlineData(4, false)]
+    [InlineData(2, true)]
+    [InlineData(4, true)]
     public async Task Committed_legs_handoff_to_real_pricing_runtime_restore_after_replacement_and_drain_on_close(int count, bool advanceValueDate)
     {
         await using var fixture = await Fixture.Create();
         var plan = Plan(count, fixture.Scope);
-        plan = (plan with { Calendar = plan.Calendar! with { TimeZoneId = "America/New_York",
-            TradingDates = Enumerable.Range(0, 25).Select(i => new DateOnly(2026, 9, 8).AddDays(i))
-                .Where(x => x.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday)).ToImmutableArray() } }).Seal();
+        plan = (plan with
+        {
+            Calendar = plan.Calendar! with
+            {
+                TimeZoneId = "America/New_York",
+                TradingDates = Enumerable.Range(0, 25).Select(i => new DateOnly(2026, 9, 8).AddDays(i))
+                .Where(x => x.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday)).ToImmutableArray()
+            }
+        }).Seal();
         await fixture.SavePlan(plan);
         var selection = new CompositionContractSelection(plan.PlanId, plan.Options.Select(x => x.ContractId).ToImmutableArray());
-        var trade = new OptionTradeReadModel { OrderId = 8765, TradeId = 1, TradeState = TradeState.OrderPlaced,
-            CompositionContracts = selection, UnderlyingContractId = "ES-future" }
+        var trade = new OptionTradeReadModel
+        {
+            OrderId = 8765,
+            TradeId = 1,
+            TradeState = TradeState.OrderPlaced,
+            CompositionContracts = selection,
+            UnderlyingContractId = "ES-future"
+        }
             .AddOptionLegs(selection.ContractIds.Select(x => new OptionTradeLegReadModel { ContractId = x, Quantity = 1 }).ToArray());
-        var placed = new OptionTradeOrderPlacedEvent { Id = Guid.NewGuid(), EntityId = trade.EntityId, OptionTrade = trade,
-            Subject = new(ActorType.Event, OptionTradeOrderPlacedEvent.Actor, OptionTradeOrderPlacedEvent.Verb, trade.EntityId.Format()) };
+        var placed = new OptionTradeOrderPlacedEvent
+        {
+            Id = Guid.NewGuid(),
+            EntityId = trade.EntityId,
+            OptionTrade = trade,
+            Subject = new(ActorType.Event, OptionTradeOrderPlacedEvent.Actor, OptionTradeOrderPlacedEvent.Verb, trade.EntityId.Format())
+        };
         var eventId = await fixture.Append(placed, 1);
         var reference = CommittedCompositionSubscriptionSource.Reference((await fixture.Events.GetEventLogByEventIdAsync(eventId))!, BusinessSubscriptionSourceKind.TradeOrder);
         var clock = new PricingClock(); var oldGeneration = Guid.NewGuid();
@@ -88,8 +108,13 @@ public sealed partial class CompositionBusinessProjectionTests
             // Discovery has expired. Only PostgreSQL-derived business owners keep every leg alive.
             clock.Now = clock.Now.AddMinutes(3); Forward();
             var owner = (await fixture.Store.ReadAsync(fixture.Scope, "GLBX.MDP3")).Authorities.SelectMany(x => x.Leases).First();
-            request = request with { LeaseId = owner.LeaseId, LeaseExpiresAtUtc = clock.Now.AddSeconds(60), ExpectedContextDigest = acquired.ContextDigest,
-                Options = request.Options.Select(x => x with { Pricing = x.Pricing with { ValidUntilUtc = clock.Now.AddHours(1) } }).ToImmutableArray() };
+            request = request with
+            {
+                LeaseId = owner.LeaseId,
+                LeaseExpiresAtUtc = clock.Now.AddSeconds(60),
+                ExpectedContextDigest = acquired.ContextDigest,
+                Options = request.Options.Select(x => x with { Pricing = x.Pricing with { ValidUntilUtc = clock.Now.AddHours(1) } }).ToImmutableArray()
+            };
             Assert.True((await worker.AcquireAsync(request, default)).Active);
             foreach (var option in request.Options) feed.Push(option.Pricing.Contract.InstrumentId, clock.Now);
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -100,13 +125,23 @@ public sealed partial class CompositionBusinessProjectionTests
             Assert.Null(capture.Failure); Assert.Equal(count, capture.Snapshot!.Instruments.Length);
             Assert.All(capture.Snapshot.Instruments, x => Assert.NotNull(x.Valuation));
             if (replacement == 0)
-                await fixture.Append(new OptionTradePositionOpenedEvent { Id = Guid.NewGuid(), EntityId = trade.EntityId, OptionTradeId = trade.EntityId,
+                await fixture.Append(new OptionTradePositionOpenedEvent
+                {
+                    Id = Guid.NewGuid(),
+                    EntityId = trade.EntityId,
+                    OptionTradeId = trade.EntityId,
                     TradePositionState = TradePositionState.Opened,
-                    Subject = new(ActorType.Event, OptionTradePositionOpenedEvent.Actor, OptionTradePositionOpenedEvent.Verb, trade.EntityId.Format()) }, 2);
+                    Subject = new(ActorType.Event, OptionTradePositionOpenedEvent.Actor, OptionTradePositionOpenedEvent.Verb, trade.EntityId.Format())
+                }, 2);
             else
-                await fixture.Append(new OptionTradePositionClosedEvent { Id = Guid.NewGuid(), EntityId = trade.EntityId, OptionTradeId = trade.EntityId,
+                await fixture.Append(new OptionTradePositionClosedEvent
+                {
+                    Id = Guid.NewGuid(),
+                    EntityId = trade.EntityId,
+                    OptionTradeId = trade.EntityId,
                     TradePositionState = TradePositionState.Closed,
-                    Subject = new(ActorType.Event, OptionTradePositionClosedEvent.Actor, OptionTradePositionClosedEvent.Verb, trade.EntityId.Format()) }, 3);
+                    Subject = new(ActorType.Event, OptionTradePositionClosedEvent.Actor, OptionTradePositionClosedEvent.Verb, trade.EntityId.Format())
+                }, 3);
             await fixture.Projector().ProjectPendingAsync(default);
             Assert.True((await delivery.ReconcileAsync(coordinator, Realize, default)).AllRoutesReady);
             Assert.Equal(replacement == 0 ? 0 : 1, feed.Stops);
@@ -117,14 +152,32 @@ public sealed partial class CompositionBusinessProjectionTests
 
     static WorkerOptionDefinition PricedDefinition(CompositionRoutePlan plan, OptionDefinitionCandidate candidate, Guid generation, DateTimeOffset at)
     {
-        var contract = new OptionPricingConvention { ContractId = candidate.ContractId, Dataset = plan.Dataset,
-            PublisherId = candidate.Definition.Instrument.PublisherId, InstrumentId = candidate.Definition.Instrument.InstrumentId,
-            RawSymbol = candidate.Definition.RawSymbol, Root = "ES", Exchange = "XCME", Currency = "USD", UnderlyingContractId = "ES-future",
-            ExerciseStyle = OptionExerciseStyle.European, SettlementStyle = OptionSettlementStyle.DeliveryOfFuture,
-            ExpirationUtc = new(2026, 10, 2, 16, 0, 0, TimeSpan.Zero), LastTradingUtc = new(2026, 10, 2, 16, 0, 0, TimeSpan.Zero),
-            DayCount = PricingDayCount.Actual365Fixed, CalendarVersion = plan.Calendar!.Version, Multiplier = 50, TickSize = .25m,
-            TickRuleVersion = "fixture/v1", DefinitionDigest = new('a', 64), MappingVersion = "fixture/v1", EvidenceId = "synthetic",
-            EffectiveFromUtc = at.AddDays(-1), EffectiveUntilUtc = at.AddDays(30) };
+        var contract = new OptionPricingConvention
+        {
+            ContractId = candidate.ContractId,
+            Dataset = plan.Dataset,
+            PublisherId = candidate.Definition.Instrument.PublisherId,
+            InstrumentId = candidate.Definition.Instrument.InstrumentId,
+            RawSymbol = candidate.Definition.RawSymbol,
+            Root = "ES",
+            Exchange = "XCME",
+            Currency = "USD",
+            UnderlyingContractId = "ES-future",
+            ExerciseStyle = OptionExerciseStyle.European,
+            SettlementStyle = OptionSettlementStyle.DeliveryOfFuture,
+            ExpirationUtc = new(2026, 10, 2, 16, 0, 0, TimeSpan.Zero),
+            LastTradingUtc = new(2026, 10, 2, 16, 0, 0, TimeSpan.Zero),
+            DayCount = PricingDayCount.Actual365Fixed,
+            CalendarVersion = plan.Calendar!.Version,
+            Multiplier = 50,
+            TickSize = .25m,
+            TickRuleVersion = "fixture/v1",
+            DefinitionDigest = new('a', 64),
+            MappingVersion = "fixture/v1",
+            EvidenceId = "synthetic",
+            EffectiveFromUtc = at.AddDays(-1),
+            EffectiveUntilUtc = at.AddDays(30)
+        };
         var curve = new TreasuryCurveSnapshot(DateOnly.FromDateTime(at.UtcDateTime), [new(TreasuryTenor.OneMonth, 5m)], at, "FinancialModelingPrep");
         var rate = TreasuryRateConversion.Convert(curve, TreasuryTenor.OneMonth, plan.Conversion!).Value!;
         return new(new(contract, plan.Calendar, rate, at.AddHours(1), generation, Black76PricingModel.EngineFor(contract), 1000, 250, "fixture/v1"), candidate.Definition.StrikePrice, true);

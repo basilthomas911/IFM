@@ -26,26 +26,26 @@ public sealed class TickAggregationRealtimeActor(IRealtimeActorContext<TickAggre
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
-    {
-        [FuturesTickTradeDataChangedEvent.Verb] =
+        {
+            [FuturesTickTradeDataChangedEvent.Verb] =
             message => message.AsEvent<FuturesTickTradeDataChangedEvent>()!,
-        [FuturesTickQuoteDataChangedEvent.Verb] =
+            [FuturesTickQuoteDataChangedEvent.Verb] =
             message => message.AsEvent<FuturesTickQuoteDataChangedEvent>()!,
-        [FuturesTickTradeDataInsertedEvent.Verb] =
+            [FuturesTickTradeDataInsertedEvent.Verb] =
             message => message.AsEvent<FuturesTickTradeDataInsertedEvent>()!,
-        [FuturesTickQuoteDataInsertedEvent.Verb] =
+            [FuturesTickQuoteDataInsertedEvent.Verb] =
             message => message.AsEvent<FuturesTickQuoteDataInsertedEvent>()!,
-        [FuturesSessionStatisticsUpdatedRealtimeEvent.Verb] =
+            [FuturesSessionStatisticsUpdatedRealtimeEvent.Verb] =
             message => message.AsEvent<FuturesSessionStatisticsUpdatedRealtimeEvent>()!,
-        [FuturesTickTradeDataInsertedCompleteEvent.Verb] =
+            [FuturesTickTradeDataInsertedCompleteEvent.Verb] =
             message => message.AsEvent<FuturesTickTradeDataInsertedCompleteEvent>()!,
-        [FuturesTickQuoteDataInsertedCompleteEvent.Verb] =
+            [FuturesTickQuoteDataInsertedCompleteEvent.Verb] =
             message => message.AsEvent<FuturesTickQuoteDataInsertedCompleteEvent>()!,
-        [FuturesTickTradeDataInsertedFailEvent.Verb] =
+            [FuturesTickTradeDataInsertedFailEvent.Verb] =
             message => message.AsEvent<FuturesTickTradeDataInsertedFailEvent>()!,
-        [FuturesTickQuoteDataInsertedFailEvent.Verb] =
+            [FuturesTickQuoteDataInsertedFailEvent.Verb] =
             message => message.AsEvent<FuturesTickQuoteDataInsertedFailEvent>()!
-    };
+        };
 
     static readonly IReadOnlyDictionary<Type, Func<IEvent, ITickAggregationRealtimeContext, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<IEvent, ITickAggregationRealtimeContext, ValueTask>>

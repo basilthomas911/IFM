@@ -6,4 +6,4 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
 
-[MessagePackObject] public sealed record OpenVerticalSpreadPositionCommand : OpenPositionCommand { public const string Verb="OpenVerticalSpreadPosition"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesVerticalSpreadTradePositionBoundedContext; }
+[MessagePackObject] public sealed record OpenVerticalSpreadPositionCommand : OpenPositionCommand { public const string Verb = "OpenVerticalSpreadPosition"; [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesVerticalSpreadTradePositionBoundedContext; }

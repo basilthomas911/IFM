@@ -10,10 +10,10 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Reference.IntegrationTests;
 
-public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory, ReferenceFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<ReferenceFixture>
+[Collection(ReferenceIntegrationInfrastructureCollection.Name)]
+public class ReferenceQueryApiTests(ReferenceIntegrationInfrastructureFixture infrastructure)
 {
-    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
+    readonly IActorProducer _actorProducer = infrastructure.ActorProducer;
 
     [Fact]
     public async Task GetDefaultFuturesContractDefinitionsQuery_Ok()
@@ -67,19 +67,19 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory, Refe
             createdOn: DateTime.UtcNow,
             createdBy: "IntegrationTest");
 
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(currency.Id);
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(exchange.Id);
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(multiplier.Id);
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(securityType.Id);
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(optionSecurityType.Id);
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(symbol.Id);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(currency.Id);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(exchange.Id);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(multiplier.Id);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(securityType.Id);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(optionSecurityType.Id);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(symbol.Id);
 
-        await dbFixture.ReferenceDb.InsertLookupTypeAsync(currency);
-        await dbFixture.ReferenceDb.InsertLookupTypeAsync(exchange);
-        await dbFixture.ReferenceDb.InsertLookupTypeAsync(multiplier);
-        await dbFixture.ReferenceDb.InsertLookupTypeAsync(securityType);
-        await dbFixture.ReferenceDb.InsertLookupTypeAsync(optionSecurityType);
-        await dbFixture.ReferenceDb.InsertLookupTypeAsync(symbol);
+        await infrastructure.ReferenceDb.InsertLookupTypeAsync(currency);
+        await infrastructure.ReferenceDb.InsertLookupTypeAsync(exchange);
+        await infrastructure.ReferenceDb.InsertLookupTypeAsync(multiplier);
+        await infrastructure.ReferenceDb.InsertLookupTypeAsync(securityType);
+        await infrastructure.ReferenceDb.InsertLookupTypeAsync(optionSecurityType);
+        await infrastructure.ReferenceDb.InsertLookupTypeAsync(symbol);
 
         // act...
         var referenceApi = new ReferenceQueryApi(_actorProducer);
@@ -103,7 +103,7 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory, Refe
         // arrange...
         var seedType = "FundId";
 
-         // act...
+        // act...
         var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.GetNextSeedIdAsync(seedType);
 
@@ -169,13 +169,13 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory, Refe
             createdOn: DateTime.UtcNow,
             createdBy: "IntegrationTest");
 
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(minStrikePrice.Id);
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(maxStrikePrice.Id);
-        await dbFixture.ReferenceDb.DeleteLookupTypeAsync(incrementStrikePrice.Id);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(minStrikePrice.Id);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(maxStrikePrice.Id);
+        await infrastructure.ReferenceDb.DeleteLookupTypeAsync(incrementStrikePrice.Id);
 
-        await dbFixture.ReferenceDb.InsertLookupTypeAsync(minStrikePrice);
-        await dbFixture.ReferenceDb.InsertLookupTypeAsync(maxStrikePrice);
-        await dbFixture.ReferenceDb.InsertLookupTypeAsync(incrementStrikePrice);
+        await infrastructure.ReferenceDb.InsertLookupTypeAsync(minStrikePrice);
+        await infrastructure.ReferenceDb.InsertLookupTypeAsync(maxStrikePrice);
+        await infrastructure.ReferenceDb.InsertLookupTypeAsync(incrementStrikePrice);
 
         // act...
         var referenceApi = new ReferenceQueryApi(_actorProducer);
@@ -217,10 +217,10 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory, Refe
             updatedBy: "IntegrationTest",
             updatedOn: DateTime.UtcNow);
 
-        await dbFixture.ReferenceDb.DeleteMDIForwardLossRatioAsync(trendDirection, tradeType);
+        await infrastructure.ReferenceDb.DeleteMDIForwardLossRatioAsync(trendDirection, tradeType);
 
-        await dbFixture.ReferenceDb.InsertMDIForwardLossRatioAsync(mdiForwardLossRatio1);
-        await dbFixture.ReferenceDb.InsertMDIForwardLossRatioAsync(mdiForwardLossRatio2);
+        await infrastructure.ReferenceDb.InsertMDIForwardLossRatioAsync(mdiForwardLossRatio1);
+        await infrastructure.ReferenceDb.InsertMDIForwardLossRatioAsync(mdiForwardLossRatio2);
 
         // act...
         var referenceApi = new ReferenceQueryApi(_actorProducer);

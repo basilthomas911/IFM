@@ -26,16 +26,26 @@ public static class FinancialReasons
 
     public static string Name(int code) => code switch
     {
-        InvalidContract => "GL.CONTRACT.INVALID", AuthorityDenied => "GL.AUTHORITY.DENIED",
-        UnbalancedJournal => "GL.JOURNAL.UNBALANCED", InvalidAccount => "GL.ACCOUNT.INVALID",
-        UnsupportedCurrency => "GL.CURRENCY.UNSUPPORTED", ClosedPeriod => "GL.PERIOD.CLOSED",
-        InsufficientCash => "GL.CASH.INSUFFICIENT", SourceConflict => "GL.SOURCE.CONFLICT",
-        AlreadyPosted => "GL.SOURCE.ALREADY_POSTED", ExcessReversal => "GL.REVERSAL.EXCESS",
-        UnreconciledMigration => "GL.MIGRATION.UNRECONCILED", InsufficientCapacity => "CR.CAPACITY.INSUFFICIENT",
-        AuthorityRevoked => "CR.AUTHORITY.REVOKED", RevisionConflict => "CR.REVISION.CONFLICT",
-        RequestMismatch => "CR.REQUEST.MISMATCH", ReservationExpired => "CR.RESERVATION.EXPIRED",
-        InvalidLifecycle => "CR.LIFECYCLE.INVALID", CommitUnknown => "FIN.COMMIT.UNKNOWN",
-        PersistenceFailed => "FIN.PERSISTENCE.FAILED", TimeExpired => "FIN.TIME.EXPIRED",
+        InvalidContract => "GL.CONTRACT.INVALID",
+        AuthorityDenied => "GL.AUTHORITY.DENIED",
+        UnbalancedJournal => "GL.JOURNAL.UNBALANCED",
+        InvalidAccount => "GL.ACCOUNT.INVALID",
+        UnsupportedCurrency => "GL.CURRENCY.UNSUPPORTED",
+        ClosedPeriod => "GL.PERIOD.CLOSED",
+        InsufficientCash => "GL.CASH.INSUFFICIENT",
+        SourceConflict => "GL.SOURCE.CONFLICT",
+        AlreadyPosted => "GL.SOURCE.ALREADY_POSTED",
+        ExcessReversal => "GL.REVERSAL.EXCESS",
+        UnreconciledMigration => "GL.MIGRATION.UNRECONCILED",
+        InsufficientCapacity => "CR.CAPACITY.INSUFFICIENT",
+        AuthorityRevoked => "CR.AUTHORITY.REVOKED",
+        RevisionConflict => "CR.REVISION.CONFLICT",
+        RequestMismatch => "CR.REQUEST.MISMATCH",
+        ReservationExpired => "CR.RESERVATION.EXPIRED",
+        InvalidLifecycle => "CR.LIFECYCLE.INVALID",
+        CommitUnknown => "FIN.COMMIT.UNKNOWN",
+        PersistenceFailed => "FIN.PERSISTENCE.FAILED",
+        TimeExpired => "FIN.TIME.EXPIRED",
         _ => throw new ArgumentOutOfRangeException(nameof(code))
     };
 }

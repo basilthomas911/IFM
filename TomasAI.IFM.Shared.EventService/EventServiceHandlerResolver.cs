@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Shared.EventService;
 /// event service handler resolver constructor
 /// </summary>
 /// <param name="resolverFunction">function that will return event service handler using dependancy injection</param>
-public class EventServiceHandlerResolver(Func<Type, object>? resolverFunction) 
+public class EventServiceHandlerResolver(Func<Type, object>? resolverFunction)
     : IEventServiceHandlerResolver
 {
 

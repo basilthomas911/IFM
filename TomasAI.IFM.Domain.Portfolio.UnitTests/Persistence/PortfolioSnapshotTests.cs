@@ -30,7 +30,12 @@ public sealed class PortfolioSnapshotTests
 
     static PortfolioReadModel Portfolio(DateTime now) => new()
     {
-        PortfolioId = 101, Name = "Core", PortfolioVersion = 1,
-        OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "unit"
+        PortfolioId = 101,
+        Name = "Core",
+        PortfolioVersion = 1,
+        OperatingState = PortfolioOperatingState.Draft,
+        EffectiveFromUtc = now,
+        CreatedOnUtc = now,
+        CreatedBy = "unit"
     };
 }

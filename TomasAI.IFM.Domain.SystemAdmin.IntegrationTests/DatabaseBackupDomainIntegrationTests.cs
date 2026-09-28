@@ -15,16 +15,25 @@ public sealed class DatabaseBackupDomainIntegrationTests
         var operationId = new DatabaseRecoveryOperationId(Guid.NewGuid());
         var request = new DatabaseRequestEnvelope
         {
-            RequestId = operationId.Value, CallerIdentity = "operator", AuthorizationReference = "approval",
-            CallerRoles = ["DatabaseRecoveryOperator"], Origin = DatabaseRequestOrigin.Console,
-            CorrelationId = Guid.NewGuid(), EnvironmentIdentity = "paper-trading", CreatedUtc = DateTimeOffset.UtcNow
+            RequestId = operationId.Value,
+            CallerIdentity = "operator",
+            AuthorizationReference = "approval",
+            CallerRoles = ["DatabaseRecoveryOperator"],
+            Origin = DatabaseRequestOrigin.Console,
+            CorrelationId = Guid.NewGuid(),
+            EnvironmentIdentity = "paper-trading",
+            CreatedUtc = DateTimeOffset.UtcNow
         };
         var command = new RequestDatabaseBackupCommand
         {
-            CommandId = request.RequestId, EntityId = operationId, Request = request,
-            Source = BackupSource.LocalWorkstation, ProtectionSetId = new DatabaseProtectionSetId("core"),
+            CommandId = request.RequestId,
+            EntityId = operationId,
+            Request = request,
+            Source = BackupSource.LocalWorkstation,
+            ProtectionSetId = new DatabaseProtectionSetId("core"),
             ConsistencyMode = DatabaseConsistencyMode.CoordinatedProtectionSet,
-            RequiredDestinations = [new DatabaseLogicalDestination("vault", true)], ExpectedPolicyRevision = 7
+            RequiredDestinations = [new DatabaseLogicalDestination("vault", true)],
+            ExpectedPolicyRevision = 7
         };
         var state = new DatabaseBackupCommandState();
 

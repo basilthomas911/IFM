@@ -333,13 +333,13 @@ public sealed class TradeDbContext(
             updatedBy: e.GetString(15)
         );
 
-static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
-        => new(
-            tradeId: e.GetInt(0),
-            valueDate: e.GetDateOnly(1),
-            netPrice: e.GetDecimal(2),
-            netForwardPrice: e.GetDecimal(3)
-        );
+    static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
+            => new(
+                tradeId: e.GetInt(0),
+                valueDate: e.GetDateOnly(1),
+                netPrice: e.GetDecimal(2),
+                netForwardPrice: e.GetDecimal(3)
+            );
 
     /// <summary>
     /// return collection of option trades by order id
@@ -429,7 +429,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task<ICollection<OptionTradeSpreadBarsDataModel>> GetOptionTradeSpreadBarDataAsync(
         int orderId, int tradeId, DateOnly valueDate, TradeType tradeType, DateTime startDate, DateTime endDate)
-        => await  _dbFactory.TradeDb
+        => await _dbFactory.TradeDb
             .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionTradeSpreadBarData)}", TradeDbCql.GetOptionTradeSpreadBarData)
             .SetParameters(new GetOptionTradeSpreadBarData(orderId, tradeId, valueDate, tradeType.ToStringFast(), startDate, endDate))
             .ExecuteQueryAsync(MapToOptionTradeSpreadBarsData!);
@@ -562,7 +562,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <param name="tradeStatus"></param>
     /// <returns></returns>
     public async Task<ICollection<string>> GetTradePositionTradeTypesAsync(
-       int orderId, int tradeId, DateOnly valueDate,  TradeStatus tradeStatus, int daysToExpiry)
+       int orderId, int tradeId, DateOnly valueDate, TradeStatus tradeStatus, int daysToExpiry)
         => [.. (await _dbFactory.TradeDb
                 .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePositionsById)}", TradeDbCql.GetTradePositionsById)
                 .SetParameters(new GetTradePositionsById(
@@ -748,10 +748,12 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
 
         var tradeTypeLimit = await GetTradeTypeLimitAsync(tradeLimit!.TradeId, tradeLimit.TradeType);
         return tradeTypeLimit is not null
-            ? tradeLimit with {
+            ? tradeLimit with
+            {
                 MaxLossLimit = tradeTypeLimit.MaxLossLimit,
                 MinProfitLimit = tradeTypeLimit.MinProfitLimit,
-                MaxProfitLimit = tradeTypeLimit.MaxProfitLimit}
+                MaxProfitLimit = tradeTypeLimit.MaxProfitLimit
+            }
             : tradeLimit;
     }
 
@@ -774,7 +776,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <param name="tradeId"></param>
     /// <param name="tradeType"></param>
     /// <returns></returns>
-    public async Task<TradeTypeLimitReadModel?> GetTradeTypeLimitAsync( int tradeId,  TradeType tradeType)
+    public async Task<TradeTypeLimitReadModel?> GetTradeTypeLimitAsync(int tradeId, TradeType tradeType)
         => await _dbFactory.TradeDb
             .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeTypeLimit)}", TradeDbCql.GetTradeTypeLimit)
             .SetParameters(new GetTradeTypeLimit(tradeId, tradeType.ToStringFast()))
@@ -841,13 +843,13 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         var tradeFills = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeFills)}", TradeDbCql.GetTradeFills)
             .SetParameters(new GetTradeFills(orderId, tradeId))
             .ExecuteQueryAsync(MapToTradeFill!);
-        if (tradeFills.Count  > 0)
-            foreach(var tf in tradeFills)
+        if (tradeFills.Count > 0)
+            foreach (var tf in tradeFills)
             {
                 var tradeFillData = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeFillData)}", TradeDbCql.GetTradeFillData)
                     .SetParameters(new GetTradeFillData(orderId, tradeId, tf.FillDate))
                     .ExecuteQueryAsync(MapToTradeFillData!);
-                if (tradeFillData.Count  > 0)
+                if (tradeFillData.Count > 0)
                     tf.AddTradeFillData(tradeFillData);
             }
         return tradeFills;
@@ -908,7 +910,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <param name="tradeId"></param>
     /// <returns></returns>
     public async Task<TradePlanStopLossLimitReadModel?> GetTradePlanStopLossLimitAsync(int orderId, int tradeId)
-        => await  _dbFactory.TradeDb
+        => await _dbFactory.TradeDb
                 .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePlanStopLossLimit)}", TradeDbCql.GetTradePlanStopLossLimit)
                 .SetParameters(new GetTradePlanStopLossLimit(orderId, tradeId))
                 .ExecuteSingleAsync(MapToTradePlanStopLossLimit!);
@@ -972,7 +974,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         => await _dbFactory.TradeDb
             .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePlanForwardLossLimit)}", TradeDbCql.GetTradePlanForwardLossLimit)
             .SetParameters(new GetTradePlanForwardLossLimit(
-                orderId ,
+                orderId,
                 tradeId,
                 valueDate,
                 tradeType.ToStringFast()
@@ -1803,7 +1805,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public async Task InsertTradeFillAsync(ICollection<TradeFillReadModel> tradeFills)
     {
         // save any trade fills...
-        if (tradeFills.Count  > 0)
+        if (tradeFills.Count > 0)
         {
             var db = _dbFactory.TradeDb;
             foreach (var tf in tradeFills)
@@ -1958,7 +1960,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         List<(long SequenceId, OptionTradeSpreadsDataModel Data)> batchData = [];
         var db = _dbFactory.TradeDb;
-        for(var index =0; index < optionTradeSpreadsData.Count; index += 1000)
+        for (var index = 0; index < optionTradeSpreadsData.Count; index += 1000)
         {
             batchData.Clear();
             foreach (var e in optionTradeSpreadsData.Skip(index).Take(1000))
@@ -2341,7 +2343,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         var tradePosition = await dbTrade.GetTradePositionAsync(orderId, tradeId, tradeType, valueDate, daysToExpiry, oldTradeStatus);
         if (tradePosition is null)
             return;
-       var updatedTradePosition = tradePosition with
+        var updatedTradePosition = tradePosition with
         {
             TradeStatus = newTradeStatus,
             UpdatedOn = updatedOn,
@@ -2663,13 +2665,13 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public async Task InsertTradePlansAsync(ICollection<TradePlanByIdReadModel> tradePlans)
     {
         var db = _dbFactory.TradeDb;
-        for(var  index = 0; index < tradePlans.Count; index += 2000 )
+        for (var index = 0; index < tradePlans.Count; index += 2000)
         {
             var tradePlanPage = new List<TradePlanByIdReadModel>(2000);
             var tradePlanQry = tradePlans
                 .Skip(index)
                 .Take(2000);
-            foreach(var e in tradePlanQry)
+            foreach (var e in tradePlanQry)
             {
                 var sequenceId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.TradePlan_SequenceId);
                 tradePlanPage.Add(e with { Id = sequenceId });
@@ -3006,7 +3008,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <param name="valueDate"></param>
     /// <param name="tradeType"></param>
     /// <returns></returns>
-    public async Task DeleteOptionTradeSpreadBarDataAsync(int orderId, int tradeId,  DateOnly valueDate, TradeType tradeType)
+    public async Task DeleteOptionTradeSpreadBarDataAsync(int orderId, int tradeId, DateOnly valueDate, TradeType tradeType)
         => await _dbFactory.TradeDb
                 .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteOptionTradeSpreadBarData)}", TradeDbCql.DeleteOptionTradeSpreadBarData)
                 .SetParameters(new DeleteOptionTradeSpreadBarData(
@@ -3070,7 +3072,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <param name="id"></param>
     /// <returns></returns>
     public async Task DeleteTradePlanForwardLossLimitAsync(TradePlanForwardLossLimitEntityId id)
-        =>  await _dbFactory.TradeDb
+        => await _dbFactory.TradeDb
                 .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradePlanForwardLossLimit)}", TradeDbCql.DeleteTradePlanForwardLossLimit)
                 .SetParameters(new DeleteTradePlanForwardLossLimit(
                     id.OrderId,
@@ -3891,26 +3893,41 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     }
     internal static MarketConditionReadModel MapToMarketCondition(IObjectDataRecord row) => new()
     {
-        WorkflowId = new StrategyWorkflowId(row.GetGuid(0)), WorkflowEntityId = row.GetString(1),
-        InputWorkflowRevision = row.GetLong(2), CommandId = row.GetGuid(3), SourceEventId = row.GetGuid(4),
-        FundId = row.GetInt(5), InstrumentRoot = row.GetString(6),
-        TargetHorizon = Enum.Parse<TimeFrameType>(row.GetString(7)), ParameterSetId = row.GetGuid(8),
-        ParameterSetVersion = row.GetInt(9), ParameterPayloadSha256 = row.GetString(10),
-        SnapshotId = row.GetGuid(11), SnapshotSha256 = row.GetString(12),
+        WorkflowId = new StrategyWorkflowId(row.GetGuid(0)),
+        WorkflowEntityId = row.GetString(1),
+        InputWorkflowRevision = row.GetLong(2),
+        CommandId = row.GetGuid(3),
+        SourceEventId = row.GetGuid(4),
+        FundId = row.GetInt(5),
+        InstrumentRoot = row.GetString(6),
+        TargetHorizon = Enum.Parse<TimeFrameType>(row.GetString(7)),
+        ParameterSetId = row.GetGuid(8),
+        ParameterSetVersion = row.GetInt(9),
+        ParameterPayloadSha256 = row.GetString(10),
+        SnapshotId = row.GetGuid(11),
+        SnapshotSha256 = row.GetString(12),
         Tradeability = Enum.Parse<MarketTradeability>(row.GetString(13)),
         ConditionType = Enum.Parse<MarketConditionType>(row.GetString(14)),
         Direction = Enum.Parse<MarketConditionDirection>(row.GetString(15)),
-        Phase = Enum.Parse<MarketConditionPhase>(row.GetString(16)), Strength = row.GetDecimal(17),
-        Confidence = row.GetDecimal(18), PrimaryReasonCode = row.GetString(19),
-        ResultPayload = row.GetBytes(20), ResultPayloadSha256 = row.GetString(21),
-        EvaluatedAtUtc = row.GetDateTime(22), ValidUntilUtc = row.GetDateTime(23),
-        MarketDataAsOfUtc = row.GetDateTime(24), CompletedAtUtc = row.GetDateTime(25), UpdatedAtUtc = row.GetDateTime(26),
+        Phase = Enum.Parse<MarketConditionPhase>(row.GetString(16)),
+        Strength = row.GetDecimal(17),
+        Confidence = row.GetDecimal(18),
+        PrimaryReasonCode = row.GetString(19),
+        ResultPayload = row.GetBytes(20),
+        ResultPayloadSha256 = row.GetString(21),
+        EvaluatedAtUtc = row.GetDateTime(22),
+        ValidUntilUtc = row.GetDateTime(23),
+        MarketDataAsOfUtc = row.GetDateTime(24),
+        CompletedAtUtc = row.GetDateTime(25),
+        UpdatedAtUtc = row.GetDateTime(26),
         VolatilityBehavior = Enum.Parse<MarketConditionVolatilityBehavior>(row.GetString(27)),
         LiquidityQuality = Enum.Parse<MarketConditionLiquidityQuality>(row.GetString(28)),
         DataQuality = Enum.Parse<MarketConditionDataQuality>(row.GetString(29)),
         UpstreamAlignment = Enum.Parse<MarketConditionUpstreamAlignment>(row.GetString(30)),
-        EvidencePayload = row.GetBytes(31), ConflictingEvidencePayload = row.GetBytes(32),
-        BlockingReasonsPayload = row.GetBytes(33), ReasonsPayload = row.GetBytes(34),
+        EvidencePayload = row.GetBytes(31),
+        ConflictingEvidencePayload = row.GetBytes(32),
+        BlockingReasonsPayload = row.GetBytes(33),
+        ReasonsPayload = row.GetBytes(34),
         SummaryText = row.GetString(35)
     };
 
@@ -3949,7 +3966,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         if (Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)) != row.GetString(1)) throw new InvalidOperationException("Stored assessment payload hash mismatch.");
         var completed = MessagePackSerializer.Deserialize<MarketConditionAssessmentCompletedEvent>(bytes);
         var result = MarketConditionAssessmentContracts.ReadResult(completed.Result);
-        if(completed.WorkflowId != result.WorkflowId || completed.Snapshot.PayloadSha256 != result.SnapshotSha256 ||
+        if (completed.WorkflowId != result.WorkflowId || completed.Snapshot.PayloadSha256 != result.SnapshotSha256 ||
             completed.Snapshot.ComputeHash() != result.SnapshotSha256)
             throw new InvalidOperationException("Stored assessment snapshot or workflow identity mismatch.");
         return completed;
@@ -4096,48 +4113,48 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         var payload = MessagePackBinarySerializer.Shared.Serialize(canonical);
         var hash = RiskContracts.Hash(canonical);
         var inserted = await _dbFactory.TradeDb.Use("RiskHistory.Insert", "INSERT INTO risk_management_invocation (workflow_id,invocation_id,revision,payload,content_hash) VALUES (?,?,?,?,?) IF NOT EXISTS;")
-            .SetParameters(new RiskValues([row.WorkflowId,row.InvocationId,row.Revision,payload,hash]))
-            .ExecuteSingleAsync(r=>r.GetBool(0),projectionToken);
+            .SetParameters(new RiskValues([row.WorkflowId, row.InvocationId, row.Revision, payload, hash]))
+            .ExecuteSingleAsync(r => r.GetBool(0), projectionToken);
         if (!inserted)
         {
             var old = await _dbFactory.TradeDb.Use("RiskHistory.Verify", "SELECT content_hash FROM risk_management_invocation WHERE workflow_id=? AND invocation_id=? AND revision=?;")
-                .SetParameters(new RiskValues([row.WorkflowId,row.InvocationId,row.Revision]))
-                .ExecuteSingleAsync(r=>r.GetString(0),projectionToken);
-            if (old != hash) return new(RiskHistoryProjectionDisposition.Conflict,row.WorkflowId,row.InvocationId,row.Revision,old,hash);
+                .SetParameters(new RiskValues([row.WorkflowId, row.InvocationId, row.Revision]))
+                .ExecuteSingleAsync(r => r.GetString(0), projectionToken);
+            if (old != hash) return new(RiskHistoryProjectionDisposition.Conflict, row.WorkflowId, row.InvocationId, row.Revision, old, hash);
         }
-        var disposition=inserted?RiskHistoryProjectionDisposition.Projected:RiskHistoryProjectionDisposition.AlreadyProjected;
+        var disposition = inserted ? RiskHistoryProjectionDisposition.Projected : RiskHistoryProjectionDisposition.AlreadyProjected;
         var summary = MessagePackBinarySerializer.Shared.Serialize(row);
         var added = await _dbFactory.TradeDb.Use("RiskHistory.SummaryInsert", "INSERT INTO risk_management_history (portfolio_id,fund_id,value_date,evaluated_at_utc,invocation_id,revision,payload) VALUES (?,?,?,?,?,?,?) IF NOT EXISTS;")
-            .SetParameters(new RiskValues([row.PortfolioId,row.FundId,row.ValueDate,row.EvaluatedAtUtc,row.InvocationId,row.Revision,summary]))
-            .ExecuteSingleAsync(r=>r.GetBool(0),projectionToken);
+            .SetParameters(new RiskValues([row.PortfolioId, row.FundId, row.ValueDate, row.EvaluatedAtUtc, row.InvocationId, row.Revision, summary]))
+            .ExecuteSingleAsync(r => r.GetBool(0), projectionToken);
         if (!added)
             await _dbFactory.TradeDb.Use("RiskHistory.SummaryAdvance", "UPDATE risk_management_history SET revision=?,payload=? WHERE portfolio_id=? AND fund_id=? AND value_date=? AND evaluated_at_utc=? AND invocation_id=? IF revision<?;")
-                .SetParameters(new RiskValues([row.Revision,summary,row.PortfolioId,row.FundId,row.ValueDate,row.EvaluatedAtUtc,row.InvocationId,row.Revision]))
-                .ExecuteSingleAsync(r=>r.GetBool(0),projectionToken);
-        return new(disposition,row.WorkflowId,row.InvocationId,row.Revision,hash,hash);
+                .SetParameters(new RiskValues([row.Revision, summary, row.PortfolioId, row.FundId, row.ValueDate, row.EvaluatedAtUtc, row.InvocationId, row.Revision]))
+                .ExecuteSingleAsync(r => r.GetBool(0), projectionToken);
+        return new(disposition, row.WorkflowId, row.InvocationId, row.Revision, hash, hash);
     }
     /// <inheritdoc />
     public Task<WorkflowStrategyStateUpdatedEvent?> GetRiskInvocationAsync(Guid workflow, Guid invocation, CancellationToken token = default)
     {
         workflow.RequireInvocation(invocation, "Exact Risk identities required.");
         return _dbFactory.TradeDb.Use("RiskHistory.Exact", "SELECT payload,content_hash FROM risk_management_invocation WHERE workflow_id=? AND invocation_id=? ORDER BY revision DESC LIMIT 1;")
-            .SetParameters(new RiskValues([workflow,invocation]))
-            .ExecuteSingleAsync(r=>
+            .SetParameters(new RiskValues([workflow, invocation]))
+            .ExecuteSingleAsync(r =>
             {
-                var payload=r.GetBytes(0);
+                var payload = r.GetBytes(0);
                 var value = MessagePackBinarySerializer.Shared.Deserialize<WorkflowStrategyStateUpdatedEvent>(payload);
                 if (RiskContracts.Hash(value) != r.GetString(1) || RiskHistoryIdentity.Row(value) is not { } row || row.WorkflowId != workflow || row.InvocationId != invocation)
                     throw new InvalidDataException("Risk history content hash mismatch.");
                 return value;
-            },token);
+            }, token);
     }
     /// <inheritdoc />
     public Task<QueryPage<RiskHistoryRow>> GetRiskHistoryAsync(int portfolio, int fund, DateOnly date, int size, byte[]? cursor, CancellationToken token = default)
     {
         portfolio.RequireHistoryScope(fund, date, size, 100, "Invalid Risk history scope.");
         return _dbFactory.TradeDb.Use("RiskHistory.Page", "SELECT payload FROM risk_management_history WHERE portfolio_id=? AND fund_id=? AND value_date=?;")
-            .SetParameters(new RiskValues([portfolio,fund,date]))
-            .ExecutePageAsync(r=>MessagePackBinarySerializer.Shared.Deserialize<RiskHistoryRow>(r.GetBytes(0)),size,cursor,token);
+            .SetParameters(new RiskValues([portfolio, fund, date]))
+            .ExecutePageAsync(r => MessagePackBinarySerializer.Shared.Deserialize<RiskHistoryRow>(r.GetBytes(0)), size, cursor, token);
     }
     /// <inheritdoc />
     public Task UpsertTradeOrderAsync(TradeOrderDefinition order, CancellationToken token = default)

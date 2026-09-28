@@ -113,11 +113,19 @@ public sealed class TickAggregationStorageTests(MarketDataFixture fixture) : ICl
         {
             Subject = new ActorSubject(ActorType.Event, FuturesTickQuoteDataInsertedEvent.Actor,
                 FuturesTickQuoteDataInsertedEvent.Verb, entity.Format()),
-            Id = Guid.NewGuid(), EntityId = entity, CommandId = Guid.NewGuid(),
-            AggregateId = entity.Format(), EventSource = "integration", ReceivedOn = timestamp,
+            Id = Guid.NewGuid(),
+            EntityId = entity,
+            CommandId = Guid.NewGuid(),
+            AggregateId = entity.Format(),
+            EventSource = "integration",
+            ReceivedOn = timestamp,
             TickDataId = new TickDataId(contractId, valueDate, 5, timestamp),
-            AssetTypeId = assetType, Dataset = "GLBX.MDP3", DefinitionDate = valueDate,
-            PublisherId = 1, InstrumentId = 42, EmissionReason = QuoteEmissionReason.BufferFull,
+            AssetTypeId = assetType,
+            Dataset = "GLBX.MDP3",
+            DefinitionDate = valueDate,
+            PublisherId = 1,
+            InstrumentId = 42,
+            EmissionReason = QuoteEmissionReason.BufferFull,
             QuoteCount = (ushort)count,
             QuoteData = new FuturesTickQuoteDataSegment(quotes, (ushort)count)
         };
@@ -158,12 +166,21 @@ public sealed class TickAggregationStorageTests(MarketDataFixture fixture) : ICl
         {
             Subject = new ActorSubject(ActorType.Event, FuturesTickQuoteDataInsertedEvent.Actor,
                 FuturesTickQuoteDataInsertedEvent.Verb, entity.Format()),
-            Id = Guid.NewGuid(), EntityId = entity, CommandId = Guid.NewGuid(),
-            AggregateId = entity.Format(), EventSource = "integration", ReceivedOn = timestamp,
+            Id = Guid.NewGuid(),
+            EntityId = entity,
+            CommandId = Guid.NewGuid(),
+            AggregateId = entity.Format(),
+            EventSource = "integration",
+            ReceivedOn = timestamp,
             TickDataId = new TickDataId(contractId, valueDate, 3, timestamp),
-            AssetTypeId = AssetTypeId.Futures, Dataset = "GLBX.MDP3", DefinitionDate = valueDate,
-            PublisherId = 1, InstrumentId = 42, EmissionReason = QuoteEmissionReason.BufferFull,
-            QuoteCount = (ushort)count, QuoteData = new FuturesTickQuoteDataSegment(quotes, (ushort)count)
+            AssetTypeId = AssetTypeId.Futures,
+            Dataset = "GLBX.MDP3",
+            DefinitionDate = valueDate,
+            PublisherId = 1,
+            InstrumentId = 42,
+            EmissionReason = QuoteEmissionReason.BufferFull,
+            QuoteCount = (ushort)count,
+            QuoteData = new FuturesTickQuoteDataSegment(quotes, (ushort)count)
         };
 
         await fixture.DevDatabase.InsertTickQuoteDataAsync(quote);
@@ -218,12 +235,21 @@ public sealed class TickAggregationStorageTests(MarketDataFixture fixture) : ICl
         {
             Subject = new ActorSubject(ActorType.Event, FuturesTickQuoteDataInsertedEvent.Actor,
                 FuturesTickQuoteDataInsertedEvent.Verb, entity.Format()),
-            Id = Guid.NewGuid(), EntityId = entity, CommandId = Guid.NewGuid(),
-            AggregateId = entity.Format(), EventSource = "integration", ReceivedOn = timestamp,
+            Id = Guid.NewGuid(),
+            EntityId = entity,
+            CommandId = Guid.NewGuid(),
+            AggregateId = entity.Format(),
+            EventSource = "integration",
+            ReceivedOn = timestamp,
             TickDataId = new TickDataId(contractId, valueDate, 2, timestamp.AddTicks(1)),
-            AssetTypeId = AssetTypeId.Futures, Dataset = "GLBX.MDP3", DefinitionDate = valueDate,
-            PublisherId = 1, InstrumentId = 42, EmissionReason = QuoteEmissionReason.TradeObserved,
-            QuoteCount = 2, QuoteData = new FuturesTickQuoteDataSegment(quotes, 2)
+            AssetTypeId = AssetTypeId.Futures,
+            Dataset = "GLBX.MDP3",
+            DefinitionDate = valueDate,
+            PublisherId = 1,
+            InstrumentId = 42,
+            EmissionReason = QuoteEmissionReason.TradeObserved,
+            QuoteCount = 2,
+            QuoteData = new FuturesTickQuoteDataSegment(quotes, 2)
         };
 
         await fixture.DevDatabase.InsertTickTradeDataAsync(trade);
@@ -261,11 +287,18 @@ public sealed class TickAggregationStorageTests(MarketDataFixture fixture) : ICl
     {
         Subject = new ActorSubject(ActorType.Event, FuturesTickTradeDataInsertedEvent.Actor,
             FuturesTickTradeDataInsertedEvent.Verb, entity.Format()),
-        Id = Guid.NewGuid(), EntityId = entity, CommandId = Guid.NewGuid(), AggregateId = entity.Format(),
-        EventSource = "integration", ReceivedOn = timestamp,
+        Id = Guid.NewGuid(),
+        EntityId = entity,
+        CommandId = Guid.NewGuid(),
+        AggregateId = entity.Format(),
+        EventSource = "integration",
+        ReceivedOn = timestamp,
         TickDataId = new TickDataId(entity.ContractId, entity.ValueDate, 1, timestamp),
-        AssetTypeId = AssetTypeId.Futures, Dataset = "GLBX.MDP3", DefinitionDate = entity.ValueDate,
-        PublisherId = 1, InstrumentId = 42,
+        AssetTypeId = AssetTypeId.Futures,
+        Dataset = "GLBX.MDP3",
+        DefinitionDate = entity.ValueDate,
+        PublisherId = 1,
+        InstrumentId = 42,
         TradeData = new FuturesTickTradeData(1, 2, 3, 0, 5_050_000_000, 5.05m, 10, 1, 2, 0)
     };
 

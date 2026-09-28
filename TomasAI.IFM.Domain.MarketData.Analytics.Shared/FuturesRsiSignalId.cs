@@ -71,5 +71,5 @@ public record FuturesRsiSignalId : IActorEntityId
 
     public FuturesRsiSignalEntityId ToEntityId() => new(ContractId, ValueDate, TimePeriod, PeriodLength);
     public FuturesRsiDailySignalEntityId ToEntityDailyId() => new(ContractId, TimePeriod, PeriodLength);
-   
+
 }

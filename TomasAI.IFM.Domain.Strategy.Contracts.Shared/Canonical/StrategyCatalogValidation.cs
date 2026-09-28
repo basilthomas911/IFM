@@ -118,7 +118,9 @@ public static class StrategyCatalogValidation
         var d = JsonSerializer.Deserialize<StrategyCatalogDefinition>(JsonSerializer.Serialize(source, JsonOptions), JsonOptions)!;
         return d with
         {
-            Families = Sort(d.Families), Structures = Sort(d.Structures), Variants = Sort(d.Variants),
+            Families = Sort(d.Families),
+            Structures = Sort(d.Structures),
+            Variants = Sort(d.Variants),
             Capabilities = d.Capabilities.OrderBy(c => c.Role, StringComparer.Ordinal).ThenBy(c => c.Code, StringComparer.Ordinal).ThenBy(c => c.Version).ToArray(),
             ExpiryGroups = d.ExpiryGroups.OrderBy(x => x.Key, StringComparer.Ordinal).ToArray(),
             Legs = d.Legs.OrderBy(x => x.Key, StringComparer.Ordinal).ToArray(),

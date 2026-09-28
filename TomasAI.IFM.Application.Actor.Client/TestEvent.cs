@@ -12,12 +12,12 @@ namespace TomasAI.IFM.Application.Actor.Client;
 public record TestEvent(string MsgString)
     : IEvent<TestId>
 {
-    public ActorSubject Subject { get; init; } 
+    public ActorSubject Subject { get; init; }
     public Guid Id { get; init; } = Guid.NewGuid();
-    public TestId EntityId { get; init; } 
+    public TestId EntityId { get; init; }
     public long EventId { get; init; }
     public Guid CommandId { get; init; }
-    public string AggregateId { get; init; } 
+    public string AggregateId { get; init; }
     public string EventSource { get; init; } = string.Empty;
     public DateTime ReceivedOn { get; init; }
     public FuturesContractV3ReadModel Contract { get; init; } = default!;

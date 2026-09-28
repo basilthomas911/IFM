@@ -1,4 +1,5 @@
 ﻿namespace TomasAI.IFM.Shared.EventSourcing;
+
 public static class CommandExtensions
 {
     public static ServiceResult<GuidResult> UpdateFailed(this ICommand e, string errorMessage)

@@ -15,26 +15,32 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public partial class MarketDataQueryApi(IActorProducer actorProducer)
     : NatsClientApi(actorProducer), IMarketDataQueryApi
 {
-    public Task<ServiceResult<EvaluatedOptionChainReadModel>> GetEvaluatedOptionChainAsync(GetEvaluatedOptionChainQuery query,CancellationToken token=default)
+    public Task<ServiceResult<EvaluatedOptionChainReadModel>> GetEvaluatedOptionChainAsync(GetEvaluatedOptionChainQuery query, CancellationToken token = default)
     {
-        query.Subject=new ActorSubject(ActorType.Query,GetEvaluatedOptionChainQuery.Actor,GetEvaluatedOptionChainQuery.Verb,ActorEntityId.Default.Format());
-        return RequestAsync<GetEvaluatedOptionChainQuery,EvaluatedOptionChainReadModel>(query.Subject,query,token).AsTask();
+        query.Subject = new ActorSubject(ActorType.Query, GetEvaluatedOptionChainQuery.Actor, GetEvaluatedOptionChainQuery.Verb, ActorEntityId.Default.Format());
+        return RequestAsync<GetEvaluatedOptionChainQuery, EvaluatedOptionChainReadModel>(query.Subject, query, token).AsTask();
     }
     public Task<ServiceResult<InstrumentDefinitionPage>> GetInstrumentDefinitionsAsync(InstrumentDefinitionPageRequest request,
         CancellationToken cancellationToken = default)
     {
         request.Validate();
-        var query = new GetInstrumentDefinitionsQuery { Request = request,
+        var query = new GetInstrumentDefinitionsQuery
+        {
+            Request = request,
             Subject = new ActorSubject(ActorType.Query, GetInstrumentDefinitionsQuery.Actor,
-                GetInstrumentDefinitionsQuery.Verb, request.Format()) };
+                GetInstrumentDefinitionsQuery.Verb, request.Format())
+        };
         return RequestAsync<GetInstrumentDefinitionsQuery, InstrumentDefinitionPage>(query.Subject, query, cancellationToken).AsTask();
     }
     public Task<ServiceResult<TradeStrategySymbolReadModel[]>> GetTradeStrategySymbolsAsync(
         TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType family, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var query = new GetTradeStrategySymbolsQuery { Family = family,
-            Subject = new ActorSubject(ActorType.Query, GetTradeStrategySymbolsQuery.Actor, GetTradeStrategySymbolsQuery.Verb, ActorEntityId.Default.Format()) };
+        var query = new GetTradeStrategySymbolsQuery
+        {
+            Family = family,
+            Subject = new ActorSubject(ActorType.Query, GetTradeStrategySymbolsQuery.Actor, GetTradeStrategySymbolsQuery.Verb, ActorEntityId.Default.Format())
+        };
         return RequestAsync<GetTradeStrategySymbolsQuery, TradeStrategySymbolReadModel[]>(query.Subject, query, cancellationToken).AsTask();
     }
     /// <inheritdoc />

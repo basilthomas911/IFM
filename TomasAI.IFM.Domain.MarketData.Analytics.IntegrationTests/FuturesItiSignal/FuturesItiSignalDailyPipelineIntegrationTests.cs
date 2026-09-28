@@ -21,9 +21,9 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesItiSig
 [Trait("Category", "Integration")]
 [Collection(ItiPipelineIntegrationCollection.Name)]
 public sealed class FuturesItiSignalDailyPipelineIntegrationTests(
-    WebApplicationFactory<Program> factory,
+    TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory,
     MarketDataAnalyticsFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>,
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>,
       IClassFixture<MarketDataAnalyticsFixture>
 {
     readonly IActorProducer _actorProducer =
@@ -109,8 +109,8 @@ public sealed class FuturesItiSignalDailyPipelineIntegrationTests(
             notifications[TimeFrameType.Daily].SourceEventId.Should()
                 .Be(completed[TimeFrameType.Daily].Id);
             generated[TimeFrameType.Daily].FuturesItiSignal!.TradingDays.Should().Be(1);
-            generated[TimeFrameType.Weekly].FuturesItiSignal!.TradingDays.Should().Be(10);
-            generated[TimeFrameType.Monthly].FuturesItiSignal!.TradingDays.Should().Be(30);
+            generated[TimeFrameType.Weekly].FuturesItiSignal!.TradingDays.Should().Be(20);
+            generated[TimeFrameType.Monthly].FuturesItiSignal!.TradingDays.Should().Be(60);
 
             foreach (var period in expectedPeriods)
             {

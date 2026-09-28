@@ -14,13 +14,13 @@ namespace TomasAI.IFM.Domain.Reference.ParameterSets.Query.Actor;
 public interface IParameterSetQueryContext
     : IQueryActorContext<ParameterSetQueryActor>
 {
-    IRegimeDiscoveryMarketSignalSnapshotProvider SignalSnapshots{get;}
+    IRegimeDiscoveryMarketSignalSnapshotProvider SignalSnapshots { get; }
     IParameterAccessPolicy AccessPolicy { get; }
-    IEventSourceActorStateRepository<ParameterStartupCommandState> Startups {get;}
+    IEventSourceActorStateRepository<ParameterStartupCommandState> Startups { get; }
     /// <summary>Gets ConfigurationDb.</summary>
     IConfigurationDbContext ConfigurationDb { get; }
-    IEventSourceActorStateRepository<ParameterSetCommandState> StateRepository {get;}
-    IEventSourceActorStateRepository<ParameterAssignmentCommandState> Assignments {get;}
+    IEventSourceActorStateRepository<ParameterSetCommandState> StateRepository { get; }
+    IEventSourceActorStateRepository<ParameterAssignmentCommandState> Assignments { get; }
     /// <summary>Gets the logger.</summary>
     ILogger<ParameterSetQueryActor> Logger { get; }
 }
@@ -32,9 +32,9 @@ public sealed class ParameterSetQueryContext
       IParameterSetQueryContext
 {
     readonly Lazy<IEventSourceActorStateRepository<ParameterStartupCommandState>> startups;
-    public IEventSourceActorStateRepository<ParameterStartupCommandState> Startups=>startups.Value;
+    public IEventSourceActorStateRepository<ParameterStartupCommandState> Startups => startups.Value;
     readonly Lazy<IRegimeDiscoveryMarketSignalSnapshotProvider> signalSnapshots;
-    public IRegimeDiscoveryMarketSignalSnapshotProvider SignalSnapshots=>signalSnapshots.Value;
+    public IRegimeDiscoveryMarketSignalSnapshotProvider SignalSnapshots => signalSnapshots.Value;
     readonly Lazy<IParameterAccessPolicy> accessPolicy;
     public IParameterAccessPolicy AccessPolicy => accessPolicy.Value;
 
@@ -49,8 +49,8 @@ public sealed class ParameterSetQueryContext
         : base(supervisor, new ActorMailboxId(ActorType.Query, ParameterSetQueryActor.ActorName))
     {
         Logger = IsArgumentNull.Set(logger);
-        signalSnapshots=new(()=>IsArgumentNull.Set(Container.Resolve<IRegimeDiscoveryMarketSignalSnapshotProvider>())!);
-        startups = new(()=>IsArgumentNull.Set(Container.Resolve<IEventSourceActorStateRepository<ParameterStartupCommandState>>())!);
+        signalSnapshots = new(() => IsArgumentNull.Set(Container.Resolve<IRegimeDiscoveryMarketSignalSnapshotProvider>())!);
+        startups = new(() => IsArgumentNull.Set(Container.Resolve<IEventSourceActorStateRepository<ParameterStartupCommandState>>())!);
         accessPolicy = new(() => IsArgumentNull.Set(Container.Resolve<IParameterAccessPolicy>())!);
         assignments = new(() => IsArgumentNull.Set(Container.Resolve<IEventSourceActorStateRepository<ParameterAssignmentCommandState>>())!);
         repository = new(() => IsArgumentNull.Set(Container.Resolve<IEventSourceActorStateRepository<ParameterSetCommandState>>())!);

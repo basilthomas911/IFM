@@ -51,38 +51,43 @@ public sealed class PostgresEventTransaction(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(operation);
-        for(var attempt=0;;attempt++)
+        for (var attempt = 0; ; attempt++)
         {
             using var trace = FinancialTelemetry.ActivitySource.StartActivity("financial.transaction");
             trace?.SetTag("financial.transaction.attempt", attempt + 1);
-            var started=Stopwatch.GetTimestamp();
+            var started = Stopwatch.GetTimestamp();
             try
             {
-                var result=await ExecuteAttemptAsync(operation,cancellationToken).ConfigureAwait(false);
+                var result = await ExecuteAttemptAsync(operation, cancellationToken).ConfigureAwait(false);
                 trace?.SetTag("financial.transaction.outcome", "committed");
-                FinancialTelemetry.Transaction(Stopwatch.GetElapsedTime(started).TotalMilliseconds,"committed");return result;
+                FinancialTelemetry.Transaction(Stopwatch.GetElapsedTime(started).TotalMilliseconds, "committed"); return result;
             }
-            catch(PostgresException error) when(attempt<2 && error.SqlState is PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.SerializationFailure)
+            catch (PostgresException error) when (attempt < 2 && error.SqlState is PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.SerializationFailure)
             {
                 // Only a confirmed server rollback may replay this database-only delegate.
                 // COMMIT uncertainty, uniqueness conflicts, lock timeouts and application refusals never retry here.
-                FinancialTelemetry.Transaction(Stopwatch.GetElapsedTime(started).TotalMilliseconds,"rolled_back_retry");
+                FinancialTelemetry.Transaction(Stopwatch.GetElapsedTime(started).TotalMilliseconds, "rolled_back_retry");
                 trace?.SetTag("financial.transaction.outcome", "rolled_back_retry");
                 FinancialTelemetry.Retry();
-                await Task.Delay(TimeSpan.FromMilliseconds(10*(attempt+1)),cancellationToken).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromMilliseconds(10 * (attempt + 1)), cancellationToken).ConfigureAwait(false);
             }
-            catch(Exception error)
+            catch (Exception error)
             {
-                var outcome=error switch { FunctionCommitOutcomeUnknownException=>"unknown",OperationCanceledException=>"cancelled",
-                    PostgresException { SqlState:PostgresErrorCodes.LockNotAvailable }=>"lock_timeout",
-                    PostgresException { SqlState:PostgresErrorCodes.QueryCanceled }=>"statement_timeout",_=>"failed" };
+                var outcome = error switch
+                {
+                    FunctionCommitOutcomeUnknownException => "unknown",
+                    OperationCanceledException => "cancelled",
+                    PostgresException { SqlState: PostgresErrorCodes.LockNotAvailable } => "lock_timeout",
+                    PostgresException { SqlState: PostgresErrorCodes.QueryCanceled } => "statement_timeout",
+                    _ => "failed"
+                };
                 trace?.SetTag("financial.transaction.outcome", outcome);
-                FinancialTelemetry.Transaction(Stopwatch.GetElapsedTime(started).TotalMilliseconds,outcome);throw;
+                FinancialTelemetry.Transaction(Stopwatch.GetElapsedTime(started).TotalMilliseconds, outcome); throw;
             }
         }
     }
 
-    async Task<T> ExecuteAttemptAsync<T>(Func<EnlistedEventTransaction,CancellationToken,Task<T>> operation,CancellationToken cancellationToken)
+    async Task<T> ExecuteAttemptAsync<T>(Func<EnlistedEventTransaction, CancellationToken, Task<T>> operation, CancellationToken cancellationToken)
     {
         await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(connectionString);
         using (FinancialTelemetry.ActivitySource.StartActivity("financial.transaction.open_connection"))
@@ -190,14 +195,14 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
         ArgumentException.ThrowIfNullOrWhiteSpace(stream);
         ArgumentNullException.ThrowIfNull(domainEvent);
         if (commandId == Guid.Empty || expectedStreamVersion < 0) throw new ArgumentException("Invalid event identity/version.");
-        var streamId = Convert.ToInt64(await ScalarAsync("SELECT eventstreamid FROM event_stream_id WHERE eventstream=$1;",[stream],cancellationToken).ConfigureAwait(false)
+        var streamId = Convert.ToInt64(await ScalarAsync("SELECT eventstreamid FROM event_stream_id WHERE eventstream=$1;", [stream], cancellationToken).ConfigureAwait(false)
             ?? await ScalarAsync(EventSourceDbSql.InsertEventStreamId, [stream], cancellationToken).ConfigureAwait(false));
         var type = domainEvent.GetType();
         // The existing upsert takes an UPDATE lock even when the registry row is unchanged.
         // Reading pre-registered metadata avoids serializing unrelated Portfolio transactions on an event name.
         var nameId = (int)(await ScalarAsync("SELECT eventnameid FROM event_name_id WHERE eventname=$1 AND eventtypename=$2;",
-            [type.Name,type.AssemblyQualifiedName!],cancellationToken).ConfigureAwait(false)
-            ?? await ScalarAsync(EventSourceDbSql.InsertEventNameId,[type.Name,type.AssemblyQualifiedName!],cancellationToken).ConfigureAwait(false))!;
+            [type.Name, type.AssemblyQualifiedName!], cancellationToken).ConfigureAwait(false)
+            ?? await ScalarAsync(EventSourceDbSql.InsertEventNameId, [type.Name, type.AssemblyQualifiedName!], cancellationToken).ConfigureAwait(false))!;
         using var serializeTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.event.serialize");
         var payloadBytes = eventLogCodec.Serialize(domainEvent);
         var payload = new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Bytea, Value = payloadBytes };

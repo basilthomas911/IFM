@@ -78,11 +78,11 @@ internal class Program
         // --- Batch Pricing ---
         Console.WriteLine("--- PriceBatch ---");
         double[] forwards = [5300.0, 5350.0, 5250.0, 5400.0, 5200.0, 5300.0];
-        double[] strikes  = [5300.0, 5300.0, 5300.0, 5300.0, 5300.0, 5300.0];
-        double[] rates    = [r, r, r, r, r, r];
-        double[] vols     = [sigma, sigma, sigma, sigma, sigma, sigma];
+        double[] strikes = [5300.0, 5300.0, 5300.0, 5300.0, 5300.0, 5300.0];
+        double[] rates = [r, r, r, r, r, r];
+        double[] vols = [sigma, sigma, sigma, sigma, sigma, sigma];
         double[] expiries = [T, T, T, T, T, T];
-        int[] types       = [-1, -1, -1, -1, -1, 1]; // 5 puts + 1 call
+        int[] types = [-1, -1, -1, -1, -1, 1]; // 5 puts + 1 call
         int batchSize = forwards.Length;
 
         double[] batchPrices = new double[batchSize];
@@ -119,22 +119,22 @@ internal class Program
         Console.WriteLine("--- Large Batch Performance ---");
         const int largeBatchSize = 100_000;
         double[] lForwards = new double[largeBatchSize];
-        double[] lStrikes  = new double[largeBatchSize];
-        double[] lRates    = new double[largeBatchSize];
-        double[] lVols     = new double[largeBatchSize];
+        double[] lStrikes = new double[largeBatchSize];
+        double[] lRates = new double[largeBatchSize];
+        double[] lVols = new double[largeBatchSize];
         double[] lExpiries = new double[largeBatchSize];
-        int[] lTypes       = new int[largeBatchSize];
-        double[] lResults  = new double[largeBatchSize];
+        int[] lTypes = new int[largeBatchSize];
+        double[] lResults = new double[largeBatchSize];
 
         var rng = new Random(42);
         for (int i = 0; i < largeBatchSize; i++)
         {
             lForwards[i] = 5000.0 + rng.NextDouble() * 600.0;
-            lStrikes[i]  = 5000.0 + rng.NextDouble() * 600.0;
-            lRates[i]    = r;
-            lVols[i]     = 0.10 + rng.NextDouble() * 0.30;
+            lStrikes[i] = 5000.0 + rng.NextDouble() * 600.0;
+            lRates[i] = r;
+            lVols[i] = 0.10 + rng.NextDouble() * 0.30;
             lExpiries[i] = 0.01 + rng.NextDouble() * 1.0;
-            lTypes[i]    = rng.Next(2) == 0 ? -1 : 1;
+            lTypes[i] = rng.Next(2) == 0 ? -1 : 1;
         }
 
         sw.Restart();

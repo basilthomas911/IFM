@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Shared.Exceptions
 
         public string ValidationSource => _validationSource;
         public ValidationException(string validationSource, string errorMessage)
-            :base(errorMessage)
+            : base(errorMessage)
         {
             _validationSource = validationSource;
         }

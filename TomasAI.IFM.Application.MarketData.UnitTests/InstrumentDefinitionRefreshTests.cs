@@ -18,14 +18,25 @@ public sealed class InstrumentDefinitionRefreshTests
         => ExactInstrumentDefinition.Parse("GLBX.MDP3", JsonSerializer.Serialize(new
         {
             hd = new { publisher_id = publisher, instrument_id = id, rtype = 19, ts_event = "1788089407203111341" },
-            ts_recv = received.ToString(), raw_symbol = raw, asset, instrument_class = kind, underlying_id = underlying,
-            underlying = "", currency, exchange, security_update_action = action,
-            expiration = "1947591000000000000", activation = "1692394200000000000",
-            strike_price = "2020000000000", high_limit_price = "9223372036854775807", custom_provider_field = "preserved"
+            ts_recv = received.ToString(),
+            raw_symbol = raw,
+            asset,
+            instrument_class = kind,
+            underlying_id = underlying,
+            underlying = "",
+            currency,
+            exchange,
+            security_update_action = action,
+            expiration = "1947591000000000000",
+            activation = "1692394200000000000",
+            strike_price = "2020000000000",
+            high_limit_price = "9223372036854775807",
+            custom_provider_field = "preserved"
         }));
     static DatabentoMarketDataRuntimeOptions Options() => new()
     {
-        Contracts = [], FeedOptions = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3")
+        Contracts = [],
+        FeedOptions = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3")
     };
     static InstrumentDefinitionRefresh Refresh(IInstrumentDefinitionProvider provider, IInstrumentDefinitionStore store)
         => new(provider, store, Options(), TimeProvider.System, NullLogger<InstrumentDefinitionRefresh>.Instance);

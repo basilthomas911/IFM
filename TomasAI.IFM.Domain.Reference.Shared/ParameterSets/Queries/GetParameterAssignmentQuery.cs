@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 
 [MessagePackObject(AllowPrivate = true)]
-public sealed record GetParameterAssignmentQuery:IQuery<ParameterAssignmentSnapshot>
+public sealed record GetParameterAssignmentQuery : IQuery<ParameterAssignmentSnapshot>
 {
 
     /// <summary>Creates an empty query for serialization.</summary>
@@ -24,11 +24,11 @@ public sealed record GetParameterAssignmentQuery:IQuery<ParameterAssignmentSnaps
         WorkflowDefinitionId = workflowDefinitionId;
         TargetHorizon = targetHorizon;
     }
- public const string Actor="ParameterSetQuery"; public const string Verb="GetParameterAssignment";
- [Key(0)] public ActorSubject Subject{get;init;}
- [Key(1)] public IActorEntityId EntityId{get;init;}=ActorEntityId.Default;
- [Key(2)] public string WorkflowDefinitionId{get;init;}=string.Empty;
- [Key(3)] public int TargetHorizon{get;init;}
- [IgnoreMember] public int ErrorCode{get;init;}=33101;
- [IgnoreMember] public string? QueryParams{get;init;}
+    public const string Actor = "ParameterSetQuery"; public const string Verb = "GetParameterAssignment";
+    [Key(0)] public ActorSubject Subject { get; init; }
+    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
+    [Key(2)] public string WorkflowDefinitionId { get; init; } = string.Empty;
+    [Key(3)] public int TargetHorizon { get; init; }
+    [IgnoreMember] public int ErrorCode { get; init; } = 33101;
+    [IgnoreMember] public string? QueryParams { get; init; }
 }

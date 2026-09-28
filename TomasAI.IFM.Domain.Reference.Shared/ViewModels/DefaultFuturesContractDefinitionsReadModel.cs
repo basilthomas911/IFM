@@ -15,24 +15,24 @@ namespace TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 [MessagePackObject(AllowPrivate = true)]
 public class DefaultFuturesContractDefinitionsReadModel
 {
-    
+
 
 
     [Key(0)]
     public string Currency { get; set; }
-    
+
     [Key(1)]
     public string Exchange { get; set; }
-    
+
     [Key(2)]
     public string Multiplier { get; set; }
-    
+
     [Key(3)]
     public string SecurityType { get; set; }
-    
+
     [Key(4)]
     public string OptionSecurityType { get; set; }
-    
+
     [Key(5)]
     public string Symbol { get; set; }
 }

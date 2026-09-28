@@ -17,7 +17,9 @@ namespace TomasAI.IFM.Domain.MarketData.UnitTests;
 
 public sealed class YieldCurveRatesImportedHandlerTests
 {
-    [Theory] [InlineData(false)] [InlineData(true)]
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task Official_provider_identity_is_preserved_on_complete_and_failed_terminal_events(bool fails)
     {
         var date = new DateOnly(2026, 9, 4);

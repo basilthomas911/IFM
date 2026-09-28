@@ -52,7 +52,7 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// execute command 
     /// </summary>
     /// <returns></returns>
-    public async Task<long[]> ExecuteCommandAsync(IObjectRepositoryContext ctx,  Action<string> onInfoMessage = null)
+    public async Task<long[]> ExecuteCommandAsync(IObjectRepositoryContext ctx, Action<string> onInfoMessage = null)
     {
         var status = new List<long>();
         var cmd = _ctx.Repository.InTransaction() as SqlCommand;
@@ -134,7 +134,7 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
                         foreach (var dbParameter in dbParameters)
                             cmd.Parameters.Add(dbParameter);
                     var returnParameter = new SqlParameter("@ReturnVal", SqlDbType.BigInt);
-                     returnParameter.Direction = ParameterDirection.ReturnValue;
+                    returnParameter.Direction = ParameterDirection.ReturnValue;
                     cmd.Parameters.Add(returnParameter);
                     await cmd.ExecuteNonQueryAsync();
                     status.Add(Convert.ToInt64(returnParameter.Value));
@@ -266,9 +266,9 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// <typeparam name="TParam"></typeparam>
     /// <param name="paramValues">list of update objects</param>
     /// <returns></returns>
-   
+
     IEnumerable<DbParameter[]> GetParameters()
-        => GetParameters(_ctx.ParameterValues); 
+        => GetParameters(_ctx.ParameterValues);
 
     IEnumerable<DbParameter[]> GetParameters(List<object> values)
     {

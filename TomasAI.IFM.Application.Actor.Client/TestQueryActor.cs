@@ -50,7 +50,7 @@ public class TestQueryActor(IQueryActorContext<TestQueryActor> actorContext)
         var dispatchContext = context;
         var msgInfo = IsArgumentNull.Set(dispatchContext.GetMessageInfo(query.Subject.ThreadId, query.Subject.Verb)).Value;
         var actorMessage = IsArgumentNull.Set(msgInfo.Message);
-        await actorMessage.ReplyAsync(new ServiceResult<string>( "The rain in Spain stays mainly in the plain."));
+        await actorMessage.ReplyAsync(new ServiceResult<string>("The rain in Spain stays mainly in the plain."));
     }
 
     protected override async ValueTask OnExceptionAsync(IQueryActorContext<TestQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)

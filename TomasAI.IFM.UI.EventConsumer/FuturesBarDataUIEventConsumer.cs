@@ -49,7 +49,7 @@ public class FuturesBarDataUIEventConsumer(INatsEventListenerOptions options, IL
     }
 }
 
- public interface IFuturesBarDataUIEventConsumer
+public interface IFuturesBarDataUIEventConsumer
 {
     ValueTask StartAsync(
         Func<FuturesBarDataInsertedCompleteEvent, ValueTask> barEventAction,

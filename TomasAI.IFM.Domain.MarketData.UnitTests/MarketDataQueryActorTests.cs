@@ -453,9 +453,9 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         await context.Received(1).ReplyAsync(
                Arg.Is<ActorThreadId>(id => id == query.Subject.ThreadId),
                Arg.Is<string>(v => v == GetLastRateOfReturnQuery.Verb),
-               Arg.Is<ServiceResult<RateOfReturnReadModel?>>(r => r.Success 
-                && r.Value != null 
-                && r.Value.Symbol == SampleData.Symbol 
+               Arg.Is<ServiceResult<RateOfReturnReadModel?>>(r => r.Success
+                && r.Value != null
+                && r.Value.Symbol == SampleData.Symbol
                 && r.Value.ValueDate == SampleData.ValueDate
                 && r.Value.RateOfReturn == SampleData.RateOfReturn.RateOfReturn)
            );
@@ -694,7 +694,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
             .WithParameterName("query");
     }
 
-   
+
     [Fact]
     public async Task ReceiveAsync_ShouldThrowInvalidOperationException_WhenQueryTypeIsNotSupported()
     {

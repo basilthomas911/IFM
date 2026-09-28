@@ -398,7 +398,7 @@ The main form consistently uses `Post` for callbacks received from `IFMAppViewMo
 
 Error handling exists at several layers:
 
-1. `CommandServiceApiClient` and `QueryServiceApiClient` convert transport exceptions and non-success responses into `ServiceFailed<T>` results.
+1. NATS-backed domain API clients convert actor failures and transport exceptions into `ServiceFailed<T>` results.
 2. `BaseModel<TModel>` invokes its error notifier for unsuccessful service results and caught exceptions.
 3. View models convert model errors into screen callbacks or status-console entries.
 4. Views display errors on the UI thread.

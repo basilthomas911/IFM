@@ -10,14 +10,14 @@ namespace TomasAI.IFM.Shared.AlgoMath.Indicators
         readonly List<double> _values;
         bool _isInitialized;
         double _previousAverage;
-    
+
         /// <summary>
         /// exponential moving average indicator constructor
         /// </summary>
         /// <param name="lookback"></param>
         public ExponentialMovingAverageIndicator(int lookback)
         {
-            _weightingMultiplier = 2.0 / (lookback+1) ;
+            _weightingMultiplier = 2.0 / (lookback + 1);
             _values = new();
         }
 
@@ -48,6 +48,6 @@ namespace TomasAI.IFM.Shared.AlgoMath.Indicators
             _previousAverage = Value;
         }
     }
- 
-    
+
+
 }

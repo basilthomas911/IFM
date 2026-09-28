@@ -27,7 +27,7 @@ namespace TomasAI.IFM.Shared.Caching
         VixFuturesEodData,
         VixFuturesContractId,
         FuturesTickDataStreamingParameter,
-        FuturesOptionTickDataStreamingParameter, 
+        FuturesOptionTickDataStreamingParameter,
         FundBalanceByOrderId,
         OptionTrade,
         TradePlansMap,

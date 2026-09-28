@@ -3,8 +3,9 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
+
 [MessagePackObject(AllowPrivate = true)]
-public sealed record CreateParameterDraftPreviewQuery:IQuery<string>
+public sealed record CreateParameterDraftPreviewQuery : IQuery<string>
 {
 
     /// <summary>Creates an empty query for serialization.</summary>
@@ -31,15 +32,15 @@ public sealed record CreateParameterDraftPreviewQuery:IQuery<string>
         TargetHorizon = targetHorizon;
         RebuildIntervals = rebuildIntervals;
     }
- public const string Actor="ParameterSetQuery"; public const string Verb="CreateParameterDraftPreview";
- [Key(0)] public ActorSubject Subject {get;init;}
- [Key(1)] public IActorEntityId EntityId {get;init;}=ActorEntityId.Default;
- [Key(2)] public Guid SetId {get;init;}
- [Key(3)] public string ComponentCode {get;init;}="strategy-workflow.regime-discovery";
- [Key(4)] public string PayloadJson {get;init;}="{}";
- [Key(5)] public int SchemaVersion {get;init;}=ParameterSchemaRegistry.CurrentRegimeSchemaVersion;
- [Key(6)] public int TargetHorizon {get;init;}=(int)TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily;
- [Key(7)] public bool RebuildIntervals {get;init;}
- [IgnoreMember] public int ErrorCode {get;init;}=33101;
- [IgnoreMember] public string? QueryParams {get;init;}
+    public const string Actor = "ParameterSetQuery"; public const string Verb = "CreateParameterDraftPreview";
+    [Key(0)] public ActorSubject Subject { get; init; }
+    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
+    [Key(2)] public Guid SetId { get; init; }
+    [Key(3)] public string ComponentCode { get; init; } = "strategy-workflow.regime-discovery";
+    [Key(4)] public string PayloadJson { get; init; } = "{}";
+    [Key(5)] public int SchemaVersion { get; init; } = ParameterSchemaRegistry.CurrentRegimeSchemaVersion;
+    [Key(6)] public int TargetHorizon { get; init; } = (int)TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily;
+    [Key(7)] public bool RebuildIntervals { get; init; }
+    [IgnoreMember] public int ErrorCode { get; init; } = 33101;
+    [IgnoreMember] public string? QueryParams { get; init; }
 }

@@ -32,14 +32,14 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
         /// <param name="batchSize"></param>
         /// <param name="daysToMaturity"></param>
         /// <param name="value"></param>
-        public OptionValues SetValues( int daysToMaturity, double[] values)
+        public OptionValues SetValues(int daysToMaturity, double[] values)
         {
             var batchSize = values.Length;
             if (batchSize < 0 || batchSize > _maxBatchSize)
                 throw new InvalidOperationException("OptionValues.SetValues => Invalid batch size parameter");
             if (daysToMaturity < 0 || daysToMaturity > _maxDaysToMaturity)
                 throw new InvalidOperationException("OptionValues.SetValues => Invalid days to maturity parameter");
-            for(var i=0; i < batchSize; i++)
+            for (var i = 0; i < batchSize; i++)
                 _value[i, daysToMaturity] = values[i];
             return this;
         }
@@ -83,7 +83,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
                 throw new InvalidOperationException("OptionValues.SetAssetPrices => Invalid batch size parameter");
             if (daysToMaturity < 0 || daysToMaturity > _maxDaysToMaturity)
                 throw new InvalidOperationException("OptionValues.SetAssetPrices => Invalid days to maturity parameter");
-            for(var i=0; i < batchSize; i++)
+            for (var i = 0; i < batchSize; i++)
                 _assetPrice[i, daysToMaturity] = values[i];
             return this;
         }

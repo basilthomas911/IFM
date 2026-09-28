@@ -70,11 +70,16 @@ public sealed class S3DatabaseBackupPublicationCapability(
         var now = timeProvider.GetUtcNow();
         var record = new AwsPublicationRecord
         {
-            OperationId = request.OperationId, RestorePointId = restorePoint, ReplicaId = _primaryReplica,
+            OperationId = request.OperationId,
+            RestorePointId = restorePoint,
+            ReplicaId = _primaryReplica,
             ProtectionSetId = request.ProtectionSetId,
-            Engine = request.Engine, Artifacts = [.. uploaded], EngineManifest = manifestObject,
+            Engine = request.Engine,
+            Artifacts = [.. uploaded],
+            EngineManifest = manifestObject,
             EngineManifestSha256 = Convert.ToHexString(SHA256.HashData(manifestBytes)),
-            EngineManifestSignature = manifestSignature, Dependencies = request.Dependencies ?? [],
+            EngineManifestSignature = manifestSignature,
+            Dependencies = request.Dependencies ?? [],
             PostgreSqlTimeline = request.PostgreSqlWalContinuity?.Timeline,
             PostgreSqlStartLsn = request.PostgreSqlWalContinuity?.StartLsn,
             PostgreSqlEndLsn = request.PostgreSqlWalContinuity?.EndLsn,
@@ -82,7 +87,8 @@ public sealed class S3DatabaseBackupPublicationCapability(
             ScyllaSnapshot = request.ScyllaSnapshot,
             ProducingHostId = hostOptions.HostId,
             BuildIdentity = typeof(S3DatabaseBackupPublicationCapability).Assembly.GetName().Version?.ToString() ?? "unknown",
-            PublishedUtc = now, VerifiedUtc = now
+            PublishedUtc = now,
+            VerifiedUtc = now
         };
         var recordBytes = DatabaseBackupCanonicalJson.Serialize(record);
         EnsureDocumentBound(recordBytes);
@@ -97,10 +103,13 @@ public sealed class S3DatabaseBackupPublicationCapability(
         // The catalog entry is deliberately the final write. Nothing is recovery-eligible before this succeeds.
         var catalog = new AwsCatalogEntry
         {
-            RestorePointId = restorePoint, ReplicaId = _primaryReplica,
-            ProtectionSetId = request.ProtectionSetId, Engine = request.Engine,
+            RestorePointId = restorePoint,
+            ReplicaId = _primaryReplica,
+            ProtectionSetId = request.ProtectionSetId,
+            Engine = request.Engine,
             PublicationRecord = recordObject,
-            PublicationRecordSha256 = Convert.ToHexString(SHA256.HashData(recordBytes)), PublishedUtc = timeProvider.GetUtcNow()
+            PublicationRecordSha256 = Convert.ToHexString(SHA256.HashData(recordBytes)),
+            PublishedUtc = timeProvider.GetUtcNow()
         };
         _ = await UploadDocumentAsync(_keys.Catalog(restorePoint, _primaryReplica),
             DatabaseBackupCanonicalJson.Serialize(catalog), retainUntil, context, cancellationToken).ConfigureAwait(false);
@@ -133,26 +142,37 @@ public sealed class S3DatabaseBackupPublicationCapability(
     {
         var lineage = request.BackupLineage?.NormalizeLegacyFull(request.Engine) ?? new DatabaseBackupLineage
         {
-            RequestedMode = DatabaseBackupMode.Full, ResolvedMode = DatabaseBackupMode.Full,
+            RequestedMode = DatabaseBackupMode.Full,
+            ResolvedMode = DatabaseBackupMode.Full,
             NativeKind = request.Engine == DatabaseEngine.PostgreSql
                 ? DatabaseNativeBackupKind.PostgreSqlBase : DatabaseNativeBackupKind.ScyllaManagerSnapshot,
             BaseRestorePointId = restorePoint
         };
         return new DatabaseBackupManifest
         {
-            ManifestId = $"manifest-{request.OperationId.Value:N}", OperationId = request.OperationId,
-            RestorePointId = restorePoint, Source = BackupSource.AwsCloud, Engine = request.Engine,
-            ProtectionSetId = request.ProtectionSetId, SafeBoundaryReference = request.SafeBoundaryReference,
-            CreatedUtc = timeProvider.GetUtcNow(), Dependencies = request.Dependencies ?? [], Artifacts = artifacts,
-            Replicas = [_primaryReplica], Statistics = request.Statistics, BackupLineage = lineage
+            ManifestId = $"manifest-{request.OperationId.Value:N}",
+            OperationId = request.OperationId,
+            RestorePointId = restorePoint,
+            Source = BackupSource.AwsCloud,
+            Engine = request.Engine,
+            ProtectionSetId = request.ProtectionSetId,
+            SafeBoundaryReference = request.SafeBoundaryReference,
+            CreatedUtc = timeProvider.GetUtcNow(),
+            Dependencies = request.Dependencies ?? [],
+            Artifacts = artifacts,
+            Replicas = [_primaryReplica],
+            Statistics = request.Statistics,
+            BackupLineage = lineage
         };
     }
 
     static Dictionary<string, string> EncryptionContext(DatabaseBackupPublicationRequest request, DatabaseRestorePointId restorePoint)
         => new(StringComparer.Ordinal)
         {
-            ["application"] = "IFM", ["component"] = "DatabaseBackup",
-            ["operationId"] = request.OperationId.Format(), ["restorePointId"] = restorePoint.Value,
+            ["application"] = "IFM",
+            ["component"] = "DatabaseBackup",
+            ["operationId"] = request.OperationId.Format(),
+            ["restorePointId"] = restorePoint.Value,
             ["protectionSetId"] = request.ProtectionSetId.Value
         };
 

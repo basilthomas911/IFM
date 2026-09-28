@@ -11,6 +11,6 @@ using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Reference.BDDTests;
 
-public class LookupTypeQueryHandlerTests 
+public class LookupTypeQueryHandlerTests
 {
 }

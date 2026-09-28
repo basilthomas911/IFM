@@ -137,7 +137,7 @@ public partial class MarketDataView : DarkTradingView
             ArgumentNullException.ThrowIfNull(snapshot);
             var symbol = snapshot.Symbol;
             var futuresBarData = snapshot.Bars;
-            if (futuresBarData?.Length  == 0) 
+            if (futuresBarData?.Length == 0)
                 return false;
             var graph = default(Chart);
             var minMaxOffset = 0.0;

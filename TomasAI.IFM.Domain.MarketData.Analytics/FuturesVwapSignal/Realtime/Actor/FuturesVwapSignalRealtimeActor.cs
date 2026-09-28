@@ -36,14 +36,14 @@ public sealed class FuturesVwapSignalRealtimeActor(
         FuturesContractV3ReadModel, ILogger, ValueTask<bool>>> _receiveMap =
         new Dictionary<Type, Func<IEvent, IFuturesVwapSignalRealtimeContext,
             FuturesContractV3ReadModel, ILogger, ValueTask<bool>>>
-    {
-        [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = async (@event, context, contract, eventLogger) =>
-            await ((FuturesMarketPriceUpdatedRealtimeEvent)@event)
-                .ExecuteAsync(context, contract, eventLogger).ConfigureAwait(false),
-        [typeof(FuturesTradeReplayBatchRealtimeEvent)] = async (@event, context, contract, eventLogger) =>
-            await ((FuturesTradeReplayBatchRealtimeEvent)@event)
-                .ExecuteAsync(context, contract, eventLogger).ConfigureAwait(false)
-    };
+        {
+            [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = async (@event, context, contract, eventLogger) =>
+                await ((FuturesMarketPriceUpdatedRealtimeEvent)@event)
+                    .ExecuteAsync(context, contract, eventLogger).ConfigureAwait(false),
+            [typeof(FuturesTradeReplayBatchRealtimeEvent)] = async (@event, context, contract, eventLogger) =>
+                await ((FuturesTradeReplayBatchRealtimeEvent)@event)
+                    .ExecuteAsync(context, contract, eventLogger).ConfigureAwait(false)
+        };
 
     /// <inheritdoc />
     protected override ValueTask OnStartup(IEventActorContext<FuturesVwapSignalRealtimeActor> context)

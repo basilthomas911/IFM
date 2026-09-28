@@ -163,48 +163,76 @@ public sealed class MarketOutlookHotCacheScenarios
     {
         CacheComponentType.Rsi => new RsiMarketOutlookUpdate
         {
-            UpdateId = Guid.NewGuid(), EntityId = Id, ReceivedAtUtc = timestamp,
-            MarketDataAsOfUtc = timestamp, Signal = new()
+            UpdateId = Guid.NewGuid(),
+            EntityId = Id,
+            ReceivedAtUtc = timestamp,
+            MarketDataAsOfUtc = timestamp,
+            Signal = new()
         },
         CacheComponentType.Tdi => new TdiMarketOutlookUpdate
         {
-            UpdateId = Guid.NewGuid(), EntityId = Id, ReceivedAtUtc = timestamp,
-            MarketDataAsOfUtc = timestamp, Signal = new()
+            UpdateId = Guid.NewGuid(),
+            EntityId = Id,
+            ReceivedAtUtc = timestamp,
+            MarketDataAsOfUtc = timestamp,
+            Signal = new()
         },
         CacheComponentType.ItiLatest => new ItiMarketOutlookUpdate
         {
-            UpdateId = Guid.NewGuid(), EntityId = Id, ReceivedAtUtc = timestamp,
-            MarketDataAsOfUtc = timestamp, Signal = new()
+            UpdateId = Guid.NewGuid(),
+            EntityId = Id,
+            ReceivedAtUtc = timestamp,
+            MarketDataAsOfUtc = timestamp,
+            Signal = new()
         },
         CacheComponentType.Vx => new VixPriceMarketOutlookUpdate
         {
-            UpdateId = Guid.NewGuid(), EntityId = Id, ReceivedAtUtc = timestamp,
-            MarketDataAsOfUtc = timestamp, Price = 20m
+            UpdateId = Guid.NewGuid(),
+            EntityId = Id,
+            ReceivedAtUtc = timestamp,
+            MarketDataAsOfUtc = timestamp,
+            Price = 20m
         },
         CacheComponentType.Eod => new EodMarketOutlookUpdate
         {
-            UpdateId = Guid.NewGuid(), EntityId = Id, ReceivedAtUtc = timestamp,
+            UpdateId = Guid.NewGuid(),
+            EntityId = Id,
+            ReceivedAtUtc = timestamp,
             MarketDataAsOfUtc = timestamp,
             Eod = new()
             {
-                Symbol = "ES", ContractId = Id.ContractId, ValueDate = Id.ValueDate,
-                OpenPrice = 5_000m, HighPrice = 5_100m, LowPrice = 4_900m, ClosePrice = 5_050m
+                Symbol = "ES",
+                ContractId = Id.ContractId,
+                ValueDate = Id.ValueDate,
+                OpenPrice = 5_000m,
+                HighPrice = 5_100m,
+                LowPrice = 4_900m,
+                ClosePrice = 5_050m
             }
         },
         CacheComponentType.Ema => new EmaMarketOutlookUpdate
         {
-            UpdateId = Guid.NewGuid(), EntityId = Id, ReceivedAtUtc = timestamp,
-            MarketDataAsOfUtc = timestamp, Signal = new()
+            UpdateId = Guid.NewGuid(),
+            EntityId = Id,
+            ReceivedAtUtc = timestamp,
+            MarketDataAsOfUtc = timestamp,
+            Signal = new()
         },
         CacheComponentType.BollingerBand => new BollingerBandMarketOutlookUpdate
         {
-            UpdateId = Guid.NewGuid(), EntityId = Id, ReceivedAtUtc = timestamp,
-            MarketDataAsOfUtc = timestamp, Signal = new()
+            UpdateId = Guid.NewGuid(),
+            EntityId = Id,
+            ReceivedAtUtc = timestamp,
+            MarketDataAsOfUtc = timestamp,
+            Signal = new()
         },
         CacheComponentType.TradeSignal => new TradeSignalMarketOutlookUpdate
         {
-            UpdateId = Guid.NewGuid(), EntityId = Id, ReceivedAtUtc = timestamp,
-            MarketDataAsOfUtc = timestamp, Signal = new()
+            UpdateId = Guid.NewGuid(),
+            EntityId = Id,
+            ReceivedAtUtc = timestamp,
+            MarketDataAsOfUtc = timestamp,
+            Signal = new()
         },
         _ => throw new ArgumentOutOfRangeException(nameof(component), component, null)
     };

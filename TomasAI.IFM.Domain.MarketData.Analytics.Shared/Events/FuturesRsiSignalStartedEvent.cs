@@ -30,9 +30,9 @@ public record FuturesRsiSignalStartedEvent : IEvent<FuturesRsiSignalEntityId>
     [Key(9)] public DateTime StartedOn { get; init; }
     [Key(10)] public string StartedBy { get; init; }
 
-    [Key(11)] public int HistoricalSeedCount {get;init;}
-    [Key(12)] public string HistoricalSeedReason {get;init;}=string.Empty;
-    [Key(13)] public TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesRsiSignalReadModel? RestoredSignal {get;init;}
+    [Key(11)] public int HistoricalSeedCount { get; init; }
+    [Key(12)] public string HistoricalSeedReason { get; init; } = string.Empty;
+    [Key(13)] public TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesRsiSignalReadModel? RestoredSignal { get; init; }
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
@@ -55,7 +55,7 @@ public record FuturesRsiSignalStartedEvent : IEvent<FuturesRsiSignalEntityId>
         DateTime receivedOn,
         DateOnly valueDate,
         DateTime startedOn,
-        string startedBy,int historicalSeedCount=0,string historicalSeedReason="",TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesRsiSignalReadModel? restoredSignal=null)
+        string startedBy, int historicalSeedCount = 0, string historicalSeedReason = "", TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesRsiSignalReadModel? restoredSignal = null)
     {
         Subject = subject;
         Id = id;
@@ -68,7 +68,7 @@ public record FuturesRsiSignalStartedEvent : IEvent<FuturesRsiSignalEntityId>
         ValueDate = valueDate;
         StartedOn = startedOn;
         StartedBy = startedBy ?? string.Empty;
-        HistoricalSeedCount=historicalSeedCount;HistoricalSeedReason=historicalSeedReason??string.Empty;RestoredSignal=restoredSignal;
+        HistoricalSeedCount = historicalSeedCount; HistoricalSeedReason = historicalSeedReason ?? string.Empty; RestoredSignal = restoredSignal;
     }
 
     /// <summary>

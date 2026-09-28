@@ -13,7 +13,7 @@ public interface IOrderCompositionQueryContext : IQueryActorContext<OrderComposi
 {
     IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState> WorkflowRepository { get; }
     IDbContextFactory DbFactory { get; }
-    IPortfolioQueryApi PortfolioQueries {get;}
+    IPortfolioQueryApi PortfolioQueries { get; }
     ILogger<OrderCompositionQueryActor> Logger { get; }
 }
 public sealed class OrderCompositionQueryContext : QueryActorContext,
@@ -24,7 +24,7 @@ public sealed class OrderCompositionQueryContext : QueryActorContext,
         : base(supervisor, new ActorMailboxId(ActorType.Query, OrderCompositionQueryActor.ActorName))
     { DbFactory = IsArgumentNull.Set(dbFactory); Logger = IsArgumentNull.Set(logger); }
     public IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState> WorkflowRepository => Container.Resolve<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>();
-    public IPortfolioQueryApi PortfolioQueries=>Container.Resolve<IPortfolioQueryApi>();
+    public IPortfolioQueryApi PortfolioQueries => Container.Resolve<IPortfolioQueryApi>();
     public IDbContextFactory DbFactory { get; }
     public ILogger<OrderCompositionQueryActor> Logger { get; }
 }

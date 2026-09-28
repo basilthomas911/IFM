@@ -27,10 +27,21 @@ public static class ExecuteOrderComposition
             {
                 CommandId = snapshot.Id,
                 Subject = new(ActorType.Command, FailOrderCompositionCommand.Actor, FailOrderCompositionCommand.Verb, view.EntityId.Format()),
-                EntityId = view.EntityId, WorkflowId = view.WorkflowId, InputWorkflowRevision = view.WorkflowRevision,
-                SourceEventId = snapshot.Id, CorrelationId = view.CorrelationId, CausationId = snapshot.Id, FailedAtUtc = now,
-                Failure = new() { ErrorCode = StartOrderCompositionPipelineCommand.ErrorId, ErrorType = "OrderCompositionPreparationFailed",
-                    ErrorMessage = failure.Code, ErrorData = failure.Code, FailedAtUtc = now }
+                EntityId = view.EntityId,
+                WorkflowId = view.WorkflowId,
+                InputWorkflowRevision = view.WorkflowRevision,
+                SourceEventId = snapshot.Id,
+                CorrelationId = view.CorrelationId,
+                CausationId = snapshot.Id,
+                FailedAtUtc = now,
+                Failure = new()
+                {
+                    ErrorCode = StartOrderCompositionPipelineCommand.ErrorId,
+                    ErrorType = "OrderCompositionPreparationFailed",
+                    ErrorMessage = failure.Code,
+                    ErrorData = failure.Code,
+                    FailedAtUtc = now
+                }
             };
             await context.SendAsync<FailOrderCompositionCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, view.EntityId).ConfigureAwait(false);
         }
@@ -65,7 +76,7 @@ public static class ExecuteOrderComposition
             try
             {
                 plan = marketData.Deserialize<CompositionMarketDataPlan>(new JsonSerializerOptions
-                    { UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow })
+                { UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow })
                     ?? throw new CompositionMarketSourceException("CompositionUniverseUnqualified");
             }
             catch (JsonException) { throw new CompositionMarketSourceException("CompositionUniverseUnqualified"); }
@@ -89,7 +100,9 @@ public static class ExecuteOrderComposition
             CommandId = prepared.Snapshot.SnapshotId,
             Subject = new(ActorType.Command, AcceptOrderCompositionPreparationCommand.Actor,
                 AcceptOrderCompositionPreparationCommand.Verb, view.EntityId.Format()),
-            EntityId = view.EntityId, WorkflowId = view.WorkflowId, InputWorkflowRevision = view.WorkflowRevision,
+            EntityId = view.EntityId,
+            WorkflowId = view.WorkflowId,
+            InputWorkflowRevision = view.WorkflowRevision,
             Evidence = CompositionPreparationAcceptance.Reference(prepared)
         };
         using var timing_composer_acceptance_send = WorkflowTrace.Start("composer.acceptance.send", view);

@@ -25,7 +25,7 @@ public class GetStreamingRequestIdQuery : IQuery<ScalarValue<int>>
     [Key(2)]
     public string RequestKey { get; set; }
 
-    public GetStreamingRequestIdQuery() 
+    public GetStreamingRequestIdQuery()
     {
         EntityId = new GetStreamingRequestIdParameter();
         ErrorCode = ErrorId;

@@ -10,8 +10,8 @@ namespace TomasAI.IFM.Domain.Trade.VerificationTests.Strategy.IntrinsicTime.Regi
 
 [Trait("Category", "Verification")]
 [Collection(RegimeDiscoveryVerificationCollection.Name)]
-public sealed class RegimeDiscoveryWorkflowVerificationTests(WebApplicationFactory<Program> sourceFactory)
-    : IClassFixture<WebApplicationFactory<Program>>
+public sealed class RegimeDiscoveryWorkflowVerificationTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> sourceFactory)
+    : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>
 {
     [Fact]
     public async Task Trending_up_from_futures_iti_signal_calculates_and_selects_market_condition_for_all_horizons()

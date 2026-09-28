@@ -110,7 +110,7 @@ public sealed class NatsActorMessageRingBuffer : IActorMessageRingBuffer<NatsMsg
     /// <param name="cancellationToken">An optional <see cref="CancellationToken"/> that can be used to cancel the operation while waiting for a free
     /// slot.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void TryEnqueue(in NatsMsg<byte[]> message, CancellationToken? cancellationToken) 
+    public void TryEnqueue(in NatsMsg<byte[]> message, CancellationToken? cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _slotsAvailable.Wait(cancellationToken.GetValueOrDefault());
@@ -167,8 +167,9 @@ public sealed class NatsActorMessageRingBuffer : IActorMessageRingBuffer<NatsMsg
     /// </remarks>
     public void Drain()
     {
-        while (!IsEmpty) {
-            TryDequeue(out _,default!);
+        while (!IsEmpty)
+        {
+            TryDequeue(out _, default!);
         }
     }
 

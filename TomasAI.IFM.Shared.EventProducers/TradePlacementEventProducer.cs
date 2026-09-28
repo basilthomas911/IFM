@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Shared.EventProducers;
 /// stopping, setting, clearing, waiting, and handling rangebound scenarios. It supports integration with event-driven
 /// architectures by publishing domain events to actor subjects dedicated to trade placement. For testing purposes,
 /// a parameterless constructor is provided.</remarks>
-public class TradePlacementEventProducer : NatsEventProducer,  ITradePlacementEventProducer
+public class TradePlacementEventProducer : NatsEventProducer, ITradePlacementEventProducer
 {
 
     /// <summary>

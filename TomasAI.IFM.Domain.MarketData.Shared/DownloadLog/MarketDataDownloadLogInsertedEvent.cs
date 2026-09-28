@@ -62,7 +62,8 @@ public sealed record MarketDataDownloadLogInsertedEvent : IEvent<DownloadLogId>,
             ReceivedOn = this.ReceivedOn,
             Outcome = this.Outcome,
             PayloadSha256 = this.PayloadSha256,
-            ErrorDate = DateTime.UtcNow, ErrorMessage = ex.Message,
+            ErrorDate = DateTime.UtcNow,
+            ErrorMessage = ex.Message,
         };
 }
 

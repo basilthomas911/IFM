@@ -89,12 +89,8 @@ The service container registers:
 | --- | --- |
 | Logging | Serilog configured from the merged configuration. |
 | Named non-generic logger | `IFM-ScheduledTask-FuturesMarketOpen`. |
-| `IRestApiSerializer` | `NewtonSoftJsonSerializer`. |
-| `ICommandServiceRestApiOptions` | Reads `AppSettings:CommandServerBaseUri`. |
-| `ICommandService` | `CommandServiceRestApiClient`. |
-| `IQueryServiceRestApiOptions` | Reads `AppSettings:QueryServerBaseUri`. |
-| `IQueryService` | `QueryServiceRestClientApi`. |
-| `IMarketDataQueryApi` | `MarketDataQueryApi`. The same registration appears twice; the later registration wins for single-service resolution. |
+| `IActorProducer` | `NatsActorProducer`. |
+| `IMarketDataQueryApi` | NATS-backed `MarketDataQueryApi`. |
 | `IApplicationCommandApi` | `ApplicationCommandApi`. |
 | Hosted service | `Worker`. |
 
@@ -131,12 +127,11 @@ The worker catches and logs execution exceptions. After `RunAsync` exits, `Progr
 
 | Key | Required by code | Purpose |
 | --- | --- | --- |
-| `AppSettings:CommandServerBaseUri` | Yes | Base URI used by the command-service REST client. |
-| `AppSettings:QueryServerBaseUri` | Yes | Base URI used by the query-service REST client. |
+| `Nats:Url` | Optional | NATS actor broker URL; defaults to `nats://localhost:4222`. |
 | `Serilog:*` | Required for configured logging behavior | Sink, minimum-level, enrichment, and application metadata. |
 | `DOTNET_ENVIRONMENT` | Optional host input | Selects the environment-specific settings file. |
 
-The base settings file contains Serilog configuration; endpoint values are held in environment-specific files. The application expects the settings files to be available relative to its current working directory.
+The base settings file contains Serilog and NATS configuration. The application expects the settings files to be available relative to its current working directory.
 
 ## Project and deployment definition
 

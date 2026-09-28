@@ -25,9 +25,9 @@ public sealed class EventLogQualificationLoadTests(ITestOutputHelper output)
     public async Task Concurrent_creates_replays_and_conflicts_preserve_exact_authority_and_projections()
     {
         var url = Environment.GetEnvironmentVariable("IFM_NATS_URL");
-        url.Should().Be("nats://127.0.0.1:24223");
+        url.Should().MatchRegex(@"^nats://127\.0\.0\.1:\d+$");
         var connection = Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION") ?? "";
-        Regex.IsMatch(connection, @"\AHost=127\.0\.0\.1;Port=25432;Database=ifm_eventlog_bench_[a-f0-9]{12}_synthetic_host\z")
+        Regex.IsMatch(connection, @"\AHost=127\.0\.0\.1;Port=\d+;Database=ifm_eventlog_bench_[a-f0-9]{12}_synthetic_host\z")
             .Should().BeTrue("load qualification must never fall back to ordinary application stores");
         const int count = 256;
         const int concurrency = 8;
@@ -47,9 +47,13 @@ public sealed class EventLogQualificationLoadTests(ITestOutputHelper output)
                 identity.Success.Should().BeTrue(identity.ErrorMessage);
                 models[i] = new()
                 {
-                    PortfolioId = identity.Value!.Value, Name = $"Synthetic event-log load {i}", PortfolioVersion = 1,
-                    OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = DateTime.UtcNow,
-                    CreatedOnUtc = DateTime.UtcNow, CreatedBy = "event-log-qualification"
+                    PortfolioId = identity.Value!.Value,
+                    Name = $"Synthetic event-log load {i}",
+                    PortfolioVersion = 1,
+                    OperatingState = PortfolioOperatingState.Draft,
+                    EffectiveFromUtc = DateTime.UtcNow,
+                    CreatedOnUtc = DateTime.UtcNow,
+                    CreatedBy = "event-log-qualification"
                 };
             }
             models.Select(x => x.PortfolioId).Distinct().Should().HaveCount(count);
@@ -100,16 +104,16 @@ public sealed class EventLogQualificationLoadTests(ITestOutputHelper output)
         finally { await producer.StopAsync(CancellationToken.None); }
     }
 
-    [Fact]
+    [PortfolioEnvironmentFact("IFM_PORTFOLIO_RESTART_QUALIFICATION")]
     [Trait("Category", "PortfolioLiveHostLoadRestart")]
     public async Task Retries_after_API_restart_preserve_one_business_event_per_portfolio()
     {
-        Environment.GetEnvironmentVariable("IFM_NATS_URL").Should().Be("nats://127.0.0.1:24223");
+        Environment.GetEnvironmentVariable("IFM_NATS_URL").Should().MatchRegex(@"^nats://127\.0\.0\.1:\d+$");
         var cases = JsonSerializer.Deserialize<RetryCase[]>(await File.ReadAllTextAsync(ManifestPath()))!;
         cases.Should().HaveCount(256);
         using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(3));
         var token = deadline.Token;
-        var producer = new NatsActorProducer(new NatsProducerOptions { Url = "nats://127.0.0.1:24223" }, Substitute.For<ILogger<NatsActorProducer>>());
+        var producer = new NatsActorProducer(new NatsProducerOptions { Url = Environment.GetEnvironmentVariable("IFM_NATS_URL")! }, Substitute.For<ILogger<NatsActorProducer>>());
         await producer.StartAsync(new ActorMailboxId(ActorType.Command, $"QualificationRetryRestart{Guid.NewGuid():N}"), token);
         try
         {
@@ -131,7 +135,7 @@ public sealed class EventLogQualificationLoadTests(ITestOutputHelper output)
     static string ManifestPath()
     {
         var connection = Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION") ?? "";
-        var match = Regex.Match(connection, @"\AHost=127\.0\.0\.1;Port=25432;Database=ifm_eventlog_bench_([a-f0-9]{12})_synthetic_host\z");
+        var match = Regex.Match(connection, @"\AHost=127\.0\.0\.1;Port=\d+;Database=ifm_eventlog_bench_([a-f0-9]{12})_synthetic_host\z");
         match.Success.Should().BeTrue();
         var directory = Path.GetFullPath(Environment.GetEnvironmentVariable("IFM_QUALIFICATION_ARTIFACT_DIRECTORY") ?? throw new InvalidOperationException("Qualification artifact directory required."));
         Path.GetFileName(directory).Should().Be("acceptance-" + match.Groups[1].Value);

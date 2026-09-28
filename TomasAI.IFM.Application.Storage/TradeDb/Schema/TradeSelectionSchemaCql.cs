@@ -1,4 +1,5 @@
 namespace TomasAI.IFM.Application.Storage.TradeDb.Schema;
+
 public static class TradeSelectionSchemaCql
 {
     public const string Invocation = """

@@ -45,10 +45,10 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderQueryActor(
     static readonly IReadOnlyDictionary<Type, Func<IQueryActorContext<FuturesAnalyticsHistoricalDataLoaderQueryActor>,
         IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<FuturesAnalyticsHistoricalDataLoaderQueryActor>,
         IQuery, CancellationToken, ValueTask>>()
-    {
-        [typeof(GetFuturesAnalyticsHistoricalDataLoaderQuery)] = static (context, query, cancellationToken) =>
-            ((GetFuturesAnalyticsHistoricalDataLoaderQuery)query).ExecuteAsync(context, cancellationToken)
-    };
+        {
+            [typeof(GetFuturesAnalyticsHistoricalDataLoaderQuery)] = static (context, query, cancellationToken) =>
+                ((GetFuturesAnalyticsHistoricalDataLoaderQuery)query).ExecuteAsync(context, cancellationToken)
+        };
 
     /// <inheritdoc />
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =

@@ -177,7 +177,7 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<IActorMessage
         for (int i = 0; i < _spinCountEnqueue; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (TryEnqueue(item)) 
+            if (TryEnqueue(item))
                 return;
             spinner.SpinOnce();
         }
@@ -193,7 +193,7 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<IActorMessage
         }
     }
 
-    
+
     /// <summary>
     /// Dequeues and returns the next item, blocking (cancellable) when the buffer is empty. Uses spin-then-park.
     /// </summary>
@@ -205,7 +205,7 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<IActorMessage
         var spinner = new SpinWait();
         for (int i = 0; i < _spinCountDequeue; i++)
         {
-            if (TryDequeue(out var value)) 
+            if (TryDequeue(out var value))
                 return value;
             spinner.SpinOnce();
             cancellationToken.ThrowIfCancellationRequested();
@@ -216,7 +216,7 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<IActorMessage
 
         while (true)
         {
-            if (TryDequeue(out var value)) 
+            if (TryDequeue(out var value))
                 return value;
             BlockUntilItemAvailable(cancellationToken); // spurious wake; re-park
         }

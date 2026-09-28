@@ -21,9 +21,7 @@ public sealed partial class MarkerProjectorPipelineTests
     public async Task JetStream_queue_recreation_and_post_commit_replay_preserve_single_effect(bool batched, bool failAfterCommit)
     {
         var endpoint = Environment.GetEnvironmentVariable("IFM_MARKER_TEST_NATS_URL");
-        if (endpoint != "nats://127.0.0.1:24223")
-            throw new InvalidOperationException("Explicit isolated JetStream endpoint on 24223 is required.");
-        var options = new NatsJetStreamConsumerOptions { Url = endpoint };
+        var options = new NatsJetStreamConsumerOptions { Url = endpoint ?? throw new InvalidOperationException("The isolated NATS fixture is unavailable.") };
         var name = "MarkerJetStream_" + Guid.NewGuid().ToString("N");
         var stream = await Append(batched, name, 1);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -76,8 +74,9 @@ public sealed partial class MarkerProjectorPipelineTests
             }
             var processStream = await jetStream.GetStreamAsync($"IFM_{name}_PROCESS", cancellationToken: deadline.Token);
             var replayStream = await jetStream.GetStreamAsync($"IFM_{name}_REPLAY", cancellationToken: deadline.Token);
-            Assert.Equal(1L, processStream.Info.State.Messages);
-            Assert.Equal(failAfterCommit ? 1L : 0L, replayStream.Info.State.Messages);
+            Assert.Equal(0L, processStream.Info.State.Messages);
+            // Work-queue retention removes each message after its durable consumer acknowledges it.
+            Assert.Equal(0L, replayStream.Info.State.Messages);
             await consumer.StopAsync(name, deadline.Token);
             await VerifyCompleted(stream, 1);
             Assert.Equal(failAfterCommit ? 2 : 1, attempts);

@@ -41,7 +41,7 @@ namespace IBApi
         private string marketRuleIds;
         private string realExpirationDate;
         private string lastTradeTime;
-       
+
         // BOND values
         private string cusip;
         private string ratings;
@@ -63,11 +63,11 @@ namespace IBApi
          * @brief A fully-defined Contract object.
          */
         public Contract Contract
-        { 
-			//! @cond
+        {
+            //! @cond
             get { return contract; }
             set { contract = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -75,10 +75,10 @@ namespace IBApi
         */
         public string MarketName
         {
-			//! @cond
+            //! @cond
             get { return marketName; }
             set { marketName = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -86,11 +86,11 @@ namespace IBApi
          * Note that many securities vary their minimum tick size according to their price. This value will only show the smallest of the different minimum tick sizes regardless of the product's price. Full information about the minimum increment price structure can be obtained with the reqMarketRule function or the IB Contract and Security Search site. 
         */
         public double MinTick
-        { 
+        {
             //! @cond
-			get { return minTick; }
+            get { return minTick; }
             set { minTick = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -100,10 +100,10 @@ namespace IBApi
         */
         public int PriceMagnifier
         {
-			//! @cond
+            //! @cond
             get { return priceMagnifier; }
             set { priceMagnifier = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -111,10 +111,10 @@ namespace IBApi
         */
         public string OrderTypes
         {
-			//! @cond
+            //! @cond
             get { return orderTypes; }
             set { orderTypes = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -123,10 +123,10 @@ namespace IBApi
         */
         public string ValidExchanges
         {
-			//! @cond
+            //! @cond
             get { return validExchanges; }
             set { validExchanges = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -134,10 +134,10 @@ namespace IBApi
         */
         public int UnderConId
         {
-			//! @cond
+            //! @cond
             get { return underConId; }
             set { underConId = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -145,10 +145,10 @@ namespace IBApi
         */
         public string LongName
         {
-			//! @cond
+            //! @cond
             get { return longName; }
             set { longName = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -156,10 +156,10 @@ namespace IBApi
         */
         public string ContractMonth
         {
-			//! @cond
+            //! @cond
             get { return contractMonth; }
             set { contractMonth = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -167,10 +167,10 @@ namespace IBApi
         */
         public string Industry
         {
-			//! @cond
+            //! @cond
             get { return industry; }
             set { industry = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -178,10 +178,10 @@ namespace IBApi
         */
         public string Category
         {
-			//! @cond
+            //! @cond
             get { return category; }
             set { category = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -189,10 +189,10 @@ namespace IBApi
         */
         public string Subcategory
         {
-			//! @cond
+            //! @cond
             get { return subcategory; }
             set { subcategory = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -200,10 +200,10 @@ namespace IBApi
         */
         public string TimeZoneId
         {
-			//! @cond
+            //! @cond
             get { return timeZoneId; }
             set { timeZoneId = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -215,10 +215,10 @@ namespace IBApi
         */
         public string TradingHours
         {
-			//! @cond
+            //! @cond
             get { return tradingHours; }
             set { tradingHours = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -229,10 +229,10 @@ namespace IBApi
 		*/
         public string LiquidHours
         {
-			//! @cond
+            //! @cond
             get { return liquidHours; }
             set { liquidHours = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -241,10 +241,10 @@ namespace IBApi
         */
         public string EvRule
         {
-			//! @cond
+            //! @cond
             get { return evRule; }
             set { evRule = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -253,10 +253,10 @@ namespace IBApi
         */
         public double EvMultiplier
         {
-			//! @cond
+            //! @cond
             get { return evMultiplier; }
             set { evMultiplier = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -264,10 +264,10 @@ namespace IBApi
         */
         public int MdSizeMultiplier
         {
-			//! @cond
+            //! @cond
             get { return mdSizeMultiplier; }
             set { mdSizeMultiplier = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -277,10 +277,10 @@ namespace IBApi
         */
         public int AggGroup
         {
-			//! @cond
+            //! @cond
             get { return aggGroup; }
             set { aggGroup = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -290,10 +290,10 @@ namespace IBApi
         */
         public List<TagValue> SecIdList
         {
-			//! @cond
+            //! @cond
             get { return secIdList; }
             set { secIdList = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -301,22 +301,22 @@ namespace IBApi
         */
         public string UnderSymbol
         {
-			//! @cond
+            //! @cond
             get { return underSymbol; }
             set { underSymbol = value; }
-			//! @endcond
-		}
+            //! @endcond
+        }
 
         /**
         * @brief For derivatives, returns the underlying security type. 
         */
         public string UnderSecType
         {
-			//! @cond
+            //! @cond
             get { return underSecType; }
             set { underSecType = value; }
-			//! @endcond
-		}
+            //! @endcond
+        }
 
         /**
         * @brief The list of market rule IDs separated by comma
@@ -324,10 +324,10 @@ namespace IBApi
         */
         public string MarketRuleIds
         {
-			//! @cond
+            //! @cond
             get { return marketRuleIds; }
             set { marketRuleIds = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -358,10 +358,10 @@ namespace IBApi
         */
         public string Cusip
         {
-			//! @cond
+            //! @cond
             get { return cusip; }
             set { cusip = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -371,10 +371,10 @@ namespace IBApi
         */
         public string Ratings
         {
-			//! @cond
+            //! @cond
             get { return ratings; }
             set { ratings = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -383,10 +383,10 @@ namespace IBApi
         */
         public string DescAppend
         {
-			//! @cond
+            //! @cond
             get { return descAppend; }
             set { descAppend = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -394,10 +394,10 @@ namespace IBApi
         */
         public string BondType
         {
-			//! @cond
+            //! @cond
             get { return bondType; }
             set { bondType = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -407,10 +407,10 @@ namespace IBApi
         */
         public string CouponType
         {
-			//! @cond
+            //! @cond
             get { return couponType; }
             set { couponType = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -420,10 +420,10 @@ namespace IBApi
         */
         public bool Callable
         {
-			//! @cond
+            //! @cond
             get { return callable; }
             set { callable = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -433,10 +433,10 @@ namespace IBApi
         */
         public bool Putable
         {
-			//! @cond
+            //! @cond
             get { return putable; }
             set { putable = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -446,10 +446,10 @@ namespace IBApi
         */
         public double Coupon
         {
-			//! @cond
+            //! @cond
             get { return coupon; }
             set { coupon = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -459,10 +459,10 @@ namespace IBApi
         */
         public bool Convertible
         {
-			//! @cond
+            //! @cond
             get { return convertible; }
             set { convertible = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -472,10 +472,10 @@ namespace IBApi
         */
         public string Maturity
         {
-			//! @cond
+            //! @cond
             get { return maturity; }
             set { maturity = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /** 
@@ -485,10 +485,10 @@ namespace IBApi
         */
         public string IssueDate
         {
-			//! @cond
+            //! @cond
             get { return issueDate; }
             set { issueDate = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -498,10 +498,10 @@ namespace IBApi
         */
         public string NextOptionDate
         {
-			//! @cond
+            //! @cond
             get { return nextOptionDate; }
             set { nextOptionDate = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -511,10 +511,10 @@ namespace IBApi
         */
         public string NextOptionType
         {
-			//! @cond
+            //! @cond
             get { return nextOptionType; }
             set { nextOptionType = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -524,10 +524,10 @@ namespace IBApi
        */
         public bool NextOptionPartial
         {
-			//! @cond
+            //! @cond
             get { return nextOptionPartial; }
             set { nextOptionPartial = value; }
-			//! @endcond
+            //! @endcond
         }
 
         /**
@@ -536,10 +536,10 @@ namespace IBApi
         */
         public string Notes
         {
-			//! @cond
+            //! @cond
             get { return notes; }
             set { notes = value; }
-			//! @endcond
+            //! @endcond
         }
 
         public ContractDetails()

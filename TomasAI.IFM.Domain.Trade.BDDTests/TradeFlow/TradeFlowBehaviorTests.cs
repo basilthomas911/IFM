@@ -166,7 +166,8 @@ public sealed class TradeFlowBehaviorTests
     {
         var component = new TradeOrderComponentDefinition
         {
-            ComponentId = Guid.NewGuid(), ReservedTradeId = 88,
+            ComponentId = Guid.NewGuid(),
+            ReservedTradeId = 88,
             StrategyKind = TradeStrategyKind.VerticalSpread,
             PermitBalancedPartialAcceptance = permitPartial,
             Legs =
@@ -178,19 +179,28 @@ public sealed class TradeFlowBehaviorTests
         return new TradeOrderDefinition
         {
             PositionType = TradeOrderPositionType.Opening,
-            Id = new TradeOrderId(1, 2, 3), Revision = 1,
-            Status = TradeOrderStatus.Executing, ValueDate = DateOnly.FromDateTime(Now),
-            ValidUntilUtc = Now.AddMinutes(1), Origin = "BDD", DefinitionHash = "vertical",
+            Id = new TradeOrderId(1, 2, 3),
+            Revision = 1,
+            Status = TradeOrderStatus.Executing,
+            ValueDate = DateOnly.FromDateTime(Now),
+            ValidUntilUtc = Now.AddMinutes(1),
+            Origin = "BDD",
+            DefinitionHash = "vertical",
             Components = [component]
         };
     }
 
     static ExecutionFillEvidence Fill(TradeOrderComponentDefinition component, TradeLegDefinition leg,
         Guid attempt, int quantity) => new()
-    {
-        ExecutionFillId = Guid.NewGuid(), ExecutionAttemptId = attempt,
-        ExternalExecutionId = Guid.NewGuid().ToString("N"), ComponentId = component.ComponentId,
-        TradeLegId = leg.TradeLegId, ContractId = leg.ContractId,
-        SignedQuantity = quantity, Price = 1m, FilledAtUtc = Now
-    };
+        {
+            ExecutionFillId = Guid.NewGuid(),
+            ExecutionAttemptId = attempt,
+            ExternalExecutionId = Guid.NewGuid().ToString("N"),
+            ComponentId = component.ComponentId,
+            TradeLegId = leg.TradeLegId,
+            ContractId = leg.ContractId,
+            SignedQuantity = quantity,
+            Price = 1m,
+            FilledAtUtc = Now
+        };
 }

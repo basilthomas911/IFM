@@ -99,11 +99,11 @@ public class FuturesTickDataCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext,
         FuturesTickDataCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext,
         FuturesTickDataCommandState, ServiceResult<GuidResult>>>()
-    {
-        [typeof(InsertFuturesTickDataCommand)] = (cmd, context, state) => (cmd as InsertFuturesTickDataCommand)!.Execute(state),
-        [typeof(StartFuturesTickDataStreamingCommand)] = (cmd, context, state) => (cmd as StartFuturesTickDataStreamingCommand)!.Execute(state),
-        [typeof(StopFuturesTickDataStreamingCommand)] = (cmd, context, state) => (cmd as StopFuturesTickDataStreamingCommand)!.Execute(state)
-    };
+        {
+            [typeof(InsertFuturesTickDataCommand)] = (cmd, context, state) => (cmd as InsertFuturesTickDataCommand)!.Execute(state),
+            [typeof(StartFuturesTickDataStreamingCommand)] = (cmd, context, state) => (cmd as StartFuturesTickDataStreamingCommand)!.Execute(state),
+            [typeof(StopFuturesTickDataStreamingCommand)] = (cmd, context, state) => (cmd as StopFuturesTickDataStreamingCommand)!.Execute(state)
+        };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -126,30 +126,33 @@ public class FuturesTickDataCommandActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
-    {
-        [typeof(InsertFuturesTickDataCommand)] = cmd => {
-            var e = (InsertFuturesTickDataCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateContract(e.Contract, e.CommandName)
-                .ValidateTickData(e.TickData, e.CommandName);
-        },
-        [typeof(StartFuturesTickDataStreamingCommand)] = cmd => {
-            var e = (StartFuturesTickDataStreamingCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateContract(e.Contract, e.CommandName)
-                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
-        },
-        [typeof(StopFuturesTickDataStreamingCommand)] = cmd => {
-            var e = (StopFuturesTickDataStreamingCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName);
-        }
-    };
+        {
+            [typeof(InsertFuturesTickDataCommand)] = cmd =>
+            {
+                var e = (InsertFuturesTickDataCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateContract(e.Contract, e.CommandName)
+                    .ValidateTickData(e.TickData, e.CommandName);
+            },
+            [typeof(StartFuturesTickDataStreamingCommand)] = cmd =>
+            {
+                var e = (StartFuturesTickDataStreamingCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateContract(e.Contract, e.CommandName)
+                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
+            },
+            [typeof(StopFuturesTickDataStreamingCommand)] = cmd =>
+            {
+                var e = (StopFuturesTickDataStreamingCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName);
+            }
+        };
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.

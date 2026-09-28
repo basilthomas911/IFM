@@ -20,7 +20,9 @@ namespace TomasAI.IFM.Domain.MarketData.UnitTests.DownloadLog;
 [Trait("Category", "BDD")]
 public sealed class DownloadLogBddTests
 {
-    [Theory] [InlineData(false)] [InlineData(true)]
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task Given_a_terminal_outcome_when_forwarded_then_the_original_attempt_and_measurements_are_preserved(bool failed)
     {
         var outcome = DownloadLogContractTests.Outcome(MarketDataDownloadDataset.TreasuryCurve);
@@ -38,7 +40,8 @@ public sealed class DownloadLogBddTests
         Assert.Equal(outcome, captured!.Outcome); captured.Validate();
     }
 
-    [Fact] public async Task Given_logging_rejection_when_forwarding_then_recovery_keeps_the_original_outcome()
+    [Fact]
+    public async Task Given_logging_rejection_when_forwarding_then_recovery_keeps_the_original_outcome()
     {
         var o = DownloadLogContractTests.Outcome(MarketDataDownloadDataset.TreasuryCurve); var context = Substitute.For<IEventActorContext>();
         context.RequestAsync<InsertMarketDataDownloadLogCommand, DownloadLogId>(Arg.Any<InsertMarketDataDownloadLogCommand>())
@@ -77,7 +80,11 @@ public sealed class DownloadLogBddTests
             Arg.Any<InsertMarketDataDownloadLogCommand>());
     }
 
-    [Theory] [InlineData("empty")] [InlineData("provider-failed")] [InlineData("write-failed")] [InlineData("notification-failed")]
+    [Theory]
+    [InlineData("empty")]
+    [InlineData("provider-failed")]
+    [InlineData("write-failed")]
+    [InlineData("notification-failed")]
     public async Task Given_an_import_when_processing_ends_then_counts_and_delivery_failures_have_distinct_meanings(string scenario)
     {
         var api = Substitute.For<IReferenceDataApi>(); var provider = Substitute.For<ITreasuryCurve>(); api.TreasuryCurve.Returns(provider);
@@ -92,8 +99,14 @@ public sealed class DownloadLogBddTests
         context.SendAsync<YieldCurveRatesImportedCompleteEvent, YieldCurveRateEntityId>(Arg.Do<YieldCurveRatesImportedCompleteEvent>(e => completed = e))
             .Returns(_ => scenario == "notification-failed" ? ValueTask.FromException(new InvalidOperationException("notification unavailable")) : ValueTask.CompletedTask);
         context.SendAsync<YieldCurveRatesImportedFailEvent, YieldCurveRateEntityId>(Arg.Do<YieldCurveRatesImportedFailEvent>(e => failed = e)).Returns(ValueTask.CompletedTask);
-        var request = new YieldCurveRatesImportedEvent { CommandId = Guid.NewGuid(), EntityId = new(2026), ImportDate = date.ToDateTime(TimeOnly.MinValue), RequestedOn = DateTime.UtcNow,
-            Subject = new(ActorType.Event, YieldCurveRatesImportedEvent.Actor, YieldCurveRatesImportedEvent.Verb, "2026") };
+        var request = new YieldCurveRatesImportedEvent
+        {
+            CommandId = Guid.NewGuid(),
+            EntityId = new(2026),
+            ImportDate = date.ToDateTime(TimeOnly.MinValue),
+            RequestedOn = DateTime.UtcNow,
+            Subject = new(ActorType.Event, YieldCurveRatesImportedEvent.Actor, YieldCurveRatesImportedEvent.Verb, "2026")
+        };
         var exception = await Record.ExceptionAsync(() => request.ExecuteAsync(context, api, factory, NullLogger<YieldCurveRateEventActor>.Instance).AsTask());
         if (scenario == "notification-failed") Assert.NotNull(exception); else Assert.Null(exception);
         var outcome = (completed?.DownloadOutcome ?? failed?.DownloadOutcome)!; outcome.Validate();

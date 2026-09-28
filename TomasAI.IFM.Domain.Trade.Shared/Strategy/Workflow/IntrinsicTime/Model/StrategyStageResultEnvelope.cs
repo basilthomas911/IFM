@@ -35,8 +35,8 @@ public sealed record StrategyStageResultEnvelope
         get => _riskResult;
         init
         {
-            _riskResult=value;
-            _riskFingerprint=value is null ? default : (RiskContracts.Hash(value),MessagePackBinarySerializer.MeasureContent(value));
+            _riskResult = value;
+            _riskFingerprint = value is null ? default : (RiskContracts.Hash(value), MessagePackBinarySerializer.MeasureContent(value));
         }
     }
 
@@ -46,10 +46,15 @@ public sealed record StrategyStageResultEnvelope
         RiskContracts.ValidateResult(result);
         var envelope = new StrategyStageResultEnvelope
         {
-            ResultId=result.ResultId, ResultType=nameof(RiskAssessmentResult), SchemaVersion=result.SchemaVersion,
-            ContentType=TypedRiskContentType, RiskResult=result, MarketDataAsOfUtc=result.EvaluatedAtUtc, ProducedAtUtc=result.ProducedAtUtc
+            ResultId = result.ResultId,
+            ResultType = nameof(RiskAssessmentResult),
+            SchemaVersion = result.SchemaVersion,
+            ContentType = TypedRiskContentType,
+            RiskResult = result,
+            MarketDataAsOfUtc = result.EvaluatedAtUtc,
+            ProducedAtUtc = result.ProducedAtUtc
         };
-        return envelope with { PayloadSha256=envelope._riskFingerprint.Hash };
+        return envelope with { PayloadSha256 = envelope._riskFingerprint.Hash };
     }
 
     public RiskAssessmentResult ReadRiskResult()
@@ -129,9 +134,13 @@ public sealed record StrategyStageResultEnvelope
             throw new ArgumentException("A versioned composition identity and supported content budget are required.");
         var envelope = new StrategyStageResultEnvelope
         {
-            ResultId = result.ResultId, ResultType = nameof(OrderCompositionResult), SchemaVersion = result.SchemaVersion,
-            ContentType = TypedCompositionContentType, CompositionResult = result,
-            MarketDataAsOfUtc = result.EvaluatedAtUtc, ProducedAtUtc = result.ProducedAtUtc
+            ResultId = result.ResultId,
+            ResultType = nameof(OrderCompositionResult),
+            SchemaVersion = result.SchemaVersion,
+            ContentType = TypedCompositionContentType,
+            CompositionResult = result,
+            MarketDataAsOfUtc = result.EvaluatedAtUtc,
+            ProducedAtUtc = result.ProducedAtUtc
         };
         if (envelope.ContentSize > maximumPayloadBytes)
             throw new ArgumentOutOfRangeException(nameof(result), "Composition content exceeds its configured limit.");
@@ -173,9 +182,13 @@ public sealed record StrategyStageResultEnvelope
             throw new ArgumentException("A versioned selection identity and supported content budget are required.");
         var envelope = new StrategyStageResultEnvelope
         {
-            ResultId = result.ResultId, ResultType = nameof(TradeSelectionResult), SchemaVersion = result.SchemaVersion,
-            ContentType = TypedSelectionContentType, SelectionResult = result,
-            MarketDataAsOfUtc = result.DecisionContext.AssessmentResultEnvelope.MarketDataAsOfUtc, ProducedAtUtc = result.ProducedAtUtc
+            ResultId = result.ResultId,
+            ResultType = nameof(TradeSelectionResult),
+            SchemaVersion = result.SchemaVersion,
+            ContentType = TypedSelectionContentType,
+            SelectionResult = result,
+            MarketDataAsOfUtc = result.DecisionContext.AssessmentResultEnvelope.MarketDataAsOfUtc,
+            ProducedAtUtc = result.ProducedAtUtc
         };
         if (envelope.ContentSize > maximumPayloadBytes)
             throw new ArgumentOutOfRangeException(nameof(result), "Selection content exceeds its configured limit.");
@@ -200,9 +213,13 @@ public sealed record StrategyStageResultEnvelope
             throw new ArgumentException("A versioned assessment result identity is required.", nameof(result));
         var envelope = new StrategyStageResultEnvelope
         {
-            ResultId = result.ResultId, ResultType = nameof(MarketConditionAssessmentResult), SchemaVersion = result.SchemaVersion,
-            ContentType = TypedAssessmentContentType, AssessmentResult = result,
-            MarketDataAsOfUtc = result.EvaluatedAtUtc, ProducedAtUtc = result.EvaluatedAtUtc
+            ResultId = result.ResultId,
+            ResultType = nameof(MarketConditionAssessmentResult),
+            SchemaVersion = result.SchemaVersion,
+            ContentType = TypedAssessmentContentType,
+            AssessmentResult = result,
+            MarketDataAsOfUtc = result.EvaluatedAtUtc,
+            ProducedAtUtc = result.EvaluatedAtUtc
         };
         if (envelope.ContentSize > DefaultMaximumPayloadBytes)
             throw new ArgumentOutOfRangeException(nameof(result), "Assessment content exceeds the configured stage limit.");
@@ -234,9 +251,13 @@ public sealed record StrategyStageResultEnvelope
             throw new ArgumentException("A versioned Regime result identity is required.", nameof(result));
         var envelope = new StrategyStageResultEnvelope
         {
-            ResultId = result.ResultId, ResultType = nameof(RegimeDiscoveryResult), SchemaVersion = result.SchemaVersion,
-            ContentType = TypedRegimeContentType, RegimeResult = result,
-            MarketDataAsOfUtc = result.MarketDataAsOfUtc, ProducedAtUtc = result.ProducedAtUtc
+            ResultId = result.ResultId,
+            ResultType = nameof(RegimeDiscoveryResult),
+            SchemaVersion = result.SchemaVersion,
+            ContentType = TypedRegimeContentType,
+            RegimeResult = result,
+            MarketDataAsOfUtc = result.MarketDataAsOfUtc,
+            ProducedAtUtc = result.ProducedAtUtc
         };
         if (envelope.ContentSize > DefaultMaximumPayloadBytes)
             throw new ArgumentOutOfRangeException(nameof(result), "Regime content exceeds the configured stage limit.");
@@ -373,7 +394,7 @@ public sealed record StrategyStageResultEnvelope
                 || _payload.Length != 0 || ContentType != TypedRiskContentType || ResultType != nameof(RiskAssessmentResult)
                 || ResultId != _riskResult.ResultId || SchemaVersion != _riskResult.SchemaVersion
                 || ProducedAtUtc != _riskResult.ProducedAtUtc || MarketDataAsOfUtc != _riskResult.EvaluatedAtUtc) return false;
-            return string.Equals(PayloadSha256,_riskFingerprint.Hash,StringComparison.OrdinalIgnoreCase);
+            return string.Equals(PayloadSha256, _riskFingerprint.Hash, StringComparison.OrdinalIgnoreCase);
         }
         if (_compositionResult is not null)
         {

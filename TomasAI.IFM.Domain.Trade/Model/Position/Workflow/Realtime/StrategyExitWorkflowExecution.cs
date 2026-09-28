@@ -54,11 +54,16 @@ public static class StrategyExitWorkflowExecution
             StrategyKind = started.StrategyKind,
             Started = started
         };
-        compose = compose with { InputHash = TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialCanonicalHash.Compute(new
+        compose = compose with
         {
-            compose.EntityId, compose.StrategyKind, compose.Started.SourcePlanEventId,
-            Plan = compose.Started.ExitPlan.ContentHash
-        }) };
+            InputHash = TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialCanonicalHash.Compute(new
+            {
+                compose.EntityId,
+                compose.StrategyKind,
+                compose.Started.SourcePlanEventId,
+                Plan = compose.Started.ExitPlan.ContentHash
+            })
+        };
         var composedReply = await context.RequestFunctionAsync<ComposeExitOrderCommand,
             ExitPositionWorkflowId, FunctionResult<ExitOrderCompositionCompletedEvent,
                 ExitPositionWorkflowFailedEvent>>(compose).ConfigureAwait(false);
@@ -91,11 +96,16 @@ public static class StrategyExitWorkflowExecution
             Composition = composed.Composition,
             CompositionEventId = composed.Id
         };
-        risk = risk with { InputHash = TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialCanonicalHash.Compute(new
+        risk = risk with
         {
-            risk.EntityId, risk.StrategyKind, risk.CompositionEventId,
-            risk.Composition.CompositionHash
-        }) };
+            InputHash = TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialCanonicalHash.Compute(new
+            {
+                risk.EntityId,
+                risk.StrategyKind,
+                risk.CompositionEventId,
+                risk.Composition.CompositionHash
+            })
+        };
         var riskReply = await context.RequestFunctionAsync<EvaluatePositionExitRiskCommand,
             ExitPositionWorkflowId, FunctionResult<PositionExitRiskCompletedEvent,
                 ExitPositionWorkflowFailedEvent>>(risk).ConfigureAwait(false);
@@ -138,24 +148,30 @@ public static class StrategyExitWorkflowExecution
         await context.SendAsync<CreateTradeOrderCommand, TradeOrderId>(new()
         {
             CommandId = TradeHandoffIdentity.Create("exit-order-create", seed.ToString("N"), order.Id.Format()),
-            Subject = Subject(CreateTradeOrderCommand.Verb), EntityId = order.Id, Order = order
+            Subject = Subject(CreateTradeOrderCommand.Verb),
+            EntityId = order.Id,
+            Order = order
         }, order.Id).ConfigureAwait(false);
         await context.SendAsync<ApproveTradeOrderCommand, TradeOrderId>(new()
         {
             CommandId = TradeHandoffIdentity.Create("exit-order-approve", seed.ToString("N"), order.Id.Format()),
-            Subject = Subject(ApproveTradeOrderCommand.Verb), EntityId = order.Id
+            Subject = Subject(ApproveTradeOrderCommand.Verb),
+            EntityId = order.Id
         }, order.Id).ConfigureAwait(false);
         await context.SendAsync<ReadyTradeOrderCommand, TradeOrderId>(new()
         {
             CommandId = TradeHandoffIdentity.Create("exit-order-ready", seed.ToString("N"), order.Id.Format()),
-            Subject = Subject(ReadyTradeOrderCommand.Verb), EntityId = order.Id
+            Subject = Subject(ReadyTradeOrderCommand.Verb),
+            EntityId = order.Id
         }, order.Id).ConfigureAwait(false);
         var attempt = TradeHandoffIdentity.Create("exit-order-execution", seed.ToString("N"), order.Id.Format());
         await context.SendAsync<BindTradeOrderExecutionCommand, TradeOrderId>(new()
         {
             CommandId = TradeHandoffIdentity.Create("exit-order-bind", seed.ToString("N"), order.Id.Format()),
-            Subject = Subject(BindTradeOrderExecutionCommand.Verb), EntityId = order.Id,
-            ExecutionAttemptId = attempt, ExecutionChannel = ExecutionChannel.Broker,
+            Subject = Subject(BindTradeOrderExecutionCommand.Verb),
+            EntityId = order.Id,
+            ExecutionAttemptId = attempt,
+            ExecutionChannel = ExecutionChannel.Broker,
             EffectiveAtUtc = timeProvider.GetUtcNow().UtcDateTime
         }, order.Id).ConfigureAwait(false);
         return;

@@ -138,19 +138,21 @@ public class SpreadDistributionCommandActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
-    {
-        [typeof(InsertSpreadDistributionCommand)] = cmd => {
-            var e = cmd as InsertSpreadDistributionCommand; return new List<ValidationError>()
-                .ValidateCommandId(e!.CommandId, e.CommandName)
-                .ValidateSpreadDistribution(e.PutSpreadDistribution, e.CallSpreadDistribution, e.CommandName);
-        },
-        [typeof(DeleteSpreadDistributionCommand)] = cmd => {
-            var e = cmd as DeleteSpreadDistributionCommand; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName);
-        }
-    };
+        {
+            [typeof(InsertSpreadDistributionCommand)] = cmd =>
+            {
+                var e = cmd as InsertSpreadDistributionCommand; return new List<ValidationError>()
+                    .ValidateCommandId(e!.CommandId, e.CommandName)
+                    .ValidateSpreadDistribution(e.PutSpreadDistribution, e.CallSpreadDistribution, e.CommandName);
+            },
+            [typeof(DeleteSpreadDistributionCommand)] = cmd =>
+            {
+                var e = cmd as DeleteSpreadDistributionCommand; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName);
+            }
+        };
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.

@@ -21,7 +21,7 @@ public static class MarketDataFeedValidationExtensions
     /// <param name="validationErrors">A list to which validation errors will be added. This list must not be null.</param>
     /// <param name="futuresEodData">The futures end-of-day data to validate. This parameter must not be null.</param>
     /// <returns>The updated list of validation errors, including any errors found during validation of the provided data.</returns>
-   public static List<ValidationError> ValidateFuturesEodData(this List<ValidationError> validationErrors, FuturesEodDataV2ReadModel futuresEodData)
+    public static List<ValidationError> ValidateFuturesEodData(this List<ValidationError> validationErrors, FuturesEodDataV2ReadModel futuresEodData)
     {
         var ruleErrors = new FuturesEodDataValidationRules().Execute(futuresEodData);
         if (ruleErrors is not null)
@@ -39,7 +39,7 @@ public static class MarketDataFeedValidationExtensions
     /// <param name="futuresEodDataRange">A collection of <see cref="FuturesEodDataV2ReadModel"/> objects representing the range of futures end-of-day
     /// data. Must contain at least two items.</param>
     /// <returns>The updated list of validation errors, including any errors added during validation.</returns>
-   public static List<ValidationError> ValidateFuturesEodDataRange(this List<ValidationError> validationErrors, ICollection<FuturesEodDataV2ReadModel>? futuresEodDataRange)
+    public static List<ValidationError> ValidateFuturesEodDataRange(this List<ValidationError> validationErrors, ICollection<FuturesEodDataV2ReadModel>? futuresEodDataRange)
     {
         if ((futuresEodDataRange?.Count ?? 0) < 2)
             validationErrors.Add(new ValidationError("InsertFuturesEodDataCommand.EodDateRange count is less than 2"));
@@ -75,16 +75,16 @@ public static class MarketDataFeedValidationExtensions
         return validationErrors;
     }
 
-   /// <summary>
-   /// Validates the provided normal curve table and adds any validation errors to the specified list.
-   /// </summary>
-   /// <remarks>This method checks whether the <paramref name="normalCurveTable"/> contains valid data. If the
-   /// <see cref="NormalCurveTableReadModel.NormalCurveTable"/> property is null or empty, a validation error is added
-   /// to the <paramref name="validationErrors"/> list.</remarks>
-   /// <param name="validationErrors">A list to which validation errors will be added. This list must not be null.</param>
-   /// <param name="normalCurveTable">The normal curve table to validate. Must not be null, and its <see
-   /// cref="NormalCurveTableReadModel.NormalCurveTable"/> property must contain at least one element.</param>
-   /// <returns>The updated list of validation errors, including any errors related to the normal curve table validation.</returns>
+    /// <summary>
+    /// Validates the provided normal curve table and adds any validation errors to the specified list.
+    /// </summary>
+    /// <remarks>This method checks whether the <paramref name="normalCurveTable"/> contains valid data. If the
+    /// <see cref="NormalCurveTableReadModel.NormalCurveTable"/> property is null or empty, a validation error is added
+    /// to the <paramref name="validationErrors"/> list.</remarks>
+    /// <param name="validationErrors">A list to which validation errors will be added. This list must not be null.</param>
+    /// <param name="normalCurveTable">The normal curve table to validate. Must not be null, and its <see
+    /// cref="NormalCurveTableReadModel.NormalCurveTable"/> property must contain at least one element.</param>
+    /// <returns>The updated list of validation errors, including any errors related to the normal curve table validation.</returns>
     public static List<ValidationError> ValidateNormalCurveTable(this List<ValidationError> validationErrors, NormalCurveTableReadModel normalCurveTable)
     {
         if ((normalCurveTable?.NormalCurveTable?.Length ?? 0) == 0)

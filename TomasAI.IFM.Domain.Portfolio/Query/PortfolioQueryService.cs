@@ -154,7 +154,7 @@ public sealed class PortfolioQueryService(
             var allocation = await _db.GetCurrentAllocationAsync(portfolioId, fund.FundId, cancellationToken).ConfigureAwait(false);
             var envelope = await _db.GetCurrentRiskEnvelopeAsync(portfolioId, fund.FundId, cancellationToken).ConfigureAwait(false);
             // Read at most sixteen matching effective assignments plus an overflow sentinel, before asset filtering.
-            var assignments=await _db.GetSelectionAssignmentsAsync(portfolioId,fund.FundId,fund.FundMandateVersion,decisionHorizon,underlyingRoot,asOfUtc,cancellationToken).ConfigureAwait(false);
+            var assignments = await _db.GetSelectionAssignmentsAsync(portfolioId, fund.FundId, fund.FundMandateVersion, decisionHorizon, underlyingRoot, asOfUtc, cancellationToken).ConfigureAwait(false);
             return new ServiceOk<PortfolioFundStrategySnapshot>(_resolver.ResolveForSelection(workflowId, workflowRevision, correlationId,
                 portfolio, policy, funds, allocation is null ? [] : [allocation], envelope is null ? [] : [envelope],
                 assignments, tradingYear, decisionHorizon, underlyingRoot, asOfUtc, fundId));
@@ -232,32 +232,43 @@ public sealed class PortfolioQueryService(
         var funds = await _db.GetFundsByPortfolioAsync(Positive(portfolioId), 0, 200, cancellationToken).ConfigureAwait(false);
         var rows = new List<PortfolioFundStrategyReferenceCombination>();
         foreach (var fund in funds.OrderBy(x => x.FundId))
-        foreach (var assignment in await _db.GetAssignmentsAsync(portfolioId, fund.FundId, fund.FundMandateVersion, 200, cancellationToken).ConfigureAwait(false))
-        {
-            var eligible = assignment.TradeStrategyFamily?.CatalogDeployment is not null && fund.OperatingState == FundOperatingState.Active && assignment.IsEffectiveAt(asOfUtc);
-            var reason = assignment.TradeStrategyFamily?.CatalogDeployment is null ? "LegacyAssignmentRequiresMigration" : "InactiveOrNotEffective";
-            if (eligible)
+            foreach (var assignment in await _db.GetAssignmentsAsync(portfolioId, fund.FundId, fund.FundMandateVersion, 200, cancellationToken).ConfigureAwait(false))
             {
-                if (catalogQueries is null) { eligible = false; reason = "CatalogValidationUnavailable"; }
-                else try
+                var eligible = assignment.TradeStrategyFamily?.CatalogDeployment is not null && fund.OperatingState == FundOperatingState.Active && assignment.IsEffectiveAt(asOfUtc);
+                var reason = assignment.TradeStrategyFamily?.CatalogDeployment is null ? "LegacyAssignmentRequiresMigration" : "InactiveOrNotEffective";
+                if (eligible)
                 {
-                    await TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogPermissionValidation.ValidateDeploymentAsync(catalogQueries, assignment.TradeStrategyFamily!.CatalogDeployment!, true, cancellationToken);
-                    reason = "Eligible";
+                    if (catalogQueries is null) { eligible = false; reason = "CatalogValidationUnavailable"; }
+                    else try
+                        {
+                            await TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogPermissionValidation.ValidateDeploymentAsync(catalogQueries, assignment.TradeStrategyFamily!.CatalogDeployment!, true, cancellationToken);
+                            reason = "Eligible";
+                        }
+                        catch (Exception ex) when (ex is not OperationCanceledException) { eligible = false; reason = "StrategyDeploymentUnavailable"; }
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException) { eligible = false; reason = "StrategyDeploymentUnavailable"; }
+                foreach (var root in assignment.UnderlyingUniverse.Order(StringComparer.Ordinal))
+                    rows.Add(new()
+                    {
+                        PortfolioId = portfolioId,
+                        PortfolioVersion = assignment.PortfolioVersion,
+                        FundId = fund.FundId,
+                        FundMandateVersion = fund.FundMandateVersion,
+                        TradingYear = fund.TradingYear,
+                        DecisionHorizon = fund.DecisionHorizon,
+                        UnderlyingRoot = root,
+                        AssetType = assignment.AssetType,
+                        TradeFamily = assignment.TradeFamily,
+                        TradeStrategyFamily = assignment.TradeStrategyFamily,
+                        TradeTemplateId = assignment.TradeTemplateId,
+                        TradeTemplateVersion = assignment.TradeTemplateVersion,
+                        TradeSelectionHintProfileId = assignment.TradeSelectionHintProfileId,
+                        TradeSelectionHintProfileVersion = assignment.TradeSelectionHintProfileVersion,
+                        OrderCompositionProfileId = assignment.OrderCompositionProfileId,
+                        OrderCompositionProfileVersion = assignment.OrderCompositionProfileVersion,
+                        CurrentlyEligible = eligible,
+                        ReasonCode = reason,
+                    });
             }
-            foreach (var root in assignment.UnderlyingUniverse.Order(StringComparer.Ordinal))
-            rows.Add(new()
-            {
-                PortfolioId = portfolioId, PortfolioVersion = assignment.PortfolioVersion, FundId = fund.FundId, FundMandateVersion = fund.FundMandateVersion,
-                TradingYear = fund.TradingYear, DecisionHorizon = fund.DecisionHorizon, UnderlyingRoot = root, AssetType = assignment.AssetType,
-                TradeFamily = assignment.TradeFamily, TradeStrategyFamily = assignment.TradeStrategyFamily, TradeTemplateId = assignment.TradeTemplateId, TradeTemplateVersion = assignment.TradeTemplateVersion,
-                TradeSelectionHintProfileId = assignment.TradeSelectionHintProfileId, TradeSelectionHintProfileVersion = assignment.TradeSelectionHintProfileVersion,
-                OrderCompositionProfileId = assignment.OrderCompositionProfileId, OrderCompositionProfileVersion = assignment.OrderCompositionProfileVersion,
-                CurrentlyEligible = eligible,
-                ReasonCode = reason,
-            });
-        }
         return new ServiceOk<PortfolioFundStrategyReferenceCombination[]>([.. rows]);
     }
 

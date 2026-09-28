@@ -10,7 +10,7 @@ public record GenerateFuturesRsiSignalParameter : ICommandParameter
 {
     public FuturesEodDataV2ReadModel FuturesEodData { get; init; }
     public TimeFrameType TimePeriod { get; init; }
-    public int PeriodLength { get; init; } 
+    public int PeriodLength { get; init; }
     public int ErrorCode { get; init; }
 
     public GenerateFuturesRsiSignalParameter(
@@ -25,4 +25,4 @@ public record GenerateFuturesRsiSignalParameter : ICommandParameter
         ErrorCode = errorCode;
     }
 }
-    
+

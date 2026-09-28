@@ -36,7 +36,10 @@ public sealed class CompositionPreparationAcceptanceTests
     }
 
     [Theory]
-    [InlineData("expired")] [InlineData("revision")] [InlineData("snapshot")] [InlineData("horizon")]
+    [InlineData("expired")]
+    [InlineData("revision")]
+    [InlineData("snapshot")]
+    [InlineData("horizon")]
     public async Task Mismatched_or_expired_evidence_cannot_be_accepted(string change)
     {
         var fixture = await Reserved(); var view = fixture.State.CurrentView!; var now = fixture.Clock.GetUtcNow();

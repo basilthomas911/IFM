@@ -112,7 +112,7 @@ public class FuturesBarDataReadModelValidationRules : BaseValidationRules, IVali
     /// </summary>
     /// <param name="futuresBarData">The futures bar data read model to validate.</param>
     /// <returns>An array of validation errors, or an empty array if validation passes.</returns>
-    public ValidationError[] Execute(FuturesBarDataReadModel futuresBarData) 
+    public ValidationError[] Execute(FuturesBarDataReadModel futuresBarData)
         => Validate(futuresBarData, new FuturesBarDataReadModelValidator());
 
     /// <summary>
@@ -174,7 +174,7 @@ public class FuturesBarDataReadModelValidationRules : BaseValidationRules, IVali
             {
                 ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
             }
-            catch 
+            catch
             {
                 var validationResult = new ValidationResult();
                 validationResult.Errors.Add(new ValidationFailure("FuturesBarData", "FuturesBarData instance is null"));

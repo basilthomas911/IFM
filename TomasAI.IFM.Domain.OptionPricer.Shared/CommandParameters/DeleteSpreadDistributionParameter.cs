@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared.CommandParameters;
 public record DeleteSpreadDistributionParameter(
     int TradeId,
     DateOnly ValueDate,
-    TradeStatus TradeStatus, 
+    TradeStatus TradeStatus,
     int DaysToExpiry,
     int ErrorCode)
     : ICommandParameter;

@@ -85,8 +85,12 @@ public static class EventLogSerializationBaseline
                 {
                     "Serialize" => () => value.ToEventData(),
                     "Deserialize" => () => row.ToDomainEvent(),
-                    _ => () => (new LegacyJsonEventStreamReadModel { EventTypeName = fixture.Type, EventVersion = fixture.EventVersion,
-                        EventData = value.ToEventData() }).ToDomainEvent()
+                    _ => () => (new LegacyJsonEventStreamReadModel
+                    {
+                        EventTypeName = fixture.Type,
+                        EventVersion = fixture.EventVersion,
+                        EventData = value.ToEventData()
+                    }).ToDomainEvent()
                 };
                 if (codec is not null)
                     run = operation switch
@@ -109,11 +113,26 @@ public static class EventLogSerializationBaseline
                 Console.WriteLine($"{fixture.Id} {operation,-11} {fixture.Utf8Bytes,9} B {times[4],12:F2} us/op");
             }
         }
-        var report = new { SchemaVersion = 2, SerializationCodec = binary ? "MessagePack" : "NewtonsoftJson", Compression = compression, MessagePackAssembly = typeof(MessagePack.MessagePackSerializer).Assembly.FullName, Harness = typeof(EventLogSerializationBaseline).Assembly.ManifestModule.ModuleVersionId, CapturedAtUtc = DateTime.UtcNow, CorpusSha256 = Hash(File.ReadAllBytes(Path.Combine(directory, "manifest.json"))),
-            Runtime = RuntimeInformation.FrameworkDescription, OS = RuntimeInformation.OSDescription, Architecture = RuntimeInformation.ProcessArchitecture.ToString(),
-            Environment.ProcessorCount, ServerGC = GCSettings.IsServerGC, Stopwatch.Frequency,
-            Codec = typeof(LegacyJsonEventStreamReadModel).Assembly.ManifestModule.ModuleVersionId, JsonCodec = typeof(Newtonsoft.Json.JsonConvert).Assembly.FullName,
-            Command = Environment.CommandLine, Results = results };
+        var report = new
+        {
+            SchemaVersion = 2,
+            SerializationCodec = binary ? "MessagePack" : "NewtonsoftJson",
+            Compression = compression,
+            MessagePackAssembly = typeof(MessagePack.MessagePackSerializer).Assembly.FullName,
+            Harness = typeof(EventLogSerializationBaseline).Assembly.ManifestModule.ModuleVersionId,
+            CapturedAtUtc = DateTime.UtcNow,
+            CorpusSha256 = Hash(File.ReadAllBytes(Path.Combine(directory, "manifest.json"))),
+            Runtime = RuntimeInformation.FrameworkDescription,
+            OS = RuntimeInformation.OSDescription,
+            Architecture = RuntimeInformation.ProcessArchitecture.ToString(),
+            Environment.ProcessorCount,
+            ServerGC = GCSettings.IsServerGC,
+            Stopwatch.Frequency,
+            Codec = typeof(LegacyJsonEventStreamReadModel).Assembly.ManifestModule.ModuleVersionId,
+            JsonCodec = typeof(Newtonsoft.Json.JsonConvert).Assembly.FullName,
+            Command = Environment.CommandLine,
+            Results = results
+        };
         File.WriteAllText(Path.Combine(output, "results.json"), JsonSerializer.Serialize(report, Json));
         var csv = new StringBuilder("Id,EventType,Utf8Bytes,Operation,BatchSize,MedianUs,MeanUs,StdDevUs,AllocatedBytesPerOp,EncodedBytes\n");
         foreach (var r in results) csv.AppendLine(FormattableString.Invariant($"{r.Id},{r.Type},{r.Utf8Bytes},{r.Operation},{r.BatchSize},{r.MedianMicroseconds:F4},{r.MeanMicroseconds:F4},{r.StandardDeviationMicroseconds:F4},{r.AllocatedBytesPerOperation:F1},{r.EncodedBytes}"));
@@ -221,7 +240,7 @@ public static class EventLogSerializationBaseline
         }
         // Prefer twenty distinct event types; retain the largest example of each to exercise nested structures.
         var types = valid.GroupBy(x => x.Row.Type).Select(x => x.MaxBy(v => v.Row.Data.Length)).OrderBy(x => x.Row.Data.Length).ToArray();
-        if (types.Length < 20) throw new InvalidOperationException($"Only {types.Length} decodable event types; need 20. Available: {string.Join(",", types.Select(x=>x.Row.Type.Split(',')[0]))}");
+        if (types.Length < 20) throw new InvalidOperationException($"Only {types.Length} decodable event types; need 20. Available: {string.Join(",", types.Select(x => x.Row.Type.Split(',')[0]))}");
         var selected = Enumerable.Range(0, 20).Select(i => types[(int)Math.Round(i * (types.Length - 1) / 19d)]).ToArray();
         Directory.CreateDirectory(directory);
         var fixtures = new List<Fixture>();

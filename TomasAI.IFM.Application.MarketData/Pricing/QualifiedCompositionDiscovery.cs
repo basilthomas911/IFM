@@ -75,8 +75,12 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
             var resolved = options.MoveToImmutable();
             logger?.LogInformation("Composition discovery context preparation: contracts={Count}, elapsedMs={ElapsedMs}",
                 resolved.Length, discoveryTimer.ElapsedMilliseconds);
-            var scopeId = PricingSemanticHash.Compute(new { request.ValueDate, request.MaturityDate,
-                Contracts = WorkerOptionChainRuntime.PhysicalDigest(resolved) });
+            var scopeId = PricingSemanticHash.Compute(new
+            {
+                request.ValueDate,
+                request.MaturityDate,
+                Contracts = WorkerOptionChainRuntime.PhysicalDigest(resolved)
+            });
             if (routePlans is not null)
             {
                 var ids = resolved.Select(x => x.Pricing.Contract.ContractId).ToHashSet(StringComparer.Ordinal);
@@ -154,17 +158,23 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
                 prepared = await contexts.PrepareAsync(option.Pricing.Contract, calendar, publication, conversion,
                     lease.GenerationId, Black76PricingModel.EngineFor(option.Pricing.Contract), clock.GetUtcNow(), linked.Token).ConfigureAwait(false);
             if (prepared.Failure is not null) return new(null, new(false, prepared.Failure));
-            values.Add(option with { Pricing = prepared.Context! with
+            values.Add(option with
             {
-                MaximumQuoteAgeMilliseconds = Math.Min(prepared.Context!.MaximumQuoteAgeMilliseconds, option.Pricing.MaximumQuoteAgeMilliseconds),
-                MaximumQuoteSkewMilliseconds = Math.Min(prepared.Context.MaximumQuoteSkewMilliseconds, option.Pricing.MaximumQuoteSkewMilliseconds)
-            }});
+                Pricing = prepared.Context! with
+                {
+                    MaximumQuoteAgeMilliseconds = Math.Min(prepared.Context!.MaximumQuoteAgeMilliseconds, option.Pricing.MaximumQuoteAgeMilliseconds),
+                    MaximumQuoteSkewMilliseconds = Math.Min(prepared.Context.MaximumQuoteSkewMilliseconds, option.Pricing.MaximumQuoteSkewMilliseconds)
+                }
+            });
         }
         var refreshed = lease with
         {
             Options = values.MoveToImmutable(),
-            ExpectedContextDigest = PricingSemanticHash.Compute(new { lease.MaturityDate,
-                Options = lease.Options.OrderBy(x => x.Pricing.Contract.ContractId, StringComparer.Ordinal).ToImmutableArray() })
+            ExpectedContextDigest = PricingSemanticHash.Compute(new
+            {
+                lease.MaturityDate,
+                Options = lease.Options.OrderBy(x => x.Pricing.Contract.ContractId, StringComparer.Ordinal).ToImmutableArray()
+            })
         };
         var result = await market.AcquireAsync("GLBX.MDP3", refreshed, linked.Token).ConfigureAwait(false);
         return new(result.Active && result.Failure is null ? refreshed with { ExpectedContextDigest = null } : null, result);

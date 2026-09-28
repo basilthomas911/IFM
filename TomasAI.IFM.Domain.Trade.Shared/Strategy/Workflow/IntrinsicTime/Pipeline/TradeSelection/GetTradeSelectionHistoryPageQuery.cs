@@ -6,8 +6,9 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
+
 [MessagePackObject(AllowPrivate = true)]
-public sealed record GetTradeSelectionHistoryPageQuery:IQuery<TradeSelectionHistoryPage>
+public sealed record GetTradeSelectionHistoryPageQuery : IQuery<TradeSelectionHistoryPage>
 {
 
     /// <summary>Creates an empty query for serialization.</summary>
@@ -34,17 +35,17 @@ public sealed record GetTradeSelectionHistoryPageQuery:IQuery<TradeSelectionHist
         PageSize = pageSize;
         PagingState = pagingState;
     }
-    [IgnoreMember] public const string Actor="TradeSelectionPipelineQuery";
-    [IgnoreMember] public const string Verb="GetTradeSelectionHistoryPage";
-    [IgnoreMember] public const int ErrorId=23212;
-    [Key(0)] public ActorSubject Subject {get;init;}
-    [Key(1)] public IActorEntityId EntityId {get;init;}=ActorEntityId.Default;
-    [Key(2)] public SelectionQueryAccess Access {get;init;}=new(string.Empty,[]);
-    [Key(3)] public int PortfolioId {get;init;}
-    [Key(4)] public int FundId {get;init;}
-    [Key(5)] public DateOnly ValueDate {get;init;}
-    [Key(6)] public int PageSize {get;init;}=50;
-    [Key(7)] public string? PagingState {get;init;}
-    [IgnoreMember] public int ErrorCode {get;init;}=ErrorId;
-    [IgnoreMember] public string? QueryParams {get;init;}
+    [IgnoreMember] public const string Actor = "TradeSelectionPipelineQuery";
+    [IgnoreMember] public const string Verb = "GetTradeSelectionHistoryPage";
+    [IgnoreMember] public const int ErrorId = 23212;
+    [Key(0)] public ActorSubject Subject { get; init; }
+    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
+    [Key(2)] public SelectionQueryAccess Access { get; init; } = new(string.Empty, []);
+    [Key(3)] public int PortfolioId { get; init; }
+    [Key(4)] public int FundId { get; init; }
+    [Key(5)] public DateOnly ValueDate { get; init; }
+    [Key(6)] public int PageSize { get; init; } = 50;
+    [Key(7)] public string? PagingState { get; init; }
+    [IgnoreMember] public int ErrorCode { get; init; } = ErrorId;
+    [IgnoreMember] public string? QueryParams { get; init; }
 }

@@ -21,8 +21,11 @@ public sealed class DatabentoResiliencyTests
         var transitionId = Guid.NewGuid();
         var snapshot = new DatasetIncidentSnapshot
         {
-            Dataset = "GLBX.MDP3", ValueDate = ValueDate, IncidentId = Guid.NewGuid(),
-            GenerationId = Guid.NewGuid(), IsOpen = true,
+            Dataset = "GLBX.MDP3",
+            ValueDate = ValueDate,
+            IncidentId = Guid.NewGuid(),
+            GenerationId = Guid.NewGuid(),
+            IsOpen = true,
             FailureReason = DatabentoDatasetFailureReason.NativeDrainStalled,
             LastAction = DatasetRecoveryAction.CooperativeReset,
             ObservedOnUtc = DateTime.UtcNow
@@ -45,10 +48,14 @@ public sealed class DatabentoResiliencyTests
     public async Task Stage3_live_policy_retries_once_per_minute_then_replaces_only_the_dataset_process()
     {
         var time = new ManualTimeProvider();
-        var runtime = new TestRuntime { Snapshot = Up() with
+        var runtime = new TestRuntime
         {
-            Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false) with { TerminalStatus = 0, MajorStatus = DatabentoMajorStatus.Up }]
-        }, FailDatasetResets = true };
+            Snapshot = Up() with
+            {
+                Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false) with { TerminalStatus = 0, MajorStatus = DatabentoMajorStatus.Up }]
+            },
+            FailDatasetResets = true
+        };
         var recovery = new TestProcessRecovery(runtime);
         var service = Create(runtime, new InMemoryMarketDataServiceStore(),
             stage3: new DatabentoStage3Options { Enabled = true },
@@ -71,10 +78,14 @@ public sealed class DatabentoResiliencyTests
     public async Task Stage3_off_hours_waits_fifteen_minutes_then_failed_reset_replaces_process()
     {
         var time = new ManualTimeProvider();
-        var runtime = new TestRuntime { Snapshot = Up() with
+        var runtime = new TestRuntime
         {
-            Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false) with { TerminalStatus = 0, MajorStatus = DatabentoMajorStatus.Up }]
-        }, FailDatasetResets = true };
+            Snapshot = Up() with
+            {
+                Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false) with { TerminalStatus = 0, MajorStatus = DatabentoMajorStatus.Up }]
+            },
+            FailDatasetResets = true
+        };
         var recovery = new TestProcessRecovery(runtime);
         var service = Create(runtime, new InMemoryMarketDataServiceStore(),
             FuturesMarketState.OffTrading,
@@ -93,8 +104,12 @@ public sealed class DatabentoResiliencyTests
     [Fact]
     public async Task Stage3_terminal_failure_escalates_failed_cooperative_reset_in_same_probe()
     {
-        var runtime = new TestRuntime { Snapshot = Up() with
-        { Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false)] }, FailDatasetResets = true };
+        var runtime = new TestRuntime
+        {
+            Snapshot = Up() with
+            { Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false)] },
+            FailDatasetResets = true
+        };
         var recovery = new TestProcessRecovery(runtime);
         var service = Create(runtime, new InMemoryMarketDataServiceStore(), FuturesMarketState.OffTrading,
             stage3: new() { Enabled = true }, processRecovery: recovery);
@@ -106,8 +121,11 @@ public sealed class DatabentoResiliencyTests
     [Fact]
     public async Task Stage3_confirmed_process_exit_skips_cooperative_reset()
     {
-        var runtime = new TestRuntime { Snapshot = Up() with
-        { Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false)] } };
+        var runtime = new TestRuntime
+        {
+            Snapshot = Up() with
+            { Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false)] }
+        };
         var recovery = new TestProcessRecovery(runtime) { Exited = true };
         var service = Create(runtime, new InMemoryMarketDataServiceStore(),
             stage3: new() { Enabled = true }, processRecovery: recovery);
@@ -119,9 +137,12 @@ public sealed class DatabentoResiliencyTests
     [Fact]
     public async Task Stage3_stop_persists_closure_of_open_incident()
     {
-        var runtime = new TestRuntime { Snapshot = Up() with
-        { Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false) with { TerminalStatus = 0, MajorStatus = DatabentoMajorStatus.Up }] },
-            FailDatasetResets = true };
+        var runtime = new TestRuntime
+        {
+            Snapshot = Up() with
+            { Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false) with { TerminalStatus = 0, MajorStatus = DatabentoMajorStatus.Up }] },
+            FailDatasetResets = true
+        };
         var store = new InMemoryMarketDataServiceStore();
         var service = Create(runtime, store, stage3: new() { Enabled = true });
         await service.ProbeAsync();
@@ -269,7 +290,7 @@ public sealed class DatabentoResiliencyTests
                 if (Interlocked.Increment(ref calls) < 3)
                     throw new InvalidOperationException("Injected PostgreSQL interruption.");
                 return Task.FromResult(call.Arg<DatabentoWatchdogObservation>() with
-                    { WatchdogStatusLogId = 1, RowVersion = 1 });
+                { WatchdogStatusLogId = 1, RowVersion = 1 });
             });
         var service = Create(new TestRuntime { Snapshot = Up() }, store);
 
@@ -449,10 +470,16 @@ public sealed class DatabentoResiliencyTests
         var snapshot = fault switch
         {
             "connection-loss" => Down(),
-            "heartbeat-timeout" => Up() with { Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, true)
-                with { LastProviderMessageAge = TimeSpan.FromHours(1) }] },
-            _ => Up() with { Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, true)
-                with { LastProviderMessageAge = TimeSpan.FromHours(1) }] }
+            "heartbeat-timeout" => Up() with
+            {
+                Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, true)
+                with { LastProviderMessageAge = TimeSpan.FromHours(1) }]
+            },
+            _ => Up() with
+            {
+                Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, true)
+                with { LastProviderMessageAge = TimeSpan.FromHours(1) }]
+            }
         };
         var runtime = new TestRuntime { Snapshot = snapshot, FailStarts = true };
 
@@ -624,12 +651,14 @@ public sealed class DatabentoResiliencyTests
         var healthyGeneration = Guid.NewGuid();
         var failed = Feed(failedGeneration, DatabentoFeedCriticality.Core, true) with
         {
-            RecordsProduced = 100, RecordsConsumed = 100,
+            RecordsProduced = 100,
+            RecordsConsumed = 100,
             AggregationMetrics = Metrics(100, 100)
         };
         var healthy = Feed(healthyGeneration, DatabentoFeedCriticality.Optional, true) with
         {
-            Dataset = "HEALTHY", FeedInstanceId = 2,
+            Dataset = "HEALTHY",
+            FeedInstanceId = 2,
             AggregationMetrics = Metrics(50, 50)
         };
         var runtime = new TestRuntime
@@ -683,10 +712,14 @@ public sealed class DatabentoResiliencyTests
         var authority = Substitute.For<IFuturesMarketSessionAuthority>();
         authority.Current.Returns(new MarketSessionReadModel
         {
-            OperationalValueDate = ValueDate, ActiveValueDate = ValueDate,
-            State = state, Revision = 1,
-            MarketTime = DateTime.UtcNow, SessionStartUtc = DateTime.UtcNow.AddHours(-1),
-            SessionEndUtc = DateTime.UtcNow.AddHours(1), NextTransitionUtc = DateTime.UtcNow.AddHours(1),
+            OperationalValueDate = ValueDate,
+            ActiveValueDate = ValueDate,
+            State = state,
+            Revision = 1,
+            MarketTime = DateTime.UtcNow,
+            SessionStartUtc = DateTime.UtcNow.AddHours(-1),
+            SessionEndUtc = DateTime.UtcNow.AddHours(1),
+            NextTransitionUtc = DateTime.UtcNow.AddHours(1),
             AsOfUtc = DateTime.UtcNow
         });
         var clock = timeProvider ?? TimeProvider.System;
@@ -695,8 +728,10 @@ public sealed class DatabentoResiliencyTests
             metrics ?? new DatabentoWatchdogMetrics(),
             new DatabentoWatchdogOptions
             {
-                PollInterval = TimeSpan.FromHours(1), AttemptTwoDelay = TimeSpan.Zero,
-                AttemptThreeDelay = TimeSpan.Zero, PersistenceRetryDelay = TimeSpan.Zero
+                PollInterval = TimeSpan.FromHours(1),
+                AttemptTwoDelay = TimeSpan.Zero,
+                AttemptThreeDelay = TimeSpan.Zero,
+                PersistenceRetryDelay = TimeSpan.Zero
             }, signal ?? new DatabentoTerminalFaultSignal(), clock,
             NullLogger<DatabentoMarketDataWatchdogService>.Instance,
             stage3, processRecovery, new MarketDataOperationsHealthService(admissions));
@@ -704,9 +739,13 @@ public sealed class DatabentoResiliencyTests
 
     static DatabentoBulkWatchdogSnapshot Down() => new()
     {
-        Complete = false, NativeBackend = "Test", NativeAbiVersion = 3,
-        NativeGeneration = Guid.NewGuid(), ObservedOnUtc = DateTime.UtcNow,
-        Feeds = [], FailureDetail = "Injected terminal failure."
+        Complete = false,
+        NativeBackend = "Test",
+        NativeAbiVersion = 3,
+        NativeGeneration = Guid.NewGuid(),
+        ObservedOnUtc = DateTime.UtcNow,
+        Feeds = [],
+        FailureDetail = "Injected terminal failure."
     };
 
     static DatabentoBulkWatchdogSnapshot Up(bool optionalDown = false)
@@ -714,25 +753,43 @@ public sealed class DatabentoResiliencyTests
         var generation = Guid.NewGuid();
         var feeds = new List<DatabentoFeedWatchdogStatus> { Feed(generation, DatabentoFeedCriticality.Core, true) };
         if (optionalDown) feeds.Add(Feed(generation, DatabentoFeedCriticality.Optional, false) with
-            { Dataset = "OPTIONAL", FeedInstanceId = 2 });
+        { Dataset = "OPTIONAL", FeedInstanceId = 2 });
         return new()
         {
-            Complete = true, NativeBackend = "Test", NativeAbiVersion = 3,
-            NativeGeneration = generation, ObservedOnUtc = DateTime.UtcNow, Feeds = feeds
+            Complete = true,
+            NativeBackend = "Test",
+            NativeAbiVersion = 3,
+            NativeGeneration = generation,
+            ObservedOnUtc = DateTime.UtcNow,
+            Feeds = feeds
         };
     }
 
     static DatabentoFeedWatchdogStatus Feed(Guid generation, DatabentoFeedCriticality criticality, bool up) => new()
     {
         FeedInstanceId = criticality == DatabentoFeedCriticality.Core ? 1UL : 2UL,
-        GenerationId = generation, Dataset = "TEST", FeedKind = "Ticker", Criticality = criticality,
+        GenerationId = generation,
+        Dataset = "TEST",
+        FeedKind = "Ticker",
+        Criticality = criticality,
         MajorStatus = up ? DatabentoMajorStatus.Up : DatabentoMajorStatus.Down,
-        NativeState = up ? "Running" : "Faulted", TerminalStatus = up ? 0 : 10,
-        ProducerAlive = up, AggregationWorkerRunning = up, TransportRunning = up,
-        ExpectedSubscriptions = 1, ReceivedSubscriptions = up ? 1 : 0,
-        HeartbeatCount = 1, ProviderMessageCount = 1, LastHeartbeatAge = TimeSpan.Zero,
-        LastProviderMessageAge = TimeSpan.Zero, RecordsProduced = 1, RecordsConsumed = 1,
-        RingCapacity = 1024, RingUsed = 0, RingHighWater = 1, RingOverruns = 0,
+        NativeState = up ? "Running" : "Faulted",
+        TerminalStatus = up ? 0 : 10,
+        ProducerAlive = up,
+        AggregationWorkerRunning = up,
+        TransportRunning = up,
+        ExpectedSubscriptions = 1,
+        ReceivedSubscriptions = up ? 1 : 0,
+        HeartbeatCount = 1,
+        ProviderMessageCount = 1,
+        LastHeartbeatAge = TimeSpan.Zero,
+        LastProviderMessageAge = TimeSpan.Zero,
+        RecordsProduced = 1,
+        RecordsConsumed = 1,
+        RingCapacity = 1024,
+        RingUsed = 0,
+        RingHighWater = 1,
+        RingOverruns = 0,
         FailureDetail = up ? string.Empty : "Injected optional failure.",
         ContractRoles = criticality == DatabentoFeedCriticality.Core
             ? Enum.GetValues<DatabentoContractRole>() : []
@@ -748,11 +805,23 @@ public sealed class DatabentoResiliencyTests
 
     static FuturesRolloverContractAssignment Assignment(DatabentoContractRole role, string id, DateOnly maturity) => new()
     {
-        ContractRole = role, RootSymbol = role == DatabentoContractRole.EsQuarterly ? "ES" : "VX",
-        ContractId = id, Description = id, LocalSymbol = id, SecurityType = "FUT",
-        Currency = "USD", Exchange = "CME", Multiplier = "1000", LastTradeDate = maturity,
-        NextRolloverDate = maturity, SourceContractHash = new('a', 64), CreatedOnUtc = DateTime.UtcNow,
-        CreatedBy = "test", UpdatedOnUtc = DateTime.UtcNow, UpdatedBy = "test", RowVersion = 0
+        ContractRole = role,
+        RootSymbol = role == DatabentoContractRole.EsQuarterly ? "ES" : "VX",
+        ContractId = id,
+        Description = id,
+        LocalSymbol = id,
+        SecurityType = "FUT",
+        Currency = "USD",
+        Exchange = "CME",
+        Multiplier = "1000",
+        LastTradeDate = maturity,
+        NextRolloverDate = maturity,
+        SourceContractHash = new('a', 64),
+        CreatedOnUtc = DateTime.UtcNow,
+        CreatedBy = "test",
+        UpdatedOnUtc = DateTime.UtcNow,
+        UpdatedBy = "test",
+        RowVersion = 0
     };
 
     static FuturesContractV3ReadModel Contract(string id, string root, DateOnly maturity) => new(
@@ -760,11 +829,19 @@ public sealed class DatabentoResiliencyTests
 
     static DatabentoWatchdogObservation Observation() => new()
     {
-        ObservationId = Guid.NewGuid(), CorrelationId = Guid.NewGuid(), ValueDate = ValueDate,
-        ObservedOnUtc = DateTime.UtcNow, OperationReason = DatabentoOperationReason.WatchdogPoll,
-        MajorStatus = DatabentoMajorStatus.Up, DisplayHealth = DatabentoDisplayHealth.Green,
-        CoreContractsReady = true, RecoveryAttempt = 0, NativeBackend = "Test", NativeAbiVersion = 3,
-        NativeGeneration = Guid.NewGuid(), FeedStatusDetails = []
+        ObservationId = Guid.NewGuid(),
+        CorrelationId = Guid.NewGuid(),
+        ValueDate = ValueDate,
+        ObservedOnUtc = DateTime.UtcNow,
+        OperationReason = DatabentoOperationReason.WatchdogPoll,
+        MajorStatus = DatabentoMajorStatus.Up,
+        DisplayHealth = DatabentoDisplayHealth.Green,
+        CoreContractsReady = true,
+        RecoveryAttempt = 0,
+        NativeBackend = "Test",
+        NativeAbiVersion = 3,
+        NativeGeneration = Guid.NewGuid(),
+        FeedStatusDetails = []
     };
 
     sealed class ThrowingPublisher : IDatabentoWatchdogPublisher

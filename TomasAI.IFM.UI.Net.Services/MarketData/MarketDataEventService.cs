@@ -23,14 +23,14 @@ namespace TomasAI.IFM.UI.Net.Services.MarketData
         /// </summary>
         /// <param name="consumeEvents"></param>
         /// <param name="listenerAction"></param>
-        public async ValueTask StartMarketDataListenerAsync(ICollection<IEvent> consumeEvents, Func<IEvent, ValueTask> listenerAction) 
-            => await ExecuteValueTaskAsync( () => _eventConsumer.StartAsync(consumeEvents, listenerAction));
+        public async ValueTask StartMarketDataListenerAsync(ICollection<IEvent> consumeEvents, Func<IEvent, ValueTask> listenerAction)
+            => await ExecuteValueTaskAsync(() => _eventConsumer.StartAsync(consumeEvents, listenerAction));
 
         /// <summary>
         /// stop listening for market data notification events
         /// </summary>
-        public async ValueTask StopMarketDataListenerAsync() 
-            => await ExecuteValueTaskAsync( _eventConsumer.StopAsync );
-        
+        public async ValueTask StopMarketDataListenerAsync()
+            => await ExecuteValueTaskAsync(_eventConsumer.StopAsync);
+
     }
 }

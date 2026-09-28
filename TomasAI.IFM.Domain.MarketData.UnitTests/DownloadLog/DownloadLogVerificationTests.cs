@@ -21,7 +21,8 @@ namespace TomasAI.IFM.Domain.MarketData.UnitTests.DownloadLog;
 [Trait("Category", "Verification")]
 public sealed class DownloadLogVerificationTests
 {
-    [Fact] public void State_reconstruction_preserves_identity_hash_and_measurements_without_new_events()
+    [Fact]
+    public void State_reconstruction_preserves_identity_hash_and_measurements_without_new_events()
     {
         var source = new DownloadLogCommandState(); var command = new InsertMarketDataDownloadLogCommand(DownloadLogContractTests.Outcome());
         command.Execute(source);
@@ -29,7 +30,8 @@ public sealed class DownloadLogVerificationTests
         Assert.True(restored.VerifyDuplicate(command)); Assert.Empty(restored.Events);
     }
 
-    [Fact] public void Command_maps_and_query_maps_have_exact_matching_contract_sets()
+    [Fact]
+    public void Command_maps_and_query_maps_have_exact_matching_contract_sets()
     {
         static Type[] Types(Type actor, string map) => ((System.Collections.IDictionary)actor.GetField(map, BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!).Keys.Cast<Type>().OrderBy(t => t.Name).ToArray();
         Assert.Equal(Types(typeof(DownloadLogCommandActor), "_validationMap"), Types(typeof(DownloadLogCommandActor), "_receiveMap"));
@@ -37,7 +39,8 @@ public sealed class DownloadLogVerificationTests
         Assert.Equal(3, Types(typeof(DownloadLogQueryActor), "_receiveMap").Length);
     }
 
-    [Fact] public async Task Durable_descriptor_replays_only_the_original_log_and_propagates_storage_failure_and_cancellation()
+    [Fact]
+    public async Task Durable_descriptor_replays_only_the_original_log_and_propagates_storage_failure_and_cancellation()
     {
         var db = Substitute.For<IMarketDataDbContext>(); var factory = Substitute.For<IDbContextFactory>(); factory.MarketDataDb.Returns(db);
         var ctx = Context(factory); var projector = new DownloadLogEventProjector(ctx);
@@ -61,7 +64,8 @@ public sealed class DownloadLogVerificationTests
         Assert.Equal(o, inserted.Outcome);
     }
 
-    [Fact] public async Task Actor_starts_and_stops_its_durable_projector()
+    [Fact]
+    public async Task Actor_starts_and_stops_its_durable_projector()
     {
         var ctx = Context(Substitute.For<IDbContextFactory>()); var projector = Substitute.For<IEventProjector<DownloadLogCommandActor>>();
         var container = Substitute.For<IContainerInstance>(); ctx.Container.Returns(container);
@@ -84,7 +88,8 @@ public sealed class DownloadLogVerificationTests
         return ctx;
     }
 
-    [Fact] public async Task Query_errors_are_typed_failures_and_cancellation_does_not_publish_a_result()
+    [Fact]
+    public async Task Query_errors_are_typed_failures_and_cancellation_does_not_publish_a_result()
     {
         var ctx = Substitute.For<IDownloadLogQueryContext>();
         ctx.Logger.Returns(NullLogger<DownloadLogQueryActor>.Instance);

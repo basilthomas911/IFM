@@ -5,7 +5,7 @@ using TomasAI.IFM.UI.Net.Services.Reference;
 
 namespace TomasAI.IFM.UI.Net.Views.MarketData;
 
-public partial class MarketDataForm 
+public partial class MarketDataForm
     : DarkTradingForm, IForm<MarketDataForm>, IFormControl
 {
     readonly IAppRoot _appRoot;
@@ -115,7 +115,7 @@ public partial class MarketDataForm
 
     private void btnAdd_Click(object sender, EventArgs e) => _ctrlCommand?.Add(enabled => this.Post(() => RefreshAddButton(enabled)));
 
-    private void btnChange_Click(object sender, EventArgs e ) => _ctrlCommand?.Change(enabled => this.Post(() => RefreshChangeButton(enabled)));
+    private void btnChange_Click(object sender, EventArgs e) => _ctrlCommand?.Change(enabled => this.Post(() => RefreshChangeButton(enabled)));
 
     private void btnRemove_Click(object sender, EventArgs e) => _ctrlCommand?.Remove();
 
@@ -158,7 +158,7 @@ public partial class MarketDataForm
 
     void DisableAllButtons()
     {
-         btnAdd.Enabled = false;
+        btnAdd.Enabled = false;
         btnChange.Enabled = false;
         btnRemove.Enabled = false;
         btnImport.Enabled = false;

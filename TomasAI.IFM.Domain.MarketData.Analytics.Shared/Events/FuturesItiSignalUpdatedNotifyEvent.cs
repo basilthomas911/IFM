@@ -33,7 +33,8 @@ public sealed record FuturesItiSignalUpdatedNotifyEvent : IEvent<FuturesItiSigna
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesItiSignalUpdatedNotifyEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;
-    [IgnoreMember] public bool IsValid =>
+    [IgnoreMember]
+    public bool IsValid =>
         CommandId != Guid.Empty && FuturesItiSignal is { IsValid: true };
 
     public FuturesItiSignalUpdatedNotifyEvent() { }

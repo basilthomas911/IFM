@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Shared.EventProducers;
 /// </summary>
 /// <remarks>This class implements <see cref="IStatusConsoleEventProducer"/> and extends
 /// <see cref="NatsActorProducer"/> to publish status console event types.</remarks>
-public class StatusConsoleEventProducer :NatsActorProducer, IStatusConsoleEventProducer
+public class StatusConsoleEventProducer : NatsActorProducer, IStatusConsoleEventProducer
 {
     /// <summary>
     /// status console event producer constrictor
@@ -19,7 +19,7 @@ public class StatusConsoleEventProducer :NatsActorProducer, IStatusConsoleEventP
     /// <param name="options"></param>
     /// <param name="logger"></param>
     public StatusConsoleEventProducer(INatsProducerOptions options, ILogger logger)
-        :base(options, logger)
+        : base(options, logger)
     {
     }
 

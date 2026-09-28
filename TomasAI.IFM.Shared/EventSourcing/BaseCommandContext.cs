@@ -2,8 +2,8 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Shared.EventSourcing;
 
-public abstract class BaseCommandContext<TState>(IEventRepository<TState> eventRepository) 
-    : ICommandContext<TState> where TState : IBoundedContextState<TState> 
+public abstract class BaseCommandContext<TState>(IEventRepository<TState> eventRepository)
+    : ICommandContext<TState> where TState : IBoundedContextState<TState>
 {
     /// <summary>
     /// Executes the specified command asynchronously within its bounded context.

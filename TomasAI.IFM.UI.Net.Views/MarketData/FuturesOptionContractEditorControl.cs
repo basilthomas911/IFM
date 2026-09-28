@@ -19,7 +19,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData;
 /// cref="IFormControl"/> to integrate with  application workflows and lifecycle management.  The control uses a view
 /// model (<see cref="FuturesOptionContractEditorViewModel"/>) to handle  data operations and provides feedback to the
 /// user through UI elements such as combo boxes,  text fields, and lists.</remarks>
-public partial class FuturesOptionContractEditorControl 
+public partial class FuturesOptionContractEditorControl
     : DarkTradingView, IControlCommand, IAsyncFormControl
 {
     readonly FuturesOptionContractEditorViewModel _viewModel;
@@ -115,13 +115,13 @@ public partial class FuturesOptionContractEditorControl
     /// <summary>
     /// Gets a value indicating whether the "Remove" action can be performed.
     /// </summary>
-    public bool CanChangeRemove 
+    public bool CanChangeRemove
         => _viewModel.GetFuturesOptionContract(SelectedContractIndex) is not null;
 
     /// <summary>
     /// Gets a value indicating whether the current instance supports importing data.
     /// </summary>
-    public bool CanImport 
+    public bool CanImport
         => false;
 
     /// <summary>
@@ -161,7 +161,7 @@ public partial class FuturesOptionContractEditorControl
     /// contract to the system. If the input is invalid, an error message is displayed.</remarks>
     /// <param name="addAction">An action to be executed after the operation. The parameter passed to the action indicates whether the operation
     /// was successful.</param>
-    public void Add( Action<bool> addAction)
+    public void Add(Action<bool> addAction)
     {
         if (_viewModel.AddOperation.IsRunning)
             return;
@@ -223,7 +223,8 @@ public partial class FuturesOptionContractEditorControl
                         optionType: _viewModel.GetOptionType(ddlOptionType.SelectedIndex).ShortCode,
                         strikePrice: (double)strikePrice,
                         description: txtDescription.Text
-                    ) { StrikePriceDecimal = strikePrice };
+                    )
+                    { StrikePriceDecimal = strikePrice };
                     _viewModel.PrepareAdd(futuresOptionContract);
                     _ = AddPreparedContractAsync(futuresOptionContract.ContractId);
                 }
@@ -243,7 +244,7 @@ public partial class FuturesOptionContractEditorControl
     /// <see langword="false"/>.</returns>
     public bool Close(Action<bool> closeAction)
     {
-        switch(_editMode)
+        switch (_editMode)
         {
             case EditMode.Add:
             case EditMode.Change:
@@ -547,7 +548,7 @@ public partial class FuturesOptionContractEditorControl
     void ShowSelectedFuturesOptionContract(int selectedIndex, FuturesOptionContractReadModel? imported = null)
     {
         var foc = imported ?? _viewModel.GetFuturesOptionContract(selectedIndex);
-        if (foc is   null) 
+        if (foc is null)
             return;
         txtContractId.ReadOnly = false;
         txtContractId.Text = foc.ContractId;

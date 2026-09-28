@@ -63,7 +63,7 @@ public partial class ReferenceForm : DarkTradingForm, IForm<ReferenceForm>, IFor
     /// </summary>
     /// <param name="sender"></param>
     /// <param name="e"></param>
-     async void ReferenceForm_Load(object sender, EventArgs e)
+    async void ReferenceForm_Load(object sender, EventArgs e)
     {
         if (_viewModel is null)
             return;
@@ -82,7 +82,7 @@ public partial class ReferenceForm : DarkTradingForm, IForm<ReferenceForm>, IFor
         }
     }
 
-     async void ReferenceForm_FormClosing(object sender, FormClosingEventArgs e)
+    async void ReferenceForm_FormClosing(object sender, FormClosingEventArgs e)
     {
         if (_closeComplete)
             return;
@@ -102,7 +102,7 @@ public partial class ReferenceForm : DarkTradingForm, IForm<ReferenceForm>, IFor
             BeginInvoke((Action)Close);
     }
 
-     async void ddlReferenceDataSelector_SelectedIndexChanged(object sender, EventArgs e)
+    async void ddlReferenceDataSelector_SelectedIndexChanged(object sender, EventArgs e)
     {
         if (_restoringReferenceSelection) return;
         if (pnlMarketData.Controls.OfType<ParameterSets.ParameterSetsReferenceView>().FirstOrDefault() is { } activeParameterEditor && !activeParameterEditor.CanLeave())
@@ -147,7 +147,8 @@ public partial class ReferenceForm : DarkTradingForm, IForm<ReferenceForm>, IFor
             pnlMarketData.Controls.Add(control);
             _ctrlCommand = (control as IControlCommand)!;
             var command = _ctrlCommand;
-            command.Load(_appRoot, enabled => {
+            command.Load(_appRoot, enabled =>
+            {
                 if (!ReferenceEquals(_ctrlCommand, command) || IsDisposed) return;
                 btnChange.Enabled = command.CanChangeRemove;
                 btnRemove.Enabled = command.CanChangeRemove;
@@ -176,7 +177,7 @@ public partial class ReferenceForm : DarkTradingForm, IForm<ReferenceForm>, IFor
 
     void btnAdd_Click(object sender, EventArgs e) => _ctrlCommand?.Add(enabled => this.Post(() => RefreshAddButton(enabled)));
 
-    void btnChange_Click(object sender, EventArgs e ) => _ctrlCommand?.Change(enabled => this.Post(() =>  RefreshChangeButton(enabled)));
+    void btnChange_Click(object sender, EventArgs e) => _ctrlCommand?.Change(enabled => this.Post(() => RefreshChangeButton(enabled)));
 
     void btnRemove_Click(object sender, EventArgs e) => _ctrlCommand?.Remove();
 

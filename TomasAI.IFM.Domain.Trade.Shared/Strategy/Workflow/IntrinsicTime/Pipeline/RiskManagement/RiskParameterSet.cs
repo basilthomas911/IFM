@@ -26,34 +26,34 @@ public sealed record RiskParameterSet
 
     static readonly JsonSerializerOptions Options = new()
     {
-        UnmappedMemberHandling=JsonUnmappedMemberHandling.Disallow,
-        Converters={new TradeSelectionPolicy.CanonicalDecimalConverter()}
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        Converters = { new TradeSelectionPolicy.CanonicalDecimalConverter() }
     };
 
-    public RiskSizingPolicy Sizing() => new(TargetHorizon,MaximumUnits,PerTradeRiskFraction);
-    public string Serialize() { Validate(); return JsonSerializer.Serialize(this,Options); }
+    public RiskSizingPolicy Sizing() => new(TargetHorizon, MaximumUnits, PerTradeRiskFraction);
+    public string Serialize() { Validate(); return JsonSerializer.Serialize(this, Options); }
     public string Hash() => TradeSelectionPolicy.HashJson(Serialize());
     public static RiskParameterSet Read(string json)
     {
         TradeSelectionPolicy.CheckJson(json);
-        var value=JsonSerializer.Deserialize<RiskParameterSet>(json,Options) ?? throw new ArgumentException("RM.CONFIG.MISSING");
+        var value = JsonSerializer.Deserialize<RiskParameterSet>(json, Options) ?? throw new ArgumentException("RM.CONFIG.MISSING");
         value.Validate(); return value;
     }
     public void Validate()
     {
-        if (SchemaVersion!=1 || ParameterSetId==Guid.Empty || Version<=0
+        if (SchemaVersion != 1 || ParameterSetId == Guid.Empty || Version <= 0
             || TargetHorizon is not (TimeFrameType.Daily or TimeFrameType.Weekly or TimeFrameType.Monthly)
-            || Root!="ES" || Currency!="USD" || Environment!="Emulator" || RiskCapitalBasis!="AvailableSettledCash"
-            || MaximumUnits is <=0 or >100 || PerTradeRiskFraction is <=0 or >1 || MarginMethodVersion!=1
-            || MarginPerGrossContract is <=0 or >1000000 || FeePerGrossContract is <0 or >1000
-            || VariationReservePerGrossContract is <0 or >1000000 || IncrementalLossReserve is <0 or >1000000)
+            || Root != "ES" || Currency != "USD" || Environment != "Emulator" || RiskCapitalBasis != "AvailableSettledCash"
+            || MaximumUnits is <= 0 or > 100 || PerTradeRiskFraction is <= 0 or > 1 || MarginMethodVersion != 1
+            || MarginPerGrossContract is <= 0 or > 1000000 || FeePerGrossContract is < 0 or > 1000
+            || VariationReservePerGrossContract is < 0 or > 1000000 || IncrementalLossReserve is < 0 or > 1000000)
             throw new ArgumentException("RM.CONFIG.INVALID");
     }
     /// <summary>Three stable draft identities, one per horizon. Creation does not publish, assign or activate them.</summary>
     public static RiskParameterSet Default(TimeFrameType horizon) => new()
     {
-        TargetHorizon=horizon,
-        ParameterSetId=horizon switch
+        TargetHorizon = horizon,
+        ParameterSetId = horizon switch
         {
             TimeFrameType.Daily => Guid.Parse("597ecfc1-23b3-4fb2-8ed4-49172cb58f01"),
             TimeFrameType.Weekly => Guid.Parse("597ecfc1-23b3-4fb2-8ed4-49172cb58f02"),

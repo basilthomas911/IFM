@@ -34,7 +34,7 @@ public class SecuritiesFixture : IDisposable
         // Ensure runtime serializers are configured for tests
         ActorExtensions.DataSerializer ??= new NatsMessagePackDataSerializer();
         ActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
-        
+
         SetDbFactory();
     }
 

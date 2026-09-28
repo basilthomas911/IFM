@@ -66,25 +66,25 @@ public sealed class RustOptionModelTests
         int[] optionTypes = [-1, 0, 1, 2];
 
         foreach (var forward in forwards)
-        foreach (var strikeRatio in strikeRatios)
-        foreach (var rate in rates)
-        foreach (var volatility in volatilities)
-        foreach (var expiry in expiries)
-        foreach (var optionType in optionTypes)
-        {
-            var strike = forward * strikeRatio;
-            var managedPrice = OptionModel.PriceManaged(
-                forward, strike, rate, volatility, expiry, optionType);
-            var rustPrice = RustOptionModel.Price(
-                forward, strike, rate, volatility, expiry, optionType);
-            AssertClose(rustPrice, managedPrice, 5e-13);
+            foreach (var strikeRatio in strikeRatios)
+                foreach (var rate in rates)
+                    foreach (var volatility in volatilities)
+                        foreach (var expiry in expiries)
+                            foreach (var optionType in optionTypes)
+                            {
+                                var strike = forward * strikeRatio;
+                                var managedPrice = OptionModel.PriceManaged(
+                                    forward, strike, rate, volatility, expiry, optionType);
+                                var rustPrice = RustOptionModel.Price(
+                                    forward, strike, rate, volatility, expiry, optionType);
+                                AssertClose(rustPrice, managedPrice, 5e-13);
 
-            var managedGreeks = OptionModel.PriceWithGreeksManaged(
-                forward, strike, rate, volatility, expiry, optionType);
-            var rustGreeks = RustOptionModel.PriceWithGreeks(
-                forward, strike, rate, volatility, expiry, optionType);
-            AssertResultClose(rustGreeks, managedGreeks, 5e-13);
-        }
+                                var managedGreeks = OptionModel.PriceWithGreeksManaged(
+                                    forward, strike, rate, volatility, expiry, optionType);
+                                var rustGreeks = RustOptionModel.PriceWithGreeks(
+                                    forward, strike, rate, volatility, expiry, optionType);
+                                AssertResultClose(rustGreeks, managedGreeks, 5e-13);
+                            }
     }
 
     [Theory]

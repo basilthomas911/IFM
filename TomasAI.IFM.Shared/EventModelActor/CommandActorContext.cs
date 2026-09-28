@@ -14,7 +14,7 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// cref="IActorSupervisor"/> to ensure proper actor lifecycle management and message handling.</remarks>
 /// <param name="supervisor"></param>
 /// <param name="actorId"></param>
-public class CommandActorContext (IActorSupervisor supervisor, ActorMailboxId actorId) 
+public class CommandActorContext(IActorSupervisor supervisor, ActorMailboxId actorId)
     : ICommandActorContext
 {
     readonly IActorSupervisor _supervisor = IsArgumentNull.Set(supervisor);
@@ -26,13 +26,13 @@ public class CommandActorContext (IActorSupervisor supervisor, ActorMailboxId ac
     /// <summary>
     /// Gets the mailbox identifier for the actor associated with this context.
     /// </summary>
-    public ActorMailboxId ActorId 
+    public ActorMailboxId ActorId
         => _actorId;
 
     /// <summary>
     /// Gets the container instance managed by the supervisor.
     /// </summary>
-    public IContainerInstance Container 
+    public IContainerInstance Container
         => _supervisor.Container;
 
     public SupervisorRuntimeContext SupervisorRuntime => _supervisor.RuntimeContext;

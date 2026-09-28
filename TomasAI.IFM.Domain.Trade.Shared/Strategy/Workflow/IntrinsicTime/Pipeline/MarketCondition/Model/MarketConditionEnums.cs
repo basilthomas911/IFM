@@ -13,16 +13,16 @@ public enum MarketConditionPhase : byte
     Weakening = 4, Exhausting = 5, Reversing = 6
 }
 public enum MarketConditionVolatilityBehavior : byte
-    { Undefined = 0, Contracting = 1, Stable = 2, Expanding = 3, Shock = 4 }
+{ Undefined = 0, Contracting = 1, Stable = 2, Expanding = 3, Shock = 4 }
 public enum MarketConditionLiquidityQuality : byte { Unknown = 0, Healthy = 1, Degraded = 2, Unusable = 3 }
 public enum MarketConditionDataQuality : byte { Unknown = 0, Healthy = 1, Degraded = 2, Unusable = 3 }
 public enum MarketConditionUpstreamAlignment : byte { Unknown = 0, Aligned = 1, Neutral = 2, Conflict = 3 }
 /// <summary>Identifies the bounded trade families understood as advisory downstream consumers.</summary>
 public enum MarketConditionTradeType : byte
-    { Unknown = 0, Futures = 1, VerticalSpread = 2, IronCondor = 3 }
+{ Unknown = 0, Futures = 1, VerticalSpread = 2, IronCondor = 3 }
 /// <summary>Describes an advisory hint without constraining the primary market classification.</summary>
 public enum MarketConditionHintSuitability : byte
-    { Unknown = 0, Avoid = 1, Eligible = 2, Preferred = 3 }
+{ Unknown = 0, Avoid = 1, Eligible = 2, Preferred = 3 }
 public enum MarketConditionFailureCategory : byte
 {
     Undefined = 0, ContractInvalid = 1, ConfigurationUnavailable = 2, RequiredInputInvalid = 3,

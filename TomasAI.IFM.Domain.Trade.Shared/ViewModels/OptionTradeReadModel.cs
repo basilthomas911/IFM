@@ -24,7 +24,7 @@ public partial record OptionTradeReadModel
 
     /// <summary>Strategy name/label for the option trade.</summary>
     [Key(2)]
-    public string TradeStrategy { get; init; } 
+    public string TradeStrategy { get; init; }
 
     /// <summary>Trading (execution) date.</summary>
     [Key(3)]
@@ -271,6 +271,6 @@ public partial record OptionTradeReadModel
     public override string ToString() => JsonConvert.SerializeObject(this);
 
     [IgnoreMember]
-    public bool IsValid 
+    public bool IsValid
         => EntityId.IsValid;
 }

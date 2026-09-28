@@ -30,7 +30,7 @@ public class FuturesTradeSignalValidationRules : BaseValidationRules, IValidatio
             {
                 ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
             }
-            catch 
+            catch
             {
                 var validationResult = new ValidationResult();
                 validationResult.Errors.Add(new ValidationFailure("FuturesTradeSignqal", "FuturesTradeSignqal instance is null"));

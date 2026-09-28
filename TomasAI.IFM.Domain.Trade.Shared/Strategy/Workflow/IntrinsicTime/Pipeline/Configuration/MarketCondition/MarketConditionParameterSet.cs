@@ -28,7 +28,8 @@ public sealed record MarketConditionSessionConfiguration
         [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday];
 
     [Key(0)] public string ExchangeTimeZoneId { get; init; } = "America/New_York";
-    [Key(1)] public DayOfWeek[] EligibleWeekdays
+    [Key(1)]
+    public DayOfWeek[] EligibleWeekdays
     {
         get => _eligibleWeekdays is null ? null! : [.. _eligibleWeekdays];
         init => _eligibleWeekdays = value is null ? null : [.. value.Order()];
@@ -47,7 +48,8 @@ public sealed record MarketConditionEventRiskConfiguration
     [Key(1)] public int HighImpactAfterMinutes { get; init; } = 10;
     [Key(2)] public int RateDecisionBeforeMinutes { get; init; } = 30;
     [Key(3)] public int RateDecisionAfterMinutes { get; init; } = 20;
-    [Key(4)] public string[] RequiredEventCategories
+    [Key(4)]
+    public string[] RequiredEventCategories
     {
         get => _requiredEventCategories is null ? null! : [.. _requiredEventCategories];
         init => _requiredEventCategories = value is null
@@ -100,7 +102,8 @@ public sealed record MarketConditionOperationalReadinessConfiguration
     string[]? _requiredHealthSources =
         ["FuturesOptionFeed", "IbkrSession", "LatestValueCache", "PrimaryFuturesFeed"];
 
-    [Key(0)] public string[] RequiredHealthSources
+    [Key(0)]
+    public string[] RequiredHealthSources
     {
         get => _requiredHealthSources is null ? null! : [.. _requiredHealthSources];
         init => _requiredHealthSources = value is null
@@ -118,7 +121,8 @@ public sealed record MarketConditionWorkflowEligibilityConfiguration
     [Key(0)] public int MaximumRegimeAgeSeconds { get; init; } = 120;
     [Key(1)] public int MaximumTriggerAgeSeconds { get; init; } = 30;
     [Key(2)] public bool RequireEntriesEnabled { get; init; } = true;
-    [Key(3)] public RegimeRestriction[] BlockingRegimeRestrictions
+    [Key(3)]
+    public RegimeRestriction[] BlockingRegimeRestrictions
     {
         get => _blockingRegimeRestrictions is null ? null! : [.. _blockingRegimeRestrictions];
         init => _blockingRegimeRestrictions = value is null ? null : [.. value.Order()];
@@ -213,9 +217,9 @@ public sealed record MarketConditionParameterSet
             FundId = fundId,
             TargetHorizon = targetHorizon,
             OptionLiquidity = new MarketConditionOptionLiquidityConfiguration
-                { MinimumDte = horizon.Item1, MaximumDte = horizon.Item2 },
+            { MinimumDte = horizon.Item1, MaximumDte = horizon.Item2 },
             Scoring = new MarketConditionScoringConfiguration
-                { MinimumStrength = horizon.Item3, MinimumConfidence = horizon.Item4 },
+            { MinimumStrength = horizon.Item3, MinimumConfidence = horizon.Item4 },
             Execution = new MarketConditionExecutionConfiguration { ResultLifetimeSeconds = horizon.Item5 }
         };
     }

@@ -49,26 +49,26 @@ public sealed class PortfolioFundCommandActor(
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
-    {
-        [SynchronizeFundRiskOutcomeCommand.Verb] = static message => message.AsCommand<SynchronizeFundRiskOutcomeCommand>()!,
-        [AuthorizeFundOrderRiskCommand.Verb] = static message => message.AsCommand<AuthorizeFundOrderRiskCommand>()!,
-        [CreateFundMandateCommand.Verb] = static message => message.AsCommand<CreateFundMandateCommand>()!,
-        [AddFundMandateVersionCommand.Verb] = static message => message.AsCommand<AddFundMandateVersionCommand>()!,
-        [ChangeFundOperatingStateCommand.Verb] = static message => message.AsCommand<ChangeFundOperatingStateCommand>()!,
-        [AssignTradeTemplateCommand.Verb] = static message => message.AsCommand<AssignTradeTemplateCommand>()!,
-        [ReserveFundOrderCompositionCommand.Verb] = static message => message.AsCommand<ReserveFundOrderCompositionCommand>()!,
-        [CreateManualFundOrderCommand.Verb] = static message => message.AsCommand<CreateManualFundOrderCommand>()!,
-        [AddManualFundOrderTradeCommand.Verb] = static message => message.AsCommand<AddManualFundOrderTradeCommand>()!,
-        [RemoveManualFundOrderTradeCommand.Verb] = static message => message.AsCommand<RemoveManualFundOrderTradeCommand>()!,
-        [ChangeManualFundOrderTradeStateCommand.Verb] = static message => message.AsCommand<ChangeManualFundOrderTradeStateCommand>()!,
-        [CloseManualFundOrderCommand.Verb] = static message => message.AsCommand<CloseManualFundOrderCommand>()!,
-        [DeleteManualFundOrderCommand.Verb] = static message => message.AsCommand<DeleteManualFundOrderCommand>()!,
-        [MarkFundOrderComposingCommand.Verb] = static message => message.AsCommand<MarkFundOrderComposingCommand>()!,
-        [RecordFundOrderComposedCommand.Verb] = static message => message.AsCommand<RecordFundOrderComposedCommand>()!,
-        [RecordFundOrderRiskOutcomeCommand.Verb] = static message => message.AsCommand<RecordFundOrderRiskOutcomeCommand>()!,
-        [CancelFundOrderCompositionCommand.Verb] = static message => message.AsCommand<CancelFundOrderCompositionCommand>()!,
-        [ExpireFundOrderCompositionCommand.Verb] = static message => message.AsCommand<ExpireFundOrderCompositionCommand>()!,
-    };
+        {
+            [SynchronizeFundRiskOutcomeCommand.Verb] = static message => message.AsCommand<SynchronizeFundRiskOutcomeCommand>()!,
+            [AuthorizeFundOrderRiskCommand.Verb] = static message => message.AsCommand<AuthorizeFundOrderRiskCommand>()!,
+            [CreateFundMandateCommand.Verb] = static message => message.AsCommand<CreateFundMandateCommand>()!,
+            [AddFundMandateVersionCommand.Verb] = static message => message.AsCommand<AddFundMandateVersionCommand>()!,
+            [ChangeFundOperatingStateCommand.Verb] = static message => message.AsCommand<ChangeFundOperatingStateCommand>()!,
+            [AssignTradeTemplateCommand.Verb] = static message => message.AsCommand<AssignTradeTemplateCommand>()!,
+            [ReserveFundOrderCompositionCommand.Verb] = static message => message.AsCommand<ReserveFundOrderCompositionCommand>()!,
+            [CreateManualFundOrderCommand.Verb] = static message => message.AsCommand<CreateManualFundOrderCommand>()!,
+            [AddManualFundOrderTradeCommand.Verb] = static message => message.AsCommand<AddManualFundOrderTradeCommand>()!,
+            [RemoveManualFundOrderTradeCommand.Verb] = static message => message.AsCommand<RemoveManualFundOrderTradeCommand>()!,
+            [ChangeManualFundOrderTradeStateCommand.Verb] = static message => message.AsCommand<ChangeManualFundOrderTradeStateCommand>()!,
+            [CloseManualFundOrderCommand.Verb] = static message => message.AsCommand<CloseManualFundOrderCommand>()!,
+            [DeleteManualFundOrderCommand.Verb] = static message => message.AsCommand<DeleteManualFundOrderCommand>()!,
+            [MarkFundOrderComposingCommand.Verb] = static message => message.AsCommand<MarkFundOrderComposingCommand>()!,
+            [RecordFundOrderComposedCommand.Verb] = static message => message.AsCommand<RecordFundOrderComposedCommand>()!,
+            [RecordFundOrderRiskOutcomeCommand.Verb] = static message => message.AsCommand<RecordFundOrderRiskOutcomeCommand>()!,
+            [CancelFundOrderCompositionCommand.Verb] = static message => message.AsCommand<CancelFundOrderCompositionCommand>()!,
+            [ExpireFundOrderCompositionCommand.Verb] = static message => message.AsCommand<ExpireFundOrderCompositionCommand>()!,
+        };
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
@@ -199,7 +199,8 @@ public sealed class PortfolioFundCommandActor(
                 ValidateIdentity(errors, typed);
                 ValidateManualOrderMutation(errors, typed.Request, typed.EntityId, typed.CommandName);
                 return errors;
-            },            [typeof(MarkFundOrderComposingCommand)] = command =>
+            },
+            [typeof(MarkFundOrderComposingCommand)] = command =>
             {
                 var typed = (MarkFundOrderComposingCommand)command;
                 var errors = new List<ValidationError>()

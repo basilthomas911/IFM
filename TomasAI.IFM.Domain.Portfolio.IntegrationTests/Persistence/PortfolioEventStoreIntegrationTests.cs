@@ -125,29 +125,55 @@ public sealed class PortfolioEventStoreIntegrationTests(PortfolioEventStoreFixtu
 
     static PortfolioReadModel Portfolio(int id, DateTime now) => new()
     {
-        PortfolioId = id, Name = "Core", PortfolioVersion = 1,
-        OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
-        CreatedOnUtc = now, CreatedBy = "integration"
+        PortfolioId = id,
+        Name = "Core",
+        PortfolioVersion = 1,
+        OperatingState = PortfolioOperatingState.Draft,
+        EffectiveFromUtc = now,
+        CreatedOnUtc = now,
+        CreatedBy = "integration"
     };
 
     static FundMandateReadModel Mandate(PortfolioFundId id, DateTime now) => new()
     {
-        PortfolioId = id.PortfolioId, FundId = id.FundId, FundCode = $"F{id.FundId}", Name = "Directional",
-        FundMandateVersion = 1, TradingYear = 2026, OperatingState = FundOperatingState.Draft,
-        DecisionHorizon = "Daily", Objective = "Directional futures",
-        UnderlyingUniverse = ["ES"], EligibleAssetTypes = ["Futures"], PermittedDirections = ["Long", "Short"],
-        PermittedConditions = ["Trending"], PermittedTradeFamilies = ["Futures"],
-        EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "integration"
+        PortfolioId = id.PortfolioId,
+        FundId = id.FundId,
+        FundCode = $"F{id.FundId}",
+        Name = "Directional",
+        FundMandateVersion = 1,
+        TradingYear = 2026,
+        OperatingState = FundOperatingState.Draft,
+        DecisionHorizon = "Daily",
+        Objective = "Directional futures",
+        UnderlyingUniverse = ["ES"],
+        EligibleAssetTypes = ["Futures"],
+        PermittedDirections = ["Long", "Short"],
+        PermittedConditions = ["Trending"],
+        PermittedTradeFamilies = ["Futures"],
+        EffectiveFromUtc = now,
+        CreatedOnUtc = now,
+        CreatedBy = "integration"
     };
 
     static PortfolioFinancialPolicyReadModel Policy(PortfolioFinancialPolicyId id, long version, DateTime now) => new()
     {
-        PortfolioId = id.PortfolioId, PolicyId = id.PolicyId, PolicyVersion = version, Name = "Integration limits",
-        OperatingState = PortfolioFinancialPolicyState.Draft, CapitalBase = 1_000_000, MaximumDeployableCapital = 900_000,
-        MaximumRiskPerTrade = 10_000, MaximumAggregateRisk = 100_000, MaximumMargin = 500_000,
-        MaximumGrossNotional = 5_000_000, MaximumOpenPositions = 100, MaximumDrawdownAmount = 200_000,
+        PortfolioId = id.PortfolioId,
+        PolicyId = id.PolicyId,
+        PolicyVersion = version,
+        Name = "Integration limits",
+        OperatingState = PortfolioFinancialPolicyState.Draft,
+        CapitalBase = 1_000_000,
+        MaximumDeployableCapital = 900_000,
+        MaximumRiskPerTrade = 10_000,
+        MaximumAggregateRisk = 100_000,
+        MaximumMargin = 500_000,
+        MaximumGrossNotional = 5_000_000,
+        MaximumOpenPositions = 100,
+        MaximumDrawdownAmount = 200_000,
         TradeFamilyLimits = [new() { TradeStrategyFamilyId = 1, DefinitionVersion = 1, Enabled = true, MaximumRiskPerTrade = 5_000, MaximumAggregateRisk = 50_000, MaximumMargin = 250_000, MaximumGrossNotional = 2_500_000, MaximumOpenPositions = 50 }],
-        EffectiveFromUtc = now.AddMinutes(-1), CreatedOnUtc = now, CreatedBy = "integration"
+        EffectiveFromUtc = now.AddMinutes(-1),
+        CreatedOnUtc = now,
+        CreatedBy = "integration"
     };
 
     sealed class TestState : TomasAI.IFM.Shared.EventModelActor.Contracts.IActorState<TestState>

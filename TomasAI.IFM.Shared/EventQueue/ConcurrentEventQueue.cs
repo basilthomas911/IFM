@@ -5,7 +5,7 @@ namespace TomasAI.IFM.Shared.EventQueue;
 public class ConcurrentEventQueue<TData>
 {
     readonly Action<TData>? _eventQueueReader;
-    readonly Func<TData,Task>? _eventAsyncQueueReader;
+    readonly Func<TData, Task>? _eventAsyncQueueReader;
     readonly EventQueueReaderMode _readerMode;
     ConcurrentQueue<TData>? _eventQueue;
     SemaphoreSlim? _eventQueueSignal;
@@ -19,7 +19,7 @@ public class ConcurrentEventQueue<TData>
     /// <remarks>The <paramref name="eventQueueReader"/> parameter is required to handle the processing of
     /// events. The queue operates in synchronous reader mode by default.</remarks>
     /// <param name="eventQueueReader">A delegate that processes events from the queue. This action is invoked for each item in the queue.</param>
-    public ConcurrentEventQueue(Action<TData> eventQueueReader )
+    public ConcurrentEventQueue(Action<TData> eventQueueReader)
     {
         _eventQueueReader = eventQueueReader;
         _readerMode = EventQueueReaderMode.Sync;
@@ -33,7 +33,7 @@ public class ConcurrentEventQueue<TData>
     /// <paramref name="eventQueueReader"/> is used to handle events as they are dequeued.</remarks>
     /// <param name="eventQueueReader">A delegate that processes events asynchronously. The delegate is invoked for each event in the queue and is
     /// expected to return a <see cref="Task"/> representing the asynchronous operation.</param>
-    public ConcurrentEventQueue(Func<TData,Task> eventQueueReader)
+    public ConcurrentEventQueue(Func<TData, Task> eventQueueReader)
     {
         _eventAsyncQueueReader = eventQueueReader;
         _readerMode = EventQueueReaderMode.Async;
@@ -87,7 +87,7 @@ public class ConcurrentEventQueue<TData>
     /// <remarks>This method enqueues the provided item into the internal event queue, if the queue is
     /// initialized. Ensure that the queue is properly configured before calling this method.</remarks>
     /// <param name="queueItem">The item to be added to the queue. Cannot be null.</param>
-    public void EnqueueForSignal(TData queueItem) 
+    public void EnqueueForSignal(TData queueItem)
         => _eventQueue?.Enqueue(queueItem);
 
     /// <summary>
@@ -95,7 +95,7 @@ public class ConcurrentEventQueue<TData>
     /// </summary>
     /// <remarks>This method sets the underlying event, if it is not null, to release any threads waiting on
     /// it. Ensure that the event has been properly initialized before calling this method.</remarks>
-    public void Signal() 
+    public void Signal()
         => _eventQueueSignal?.Release();
 
     /// <summary>

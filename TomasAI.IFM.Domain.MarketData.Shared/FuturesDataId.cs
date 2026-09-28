@@ -89,7 +89,7 @@ public class FuturesDataIdValidationRules : BaseValidationRules, IValidationRule
     /// </summary>
     /// <param name="futuresDataId">The futures data identifier to validate.</param>
     /// <returns>An array of validation errors, or an empty array if validation passes.</returns>
-    public ValidationError[] Execute(FuturesDataId futuresDataId) 
+    public ValidationError[] Execute(FuturesDataId futuresDataId)
         => Validate(futuresDataId, new FuturesDataIdValidator());
 
     /// <summary>
@@ -121,7 +121,7 @@ public class FuturesDataIdValidationRules : BaseValidationRules, IValidationRule
             {
                 ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
             }
-            catch 
+            catch
             {
                 var validationResult = new ValidationResult();
                 validationResult.Errors.Add(new ValidationFailure("FuturesDataId", InstanceErrorMessage));

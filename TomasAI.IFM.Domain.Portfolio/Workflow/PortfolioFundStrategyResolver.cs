@@ -136,7 +136,7 @@ public sealed class PortfolioFundStrategyResolver
             .ThenBy(x => x.AssignmentVersion)
             .Select(x => x.DefensiveCopy())
             .ToArray();
-        if (forSelection) compatibleAssignments = compatibleAssignments.OrderBy(x=>x.Priority).ThenBy(x=>x.TradeTemplateId.ToString("D"),StringComparer.Ordinal).ThenBy(x=>x.AssignmentVersion).ToArray();
+        if (forSelection) compatibleAssignments = compatibleAssignments.OrderBy(x => x.Priority).ThenBy(x => x.TradeTemplateId.ToString("D"), StringComparer.Ordinal).ThenBy(x => x.AssignmentVersion).ToArray();
         if (!forSelection && compatibleAssignments.Length == 0)
             throw new PortfolioResolutionException("TemplateAssignmentMissing", "No enabled and effective template assignment matches the resolved Fund.");
         if (forSelection && compatibleAssignments.Length > 16)

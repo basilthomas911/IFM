@@ -14,11 +14,13 @@ public sealed record OptionTradeSource(
     [property: Key(8)] long EventNanoseconds, [property: Key(9)] long ReceiveNanoseconds,
     [property: Key(10)] Guid GenerationId, [property: Key(11)] string RawSymbol)
 {
-    [IgnoreMember] public string Identity => PricingSemanticHash.Compute(new
-        { Dataset, PublisherId, InstrumentId, ContractId, ValueDate, Sequence, EventNanoseconds });
+    [IgnoreMember]
+    public string Identity => PricingSemanticHash.Compute(new
+    { Dataset, PublisherId, InstrumentId, ContractId, ValueDate, Sequence, EventNanoseconds });
     // Retransmission may have a different receive time/generation but may not alter economic source data.
-    [IgnoreMember] public string SourceDigest => PricingSemanticHash.Compute(new
-        { Identity, Price, Size, RawSymbol });
+    [IgnoreMember]
+    public string SourceDigest => PricingSemanticHash.Compute(new
+    { Identity, Price, Size, RawSymbol });
 }
 
 [MessagePackObject]

@@ -16,7 +16,7 @@ public record GetYieldCurveRateExistsParameter : IActorEntityId, IQueryParameter
     /// <summary>
     /// The value (as-of) date to check for an existing yield curve rate.
     /// </summary>
-    [Key(0)] 
+    [Key(0)]
     public DateOnly ValueDate { get; init; }
 
     [IgnoreMember]

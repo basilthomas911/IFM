@@ -25,10 +25,10 @@ public class ConcurrentAsyncEventChannelTests
         // Assert
         Assert.NotNull(channel);
 
-        ValueTask reader(string message) 
-        { 
-            processedMessages.Add(message); 
-            return ValueTask.CompletedTask; 
+        ValueTask reader(string message)
+        {
+            processedMessages.Add(message);
+            return ValueTask.CompletedTask;
         }
 
     }
@@ -72,7 +72,7 @@ public class ConcurrentAsyncEventChannelTests
         // Arrange
         var channelName = "test-async-channel";
         var processedMessages = new List<string>();
-       
+
 
         // Act
         var channel = new ConcurrentAsyncEventChannel<string>(channelName, ReaderAsync, _logger);
@@ -132,7 +132,7 @@ public class ConcurrentAsyncEventChannelTests
         // Assert
         Assert.False(channel.IsOpen);
 
-        static ValueTask reader(string _) 
+        static ValueTask reader(string _)
             => ValueTask.CompletedTask;
     }
 
@@ -141,7 +141,7 @@ public class ConcurrentAsyncEventChannelTests
     {
         // Arrange
         var channelName = "test-empty-started-channel";
-         var channel = new ConcurrentAsyncEventChannel<string>(channelName, ReaderAsync, _logger);
+        var channel = new ConcurrentAsyncEventChannel<string>(channelName, ReaderAsync, _logger);
 
         // Act
         channel.Start();

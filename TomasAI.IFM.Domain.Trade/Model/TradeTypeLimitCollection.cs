@@ -9,7 +9,7 @@ public class TradeTypeLimitCollection(int tradeId) : ITradeTypeLimitCollection
     readonly List<ITradeTypeLimit> _tradeTypeLimits = [];
 
     public int Count => _tradeTypeLimits.Count;
-    
+
     public ITradeTypeLimit? this[TradeType tradeType]
     {
         get

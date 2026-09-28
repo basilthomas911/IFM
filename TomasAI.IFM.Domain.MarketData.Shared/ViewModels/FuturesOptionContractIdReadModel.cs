@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ViewModels
     /// </summary>
     public class FuturesOptionContractIdReadModel
     {
-        
+
         /// <summary>
         /// futures contract id constructor
         /// </summary>
@@ -62,6 +62,6 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ViewModels
         public double StrikePrice { get; }
 
         public override string ToString() => $"{Symbol}{ContractMonth:yyyyMMdd}{OptionType.ToString().ToUpper().Substring(0, 1)}{StrikePrice:F0}";
-        
+
     }
 }

@@ -29,7 +29,7 @@ namespace TomasAI.IFM.UI.Net.Services.Application
         /// <summary>
         /// stop listening for application events
         /// </summary>
-        public async Task StopApplicationEventConsumerAsync() 
+        public async Task StopApplicationEventConsumerAsync()
             => await _applicationEventConsumer.StopAsync();
     }
 }

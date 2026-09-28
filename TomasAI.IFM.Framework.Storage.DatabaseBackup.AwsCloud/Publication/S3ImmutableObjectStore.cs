@@ -44,7 +44,9 @@ public sealed class S3ImmutableObjectStore(
     {
         var metadata = await s3.GetObjectMetadataAsync(new GetObjectMetadataRequest
         {
-            BucketName = expected.BucketName, Key = expected.ObjectKey, VersionId = expected.VersionId,
+            BucketName = expected.BucketName,
+            Key = expected.ObjectKey,
+            VersionId = expected.VersionId,
             ChecksumMode = ChecksumMode.ENABLED
         }, cancellationToken).ConfigureAwait(false);
         var mismatches = new List<string>(7);
@@ -63,7 +65,9 @@ public sealed class S3ImmutableObjectStore(
 
         using var response = await s3.GetObjectAsync(new GetObjectRequest
         {
-            BucketName = expected.BucketName, Key = expected.ObjectKey, VersionId = expected.VersionId,
+            BucketName = expected.BucketName,
+            Key = expected.ObjectKey,
+            VersionId = expected.VersionId,
             ChecksumMode = ChecksumMode.ENABLED
         }, cancellationToken).ConfigureAwait(false);
         var digest = await HashAsync(response.ResponseStream, cancellationToken).ConfigureAwait(false);
@@ -78,7 +82,9 @@ public sealed class S3ImmutableObjectStore(
         await VerifyAsync(expected, cancellationToken).ConfigureAwait(false);
         using var response = await s3.GetObjectAsync(new GetObjectRequest
         {
-            BucketName = expected.BucketName, Key = expected.ObjectKey, VersionId = expected.VersionId
+            BucketName = expected.BucketName,
+            Key = expected.ObjectKey,
+            VersionId = expected.VersionId
         }, cancellationToken).ConfigureAwait(false);
         using var destination = new MemoryStream(checked((int)expected.Length));
         await response.ResponseStream.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
@@ -94,14 +100,17 @@ public sealed class S3ImmutableObjectStore(
         {
             var response = await s3.PutObjectAsync(new PutObjectRequest
             {
-                BucketName = options.PrimaryBucketName, Key = key.Value, InputStream = source,
+                BucketName = options.PrimaryBucketName,
+                Key = key.Value,
+                InputStream = source,
                 AutoCloseStream = false,
                 ChecksumAlgorithm = ChecksumAlgorithm.SHA256,
                 ChecksumSHA256 = checksum,
                 ServerSideEncryptionMethod = ServerSideEncryptionMethod.AWSKMS,
                 ServerSideEncryptionKeyManagementServiceKeyId = options.PrimaryEncryptionKeyArn,
                 ServerSideEncryptionKeyManagementServiceEncryptionContext = context,
-                ObjectLockMode = LockMode(), ObjectLockRetainUntilDate = retainUntilUtc.UtcDateTime
+                ObjectLockMode = LockMode(),
+                ObjectLockRetainUntilDate = retainUntilUtc.UtcDateTime
             }, cancellationToken).ConfigureAwait(false);
             return Descriptor(key, response.VersionId, length, sha256, response.ChecksumSHA256, retainUntilUtc, context);
         }
@@ -123,12 +132,14 @@ public sealed class S3ImmutableObjectStore(
         {
             var initiated = await s3.InitiateMultipartUploadAsync(new InitiateMultipartUploadRequest
             {
-                BucketName = options.PrimaryBucketName, Key = key.Value,
+                BucketName = options.PrimaryBucketName,
+                Key = key.Value,
                 ChecksumAlgorithm = ChecksumAlgorithm.SHA256,
                 ServerSideEncryptionMethod = ServerSideEncryptionMethod.AWSKMS,
                 ServerSideEncryptionKeyManagementServiceKeyId = options.PrimaryEncryptionKeyArn,
                 ServerSideEncryptionKeyManagementServiceEncryptionContext = context,
-                ObjectLockMode = LockMode(), ObjectLockRetainUntilDate = retainUntilUtc.UtcDateTime
+                ObjectLockMode = LockMode(),
+                ObjectLockRetainUntilDate = retainUntilUtc.UtcDateTime
             }, cancellationToken).ConfigureAwait(false);
             uploadId = initiated.UploadId ?? throw new InvalidOperationException("S3 returned no multipart upload identity.");
             checkpoint = new AwsMultipartCheckpoint(options.PrimaryBucketName, key.Value, uploadId, 0, 0, timeProvider.GetUtcNow());
@@ -159,8 +170,12 @@ public sealed class S3ImmutableObjectStore(
                     using var body = new MemoryStream(buffer, 0, read, writable: false, publiclyVisible: true);
                     var response = await s3.UploadPartAsync(new UploadPartRequest
                     {
-                        BucketName = options.PrimaryBucketName, Key = key.Value, UploadId = uploadId,
-                        PartNumber = partNumber, PartSize = read, InputStream = body,
+                        BucketName = options.PrimaryBucketName,
+                        Key = key.Value,
+                        UploadId = uploadId,
+                        PartNumber = partNumber,
+                        PartSize = read,
+                        InputStream = body,
                         ChecksumSHA256 = Convert.ToBase64String(partDigest)
                     }, cancellationToken).ConfigureAwait(false);
                     if (string.IsNullOrWhiteSpace(response.ChecksumSHA256))
@@ -171,7 +186,9 @@ public sealed class S3ImmutableObjectStore(
                 if (checkpoints is not null)
                     await checkpoints.WriteAsync(checkpoint! with
                     {
-                        CompletedPartCount = partNumber, UploadedBytes = uploaded, UpdatedUtc = timeProvider.GetUtcNow()
+                        CompletedPartCount = partNumber,
+                        UploadedBytes = uploaded,
+                        UpdatedUtc = timeProvider.GetUtcNow()
                     }, cancellationToken).ConfigureAwait(false);
                 partNumber++;
             }
@@ -192,7 +209,10 @@ public sealed class S3ImmutableObjectStore(
         {
             complete = await s3.CompleteMultipartUploadAsync(new CompleteMultipartUploadRequest
             {
-                BucketName = options.PrimaryBucketName, Key = key.Value, UploadId = uploadId, PartETags = completed
+                BucketName = options.PrimaryBucketName,
+                Key = key.Value,
+                UploadId = uploadId,
+                PartETags = completed
             }, cancellationToken).ConfigureAwait(false);
         }
         catch (AmazonS3Exception exception) when (IsAmbiguous(exception))
@@ -215,8 +235,10 @@ public sealed class S3ImmutableObjectStore(
         {
             var response = await s3.ListMultipartUploadsAsync(new ListMultipartUploadsRequest
             {
-                BucketName = options.PrimaryBucketName, Prefix = $"v1/environment/{options.Environment.ToString().ToLowerInvariant()}/",
-                KeyMarker = keyMarker, UploadIdMarker = uploadMarker
+                BucketName = options.PrimaryBucketName,
+                Prefix = $"v1/environment/{options.Environment.ToString().ToLowerInvariant()}/",
+                KeyMarker = keyMarker,
+                UploadIdMarker = uploadMarker
             }, cancellationToken).ConfigureAwait(false);
             foreach (var upload in response.MultipartUploads ?? [])
             {
@@ -225,7 +247,9 @@ public sealed class S3ImmutableObjectStore(
                 _ = new AwsGeneratedObjectKey(upload.Key);
                 await s3.AbortMultipartUploadAsync(new AbortMultipartUploadRequest
                 {
-                    BucketName = options.PrimaryBucketName, Key = upload.Key, UploadId = upload.UploadId
+                    BucketName = options.PrimaryBucketName,
+                    Key = upload.Key,
+                    UploadId = upload.UploadId
                 }, cancellationToken).ConfigureAwait(false);
                 count++;
             }
@@ -245,7 +269,10 @@ public sealed class S3ImmutableObjectStore(
         {
             var response = await s3.ListPartsAsync(new ListPartsRequest
             {
-                BucketName = options.PrimaryBucketName, Key = key.Value, UploadId = uploadId, PartNumberMarker = marker
+                BucketName = options.PrimaryBucketName,
+                Key = key.Value,
+                UploadId = uploadId,
+                PartNumberMarker = marker
             }, cancellationToken).ConfigureAwait(false);
             foreach (var part in response.Parts ?? [])
                 result[part.PartNumber ?? throw new InvalidDataException("S3 returned a multipart part without a number.")] = part;
@@ -259,7 +286,9 @@ public sealed class S3ImmutableObjectStore(
     {
         var response = await s3.ListVersionsAsync(new ListVersionsRequest
         {
-            BucketName = options.PrimaryBucketName, Prefix = key.Value, MaxKeys = 2
+            BucketName = options.PrimaryBucketName,
+            Prefix = key.Value,
+            MaxKeys = 2
         }, cancellationToken).ConfigureAwait(false);
         if ((response.Versions ?? []).Any(version => StringComparer.Ordinal.Equals(version.Key, key.Value)))
             throw new InvalidOperationException("Immutable AWS publication rejects reuse of an existing object key.");
@@ -270,7 +299,9 @@ public sealed class S3ImmutableObjectStore(
     {
         var response = await s3.ListVersionsAsync(new ListVersionsRequest
         {
-            BucketName = options.PrimaryBucketName, Prefix = key.Value, MaxKeys = 2
+            BucketName = options.PrimaryBucketName,
+            Prefix = key.Value,
+            MaxKeys = 2
         }, cancellationToken).ConfigureAwait(false);
         var exact = (response.Versions ?? []).Where(version => version.IsDeleteMarker != true
             && StringComparer.Ordinal.Equals(version.Key, key.Value)).ToArray();
@@ -304,11 +335,18 @@ public sealed class S3ImmutableObjectStore(
         if (string.IsNullOrWhiteSpace(s3Checksum)) throw new InvalidOperationException("S3 immutable publication returned no SHA-256 checksum.");
         return new AwsImmutableObjectVersion
         {
-            BucketName = options.PrimaryBucketName, Region = options.PrimaryRegion, ObjectKey = key.Value,
-            VersionId = versionId, Length = length, Sha256 = Convert.ToHexString(sha256),
-            S3ChecksumSha256 = s3Checksum, EncryptionKeyArn = options.PrimaryEncryptionKeyArn,
-            EncryptionContextBase64 = context, ObjectLockMode = options.ObjectLockMode,
-            RetainUntilUtc = retainUntilUtc.ToUniversalTime(), PublishedUtc = timeProvider.GetUtcNow()
+            BucketName = options.PrimaryBucketName,
+            Region = options.PrimaryRegion,
+            ObjectKey = key.Value,
+            VersionId = versionId,
+            Length = length,
+            Sha256 = Convert.ToHexString(sha256),
+            S3ChecksumSha256 = s3Checksum,
+            EncryptionKeyArn = options.PrimaryEncryptionKeyArn,
+            EncryptionContextBase64 = context,
+            ObjectLockMode = options.ObjectLockMode,
+            RetainUntilUtc = retainUntilUtc.ToUniversalTime(),
+            PublishedUtc = timeProvider.GetUtcNow()
         };
     }
 

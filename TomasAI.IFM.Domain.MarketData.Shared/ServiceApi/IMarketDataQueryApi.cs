@@ -58,6 +58,6 @@ public interface IMarketDataQueryApi
         DateOnly startDate,
         DateOnly endDate,
         MarketType marketType,
-        CurrencyType currencyType );
+        CurrencyType currencyType);
 
 }

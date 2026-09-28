@@ -9,9 +9,9 @@ namespace TomasAI.IFM.Framework.Storage.SqlServer
         }
 
         // following properties available for unit test outside of framework storage assemblies by settings in csproj file
-        public  ObjectDataRepository<TRepo>? Repository { get;  set; }
-        public  SqlConnection? Connection { get;  set; }
-        public SqlTransaction? Transaction { get;  set; }
+        public ObjectDataRepository<TRepo>? Repository { get; set; }
+        public SqlConnection? Connection { get; set; }
+        public SqlTransaction? Transaction { get; set; }
 
         /// <summary>
         /// begin database transaction

@@ -17,7 +17,7 @@ public class NatsActorEventListener(
 {
     readonly INatsEventListenerOptions _options = IsArgumentNull.Set(options);
     readonly INatsSerializer<byte[]> _deserializer = new NatsByteArrayMessageSerializer();
-    readonly ILogger  _logger = IsArgumentNull.Set(logger);
+    readonly ILogger _logger = IsArgumentNull.Set(logger);
     readonly string _serviceId = "NatsActorEventListener";
     NatsConnectionManager? _connectionManager = connectionManager ?? new NatsConnectionManager();
     readonly bool _ownsConnectionManager = connectionManager is null;
@@ -246,7 +246,7 @@ public class NatsActorEventListener(
                             _logger.LogDebug("NATS Event Listener: {EventListenerId} received event for subject={Subject}", _eventListenerId, msg.Subject);
                         await _eventHandler(msgSubject.Verb, msg).ConfigureAwait(false);
                     }
-                   
+
                 }
                 catch (Exception ex)
                 {

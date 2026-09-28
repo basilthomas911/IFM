@@ -50,7 +50,10 @@ public static class StrategyExitOrderCompositionModel
             started.ExitPlan.Action,
             Legs = component.Legs.Select(leg => new
             {
-                leg.TradeLegId, leg.ContractId, leg.SignedQuantity, leg.LimitPrice
+                leg.TradeLegId,
+                leg.ContractId,
+                leg.SignedQuantity,
+                leg.LimitPrice
             }).ToArray()
         });
         return new ExitOrderComposition

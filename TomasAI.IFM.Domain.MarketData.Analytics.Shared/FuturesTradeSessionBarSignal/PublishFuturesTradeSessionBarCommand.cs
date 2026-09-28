@@ -50,7 +50,8 @@ public sealed record PublishFuturesTradeSessionBarCommand : ICommand<FuturesTrad
     /// <inheritdoc />
     [Key(4)] public int ErrorCode { get; init; } = ErrorId;
     /// <inheritdoc />
-    [Key(5)] public BoundedContextName RouteTo { get; init; } =
+    [Key(5)]
+    public BoundedContextName RouteTo { get; init; } =
         BoundedContextName.FuturesTradeSessionBarSignalBoundedContext;
     /// <summary>Gets the immutable completed bar to publish.</summary>
     [Key(6)] public FuturesTradeSessionBarReadModel Bar { get; init; } = new();

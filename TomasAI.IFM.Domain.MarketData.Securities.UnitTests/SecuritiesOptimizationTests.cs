@@ -140,9 +140,14 @@ public class SecuritiesOptimizationTests
         dbFactory.SecuritiesDb.Returns(db);
         var contract = SampleData.FuturesOptionContract1 with
         {
-            ContractId = "ES20260918C6500.5", StrikePrice = 6500.5, StrikePriceDecimal = 6500.5m,
-            SchemaVersion = 1, ReviewState = ReferenceReviewState.Draft,
-            RawSymbol = "provider-symbol", InstrumentId = 42, Dataset = "GLBX.MDP3"
+            ContractId = "ES20260918C6500.5",
+            StrikePrice = 6500.5,
+            StrikePriceDecimal = 6500.5m,
+            SchemaVersion = 1,
+            ReviewState = ReferenceReviewState.Draft,
+            RawSymbol = "provider-symbol",
+            InstrumentId = 42,
+            Dataset = "GLBX.MDP3"
         };
         var actorService = new TrackingActorService();
         await dbFactory.InsertFuturesOptionContractsAsync(new[] { contract }, actorService);
@@ -160,7 +165,9 @@ public class SecuritiesOptimizationTests
         dbFactory.SecuritiesDb.Returns(db);
         var contract = SampleData.FuturesOptionContract1 with
         {
-            ContractId = "ES20260918C6500.5", StrikePrice = 6500.5, StrikePriceDecimal = 6500.5m
+            ContractId = "ES20260918C6500.5",
+            StrikePrice = 6500.5,
+            StrikePriceDecimal = 6500.5m
         };
         await dbFactory.InsertFuturesOptionContractsAsync(new[] { contract }, new TrackingActorService());
         await db.Received(1).InsertFuturesOptionContractsAsync(

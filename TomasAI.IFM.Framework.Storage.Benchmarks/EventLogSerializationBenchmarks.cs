@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Framework.Storage.Benchmarks;
 [ShortRunJob]
 public class EventLogSerializationBenchmarks
 {
-    [Params(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)]
+    [Params(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20)]
     public int Case { get; set; }
     [Params("json", "messagepack", "messagepack-lz4")]
     public string Codec { get; set; } = "json";
@@ -36,6 +36,11 @@ public class EventLogSerializationBenchmarks
 
     [Benchmark] public object Serialize() => _binary is null ? _value.ToEventData() : _binary.Serialize(_value);
     [Benchmark] public IEvent Deserialize() => _binary is null ? _row.ToDomainEvent() : _binary.Deserialize(_row.EventTypeName, _row.EventVersion, _payload);
-    [Benchmark] public IEvent RoundTrip() => _binary is not null ? _binary.Deserialize(_row.EventTypeName, _row.EventVersion, _binary.Serialize(_value)) : new LegacyJsonEventStreamReadModel {
-        EventTypeName = _row.EventTypeName, EventVersion = _row.EventVersion, EventData = _value.ToEventData() }.ToDomainEvent();
+    [Benchmark]
+    public IEvent RoundTrip() => _binary is not null ? _binary.Deserialize(_row.EventTypeName, _row.EventVersion, _binary.Serialize(_value)) : new LegacyJsonEventStreamReadModel
+    {
+        EventTypeName = _row.EventTypeName,
+        EventVersion = _row.EventVersion,
+        EventData = _value.ToEventData()
+    }.ToDomainEvent();
 }

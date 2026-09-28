@@ -29,7 +29,9 @@ public class SecuritiesDatabaseFixture : IDisposable
     void SetSecuritiesDatabase()
     {
         var dbConn = new DbConnectionSettings()
-                         .Add("SecuritiesDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=securities_test_db", "System.Data.ScyllaDb");
+                         .Add("SecuritiesDbConnection",
+                             Environment.GetEnvironmentVariable("IFM_TEST_SECURITIES_CONNECTION") ?? throw new InvalidOperationException("The assembly integration fixture did not set IFM_TEST_SECURITIES_CONNECTION."),
+                             "System.Data.ScyllaDb");
 
         var diContainer = new Dictionary<Type, SecuritiesDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
@@ -47,17 +49,21 @@ public class SecuritiesDatabaseFixture : IDisposable
         DbFactory = dbFactory;
         diContainer.Add(typeof(IObjectRepository<SecuritiesDbContext>), new SecuritiesDbContext(dbConn, DbFactory, logger));
         Db = (DbFactory.SecuritiesDb as SecuritiesDbContext)!;
+        Db.InsertFuturesContractAsync(SampleData.OptionUnderlyingFuturesContract).GetAwaiter().GetResult();
     }
 
     void SetEventSourceDatabase()
     {
         var dbConn = new DbConnectionSettings()
-                    .Add("EventSourceActorDbConnection", "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres");
+                    .Add("EventSourceActorDbConnection",
+                        Environment.GetEnvironmentVariable("IFM_TEST_POSTGRES_CONNECTION") ?? throw new InvalidOperationException("The assembly integration fixture did not set IFM_TEST_POSTGRES_CONNECTION."),
+                        "System.Data.Postgres");
         var diContainer = new Dictionary<Type, EventSourceActorDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
-        var redisUri = "localhost:6379";
+        var redisUri = Environment.GetEnvironmentVariable("IFM_TEST_REDIS_URL")
+            ?? throw new InvalidOperationException("The assembly integration fixture did not set IFM_TEST_REDIS_URL.");
         var connMultiplexer = ConnectionMultiplexer.Connect(redisUri);
         var redisCache = new RedisCache(connMultiplexer);
         BlackboardService = new BlackboardService(redisCache, new SystemTextJsonSerializer());

@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Domain.Trade.Model;
 public class TradeLimit : IDataValidation, ITradeLimit
 {
     static IValidator<TradeLimit>? _validator;
- 
+
     public TradeLimit(
         int tradeId,
         TradeType tradeType,
@@ -62,7 +62,7 @@ public class TradeLimit : IDataValidation, ITradeLimit
     public DateTime UpdatedOn { get; private set; }
     public string UpdatedBy { get; private set; }
 
-    public TradeLimit(TradeLimitReadModel e, DateTime createdOn, string createdBy, DateTime updatedOn, string updatedBy) :this(
+    public TradeLimit(TradeLimitReadModel e, DateTime createdOn, string createdBy, DateTime updatedOn, string updatedBy) : this(
         tradeId: e.TradeId,
         tradeType: e.TradeType,
         riskMargin: e.RiskMargin,

@@ -3,7 +3,7 @@
 /// <summary>
 /// 
 /// </summary>
-public class RemoveLookupTypeException :ApplicationException
+public class RemoveLookupTypeException : ApplicationException
 {
     public RemoveLookupTypeException() : base()
     {

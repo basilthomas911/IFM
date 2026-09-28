@@ -35,7 +35,8 @@ public sealed record GetAccountBalancesQuery : IFinancialQueryMessage<GetAccount
     [Key(3)] public Guid CorrelationId { get; init; }
     [Key(4)] public DateTime RequestedAtUtc { get; init; }
 
-    [IgnoreMember] public GetAccountBalancesRequest Parameters
+    [IgnoreMember]
+    public GetAccountBalancesRequest Parameters
     {
         get => new();
         init

@@ -40,7 +40,7 @@ internal static class TradeSchemaCql
     createdBy text,
     updatedOn timestamp,
     updatedBy text,
-    PRIMARY KEY (orderId, tradeId, contractId)
+    PRIMARY KEY (tradeId, orderId, contractId)
     );
     """;
 

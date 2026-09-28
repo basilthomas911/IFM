@@ -101,11 +101,11 @@ public class FuturesOptionTickDataCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext,
         FuturesOptionTickDataCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext,
         FuturesOptionTickDataCommandState, ServiceResult<GuidResult>>>()
-    {
-        [typeof(InsertFuturesOptionTickDataCommand)] = (cmd, context, state) => (cmd as InsertFuturesOptionTickDataCommand)!.Execute(state),
-        [typeof(StartFuturesOptionTickDataStreamingCommand)] = (cmd, context, state) => (cmd as StartFuturesOptionTickDataStreamingCommand)!.Execute(state),
-        [typeof(StopFuturesOptionTickDataStreamingCommand)] = (cmd, context, state) => (cmd as StopFuturesOptionTickDataStreamingCommand)!.Execute(state)
-    };
+        {
+            [typeof(InsertFuturesOptionTickDataCommand)] = (cmd, context, state) => (cmd as InsertFuturesOptionTickDataCommand)!.Execute(state),
+            [typeof(StartFuturesOptionTickDataStreamingCommand)] = (cmd, context, state) => (cmd as StartFuturesOptionTickDataStreamingCommand)!.Execute(state),
+            [typeof(StopFuturesOptionTickDataStreamingCommand)] = (cmd, context, state) => (cmd as StopFuturesOptionTickDataStreamingCommand)!.Execute(state)
+        };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -132,30 +132,33 @@ public class FuturesOptionTickDataCommandActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
-    {
-        [typeof(InsertFuturesOptionTickDataCommand)] = static cmd => {
-            var e = (InsertFuturesOptionTickDataCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateContract(e.Contract, e.CommandName)
-                .ValidateOptionTickData(e.OptionTickData, e.CommandName);
-        },
-        [typeof(StartFuturesOptionTickDataStreamingCommand)] = static cmd => {
-            var e = (StartFuturesOptionTickDataStreamingCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateBaseContract(e.BaseContract, e.CommandName)
-                .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
-                .ValidateDateOnly(e.MaturityDate, e.CommandName, "MaturityDate")
-                .ValidateRiskFreeRate(e.RiskFreeRate, e.CommandName);
-        },
-        [typeof(StopFuturesOptionTickDataStreamingCommand)] = static cmd => {
-            var e = (StopFuturesOptionTickDataStreamingCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateEntityId(e.EntityId, e.CommandName)
-                .ValidateContractId(e.ContractId, e.CommandName);
-        }
-    };
+        {
+            [typeof(InsertFuturesOptionTickDataCommand)] = static cmd =>
+            {
+                var e = (InsertFuturesOptionTickDataCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateContract(e.Contract, e.CommandName)
+                    .ValidateOptionTickData(e.OptionTickData, e.CommandName);
+            },
+            [typeof(StartFuturesOptionTickDataStreamingCommand)] = static cmd =>
+            {
+                var e = (StartFuturesOptionTickDataStreamingCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateBaseContract(e.BaseContract, e.CommandName)
+                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
+                    .ValidateDateOnly(e.MaturityDate, e.CommandName, "MaturityDate")
+                    .ValidateRiskFreeRate(e.RiskFreeRate, e.CommandName);
+            },
+            [typeof(StopFuturesOptionTickDataStreamingCommand)] = static cmd =>
+            {
+                var e = (StopFuturesOptionTickDataStreamingCommand)cmd; return new List<ValidationError>()
+                    .ValidateCommandId(e.CommandId, e.CommandName)
+                    .ValidateEntityId(e.EntityId, e.CommandName)
+                    .ValidateContractId(e.ContractId, e.CommandName);
+            }
+        };
 
     static List<ValidationError> ValidateReferenceData(
         ICommand command,

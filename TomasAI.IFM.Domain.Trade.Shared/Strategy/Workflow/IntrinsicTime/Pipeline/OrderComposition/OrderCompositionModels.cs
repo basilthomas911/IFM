@@ -9,7 +9,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.O
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition;
 
-public enum CompositionOutcome : byte { Undefined=0, Composed=1, NoCandidate=2 }
+public enum CompositionOutcome : byte { Undefined = 0, Composed = 1, NoCandidate = 2 }
 
 [MessagePackObject]
 public sealed record CompositionCandidate

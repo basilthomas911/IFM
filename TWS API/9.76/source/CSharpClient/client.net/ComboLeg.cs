@@ -17,11 +17,11 @@ namespace IBApi
     public class ComboLeg
     {
         public static int SAME = 0;
-        public static int 	OPEN = 1;
-        public static int 	CLOSE = 2;
-        public static int 	UNKNOWN = 3;
+        public static int OPEN = 1;
+        public static int CLOSE = 2;
+        public static int UNKNOWN = 3;
 
-        
+
         private int conId;
         private int ratio;
         private string action;
@@ -36,7 +36,7 @@ namespace IBApi
          */
         public int ConId
         {
-            get {return conId; }
+            get { return conId; }
             set { conId = value; }
         }
 
