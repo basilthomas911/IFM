@@ -20,8 +20,13 @@ public static class GetMarketSession
     }
 
     internal static MarketSessionReadModel Calculate(DateTimeOffset instant)
+        => Calculate(instant, FuturesTradingValueDate.GetOperational(instant));
+
+    internal static MarketSessionReadModel Calculate(DateTimeOffset instant, DateOnly operationalValueDate)
     {
-        var operationalValueDate = FuturesTradingValueDate.GetOperational(instant);
+        if (operationalValueDate == default)
+            throw new ArgumentOutOfRangeException(nameof(operationalValueDate));
+
         var isOpen = FuturesTradingValueDate.TryGet(instant, out var activeValueDate);
         var state = FuturesMarketSessionPolicy.GetState(instant);
         var marketTime = TimeZoneInfo.ConvertTime(instant, FuturesTradingValueDate.MarketTimeZone);

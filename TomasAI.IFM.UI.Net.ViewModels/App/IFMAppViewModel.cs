@@ -199,6 +199,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         _liveViewAdapter = liveViewAdapter ?? throw new ArgumentNullException(nameof(liveViewAdapter));
         _economicCalendarService = economicCalendarService
             ?? throw new ArgumentNullException(nameof(economicCalendarService));
+        _valueDate = _appRoot.ValueDates.ValueDate;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _startupReferenceDataImportTimeout = startupReferenceDataImportTimeout
             ?? DefaultStartupReferenceDataImportTimeout;

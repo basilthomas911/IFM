@@ -16,6 +16,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.TickAggregation;
 
 /// <summary>Opt-in: owns a disposable cached-image broker, never the developer's shared NATS service.</summary>
+[Trait("Infrastructure", "SelfContained")]
 public sealed class Stage3NatsOutageTests
 {
     [IsolatedNatsFact]

@@ -9,6 +9,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.TickAggregation;
 
+[Trait("Infrastructure", "SelfContained")]
 public sealed class BoundedTickAggregationPublisherTests
 {
     [Fact]
@@ -119,7 +120,7 @@ public sealed class BoundedTickAggregationPublisherTests
         release.SetException(new IOException("injected outage"));
         await Until(() => publisher.GetSnapshot().CanRecover);
         Assert.Equal(0, publisher.GetSnapshot().Depth);
-        Assert.Equal(2, publisher.GetSnapshot().Failed);
+        Assert.Equal(7, publisher.GetSnapshot().Failed);
         await publisher.StartAsync();
         var fresh = Price();
         await publisher.PublishAsync(fresh);
@@ -169,7 +170,8 @@ public sealed class BoundedTickAggregationPublisherTests
         }
         finally { release.TrySetResult(); }
         await Until(() => !publisher.GetSnapshot().UncontainedSend);
-        await Assert.ThrowsAsync<RealtimeTickPublisherUnavailableException>(() => publisher.StartAsync().AsTask());
+        await publisher.StartAsync();
+        Assert.True(publisher.IsRunning);
         await producer.Received(1).SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(
             Arg.Any<ActorSubject>(), Arg.Any<FuturesMarketPriceUpdatedRealtimeEvent>(), Arg.Any<CancellationToken>());
     }

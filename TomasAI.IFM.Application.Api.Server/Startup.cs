@@ -869,6 +869,7 @@ public static class Startup
                     .Get<string[]>() ?? []
             };
             services.AddDatabentoMarketDataServices();
+            services.AddSingleton<IValueDateProvider, FuturesValueDateProvider>();
             services.AddSingleton<FuturesMarketSessionAuthority>();
             services.AddSingleton<IFuturesMarketSessionAuthority>(provider =>
                 provider.GetRequiredService<FuturesMarketSessionAuthority>());
@@ -950,6 +951,8 @@ public static class Startup
                 provider.GetRequiredService<DatabentoMarketDataWatchdogService>());
             services.AddHostedService(provider =>
                 provider.GetRequiredService<DatabentoMarketDataWatchdogService>());
+            if (stage3Options.Enabled)
+                services.AddHostedService<RealtimePublicationRecoveryService>();
             var historicalOptions = new DatabentoHistoricalOptions
             {
                 StagingRoot = Path.Combine(AppContext.BaseDirectory, "market-data-history"),

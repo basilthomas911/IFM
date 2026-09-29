@@ -222,7 +222,7 @@ public partial class YieldCurveRateEditorControl
             return;
         _viewModel.SelectTimePeriod(
             ddlTimePeriod.SelectedIndex,
-            DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System)));
+            _viewModel.AppRoot.ValueDates.ValueDate);
         UiExceptionReporter.Observe(ReloadRatesAsync(), nameof(ReloadRatesAsync), this);
     }
 }

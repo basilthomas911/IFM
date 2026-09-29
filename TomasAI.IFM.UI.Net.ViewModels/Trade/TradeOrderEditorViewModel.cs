@@ -1,5 +1,6 @@
 using TomasAI.IFM.UI.Net.Models.Portfolio;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.StatusConsole;
@@ -41,6 +42,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
 {
     readonly IAppRoot _appRoot;
     readonly TimeProvider _timeProvider;
+    readonly IValueDateProvider _valueDateProvider;
     readonly BrokerEnvironment _brokerEnvironment;
     readonly AsyncLifecycleCoordinator _lifecycle;
     readonly DateOnly? _valueDate;
@@ -71,7 +73,8 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         ICollection<FuturesContractV3ReadModel> baseContracts,
         IReferenceDataService referenceDataService,
         TimeProvider? timeProvider = null,
-        BrokerEnvironment brokerEnvironment = BrokerEnvironment.Live)
+        BrokerEnvironment brokerEnvironment = BrokerEnvironment.Live,
+        IValueDateProvider? valueDateProvider = null)
     {
         ArgumentNullException.ThrowIfNull(appRoot);
         ArgumentNullException.ThrowIfNull(baseContracts);
@@ -79,6 +82,9 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
             ?? throw new ArgumentNullException(nameof(referenceDataService));
         _appRoot = appRoot;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _valueDateProvider = valueDateProvider
+            ?? appRoot.ValueDates
+            ?? FuturesValueDateProvider.System;
         _brokerEnvironment = brokerEnvironment;
         _valueDate = valueDate;
         _baseContracts = baseContracts.ToArray();
@@ -293,8 +299,12 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         var portfolioId = SelectedPortfolio.PortfolioId;
         var fundId = SelectedFund.FundId;
         var rows = new List<FundOrderProjectionReadModel>();
-        var month = DateOnly.FromDateTime(_fromDate == DateTime.MinValue ? DateTime.UtcNow : _fromDate);
-        var end = DateOnly.FromDateTime(_toDate == DateTime.MaxValue ? DateTime.UtcNow : _toDate);
+        var month = _fromDate == DateTime.MinValue
+            ? _valueDateProvider.ValueDate
+            : DateOnly.FromDateTime(_fromDate);
+        var end = _toDate == DateTime.MaxValue
+            ? _valueDateProvider.ValueDate
+            : DateOnly.FromDateTime(_toDate);
         month = new DateOnly(month.Year, month.Month, 1); end = new DateOnly(end.Year, end.Month, 1);
         for (var current = month; current <= end; current = current.AddMonths(1))
         {

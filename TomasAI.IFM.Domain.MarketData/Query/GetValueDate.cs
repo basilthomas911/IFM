@@ -7,12 +7,8 @@ namespace TomasAI.IFM.Domain.MarketData.Query;
 
 public static class GetValueDate
 {
-    /// Handles a <see cref="GetValueDateQuery"/> by calculating the current value date based on the current date and time.
-    /// The value date is determined according to the following rules:
-    /// - If today is Saturday, or Sunday before 18:00, no active futures value date is returned.
-    /// - If today is Sunday and the time is 18:00 or later, the value date is Monday (tomorrow).
-    /// - If today is Monday-Thursday before 17:00, the value date is today; 17:00-18:00 is closed; at 18:00 it becomes the next day.
-    /// - If today is Friday before 17:00, the value date is Friday; from 17:00 until Sunday 18:00 there is no active value date.
+    /// Handles a <see cref="GetValueDateQuery"/> using the API's authoritative,
+    /// non-null operational value date.
     /// The calculated value date is then published back to the caller via a NATS reply.    
     /// <param name="q">The query requesting the current value date.</param>
     /// <param name="msgInfo">Actor message context used to send the NATS reply to the caller.</param>
@@ -25,21 +21,19 @@ public static class GetValueDate
         ArgumentNullException.ThrowIfNull(q);
         ArgumentNullException.ThrowIfNull(authority);
         cancellationToken.ThrowIfCancellationRequested();
-        var activeValueDate = authority.Current.ActiveValueDate;
-        return ValueTask.FromResult(activeValueDate.HasValue
-            ? new ScalarReadModel<DateOnly>(activeValueDate.Value)
-            : null!);
+        return ValueTask.FromResult(
+            new ScalarReadModel<DateOnly>(authority.Current.OperationalValueDate));
     }
 
-    internal static ScalarReadModel<DateOnly>? CalculateValueDate(DateTime today)
-        => FuturesTradingValueDate.TryGet(today, out var valueDate)
-            ? new ScalarReadModel<DateOnly>(valueDate)
-            : null;
+    internal static ScalarReadModel<DateOnly> CalculateValueDate(DateTime today)
+    {
+        var unspecified = DateTime.SpecifyKind(today, DateTimeKind.Unspecified);
+        var utc = TimeZoneInfo.ConvertTimeToUtc(unspecified, FuturesTradingValueDate.MarketTimeZone);
+        return new ScalarReadModel<DateOnly>(FuturesTradingValueDate.GetOperational(utc));
+    }
 
-    internal static ScalarReadModel<DateOnly>? CalculateValueDate(DateTimeOffset instant)
-        => FuturesTradingValueDate.TryGet(instant, out var valueDate)
-            ? new ScalarReadModel<DateOnly>(valueDate)
-            : null;
+    internal static ScalarReadModel<DateOnly> CalculateValueDate(DateTimeOffset instant)
+        => new(FuturesTradingValueDate.GetOperational(instant));
 
     /// <summary>Reads and replies with the requested market-data result.</summary>
     public static async ValueTask ExecuteAsync(

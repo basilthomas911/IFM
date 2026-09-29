@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Application.Api.Server;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Service.TradePosition.HostedService;
 using TomasAI.IFM.TradePlan.HostedService;
 
@@ -20,6 +21,7 @@ public sealed class ApiHostedServiceExceptionBoundaryTests
                 Interval = TimeSpan.FromMilliseconds(10)
             },
             TimeProvider.System,
+            new FixedValueDateProvider(new DateOnly(2026, 9, 30)),
             NullLogger<FmpMarketDataImportHostedService>.Instance);
 
         await service.StartAsync(CancellationToken.None);
@@ -28,6 +30,8 @@ public sealed class ApiHostedServiceExceptionBoundaryTests
         await service.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.True(service.ExecuteTask.IsCompletedSuccessfully);
+        Assert.Equal(new DateOnly(2026, 9, 23), coordinator.Request!.FromInclusive);
+        Assert.Equal(new DateOnly(2026, 10, 7), coordinator.Request.ToInclusive);
     }
 
     [Fact]
@@ -54,6 +58,7 @@ public sealed class ApiHostedServiceExceptionBoundaryTests
 
     sealed class ThrowingFmpCoordinator : IFmpMarketDataImportCoordinator
     {
+        public FmpMarketDataImportRequest? Request { get; private set; }
         public TaskCompletionSource Invoked { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -61,9 +66,16 @@ public sealed class ApiHostedServiceExceptionBoundaryTests
             FmpMarketDataImportRequest request,
             CancellationToken cancellationToken = default)
         {
+            Request = request;
             Invoked.TrySetResult();
             throw new InvalidOperationException("Injected FMP failure.");
         }
+    }
+
+    sealed class FixedValueDateProvider(DateOnly valueDate) : IValueDateProvider
+    {
+        public DateOnly ValueDate => valueDate;
+        public DateOnly GetValueDate(DateTimeOffset instant) => valueDate;
     }
 
     sealed class ThrowingTradePositionConsumer : ITradePositionEventConsumer

@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Reflection;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -190,6 +191,9 @@ public class YieldCurveRateEditorViewModelTests
         var eventConsumer = Substitute.For<IMarketDataUIEventConsumer>();
         var eventSource = new TestMarketDataEventSource(eventConsumer);
         var appRoot = Substitute.For<IAppRoot>();
+        var valueDates = Substitute.For<IValueDateProvider>();
+        valueDates.ValueDate.Returns(DateOnly.FromDateTime(DateTime.Today));
+        appRoot.ValueDates.Returns(valueDates);
         appRoot.Services.MarketDataQueries.Returns(new MarketDataQueryService(queryApi, feedQueryApi));
         appRoot.Services.MarketDataCommands.Returns(new MarketDataCommandService(commandApi));
         appRoot.Services.MarketDataEvents.Returns(new MarketDataEventService(eventConsumer));

@@ -2,6 +2,7 @@ using FluentAssertions;
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Query;
 using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using Xunit;
 
@@ -9,34 +10,62 @@ namespace TomasAI.IFM.Domain.MarketData.UnitTests;
 
 public sealed class GetValueDateTests
 {
+    [Fact]
+    public async Task Query_returns_operational_value_date_while_market_is_closed()
+    {
+        var timeProvider = new SettableTimeProvider(
+            DateTimeOffset.Parse("2026-08-14T17:00:00-04:00"));
+        var authority = new FuturesMarketSessionAuthority(
+            timeProvider,
+            new FuturesValueDateProvider(timeProvider));
+
+        var result = await new GetValueDateQuery().ExecuteAsync(authority);
+
+        result.Should().NotBeNull();
+        result.Value.Should().Be(new DateOnly(2026, 8, 17));
+        authority.Current.ActiveValueDate.Should().BeNull();
+    }
+
     [Theory]
-    [InlineData(2026, 8, 8, 12, null)]
-    [InlineData(2026, 8, 9, 17, null)]
+    [InlineData("2026-08-10T16:59:59-04:00", "2026-08-10")]
+    [InlineData("2026-08-10T17:00:00-04:00", "2026-08-11")]
+    [InlineData("2026-08-14T16:59:59-04:00", "2026-08-14")]
+    [InlineData("2026-08-14T17:00:00-04:00", "2026-08-17")]
+    [InlineData("2026-08-16T17:59:59-04:00", "2026-08-17")]
+    [InlineData("2026-08-16T18:00:00-04:00", "2026-08-17")]
+    public void Provider_never_returns_default_at_session_boundaries(
+        string instant,
+        string expected)
+    {
+        var timeProvider = new SettableTimeProvider(DateTimeOffset.Parse(instant));
+        var provider = new FuturesValueDateProvider(timeProvider);
+
+        provider.ValueDate.Should().Be(DateOnly.Parse(expected));
+        provider.ValueDate.Should().NotBe(default);
+    }
+
+    [Theory]
+    [InlineData(2026, 8, 8, 12, "2026-08-10")]
+    [InlineData(2026, 8, 9, 17, "2026-08-10")]
     [InlineData(2026, 8, 9, 18, "2026-08-10")]
     [InlineData(2026, 8, 10, 16, "2026-08-10")]
-    [InlineData(2026, 8, 10, 17, null)]
+    [InlineData(2026, 8, 10, 17, "2026-08-11")]
     [InlineData(2026, 8, 10, 18, "2026-08-11")]
     [InlineData(2026, 8, 31, 18, "2026-09-01")]
     [InlineData(2026, 8, 14, 16, "2026-08-14")]
-    [InlineData(2026, 8, 14, 17, null)]
-    [InlineData(2026, 8, 14, 18, null)]
+    [InlineData(2026, 8, 14, 17, "2026-08-17")]
+    [InlineData(2026, 8, 14, 18, "2026-08-17")]
     public void CalculateValueDate_UsesFuturesMarketSessionBoundary(
         int year,
         int month,
         int day,
         int hour,
-        string? expectedDate)
+        string expectedDate)
     {
         var result = GetValueDate.CalculateValueDate(new DateTime(year, month, day, hour, 0, 0));
 
-        if (expectedDate is null)
-        {
-            result.Should().BeNull();
-            return;
-        }
-
         result.Should().NotBeNull();
-        result!.Value.Should().Be(DateOnly.Parse(expectedDate));
+        result.Value.Should().Be(DateOnly.Parse(expectedDate));
     }
 
     [Theory]
@@ -54,27 +83,27 @@ public sealed class GetValueDateTests
     }
 
     [Theory]
-    [InlineData("2026-08-08T16:00:00-04:00", "2026-08-07")]
-    [InlineData("2026-08-09T17:59:59-04:00", "2026-08-07")]
-    [InlineData("2026-08-10T17:00:00-04:00", "2026-08-10")]
-    [InlineData("2026-08-14T18:00:00-04:00", "2026-08-14")]
-    public void OperationalValueDate_UsesMostRecentFridayWhileWeekendIsClosed(
+    [InlineData("2026-08-08T16:00:00-04:00", "2026-08-10")]
+    [InlineData("2026-08-09T17:59:59-04:00", "2026-08-10")]
+    [InlineData("2026-08-10T17:00:00-04:00", "2026-08-11")]
+    [InlineData("2026-08-14T18:00:00-04:00", "2026-08-17")]
+    public void OperationalValueDate_AlwaysIdentifiesTheNextTradingDate(
         string instant,
         string expected)
         => FuturesTradingValueDate.GetOperational(DateTimeOffset.Parse(instant))
             .Should().Be(DateOnly.Parse(expected));
 
     [Theory]
-    [InlineData("2026-08-08T16:00:00-04:00", "2026-08-07", null, false, FuturesMarketState.Closed)]
-    [InlineData("2026-08-09T17:59:59-04:00", "2026-08-07", null, false, FuturesMarketState.Closed)]
+    [InlineData("2026-08-08T16:00:00-04:00", "2026-08-10", null, false, FuturesMarketState.Closed)]
+    [InlineData("2026-08-09T17:59:59-04:00", "2026-08-10", null, false, FuturesMarketState.Closed)]
     [InlineData("2026-08-09T18:00:00-04:00", "2026-08-10", "2026-08-10", true, FuturesMarketState.OffTrading)]
     [InlineData("2026-08-10T02:59:59-04:00", "2026-08-10", "2026-08-10", true, FuturesMarketState.OffTrading)]
     [InlineData("2026-08-10T03:00:00-04:00", "2026-08-10", "2026-08-10", true, FuturesMarketState.LiveTrading)]
     [InlineData("2026-08-10T15:59:59-04:00", "2026-08-10", "2026-08-10", true, FuturesMarketState.LiveTrading)]
     [InlineData("2026-08-10T16:00:00-04:00", "2026-08-10", "2026-08-10", true, FuturesMarketState.OffTrading)]
-    [InlineData("2026-08-10T17:00:00-04:00", "2026-08-10", null, false, FuturesMarketState.Closed)]
+    [InlineData("2026-08-10T17:00:00-04:00", "2026-08-11", null, false, FuturesMarketState.Closed)]
     [InlineData("2026-08-10T18:00:00-04:00", "2026-08-11", "2026-08-11", true, FuturesMarketState.OffTrading)]
-    [InlineData("2026-08-14T17:00:00-04:00", "2026-08-14", null, false, FuturesMarketState.Closed)]
+    [InlineData("2026-08-14T17:00:00-04:00", "2026-08-17", null, false, FuturesMarketState.Closed)]
     public void MarketSession_SeparatesOperationalAndLiveValueDates(
         string instant,
         string operational,
@@ -132,7 +161,7 @@ public sealed class GetValueDateTests
             DateTimeOffset.Parse("2026-08-31T17:59:00-04:00"));
         var authority = new FuturesMarketSessionAuthority(timeProvider);
 
-        authority.Current.OperationalValueDate.Should().Be(new DateOnly(2026, 8, 31));
+        authority.Current.OperationalValueDate.Should().Be(new DateOnly(2026, 9, 1));
         authority.Current.ActiveValueDate.Should().BeNull();
         authority.Current.Revision.Should().Be(1);
 

@@ -22,6 +22,7 @@ using TomasAI.IFM.Shared.StatusConsole.Model;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
@@ -121,6 +122,7 @@ namespace TomasAI.IFM.UI.Net
                 throw new InvalidOperationException("AppSettings:NatsServerUri is required.");
 
             _container!.RegisterInstance(TimeProvider.System);
+            _container!.RegisterSingleton<IValueDateProvider, FuturesValueDateProvider>();
             //_container!.RegisterSingleton<IJsonSerializer, SystemTextJsonSerializer>();
             _container!.RegisterSingleton<IJsonSerializer, NewtonSoftJsonSerializer>();
             _container!.RegisterInstance<INatsProducerOptions>(new NatsProducerOptions { Url = natsServerUri });
@@ -387,6 +389,10 @@ namespace TomasAI.IFM.UI.Net
         /// <summary>Gets the immutable catalog of explicitly registered UI domain services.</summary>
         public IUiServiceCatalog Services
             => _container!.GetInstance<IUiServiceCatalog>();
+
+        /// <inheritdoc />
+        public IValueDateProvider ValueDates
+            => _container!.GetInstance<IValueDateProvider>();
 
         /// <summary>
         /// return status console api

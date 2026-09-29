@@ -263,12 +263,17 @@ public sealed class DomainActorIntegrationTestFrameworkExecutor : Xunit.Sdk.Xuni
         Xunit.Abstractions.IMessageSink executionMessageSink,
         Xunit.Abstractions.ITestFrameworkExecutionOptions executionOptions)
     {
+        var selectedCases = testCases.ToArray();
+        var requiresSharedInfrastructure = selectedCases.Any(testCase =>
+            !testCase.Traits.TryGetValue("Infrastructure", out var values)
+            || !values.Contains("SelfContained", StringComparer.Ordinal));
         try
         {
-            DomainActorIntegrationInfrastructureFixture.InitializeAsync(TestAssembly.Assembly.Name).GetAwaiter().GetResult();
+            if (requiresSharedInfrastructure)
+                DomainActorIntegrationInfrastructureFixture.InitializeAsync(TestAssembly.Assembly.Name).GetAwaiter().GetResult();
             using var runner = new Xunit.Sdk.XunitTestAssemblyRunner(
                 TestAssembly,
-                testCases,
+                selectedCases,
                 DiagnosticMessageSink,
                 executionMessageSink,
                 executionOptions);
@@ -276,7 +281,8 @@ public sealed class DomainActorIntegrationTestFrameworkExecutor : Xunit.Sdk.Xuni
         }
         finally
         {
-            DomainActorIntegrationInfrastructureFixture.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            if (requiresSharedInfrastructure)
+                DomainActorIntegrationInfrastructureFixture.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
     }
 }

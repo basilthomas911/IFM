@@ -10,11 +10,18 @@ public sealed class FuturesMarketSessionAuthority : IFuturesMarketSessionAuthori
 {
     readonly object _gate = new();
     readonly TimeProvider _timeProvider;
+    readonly IValueDateProvider _valueDateProvider;
     MarketSessionReadModel _current;
 
     public FuturesMarketSessionAuthority(TimeProvider timeProvider)
+        : this(timeProvider, new FuturesValueDateProvider(timeProvider))
+    {
+    }
+
+    public FuturesMarketSessionAuthority(TimeProvider timeProvider, IValueDateProvider valueDateProvider)
     {
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        _valueDateProvider = valueDateProvider ?? throw new ArgumentNullException(nameof(valueDateProvider));
         _current = CreateSnapshot(_timeProvider.GetUtcNow(), revision: 1);
     }
 
@@ -27,7 +34,7 @@ public sealed class FuturesMarketSessionAuthority : IFuturesMarketSessionAuthori
         lock (_gate)
         {
             var now = _timeProvider.GetUtcNow();
-            var candidate = GetMarketSession.Calculate(now);
+            var candidate = GetMarketSession.Calculate(now, _valueDateProvider.GetValueDate(now));
             var current = _current;
             var revision = HasDecisionChanged(current, candidate)
                 ? checked(current.Revision + 1)
@@ -43,7 +50,7 @@ public sealed class FuturesMarketSessionAuthority : IFuturesMarketSessionAuthori
     }
 
     MarketSessionReadModel CreateSnapshot(DateTimeOffset now, long revision)
-        => GetMarketSession.Calculate(now) with
+        => GetMarketSession.Calculate(now, _valueDateProvider.GetValueDate(now)) with
         {
             Revision = revision,
             AsOfUtc = now.UtcDateTime

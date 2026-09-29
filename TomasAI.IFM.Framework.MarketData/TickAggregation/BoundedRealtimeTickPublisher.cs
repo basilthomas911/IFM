@@ -25,6 +25,8 @@ internal sealed class BoundedRealtimeTickPublisher(
     bool uncontained;
     RealtimeTickPublisherFailure failure;
     string detail = string.Empty;
+    DateTime? lastAcceptedUtc, lastPublishedUtc, firstFailureUtc, lastFailureUtc;
+    string lastExceptionType = string.Empty, lastExceptionMessage = string.Empty;
     long accepted, published, rejected, saturation, generationCanceled, shutdownDiscarded, expired, failed;
 
     public bool IsRunning { get { lock (gate) return session?.Accepting == true; } }
@@ -34,8 +36,14 @@ internal sealed class BoundedRealtimeTickPublisher(
         lock (gate)
         {
             var current = session;
+            var noProgressSince = current?.InFlight?.EnqueuedUtc
+                ?? (current?.Queue.TryPeek(out var pending) == true ? pending.EnqueuedUtc : (DateTime?)null)
+                ?? (faulted ? firstFailureUtc : null);
+            var noProgressAge = noProgressSince is { } since
+                ? time.GetUtcNow().UtcDateTime - (lastPublishedUtc > since ? lastPublishedUtc.Value : since)
+                : TimeSpan.Zero;
             return new(true, current?.Accepting == true, faulted,
-                faulted && !nonCooperativeLatch && !uncontained && current?.Worker?.IsCompleted != false,
+                faulted && !uncontained && current?.Worker?.IsCompleted != false,
                 uncontained, policy.Capacity, current?.Queue.Count ?? 0, current?.InFlight is null ? 0 : 1,
                 current?.Queue.TryPeek(out var oldest) == true ? time.GetElapsedTime(oldest.EnqueuedAt) : TimeSpan.Zero,
                 current?.InFlight is { } active ? time.GetElapsedTime(active.EnqueuedAt) : TimeSpan.Zero,
@@ -43,7 +51,20 @@ internal sealed class BoundedRealtimeTickPublisher(
                 failure, detail)
             {
                 RetainedQuoteItems = current?.RetainedQuoteItems ?? 0,
-                MaximumRetainedQuoteItems = policy.MaximumQueuedQuoteItems
+                MaximumRetainedQuoteItems = policy.MaximumQueuedQuoteItems,
+                LastAcceptedUtc = lastAcceptedUtc,
+                LastPublishedUtc = lastPublishedUtc,
+                FirstFailureUtc = firstFailureUtc,
+                LastFailureUtc = lastFailureUtc,
+                LastExceptionType = lastExceptionType,
+                LastExceptionMessage = lastExceptionMessage,
+                InFlightEventType = current?.InFlight?.Value.GetType().FullName ?? string.Empty,
+                InFlightSubject = current?.InFlight is { } inflight ? Subject(inflight.Value) : string.Empty,
+                CurrentAttempt = current?.CurrentAttempt ?? 0,
+                NoProgressAge = noProgressAge < TimeSpan.Zero ? TimeSpan.Zero : noProgressAge,
+                NoProgressResetThreshold = policy.NoProgressResetThreshold,
+                ResetRequired = (current?.InFlight is not null || current?.Queue.Count > 0 || faulted)
+                    && noProgressAge >= policy.NoProgressResetThreshold
             };
         }
     }
@@ -56,8 +77,9 @@ internal sealed class BoundedRealtimeTickPublisher(
             Session? old;
             lock (gate)
             {
-                if (nonCooperativeLatch)
+                if (nonCooperativeLatch && uncontained)
                     throw new RealtimeTickPublisherUnavailableException("a non-cooperative send requires host recovery");
+                if (nonCooperativeLatch) nonCooperativeLatch = false;
                 if (session?.Accepting == true) return;
                 old = session;
             }
@@ -68,14 +90,19 @@ internal sealed class BoundedRealtimeTickPublisher(
             var producer = supervisor.GetProducer(new ActorMailboxId(ActorType.Realtime, FuturesTickTradeDataChangedEvent.Actor));
             lock (gate)
             {
-                if (nonCooperativeLatch)
+                if (nonCooperativeLatch && uncontained)
                     throw new RealtimeTickPublisherUnavailableException("a non-cooperative send requires host recovery");
+                if (nonCooperativeLatch) nonCooperativeLatch = false;
                 old?.DisposeSignals();
                 var replacement = new Session(producer);
                 session = replacement;
                 faulted = false;
                 failure = RealtimeTickPublisherFailure.None;
                 detail = string.Empty;
+                firstFailureUtc = null;
+                lastFailureUtc = null;
+                lastExceptionType = string.Empty;
+                lastExceptionMessage = string.Empty;
                 replacement.Worker = Task.Run(() => ProcessAsync(replacement));
             }
         }
@@ -137,9 +164,10 @@ internal sealed class BoundedRealtimeTickPublisher(
                 else
                 {
                     current.Queue.Enqueue(new Publication(
-                        value, lease, cancellationToken, time.GetTimestamp(), quoteItems));
+                        value, lease, cancellationToken, time.GetTimestamp(), time.GetUtcNow().UtcDateTime, quoteItems));
                     current.RetainedQuoteItems += quoteItems;
                     accepted++;
+                    lastAcceptedUtc = time.GetUtcNow().UtcDateTime;
                     // A binary wake-up cannot accumulate phantom permits as retired generations
                     // are pruned. Queue access and signaling share the same gate.
                     if (current.Available.CurrentCount == 0) current.Available.Release();
@@ -213,59 +241,84 @@ internal sealed class BoundedRealtimeTickPublisher(
                     return;
                 }
 
-                using var deadline = new CancellationTokenSource(policy.SendTimeout, time);
-                using var stopping = CancellationTokenSource.CreateLinkedTokenSource(
-                    item.Token, current.Stopping.Token, deadline.Token);
-                var sendToken = stopping.Token;
-                // Isolate even a producer that blocks synchronously before returning its ValueTask.
-                // Only one such invocation is permitted; timeout never starts an overlapping sender.
-                var sending = Task.Run(async () =>
+                for (var attempt = 1; attempt <= policy.MaximumRetryAttempts + 1; attempt++)
                 {
-                    sendToken.ThrowIfCancellationRequested();
-                    await SendAsync(current.Producer, item.Value, sendToken).ConfigureAwait(false);
-                });
-                try
-                {
-                    await sending.WaitAsync(policy.SendTimeout + policy.CancellationGracePeriod, time)
-                        .ConfigureAwait(false);
-                    if (deadline.IsCancellationRequested)
+                    lock (gate) current.CurrentAttempt = attempt;
+                    using var deadline = new CancellationTokenSource(policy.SendTimeout, time);
+                    using var stopping = CancellationTokenSource.CreateLinkedTokenSource(
+                        item.Token, current.Stopping.Token, deadline.Token);
+                    var sendToken = stopping.Token;
+                    // Isolate even a producer that blocks synchronously before returning its ValueTask.
+                    // Only one such invocation is permitted; timeout never starts an overlapping sender.
+                    var sending = Task.Run(async () =>
                     {
-                        lock (gate) failed++;
-                        Fault(current, RealtimeTickPublisherFailure.SendTimedOut,
-                            "The transport completed after its delivery deadline; queued output was discarded.");
+                        sendToken.ThrowIfCancellationRequested();
+                        await SendAsync(current.Producer, item.Value, sendToken).ConfigureAwait(false);
+                    });
+                    try
+                    {
+                        await sending.WaitAsync(policy.SendTimeout + policy.CancellationGracePeriod, time)
+                            .ConfigureAwait(false);
+                        if (deadline.IsCancellationRequested)
+                        {
+                            throw new TimeoutException();
+                        }
+                        lock (gate)
+                        {
+                            published++;
+                            lastPublishedUtc = time.GetUtcNow().UtcDateTime;
+                            current.CurrentAttempt = 0;
+                        }
+                        break;
+                    }
+                    catch (TimeoutException exception) when (!sending.IsCompleted)
+                    {
+                        RecordFailure(exception);
+                        lock (gate)
+                        {
+                            nonCooperativeLatch = true;
+                            uncontained = true;
+                        }
+                        retainLease = true;
+                        Fault(current, RealtimeTickPublisherFailure.NonCooperativeSend,
+                            "The transport did not stop after cancellation; its in-flight lease is retained and host recovery is required.");
+                        _ = RetireUncontainedAsync(current, item, sending);
                         return;
                     }
-                    lock (gate) published++;
-                }
-                catch (TimeoutException)
-                {
-                    lock (gate)
+                    catch (OperationCanceledException) when (item.Token.IsCancellationRequested)
                     {
-                        failed++;
-                        nonCooperativeLatch = true;
-                        uncontained = true;
+                        lock (gate) generationCanceled++;
+                        break;
                     }
-                    retainLease = true;
-                    Fault(current, RealtimeTickPublisherFailure.NonCooperativeSend,
-                        "The transport did not stop after cancellation; its in-flight lease is retained and host recovery is required.");
-                    _ = RetireUncontainedAsync(current, item, sending);
-                    return;
-                }
-                catch (OperationCanceledException) when (item.Token.IsCancellationRequested)
-                {
-                    lock (gate) generationCanceled++;
-                }
-                catch (OperationCanceledException) when (current.Stopping.IsCancellationRequested)
-                {
-                    lock (gate) shutdownDiscarded++;
-                }
-                catch (Exception exception)
-                {
-                    lock (gate) failed++;
-                    Fault(current, deadline.IsCancellationRequested
-                            ? RealtimeTickPublisherFailure.SendTimedOut : RealtimeTickPublisherFailure.TransportFailed,
-                        $"Realtime delivery failed; queued output was discarded: {exception.GetType().Name}.");
-                    return;
+                    catch (OperationCanceledException) when (current.Stopping.IsCancellationRequested)
+                    {
+                        lock (gate) shutdownDiscarded++;
+                        break;
+                    }
+                    catch (Exception exception)
+                    {
+                        RecordFailure(exception);
+                        if (attempt == policy.MaximumRetryAttempts + 1
+                            || time.GetUtcNow().UtcDateTime - item.EnqueuedUtc >= policy.NoProgressResetThreshold)
+                        {
+                            Fault(current, deadline.IsCancellationRequested
+                                    ? RealtimeTickPublisherFailure.SendTimedOut : RealtimeTickPublisherFailure.TransportFailed,
+                                $"Realtime delivery failed after {attempt} attempt(s): {exception.GetType().Name}: {exception.Message}");
+                            return;
+                        }
+                        var delay = RetryDelay(attempt);
+                        var remaining = policy.NoProgressResetThreshold
+                            - (time.GetUtcNow().UtcDateTime - item.EnqueuedUtc);
+                        if (remaining <= TimeSpan.Zero)
+                        {
+                            Fault(current, RealtimeTickPublisherFailure.TransportFailed,
+                                $"Realtime delivery made no progress for {policy.NoProgressResetThreshold.TotalSeconds:F0} seconds.");
+                            return;
+                        }
+                        if (delay > remaining) delay = remaining;
+                        try { await Task.Delay(delay, time, current.Stopping.Token).ConfigureAwait(false); }
+                        catch (OperationCanceledException) when (current.Stopping.IsCancellationRequested) { break; }
+                    }
                 }
             }
             finally
@@ -289,7 +342,7 @@ internal sealed class BoundedRealtimeTickPublisher(
     async Task RetireUncontainedAsync(Session current, Publication item, Task sending)
     {
         try { await sending.ConfigureAwait(false); }
-        catch (Exception) { /* The fault has already been recorded and the session fenced. */ }
+        catch (Exception exception) { RecordFailure(exception, increment: false); }
         finally
         {
             item.DisposeLease();
@@ -305,6 +358,44 @@ internal sealed class BoundedRealtimeTickPublisher(
         }
     }
 
+    void RecordFailure(Exception exception, bool increment = true)
+    {
+        lock (gate)
+        {
+            if (increment) failed++;
+            var now = time.GetUtcNow().UtcDateTime;
+            firstFailureUtc ??= now;
+            lastFailureUtc = now;
+            lastExceptionType = exception.GetType().FullName ?? exception.GetType().Name;
+            lastExceptionMessage = exception.Message;
+        }
+    }
+
+    TimeSpan RetryDelay(int failedAttempt)
+    {
+        var numerator = failedAttempt switch
+        {
+            <= 1 => 2L,
+            2 => 5L,
+            3 => 10L,
+            4 => 20L,
+            _ => 40L
+        };
+        var ticks = Math.Min(policy.MaximumRetryDelay.Ticks,
+            checked(policy.InitialRetryDelay.Ticks * numerator / 2));
+        return TimeSpan.FromTicks(ticks);
+    }
+
+    static string Subject(object value) => value switch
+    {
+        FuturesTickTradeDataChangedEvent trade => trade.Subject.ToString(),
+        FuturesTickQuoteDataChangedEvent quote => quote.Subject.ToString(),
+        FuturesMarketPriceUpdatedRealtimeEvent price => price.Subject.ToString(),
+        FuturesTradeReplayBatchRealtimeEvent replay => replay.Subject.ToString(),
+        FuturesSessionStatisticsUpdatedRealtimeEvent statistics => statistics.Subject.ToString(),
+        _ => string.Empty
+    };
+
     void Fault(Session current, RealtimeTickPublisherFailure reason, string message)
     {
         List<Publication> pending;
@@ -314,6 +405,9 @@ internal sealed class BoundedRealtimeTickPublisher(
             faulted = true;
             failure = reason;
             detail = message;
+            var now = time.GetUtcNow().UtcDateTime;
+            firstFailureUtc ??= now;
+            lastFailureUtc = now;
             pending = Drain(current, onStop: false);
         }
         Cancel(current.Stopping);
@@ -365,17 +459,20 @@ internal sealed class BoundedRealtimeTickPublisher(
         public Task? Worker;
         public Publication? InFlight;
         public int RetainedQuoteItems;
+        public int CurrentAttempt;
         public bool Accepting = true;
         public void DisposeSignals() { Available.Dispose(); Stopping.Dispose(); }
     }
 
     sealed class Publication(
-        object value, ITickQuoteBufferLease? lease, CancellationToken token, long enqueuedAt, int quoteItems)
+        object value, ITickQuoteBufferLease? lease, CancellationToken token, long enqueuedAt,
+        DateTime enqueuedUtc, int quoteItems)
     {
         ITickQuoteBufferLease? ownedLease = lease;
         public object Value { get; } = value;
         public CancellationToken Token { get; } = token;
         public long EnqueuedAt { get; } = enqueuedAt;
+        public DateTime EnqueuedUtc { get; } = enqueuedUtc;
         public int QuoteItems { get; } = quoteItems;
         public void DisposeLease() => Interlocked.Exchange(ref ownedLease, null)?.Dispose();
     }

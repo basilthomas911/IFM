@@ -95,7 +95,8 @@ public class IFMAppViewModelTests
         viewModel.CanToggleMarketDataFeed.Should().BeFalse();
         viewModel.MarketDataFeedActionText.Should().Be("Start Market Feeds");
         viewModel.MarketDataFeedHealthIndicatorText.Should().Be("Feed Health: Stopped");
-        viewModel.MarketDataFeedStateText.Should().Be("Market Feed: Inactive");
+        viewModel.ValueDate.Should().Be(new DateOnly(2026, 9, 29));
+        viewModel.MarketDataFeedStateText.Should().Contain("Session Closed");
         viewModel.IsCloseRequested.Should().BeFalse();
         viewModel.StartupOperation.Should().NotBeNull();
         viewModel.ShutdownOperation.Should().NotBeNull();
@@ -537,6 +538,9 @@ public class IFMAppViewModelTests
         var commandResponseConsumer = Substitute.For<ICommandResponseUIEventConsumer>();
         var eventModel = new CommandResponseEventService(commandResponseConsumer);
         var appRoot = Substitute.For<IAppRoot>();
+        var valueDates = Substitute.For<IValueDateProvider>();
+        valueDates.ValueDate.Returns(new DateOnly(2026, 9, 29));
+        appRoot.ValueDates.Returns(valueDates);
         appRoot.Services.CommandResponses.Returns(eventModel);
         return new IFMAppViewModel(
             appRoot,

@@ -8,6 +8,10 @@ public sealed record RealtimeTickPublisherPolicy
     public TimeSpan MaximumQueueAge { get; init; } = TimeSpan.FromSeconds(5);
     public TimeSpan SendTimeout { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan CancellationGracePeriod { get; init; } = TimeSpan.FromMilliseconds(100);
+    public int MaximumRetryAttempts { get; init; } = 5;
+    public TimeSpan InitialRetryDelay { get; init; } = TimeSpan.FromMilliseconds(100);
+    public TimeSpan MaximumRetryDelay { get; init; } = TimeSpan.FromSeconds(2);
+    public TimeSpan NoProgressResetThreshold { get; init; } = TimeSpan.FromSeconds(5);
 
     public RealtimeTickPublisherPolicy Validate()
     {
@@ -15,7 +19,11 @@ public sealed record RealtimeTickPublisherPolicy
             || MaximumQueueAge <= TimeSpan.Zero
             || MaximumQueueAge > TimeSpan.FromMinutes(5) || SendTimeout <= TimeSpan.Zero
             || SendTimeout > TimeSpan.FromMinutes(1) || CancellationGracePeriod < TimeSpan.Zero
-            || CancellationGracePeriod > TimeSpan.FromSeconds(5))
+            || CancellationGracePeriod > TimeSpan.FromSeconds(5)
+            || MaximumRetryAttempts is < 0 or > 10
+            || InitialRetryDelay < TimeSpan.Zero || InitialRetryDelay > TimeSpan.FromSeconds(10)
+            || MaximumRetryDelay < InitialRetryDelay || MaximumRetryDelay > TimeSpan.FromMinutes(1)
+            || NoProgressResetThreshold <= TimeSpan.Zero || NoProgressResetThreshold > TimeSpan.FromMinutes(1))
             throw new ArgumentOutOfRangeException(nameof(RealtimeTickPublisherPolicy), "Realtime publisher bounds are invalid.");
         return this;
     }
@@ -56,6 +64,18 @@ public sealed record RealtimeTickPublisherSnapshot(
 {
     public int RetainedQuoteItems { get; init; }
     public int MaximumRetainedQuoteItems { get; init; }
+    public DateTime? LastAcceptedUtc { get; init; }
+    public DateTime? LastPublishedUtc { get; init; }
+    public DateTime? FirstFailureUtc { get; init; }
+    public DateTime? LastFailureUtc { get; init; }
+    public string LastExceptionType { get; init; } = string.Empty;
+    public string LastExceptionMessage { get; init; } = string.Empty;
+    public string InFlightEventType { get; init; } = string.Empty;
+    public string InFlightSubject { get; init; } = string.Empty;
+    public int CurrentAttempt { get; init; }
+    public TimeSpan NoProgressAge { get; init; }
+    public TimeSpan NoProgressResetThreshold { get; init; }
+    public bool ResetRequired { get; init; }
 }
 
 public interface ITickAggregationPublisherDiagnostics

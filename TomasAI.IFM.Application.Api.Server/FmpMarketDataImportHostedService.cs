@@ -1,4 +1,5 @@
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.Api.Server;
 
@@ -26,6 +27,7 @@ public sealed class FmpMarketDataImportHostedService(
     IFmpMarketDataImportCoordinator coordinator,
     FmpImportScheduleOptions options,
     TimeProvider timeProvider,
+    IValueDateProvider valueDateProvider,
     ILogger<FmpMarketDataImportHostedService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -38,7 +40,7 @@ public sealed class FmpMarketDataImportHostedService(
             using var timer = new PeriodicTimer(options.Interval, timeProvider);
             while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
             {
-                var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
+                var today = valueDateProvider.ValueDate;
                 try
                 {
                     var result = await coordinator.ImportAsync(

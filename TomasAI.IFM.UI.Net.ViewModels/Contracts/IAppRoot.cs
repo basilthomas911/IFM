@@ -1,5 +1,6 @@
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.UI.Net.Services;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.UI.Net.Contracts;
 
@@ -10,6 +11,9 @@ public interface IAppRoot
 
     /// <summary>Gets the typed UI domain-service catalog.</summary>
     IUiServiceCatalog Services { get; }
+
+    /// <summary>Gets the authoritative, non-null futures value-date provider.</summary>
+    IValueDateProvider ValueDates => FuturesValueDateProvider.System;
 
     /// <summary>Gets the application status-console writer.</summary>
     IStatusConsoleWriter GetStatusConsoleWriter();

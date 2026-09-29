@@ -269,7 +269,7 @@ Windows C++ and Rust synthetic testing does not imply live-provider or Linux Rus
 | MarketData.Feed full unit suite | 505 passed |
 | MarketData.Analytics full unit suite | 1,032 passed |
 | UI presentation/architecture full suite | 303 passed |
-| Host publisher integration, legacy and bounded | 10 passed |
+| Host publisher integration, legacy and bounded | 12 passed |
 | Actual Core NATS isolated outage/restart | 1 passed; exact test broker removed |
 | PostgreSQL incident/assignment/history integration | 3 passed; includes new timing/backoff JSON fields |
 | WinForms readonly health rendering | 1 passed; panel image inspected |
@@ -301,3 +301,46 @@ This checkout's WSL distribution has only .NET 7 and no SDK; the cached .NET 10 
 machine-level installation or profile changes. Linux native/C++ feed deployment and Windows-to-
 Linux native parity remain separate from these managed OS-containment tests. See the as-built
 section 6 for the remaining implementation and acceptance gates; they are not merely sign-off.
+
+## Downstream realtime publication recovery
+
+The API-host realtime publisher now treats the two-second send deadline as an attempt boundary,
+not as an immediate permanent host poison. One initial send receives up to five retries with
+bounded exponential delays of 100, 250, 500, 1,000 and 2,000 milliseconds; the overall five-second
+no-progress boundary preempts remaining retries. A send that does not honor cancellation is never
+overlapped by a retry.
+
+The publisher snapshot records the first and latest failure times, eventual exception type and
+message, event type, actor subject, current attempt, last accepted and published times, pending
+age and whether a complete reset is required. The eventual result of a previously uncontained
+send is observed instead of discarded.
+
+`RealtimePublicationRecoveryService` observes the bounded publisher every 250 milliseconds while
+an authoritative market value date is active. Five seconds of pending or faulted publication with
+no progress produces one structured critical incident and invokes the watchdog's serialized full
+Databento hard reset. The reset uses the authoritative session value date even when the failed
+runtime has lost its local active date. Failed reset attempts are rate-limited to once every five
+seconds and retain their correlation identifiers in critical logs.
+
+This fast safety circuit is independent of the existing minute live-pipeline audit and the
+Supervisor actor's observation-only health policy. It is enabled only with supervised Stage 3.
+
+Qualification on 2026-09-29 passed both the 12-test host publisher suite and the real isolated
+Core NATS outage/restart test. Self-contained publisher tests now carry an explicit infrastructure
+trait, so the integration executor does not start unrelated PostgreSQL, Redis, Scylla, or Kestrel
+fixtures for those selections. Tests that require the full application environment continue to use
+the authoritative isolated assembly fixture.
+
+## Authoritative operational value date
+
+IValueDateProvider is the application-level source for a non-null futures value date in both the
+API server and desktop UI. Its Eastern-time policy advances Monday through Thursday at 17:00 to the
+next trading date, advances Friday at 17:00 to Monday, and resolves the weekend to Monday. The
+separate nullable ActiveValueDate remains the authority for whether live-session operations are
+currently permitted.
+
+The API session authority, NATS value-date query, scheduled FMP import, UI shell, trade-order
+defaults, option-strategy defaults, and yield-curve workflows now consume the provider or the
+server's session snapshot. Boundary/query tests passed 53 cases, the hosted-service boundary suite
+passed 3 cases, the UI presentation suite passed all 366 cases, and the final solution build
+completed with zero warnings and zero errors.

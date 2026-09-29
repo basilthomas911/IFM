@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
@@ -47,7 +48,7 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
         _openingTrade = fundOrder.Trades.FirstOrDefault(trade => trade.PrimaryTrade);
         var tradeDate = _openingTrade?.RequestedTradeDate
             ?? _viewModel?.ValueDate
-            ?? DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System));
+            ?? FuturesValueDateProvider.System.ValueDate;
         var maturityDate = _openingTrade?.RequestedMaturityDate
             ?? _viewModel?.BaseContracts.FirstOrDefault()?.LastTradeDate
             ?? tradeDate;

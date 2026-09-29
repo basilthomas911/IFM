@@ -291,7 +291,7 @@ public sealed class DatabentoMarketDataWatchdogService(
     public Task HardResetAsync(DateOnly valueDate, Guid correlationId,
         CancellationToken cancellationToken = default) => SerializedAsync(async token =>
     {
-        if (runtime.ActiveValueDate != valueDate)
+        if (runtime.ActiveValueDate is { } activeValueDate && activeValueDate != valueDate)
             throw new InvalidOperationException(
                 $"Cannot hard reset {valueDate:yyyy-MM-dd}; the active runtime value date is {runtime.ActiveValueDate:yyyy-MM-dd}.");
         await RecoverAsync(valueDate, correlationId,

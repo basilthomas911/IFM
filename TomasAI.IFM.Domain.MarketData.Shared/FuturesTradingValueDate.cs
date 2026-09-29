@@ -45,22 +45,23 @@ public static class FuturesTradingValueDate
         => TryGet(TimeZoneInfo.ConvertTime(instant, MarketTimeZone).DateTime, out valueDate);
 
     /// <summary>
-    /// Returns the active value date, or the most recently completed value date
-    /// during a maintenance/weekend close. This is intended for process startup
-    /// and read-only operation; live ticks use <see cref="TryGet(DateTimeOffset, out DateOnly)"/>.
+    /// Returns the non-null operational value date. At 17:00 Eastern Monday through
+    /// Thursday it advances to the next day; at 17:00 Friday it advances to Monday.
+    /// Saturday and Sunday before 18:00 also resolve to Monday.
     /// </summary>
     public static DateOnly GetOperational(DateTimeOffset instant)
     {
         var marketLocal = TimeZoneInfo.ConvertTime(instant, MarketTimeZone).DateTime;
-        if (TryGet(marketLocal, out var valueDate))
-            return valueDate;
-
         var calendarDate = DateOnly.FromDateTime(marketLocal);
+        var marketTime = TimeOnly.FromDateTime(marketLocal);
         return marketLocal.DayOfWeek switch
         {
-            DayOfWeek.Saturday => calendarDate.AddDays(-1),
-            DayOfWeek.Sunday => calendarDate.AddDays(-2),
-            _ => calendarDate
+            DayOfWeek.Friday when marketTime >= MarketClosesAt => calendarDate.AddDays(3),
+            DayOfWeek.Saturday => calendarDate.AddDays(2),
+            DayOfWeek.Sunday => calendarDate.AddDays(1),
+            >= DayOfWeek.Monday and <= DayOfWeek.Thursday when marketTime >= MarketClosesAt
+                => calendarDate.AddDays(1),
+            _ => calendarDate,
         };
     }
 

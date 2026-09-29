@@ -175,10 +175,8 @@ public static partial class MarketDataQueryExtensions
                 () =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var activeValueDate = context.MarketSessionAuthority.Current.ActiveValueDate;
-                    if (!activeValueDate.HasValue)
-                        throw new InvalidOperationException("The futures market weekend session is closed.");
-                    return Task.FromResult(new ScalarReadModel<DateOnly>(activeValueDate.Value));
+                    return Task.FromResult(new ScalarReadModel<DateOnly>(
+                        context.MarketSessionAuthority.Current.OperationalValueDate));
                 });
 
         public Task<ServiceResult<IronCondorMarketDataReadModel>> GetIronCondorMarketDataAsync(

@@ -11,6 +11,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.TickAggregation;
 /// <summary>
 /// Verifies the production TickAggregation publisher boundary for normalized realtime prices.
 /// </summary>
+[Trait("Infrastructure", "SelfContained")]
 public sealed class TickAggregationEventPublisherRealtimeTests
 {
     [Fact]
