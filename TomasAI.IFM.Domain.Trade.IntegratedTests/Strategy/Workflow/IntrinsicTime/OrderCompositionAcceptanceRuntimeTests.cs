@@ -74,6 +74,6 @@ public sealed partial class TradeSelectionRuntimeTests
             query.Success.Should().BeTrue(query.ErrorMessage); query.Value!.WorkflowAccepted.Should().BeTrue();
             query.Value.AcceptanceUnknown.Should().BeFalse(); query.Value.SuspectedOrphan.Should().BeFalse();
         }
-        finally { await supervisor.ShutdownAsync(); await producer.StopAsync(); }
+        finally { await global::SupervisorTestLifecycle.ShutdownAsync(factory.Services); await producer.StopAsync(); }
     }
 }

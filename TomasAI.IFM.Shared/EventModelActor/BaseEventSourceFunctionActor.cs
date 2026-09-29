@@ -37,6 +37,7 @@ public abstract class BaseEventSourceFunctionActor<
     readonly IFunctionProjector<TCompletedEvent>? _functionProjector = functionProjector;
     readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     IActorSupervisor? _supervisor;
+    IActorProducer? _startedProducer;
     int _lifecycle;
 
     public ActorMailboxId Id => _context.ActorId;
@@ -61,6 +62,7 @@ public abstract class BaseEventSourceFunctionActor<
             Mailbox = supervisor.CreateMailbox(Id);
             producer = supervisor.GetProducer(Id);
             await producer.StartAsync(Id, cancellationToken).ConfigureAwait(false);
+            _startedProducer = producer;
             await OnStartupAsync(_context, cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _lifecycle, 2);
         }
@@ -104,14 +106,15 @@ public abstract class BaseEventSourceFunctionActor<
                 Id,
                 async () =>
                 {
-                    if (_supervisor is not null)
-                        await _supervisor.GetProducer(Id).StopAsync(cancellationToken).ConfigureAwait(false);
+                    if (_startedProducer is not null)
+                        await _startedProducer.StopAsync(cancellationToken).ConfigureAwait(false);
                 },
                 () => OnShutdownAsync(_context, cancellationToken),
                 cancellationToken).ConfigureAwait(false);
         }
         finally
         {
+            _startedProducer = null;
             Volatile.Write(ref _lifecycle, 0);
         }
     }

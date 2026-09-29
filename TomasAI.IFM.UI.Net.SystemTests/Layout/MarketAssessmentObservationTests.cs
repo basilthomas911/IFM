@@ -27,10 +27,14 @@ public sealed class MarketAssessmentObservationTests
     [Trait("Gate", "MC-R09")]
     public async Task Observation_form_renders_actual_runtime_result_and_closes_its_message_loop(TimeFrameType horizon)
     {
-        var evidence = Environment.GetEnvironmentVariable("IFM_MC_EVIDENCE_DIR");
-        evidence.Should().NotBeNullOrWhiteSpace("run the MC-R08 runtime qualification with IFM_MC_EVIDENCE_DIR first");
-        var view = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(await File.ReadAllBytesAsync(Path.Combine(evidence!, horizon + ".workflow.msgpack")));
-        var completed = MessagePackSerializer.Deserialize<MarketConditionAssessmentCompletedEvent>(await File.ReadAllBytesAsync(Path.Combine(evidence!, horizon + ".assessment.msgpack")));
+        var evidence = Environment.GetEnvironmentVariable("IFM_MC_EVIDENCE_DIR")
+            ?? Path.Combine(FindRepositoryRoot(), ".codex-mc-evidence");
+        File.Exists(Path.Combine(evidence, horizon + ".workflow.msgpack")).Should().BeTrue(
+            "the preceding MC-R08 runtime qualification must produce workflow evidence");
+        File.Exists(Path.Combine(evidence, horizon + ".assessment.msgpack")).Should().BeTrue(
+            "the preceding MC-R08 runtime qualification must produce assessment evidence");
+        var view = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(await File.ReadAllBytesAsync(Path.Combine(evidence, horizon + ".workflow.msgpack")));
+        var completed = MessagePackSerializer.Deserialize<MarketConditionAssessmentCompletedEvent>(await File.ReadAllBytesAsync(Path.Combine(evidence, horizon + ".assessment.msgpack")));
         var queries = Substitute.For<IMarketConditionAssessmentQueryApi>(); var workflows = Substitute.For<IIntrinsicTimeStrategyWorkflowQueryApi>();
         queries.GetAsync(view.WorkflowId, Arg.Any<CancellationToken>()).Returns(new ServiceOk<MarketConditionAssessmentCompletedEvent>(completed));
         queries.HistoryAsync(Arg.Any<string>(), "ES", horizon, Arg.Any<DateTime>(), 25, Arg.Any<CancellationToken>()).Returns(new ServiceOk<MarketConditionAssessmentCompletedEvent[]>([completed]));
@@ -67,7 +71,7 @@ public sealed class MarketAssessmentObservationTests
                         details.Width.Should().BeGreaterThan(400); details.Height.Should().BeGreaterThan(300);
                         form.Refresh(); await Task.Delay(100);
                         using var bitmap = new Bitmap(form.Width, form.Height); form.DrawToBitmap(bitmap, new Rectangle(Point.Empty, form.Size));
-                        bitmap.Save(Path.Combine(evidence!, horizon + ".observation.png"));
+                        bitmap.Save(Path.Combine(evidence, horizon + ".observation.png"));
                         ((Button)form.CancelButton!).PerformClick(); done.TrySetResult();
                     }
                     catch (Exception error) { done.TrySetException(error); form.Close(); }
@@ -81,6 +85,14 @@ public sealed class MarketAssessmentObservationTests
         thread.Join(TimeSpan.FromSeconds(5)).Should().BeTrue("Close must end the observation form's message loop");
     }
     static T Field<T>(object instance, string name) => (T)instance.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(instance)!;
+    static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "TomasAI.IFM.sln")))
+            directory = directory.Parent;
+        return directory?.FullName
+            ?? throw new DirectoryNotFoundException("Could not locate the IFM repository root.");
+    }
     static async Task Wait(Func<bool> ready)
     { var until = DateTime.UtcNow.AddSeconds(5); while (!ready()) { if (DateTime.UtcNow >= until) throw new TimeoutException("Observation form did not finish loading"); await Task.Delay(20); } }
 }

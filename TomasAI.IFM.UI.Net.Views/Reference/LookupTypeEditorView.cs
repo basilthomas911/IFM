@@ -70,10 +70,10 @@ public partial class LookupTypeEditorView
         _viewModel.OnWaitCursor = () => this.Post(() => Cursor = Cursors.WaitCursor);
         _viewModel.OnDefaultCursor = () => this.Post(() => Cursor = Cursors.Default);
 
-        _ = LoadEditorAsync();
+        UiExceptionReporter.Observe(LoadEditorAsync(), nameof(LoadEditorAsync), this);
     }
 
-    public void Unload() => _ = ((IAsyncFormControl)this).CloseAsync();
+    public void Unload() => UiExceptionReporter.Observe(((IAsyncFormControl)this).CloseAsync(), nameof(IAsyncFormControl.CloseAsync), this);
 
     public void Add(Action<bool> addAction)
     {
@@ -248,7 +248,7 @@ public partial class LookupTypeEditorView
     }
 
     void ObserveMutation(Task operation, string caption)
-        => _ = ObserveMutationAsync(operation, caption);
+        => UiExceptionReporter.Observe(ObserveMutationAsync(operation, caption), nameof(ObserveMutationAsync), this);
 
     async Task ObserveMutationAsync(Task operation, string caption)
     {
@@ -276,7 +276,7 @@ public partial class LookupTypeEditorView
         throw new NotImplementedException();
     }
 
-    public void Close() => _ = ((IAsyncFormControl)this).CloseAsync();
+    public void Close() => UiExceptionReporter.Observe(((IAsyncFormControl)this).CloseAsync(), nameof(IAsyncFormControl.CloseAsync), this);
 
     async ValueTask IAsyncFormControl.CloseAsync()
         => await _viewModel.StopAsync(CancellationToken.None);

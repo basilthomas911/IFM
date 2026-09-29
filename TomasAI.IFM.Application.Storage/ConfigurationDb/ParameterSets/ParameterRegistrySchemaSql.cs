@@ -21,6 +21,8 @@ public static class ParameterRegistrySchemaSql
  VALUES(md5('parameter-area:market-data-analytics')::uuid,'market-data-analytics','Market Data Analytics') ON CONFLICT DO NOTHING;
  INSERT INTO reference_configuration.parameter_area(area_id,code,name)
  VALUES(md5('parameter-area:option-volatility')::uuid,'option-volatility','Option Volatility') ON CONFLICT DO NOTHING;
+ INSERT INTO reference_configuration.parameter_area(area_id,code,name)
+ VALUES(md5('parameter-area:option-spread-strategy')::uuid,'option-spread-strategy','Option Spread Strategy Defaults') ON CONFLICT DO NOTHING;
  INSERT INTO reference_configuration.parameter_component(component_id,code,area_id,name,editor_code)
  VALUES(md5('parameter-component:strategy-workflow.regime-discovery')::uuid,'strategy-workflow.regime-discovery',md5('parameter-area:strategy-workflow')::uuid,'Regime Discovery','regime-discovery') ON CONFLICT DO NOTHING;
  INSERT INTO reference_configuration.parameter_component(component_id,code,area_id,name,editor_code)
@@ -31,6 +33,10 @@ public static class ParameterRegistrySchemaSql
  VALUES(md5('parameter-component:option-volatility.consumer-rules')::uuid,'option-volatility.consumer-rules',md5('parameter-area:option-volatility')::uuid,'Consumer Rules','scalar-properties') ON CONFLICT DO NOTHING;
  INSERT INTO reference_configuration.parameter_component(component_id,code,area_id,name,editor_code)
  VALUES(md5('parameter-component:option-volatility.retention')::uuid,'option-volatility.retention',md5('parameter-area:option-volatility')::uuid,'Retention','scalar-properties') ON CONFLICT DO NOTHING;
+ INSERT INTO reference_configuration.parameter_component(component_id,code,area_id,name,editor_code)
+ VALUES(md5('parameter-component:option-spread-strategy.iron-condor-defaults')::uuid,'option-spread-strategy.iron-condor-defaults',md5('parameter-area:option-spread-strategy')::uuid,'Iron Condor','scalar-properties') ON CONFLICT DO NOTHING;
+ INSERT INTO reference_configuration.parameter_component(component_id,code,area_id,name,editor_code)
+ VALUES(md5('parameter-component:option-spread-strategy.vertical-spread-defaults')::uuid,'option-spread-strategy.vertical-spread-defaults',md5('parameter-area:option-spread-strategy')::uuid,'Vertical Spreads','scalar-properties') ON CONFLICT DO NOTHING;
  CREATE OR REPLACE FUNCTION reference_configuration.guard_parameter_schema() RETURNS trigger LANGUAGE plpgsql AS $$
  BEGIN RAISE EXCEPTION 'PARAM.SCHEMA_IMMUTABLE'; END; $$;
  DROP TRIGGER IF EXISTS parameter_schema_guard ON reference_configuration.parameter_schema_version;

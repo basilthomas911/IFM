@@ -1277,17 +1277,22 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
                 SecuritiesDbCql.GetOptionContractExpiryCalendarState)
             .SetParameters(new GetOptionContractExpiryCalendarState(symbol))
             .ExecuteSingleAsync(MapToOptionExpiryCalendarState!, cancellationToken);
-        if (state is null || fromExpiry < state.CoverageFrom || fromExpiry > state.CoverageThrough)
+        if (state is null || fromExpiry > state.CoverageThrough || throughExpiry < state.CoverageFrom)
             return [];
+        var effectiveFromExpiry = fromExpiry < state.CoverageFrom ? state.CoverageFrom : fromExpiry;
+        var effectiveThroughExpiry = throughExpiry > state.CoverageThrough
+            ? state.CoverageThrough
+            : throughExpiry;
         var rows = (await db
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOptionContractExpiries)}",
                 SecuritiesDbCql.GetOptionContractExpiries)
-            .SetParameters(new GetOptionContractExpiries(symbol, state.Generation, fromExpiry, state.CoverageThrough))
+            .SetParameters(new GetOptionContractExpiries(symbol, state.Generation, effectiveFromExpiry,
+                state.CoverageThrough))
             .ExecuteQueryAsync(MapToOptionContractExpiry!, cancellationToken)).ToArray();
-        var nearestAfter = rows.Where(row => row.ExpiryDate > throughExpiry)
+        var nearestAfter = rows.Where(row => row.ExpiryDate > effectiveThroughExpiry)
             .Select(row => row.ExpiryDate).OrderBy(date => date).FirstOrDefault();
         return rows.Where(row => !string.IsNullOrWhiteSpace(row.ContractId)
-                                 && (row.ExpiryDate <= throughExpiry
+                                 && (row.ExpiryDate <= effectiveThroughExpiry
                                  || nearestAfter != default && row.ExpiryDate == nearestAfter))
             .DistinctBy(row => (row.ContractId, row.ExpiryDate, row.ProviderRoot)).ToArray();
     }

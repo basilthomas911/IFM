@@ -100,6 +100,30 @@ public static class MarketOutlookSnapshotRealtimeContextExtensions
             context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
             source.AggregateId, source.EventName, macd: source.FuturesMacdSignal);
 
+    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
+        this IEventActorContext<TActor> context,
+        FuturesAdxSignalStartedEvent source)
+        where TActor : IActor => source.RestoredSignal is { } signal
+            ? Publish(context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
+                source.AggregateId, source.EventName, adx: signal)
+            : ValueTask.CompletedTask;
+
+    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
+        this IEventActorContext<TActor> context,
+        FuturesAtrSignalStartedEvent source)
+        where TActor : IActor => source.RestoredSignal is { } signal
+            ? Publish(context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
+                source.AggregateId, source.EventName, atr: signal)
+            : ValueTask.CompletedTask;
+
+    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
+        this IEventActorContext<TActor> context,
+        FuturesMacdSignalStartedEvent source)
+        where TActor : IActor => source.RestoredSignal is { } signal
+            ? Publish(context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
+                source.AggregateId, source.EventName, macd: signal)
+            : ValueTask.CompletedTask;
+
     static ValueTask Publish<TActor>(
         IEventActorContext<TActor> context,
         string contractId,

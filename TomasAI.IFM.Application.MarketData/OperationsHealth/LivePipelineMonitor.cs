@@ -341,7 +341,11 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
     static bool IsHardResetTrigger(LivePipelineCheck check)
         => check.Required
             && !check.Component.StartsWith("UI ", StringComparison.Ordinal)
-            && check.Component is not "Deployment identity" and not "Session authority";
+            && check.Component is not "Deployment identity" and not "Session authority"
+            // Components with an explicit lifecycle owner are recovered independently. Escalating
+            // them into a feed hard reset destroys accumulator progress and can create a permanent
+            // warm-up loop while the upstream transport is otherwise healthy.
+            && DownstreamTarget(check) is null;
 
     static bool IsDatasetOwnedUpstream(LivePipelineCheck check) => IsHardResetTrigger(check);
 

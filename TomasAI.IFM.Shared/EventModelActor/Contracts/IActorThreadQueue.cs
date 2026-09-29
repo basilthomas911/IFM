@@ -14,6 +14,7 @@ public interface IActorThreadQueue
     IActorThreadQueue SetId(ActorThreadId id);
     ActorThreadId Id { get; }
     int Count { get; }
+    int Capacity { get; }
     IAsyncEnumerable<IActorMessage> ReadAllAsync(CancellationToken cancellationToken = default);
     IEnumerable<IActorMessage> ReadAll(CancellationToken cancellationToken = default);
     bool Write(IActorMessage message, CancellationToken cancellationToken = default);

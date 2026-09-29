@@ -18,6 +18,7 @@ using TomasAI.IFM.Framework.TradeBroker.Contracts;
 using TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
+using TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.TradeFlow;
 
@@ -72,7 +73,7 @@ public sealed class TradeBrokerEmulatorHostTests(TomasAI.IFM.IntegrationTesting.
                 "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.BrokerAccount")
             .UseSetting("IFM_TEST_NATS_URL", DomainActorIntegrationInfrastructureFixture.NatsUrl));
         using var client = host.CreateClient();
-        var supervisor = host.Services.GetRequiredService<IActorSupervisor>();
+        var lifecycle = host.Services.GetRequiredService<ISupervisorManagedActorLifecycle>();
         try
         {
             var container = host.Services.GetRequiredService<Container>();
@@ -87,7 +88,8 @@ public sealed class TradeBrokerEmulatorHostTests(TomasAI.IFM.IntegrationTesting.
         }
         finally
         {
-            await supervisor.ShutdownAsync();
+            var shutdown = await lifecycle.ShutdownActorsAsync(CancellationToken.None);
+            shutdown.Succeeded.Should().BeTrue(shutdown.FailureReason);
         }
     }
 }

@@ -262,9 +262,16 @@ public sealed class TradeBlotterLiveChainTests
         void Bind(EvaluatedOptionContractReadModel[] values) =>
             bind.Invoke(blotter, [new EvaluatedOptionChainReadModel("ES20261218", expiry,
                 7800m, 7650m, 7950m, "ImpliedVolatility5Delta", observed, values)]);
+        foreach (var (name, value) in new[] { ("shortCallDelta", 16m), ("callSpreadWidth", 50m),
+                     ("shortPutDelta", 16m), ("putSpreadWidth", 50m) })
+            ((NumericUpDown)blotter.Controls.Find(name, true).Single()).Value = value;
+        typeof(EsTradeBlotterControl).GetField("_spreadDefaultsLoaded", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(blotter, true);
         Bind(contracts);
-        Assert.Equal("16 Delta Condor", blotter.Controls.Find("presetSelector", true).Single().Text);
-        Assert.Equal("50", blotter.Controls.Find("wingSelector", true).Single().Text);
+        Assert.Equal(16m, ((NumericUpDown)blotter.Controls.Find("shortCallDelta", true).Single()).Value);
+        Assert.Equal(50m, ((NumericUpDown)blotter.Controls.Find("callSpreadWidth", true).Single()).Value);
+        Assert.Equal(16m, ((NumericUpDown)blotter.Controls.Find("shortPutDelta", true).Single()).Value);
+        Assert.Equal(50m, ((NumericUpDown)blotter.Controls.Find("putSpreadWidth", true).Single()).Value);
         Assert.Equal("+LC", ReadVirtualCell(blotter, grid, "CallSelected", 0));
         Assert.Equal("-SC", ReadVirtualCell(blotter, grid, "CallSelected", 1));
         Assert.Equal("-SP", ReadVirtualCell(blotter, grid, "PutSelected", 4));
@@ -323,6 +330,79 @@ public sealed class TradeBlotterLiveChainTests
         Assert.Equal("-SC", ReadVirtualCell(blotter, grid, "CallSelected", 1));
         Assert.Equal("+LP", ReadVirtualCell(blotter, grid, "PutSelected", 5));
         Assert.Equal(4, selected.RowCount);
+    }
+
+    [Fact]
+    public async Task Market_selection_defaults_call_credit_vertical_to_16_delta_and_50_point_width()
+    {
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            using var context = new ApplicationContext();
+            using var dispatcher = new Control();
+            _ = dispatcher.Handle;
+            dispatcher.BeginInvoke((Action)(() =>
+            {
+                try { VerifyDefaultVerticalSelection(); completed.SetResult(); }
+                catch (Exception error) { completed.SetException(error); }
+                finally { context.ExitThread(); }
+            }));
+            System.Windows.Forms.Application.Run(context);
+        })
+        { IsBackground = true };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(20));
+    }
+
+    private static void VerifyDefaultVerticalSelection()
+    {
+        var expiry = new DateOnly(2026, 10, 1);
+        var observed = DateTimeOffset.UtcNow;
+        var root = Substitute.For<IAppRoot>();
+        root.Services.MarketDataQueries.Returns(new MarketDataQueryService(
+            Substitute.For<IMarketDataQueryApi>(), Substitute.For<IMarketDataFeedQueryApi>()));
+        var fund = new PortfolioFundEditorModel(0, "test", "", 0, false, DateTime.UtcNow, "test");
+        var order = new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel());
+        var trade = new PortfolioFundOrderTradeEditorModel
+        {
+            TradeType = TradeType.CallCreditSpread,
+            TradeState = TradeState.NewTrade,
+            BaseContractId = "ES20261218",
+            BaseContractSymbol = "ES",
+            UnderlyingRoot = "ES",
+            RequestedTradeDate = new DateOnly(2026, 9, 23),
+            RequestedMaturityDate = expiry
+        };
+        using var legacy = new FailingLegacyFeed();
+        using var blotter = new EsTradeBlotterControl(root, fund, order, trade, 0, false,
+            workflowControl: legacy);
+        ((NumericUpDown)blotter.Controls.Find("shortLegDelta", true).Single()).Value = 16m;
+        ((NumericUpDown)blotter.Controls.Find("spreadWidth", true).Single()).Value = 50m;
+        typeof(EsTradeBlotterControl).GetField("_spreadDefaultsLoaded", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(blotter, true);
+        EvaluatedOptionContractReadModel Contract(string id, decimal strike, double delta) =>
+            new(id, strike, true, 10m, 11m, 1, 1, null, null, 0.16, 10.5, delta,
+                null, null, null, null, null, null, true, false, observed, null, observed);
+        var chain = new EvaluatedOptionChainReadModel("ES20261218", expiry, 7800m, 7800m, 8000m,
+            "ImpliedVolatility5Delta", observed,
+            [Contract("call-7900", 7900m, .161), Contract("call-7950", 7950m, .08)]);
+        typeof(EsTradeBlotterControl).GetMethod("BindEvaluatedChain",
+            BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(blotter, [chain]);
+
+        var selected = (DataGridView)blotter.Controls.Find("selectedStrategyLegsGrid", true).Single();
+        Assert.Equal(2, selected.RowCount);
+        object? SelectedValue(string column, int row)
+        {
+            var args = new DataGridViewCellValueEventArgs(selected.Columns[column]!.Index, row);
+            typeof(EsTradeBlotterControl).GetMethod("SelectedLegCellValueNeeded",
+                BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(blotter, [selected, args]);
+            return args.Value;
+        }
+        Assert.Equal("+LC", SelectedValue("CallSelected", 0));
+        Assert.Equal(7950m, SelectedValue("Strike", 0));
+        Assert.Equal("-SC", SelectedValue("CallSelected", 1));
+        Assert.Equal(7900m, SelectedValue("Strike", 1));
     }
 
     [Fact]

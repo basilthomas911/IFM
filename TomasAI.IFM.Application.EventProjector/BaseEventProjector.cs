@@ -63,6 +63,7 @@ public abstract class BaseEventProjector<TActor>(
     public SupervisorProjectorSnapshot CaptureSupervisorSnapshot()
     {
         var readiness = Readiness;
+        var metrics = EventProjectorMetrics.CaptureSnapshot(ProjectorName);
         return new(
             ActorName,
             ProjectorName,
@@ -72,7 +73,17 @@ public abstract class BaseEventProjector<TActor>(
             readiness.RecoveryEventsDiscovered,
             readiness.RecoveryEventsQueued,
             readiness.UpdatedAtUtc.UtcDateTime,
-            readiness.FailureReason);
+            readiness.FailureReason,
+            metrics.PendingCount,
+            metrics.OldestPendingAgeSeconds,
+            metrics.BlockedCount,
+            metrics.TerminalFailedCount,
+            metrics.ExpiredLeaseCount,
+            metrics.OutboxPendingCount,
+            metrics.OldestOutboxAgeSeconds,
+            metrics.OutboxRetryCount,
+            metrics.BusyWorkers,
+            metrics.WorkerCapacity);
     }
     public abstract IReadOnlyCollection<Type> ProjectedEventTypes { get; }
     public abstract IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors { get; }

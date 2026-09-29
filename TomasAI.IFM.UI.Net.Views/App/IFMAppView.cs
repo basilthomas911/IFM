@@ -442,11 +442,10 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
                 Console.Error.WriteLine(
                     $"Presentation cleanup exceeded {PresentationShutdownTimeout.TotalSeconds:F0} seconds; " +
                     "continuing with transport shutdown.");
-                _ = presentationShutdown.ContinueWith(
-                    completed => _ = completed.Exception,
-                    CancellationToken.None,
-                    TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
-                    TaskScheduler.Default);
+                UiExceptionReporter.Observe(
+                    presentationShutdown,
+                    nameof(ShutdownPresentationAsync),
+                    this);
             }
 
             _shutdownComplete = true;
@@ -455,6 +454,7 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
         catch (Exception ex)
         {
             _shutdownStarted = false;
+            UiExceptionReporter.Report(ex, "UiShutdown", nameof(IFMApp_FormClosing), this);
             this.ShowErrorMessage(ex.Message, "Application Shutdown Error");
         }
 
@@ -616,14 +616,15 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
     private void portfolioButton_Click(object sender, EventArgs e)
     {
         _navigator.ShowModal<PortfolioAdministrationForm>(view =>
-            _ = view.LoadViewModelAsync(
+            UiExceptionReporter.Observe(view.LoadViewModelAsync(
                 _appRoot.Services.PortfolioQueries,
                 _appRoot.Services.PortfolioCommands,
                 _appRoot.Services.PortfolioFundCommands,
                 _appRoot.Services.PortfolioIdentities,
                 _appRoot.Services.PortfolioPolicyCommands,
                 _appRoot.Services.ReferenceQueries,
-                financialApi: _appRoot.Services.PortfolioFinancial, riskApi: _appRoot.Services.RiskQueries));
+                financialApi: _appRoot.Services.PortfolioFinancial, riskApi: _appRoot.Services.RiskQueries),
+                nameof(PortfolioAdministrationForm.LoadViewModelAsync), view));
     }
 
     private void marketViewSplitter_SplitterMoved(object sender, SplitterEventArgs e)

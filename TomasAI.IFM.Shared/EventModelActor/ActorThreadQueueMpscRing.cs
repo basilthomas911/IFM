@@ -54,8 +54,10 @@ public sealed class ActorThreadQueueMpscRing : IActorThreadQueue, IScheduledActo
 
     public ActorThreadId Id => _id;
     public int Count => Volatile.Read(ref _count);
+    public int Capacity => _capacity;
     public bool IsStarted => Volatile.Read(ref _lifecycle) == Active;
     bool IScheduledActorThreadQueue.IsRetired => Volatile.Read(ref _lifecycle) == Retired;
+    bool IScheduledActorThreadQueue.IsScheduled => Volatile.Read(ref _scheduled) != 0;
 
     public IActorThreadQueue SetId(ActorThreadId id)
     {

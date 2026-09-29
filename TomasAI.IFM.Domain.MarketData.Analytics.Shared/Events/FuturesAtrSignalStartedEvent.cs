@@ -1,6 +1,7 @@
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 
@@ -20,6 +21,8 @@ public record FuturesAtrSignalStartedEvent : IEvent<FuturesAtrSignalEntityId>
     [Key(7)] public DateTime ReceivedOn { get; init; }
     [Key(8)] public DateTime StartedOn { get; init; }
     [Key(9)] public string StartedBy { get; init; } = string.Empty;
+    /// <summary>Gets the latest event-sourced signal restored before this lifecycle event.</summary>
+    [Key(10)] public FuturesAtrSignalReadModel? RestoredSignal { get; init; }
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;

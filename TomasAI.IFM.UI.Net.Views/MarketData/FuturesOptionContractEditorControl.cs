@@ -138,7 +138,7 @@ public partial class FuturesOptionContractEditorControl
     {
         _editMode = EditMode.View;
         _dataLoaded = dataLoaded;
-        _ = LoadEditorAsync();
+        UiExceptionReporter.Observe(LoadEditorAsync(), nameof(LoadEditorAsync), this);
     }
 
     /// <summary>
@@ -149,7 +149,7 @@ public partial class FuturesOptionContractEditorControl
     /// method.</remarks>
     void IControlCommand.Unload()
     {
-        _ = ((IAsyncFormControl)this).CloseAsync();
+        UiExceptionReporter.Observe(((IAsyncFormControl)this).CloseAsync(), nameof(IAsyncFormControl.CloseAsync), this);
     }
 
     /// <summary>
@@ -200,7 +200,7 @@ public partial class FuturesOptionContractEditorControl
                 {
                     var value = imported with { Description = txtDescription.Text };
                     _viewModel.PrepareAdd(value);
-                    _ = AddPreparedContractAsync(value.ContractId);
+                    UiExceptionReporter.Observe(AddPreparedContractAsync(value.ContractId), nameof(AddPreparedContractAsync), this);
                     break;
                 }
                 if (FuturesOptionContractId.TryParseStrike(txtStrikePrice.Text.AsSpan(), out var strikePrice))
@@ -226,7 +226,7 @@ public partial class FuturesOptionContractEditorControl
                     )
                     { StrikePriceDecimal = strikePrice };
                     _viewModel.PrepareAdd(futuresOptionContract);
-                    _ = AddPreparedContractAsync(futuresOptionContract.ContractId);
+                    UiExceptionReporter.Observe(AddPreparedContractAsync(futuresOptionContract.ContractId), nameof(AddPreparedContractAsync), this);
                 }
                 else
                     MessageBox.Show("Invalid StrikePrice entered", "System Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -307,7 +307,7 @@ public partial class FuturesOptionContractEditorControl
                 {
                     var value = imported with { Description = txtDescription.Text };
                     _viewModel.PrepareChange(_originalContractId!, value);
-                    _ = ChangePreparedContractAsync(value.ContractId);
+                    UiExceptionReporter.Observe(ChangePreparedContractAsync(value.ContractId), nameof(ChangePreparedContractAsync), this);
                     break;
                 }
                 if (FuturesOptionContractId.TryParseStrike(txtStrikePrice.Text.AsSpan(), out var strikePrice))
@@ -335,7 +335,7 @@ public partial class FuturesOptionContractEditorControl
                         Description = txtDescription.Text
                     };
                     _viewModel.PrepareChange(_originalContractId!, futuresOptionContract);
-                    _ = ChangePreparedContractAsync(futuresOptionContract.ContractId);
+                    UiExceptionReporter.Observe(ChangePreparedContractAsync(futuresOptionContract.ContractId), nameof(ChangePreparedContractAsync), this);
                 }
                 else
                     MessageBox.Show("Invalid StrikePrice entered", "System Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -359,7 +359,7 @@ public partial class FuturesOptionContractEditorControl
             if (MessageBox.Show($"Are you sure you want to remove Futures Option Contract: {contract.ContractId} ?", "Remove Futures Option Contract", MessageBoxButtons.YesNo) == DialogResult.Yes)
             {
                 _viewModel.PrepareRemove(contract);
-                _ = RemovePreparedContractAsync();
+                UiExceptionReporter.Observe(RemovePreparedContractAsync(), nameof(RemovePreparedContractAsync), this);
             }
         }
     }
@@ -651,7 +651,7 @@ public partial class FuturesOptionContractEditorControl
         => throw new NotImplementedException();
 
     public void Close()
-        => _ = ((IAsyncFormControl)this).CloseAsync();
+        => UiExceptionReporter.Observe(((IAsyncFormControl)this).CloseAsync(), nameof(IAsyncFormControl.CloseAsync), this);
 
     async ValueTask IAsyncFormControl.CloseAsync()
     {
@@ -667,7 +667,7 @@ public partial class FuturesOptionContractEditorControl
         if (_editMode != EditMode.View)
             return;
         _viewModel.SelectSymbol(ddlSymbol.SelectedIndex);
-        _ = ReloadContractsAsync();
+        UiExceptionReporter.Observe(ReloadContractsAsync(), nameof(ReloadContractsAsync), this);
     }
 
     void lstFuturesOptionContractIds_SelectedIndexChanged(object sender, EventArgs e)

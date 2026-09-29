@@ -99,4 +99,6 @@ public enum BoundedContextName
     StrategyPositionTradePlanBoundedContext,
     /// <summary>Routes strategy-specific position exit-workflow commands.</summary>
     StrategyPositionExitWorkflowBoundedContext,
+    /// <summary>Routes authoritative actor supervision commands and operational queries.</summary>
+    SupervisorBoundedContext,
 }

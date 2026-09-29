@@ -744,10 +744,10 @@ public partial class TradeOrderEditorForm
         if (lstTrades.Items.Count == 0)
         {
             _displayedTradeId = null;
-            _ = ObserveAsync(ClearHostedBlotterAsync);
+            UiExceptionReporter.Observe(ObserveAsync(ClearHostedBlotterAsync), nameof(ClearHostedBlotterAsync), this);
         }
         if (!wasRendering && lstTrades.SelectedIndices.Count > 0)
-            _ = ObserveAsync(ShowSelectedTradeAsync);
+            UiExceptionReporter.Observe(ObserveAsync(ShowSelectedTradeAsync), nameof(ShowSelectedTradeAsync), this);
     }
     void UpdateButtons()
     {
@@ -1102,7 +1102,7 @@ public partial class TradeOrderEditorForm
     }
     void ShowTradeEditorUnavailable(string message)
     {
-        _ = ObserveAsync(ClearHostedBlotterAsync);
+        UiExceptionReporter.Observe(ObserveAsync(ClearHostedBlotterAsync), nameof(ClearHostedBlotterAsync), this);
         pnlTradeBlotter.Controls.Add(new Label
         {
             Dock = DockStyle.Fill,
@@ -1126,7 +1126,7 @@ public partial class TradeOrderEditorForm
         await ObserveAsync(() => _viewModel.RemoveManualTradeAsync(canonical, selectedTrade.TradeId));
     }
     void btnClearTrade_Click(object sender, EventArgs e)
-        => _ = ObserveAsync(ClearTradeOrderControlAsync);
+        => UiExceptionReporter.Observe(ObserveAsync(ClearTradeOrderControlAsync), nameof(ClearTradeOrderControlAsync), this);
 
     async void btnSubmitOrder_Click(object sender, EventArgs e)
         => await SubmitTradeOrderAsync((OrderActionType)Enum.Parse(
@@ -1356,6 +1356,7 @@ public partial class TradeOrderEditorForm
         }
         catch (Exception exception)
         {
+            UiExceptionReporter.Report(exception, "UiAsyncOperation", nameof(TradeOrderEditorForm), this);
             this.ShowErrorMessage(exception.Message, "Trade Order Editor Error");
         }
     }

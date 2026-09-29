@@ -57,7 +57,7 @@ public sealed class LivePipelineIntegrationTests
     [InlineData("Analytics attachments", "RSI/FifteenSeconds")]
     [InlineData("Analytics processing", "MACD/OneMinute")]
     [InlineData("Market Outlook publication", "ES")]
-    public async Task Downstream_stage_gets_targeted_recovery_after_one_minute_and_full_reset_after_five(
+    public async Task Downstream_stage_gets_targeted_recovery_without_resetting_the_upstream_feed(
         string component, string scope)
     {
         await using var host = await Harness.StartAsync();
@@ -70,7 +70,7 @@ public sealed class LivePipelineIntegrationTests
         Assert.Contains(host.Probe.DownstreamRecoveries, check => check.Component == component && check.Scope == scope);
         host.Time.Advance(TimeSpan.FromMinutes(5));
         await host.Monitor.CheckOnceAsync(default);
-        Assert.Equal(1, host.Probe.Resets);
+        Assert.Equal(0, host.Probe.Resets);
         Assert.Single(host.Probe.DownstreamRecoveries,
             check => check.Component == component && check.Scope == scope);
     }

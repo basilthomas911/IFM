@@ -24,13 +24,15 @@ public sealed class ScyllaDbPositionalParameterCatalogTests
             ["DeleteTradePositionLowerCase"] = "DeleteTradePosition",
             ["DeleteOptionLegDataLowerCase"] = "DeleteOptionLegData",
             ["InsertTradeLimitNoMaxLoss"] = "InsertTradeLimit",
-            ["InsertTradePlanForwardLossRatioShort"] = "InsertTradePlan"
+            ["InsertTradePlanForwardLossRatioShort"] = "InsertTradePlan",
+            ["DownloadLogParameters"] = "DownloadLogInsert"
         };
 
     static readonly IReadOnlyDictionary<string, string> ParameterAliases =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["GetScheduledJobId:jobId"] = "jobName"
+            ["GetScheduledJobId:jobId"] = "jobName",
+            ["GetReferenceVersionHistory:page_limit"] = "pageLimit"
         };
 
     [Theory]
@@ -47,12 +49,27 @@ public sealed class ScyllaDbPositionalParameterCatalogTests
         var cqlType = StorageAssembly.GetType($"{namespaceName}.{cqlTypeName}", throwOnError: true)!;
         var bindTypes = StorageAssembly.GetTypes()
             .Where(type => type.Namespace == namespaceName && typeof(IBindValue).IsAssignableFrom(type))
+            .Where(type => !IsOpaqueBindingAdapter(type))
+            .Where(type => !typeof(TomasAI.IFM.Framework.Storage.ScyllaDb.IScyllaOwnedBindValues).IsAssignableFrom(type))
+            .Where(type => cqlType.GetField(
+                CqlAliases.GetValueOrDefault(type.Name, type.Name),
+                BindingFlags.Public | BindingFlags.Static) is not null)
             .OrderBy(type => type.Name)
             .ToArray();
 
         Assert.NotEmpty(bindTypes);
         foreach (var bindType in bindTypes)
             AssertBindingMatchesCql(bindType, cqlType);
+    }
+
+    static bool IsOpaqueBindingAdapter(Type type)
+    {
+        var constructors = type.GetConstructors();
+        if (constructors.Length != 1) return false;
+        var parameters = constructors[0].GetParameters();
+        return parameters.Length == 1
+            && parameters[0].ParameterType.IsArray
+            && parameters[0].ParameterType.GetElementType() == typeof(object);
     }
 
     static void AssertBindingMatchesCql(Type bindType, Type cqlType)

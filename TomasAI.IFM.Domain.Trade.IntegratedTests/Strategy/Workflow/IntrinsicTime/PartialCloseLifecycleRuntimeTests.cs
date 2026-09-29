@@ -108,7 +108,7 @@ public sealed partial class TradeSelectionRuntimeTests
                 await Apply(actors, partial);
                 (await WaitFor(direction, 1)).IsOpen.Should().BeTrue();
             }
-            finally { await supervisor.ShutdownAsync(); }
+            finally { await global::SupervisorTestLifecycle.ShutdownAsync(host.Services); }
         }
         await using (var host = Host(brokerUrl: Environment.GetEnvironmentVariable("IFM_FINANCIAL_TEST_NATS_URL"), actualPortfolio: true))
         {
@@ -121,7 +121,7 @@ public sealed partial class TradeSelectionRuntimeTests
                 var closed = await WaitFor(0, 2);
                 closed.IsOpen.Should().BeFalse(); closed.RealizedPnl.Should().Be(direction * 20);
             }
-            finally { await supervisor.ShutdownAsync(); }
+            finally { await global::SupervisorTestLifecycle.ShutdownAsync(host.Services); }
         }
     }
 }

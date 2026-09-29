@@ -13,7 +13,7 @@ public sealed class ActorHealthTests
         var now = DateTime.UtcNow;
         var thread = new ActorThreadId(ActorType.Event, "OrderProjector", "fund-1");
         var mailbox = new ActorMailboxMetricsSnapshot(
-            thread, 3, 10, 7, 6, 1, 0, 0, 0, true, ActorMailboxLifecycleState.Running, 1, true, "Project", now, now, now, now,
+            thread, 3, 8192, 7, 10, 7, 6, 1, 0, 0, 0, true, ActorMailboxLifecycleState.Running, 1, true, "Project", now, now, now, now,
             typeof(InvalidOperationException).FullName!, "projection failed", 8);
         var actor = new SupervisorActorSnapshot(
             thread.MailboxId, "TomasAI.IFM.Domain.Trade", "OrderProjector", true,

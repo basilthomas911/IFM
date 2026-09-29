@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using NATS.Client.Core;
@@ -17,6 +18,45 @@ namespace TomasAI.IFM.Shared.UnitTests.EventModelActor;
 
 public sealed class ActorThreadPoolV2Tests
 {
+    [Fact]
+    public async Task InformationPolicy_SuppressesConfiguredSuccessfulRouteOnly()
+    {
+        var logger = new RecordingLogger();
+        var policy = new ActorInformationLoggingOptions
+        {
+            SuppressedRoutes =
+            [
+                new() { ActorType = ActorType.Command, Name = "SchedulerTest", Verb = "Run" }
+            ]
+        }.Compile();
+        var runtime = CreateRuntime(1, logger: logger, informationLoggingPolicy: policy);
+        await using var pool = runtime.Pool;
+
+        (await runtime.Mailbox.ThreadQueues.WriteAsync(
+            new TestActorMessage(1) { Owner = runtime.Actor })).Should().BeTrue();
+        await runtime.Actor.Completed.WaitAsync(TimeSpan.FromSeconds(5));
+        (await pool.WaitForIdleAsync(TimeSpan.FromMilliseconds(1), TimeSpan.FromSeconds(5))).Should().BeTrue();
+
+        logger.Events.Where(entry => entry.EventId == 7001 || entry.EventId == 7002).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task LoggingElapsedTime_IsIndependentOfOptionalMetricTimer()
+    {
+        var logger = new RecordingLogger();
+        var runtime = CreateRuntime(1, logger: logger);
+        await using var pool = runtime.Pool;
+
+        (await runtime.Mailbox.ThreadQueues.WriteAsync(
+            new TestActorMessage(1) { Owner = runtime.Actor })).Should().BeTrue();
+        await runtime.Actor.Completed.WaitAsync(TimeSpan.FromSeconds(5));
+        (await pool.WaitForIdleAsync(TimeSpan.FromMilliseconds(1), TimeSpan.FromSeconds(5))).Should().BeTrue();
+
+        var exit = logger.Events.Single(entry => entry.EventId == 7002);
+        exit.ElapsedMilliseconds.Should().NotBeNull();
+        exit.ElapsedMilliseconds!.Value.Should().BeGreaterThanOrEqualTo(0).And.BeLessThan(5_000);
+    }
+
     [Fact]
     public async Task SameEntity_IsFifoNonConcurrent_AndDisposesEveryMessageOnce()
     {
@@ -535,7 +575,9 @@ public sealed class ActorThreadPoolV2Tests
         int expectedMessages,
         TimeSpan handlerDelay = default,
         int maxRetainedIdleQueues = ActorAdmissionOptions.ExistingRetainedIdleMailboxesPerActor,
-        ActorMailboxImplementation mailboxImplementation = ActorMailboxImplementation.Channel)
+        ActorMailboxImplementation mailboxImplementation = ActorMailboxImplementation.Channel,
+        ILogger? logger = null,
+        ActorInformationLoggingPolicy? informationLoggingPolicy = null)
     {
         var mailboxId = new ActorMailboxId(ActorType.Command, "SchedulerTest");
         var container = new Mock<IContainerInstance>();
@@ -551,7 +593,10 @@ public sealed class ActorThreadPoolV2Tests
         var supervisor = new Mock<IActorSupervisor>();
         supervisor.SetupGet(instance => instance.Container).Returns(container.Object);
 
-        var pool = new ActorThreadPoolV2(supervisor.Object, NullLogger.Instance);
+        var pool = new ActorThreadPoolV2(
+            supervisor.Object,
+            logger ?? NullLogger.Instance,
+            informationLoggingPolicy);
         pool.Initialize(4);
         supervisor.SetupGet(instance => instance.ThreadPool).Returns(pool);
         supervisor.Setup(instance => instance.GetThread(It.IsAny<ActorThreadId>()))
@@ -584,6 +629,33 @@ public sealed class ActorThreadPoolV2Tests
         ActorThreadPoolV2 Pool,
         ActorMailbox Mailbox,
         RecordingActor Actor);
+
+    sealed class RecordingLogger : ILogger
+    {
+        readonly ConcurrentQueue<LogEntry> _events = new();
+        public IReadOnlyCollection<LogEntry> Events => _events.ToArray();
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            double? elapsed = null;
+            if (state is IEnumerable<KeyValuePair<string, object?>> values)
+            {
+                var elapsedValue = values.FirstOrDefault(value => value.Key == "ElapsedMilliseconds").Value;
+                if (elapsedValue is double milliseconds)
+                    elapsed = milliseconds;
+            }
+            _events.Enqueue(new(eventId.Id, elapsed));
+        }
+    }
+
+    sealed record LogEntry(int EventId, double? ElapsedMilliseconds);
 
     sealed class FailOnceActor(ActorMailboxId id, IActorMailbox mailbox) : IActor
     {
@@ -729,6 +801,7 @@ public sealed class ActorThreadPoolV2Tests
         public int StopCount => Volatile.Read(ref _stopCount);
         public ActorThreadId Id { get; private set; }
         public int Count => 0;
+        public int Capacity => 1;
         public IActorThreadQueue SetId(ActorThreadId id)
         {
             Id = id;

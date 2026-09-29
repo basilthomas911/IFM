@@ -2,6 +2,11 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Fun
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Actor;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Supervisor.Health;
+using TomasAI.IFM.Domain.Supervisor.Health.Collection;
+using TomasAI.IFM.Domain.Supervisor.Logging;
+using TomasAI.IFM.Domain.Supervisor.Metrics;
+using TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
 using Hazelcast;
 using Hazelcast.Caching;
 using Microsoft.Extensions.Caching.Distributed;
@@ -404,6 +409,10 @@ public static class Startup
                 .GetSection(ActorAdmissionOptions.SectionName)
                 .Get<ActorAdmissionOptions>() ?? new ActorAdmissionOptions();
             admissionOptions.Validate();
+            var actorInformationLoggingPolicy = (config
+                .GetSection(ActorInformationLoggingOptions.SectionName)
+                .Get<ActorInformationLoggingOptions>() ?? new ActorInformationLoggingOptions())
+                .Compile();
             var natsConsumerOptions = config
                 .GetSection(NatsConsumerOptions.SectionName)
                 .Get<NatsConsumerOptions>() ?? new NatsConsumerOptions();
@@ -420,9 +429,42 @@ public static class Startup
             natsJetStreamConsumerOptions.Validate(admissionOptions);
 
             services.AddSingleton(admissionOptions);
+            services.AddSingleton(actorInformationLoggingPolicy);
             services.AddSingleton<ActorAdmissionController>();
             services.AddSingleton<IActorSupervisor, ActorSupervisor>();
             services.AddSingleton<IActorService, ActorService>();
+            services.AddSingleton<ISupervisorActorMetricsState, SupervisorActorMetricsState>();
+            services.AddSingleton<TomasAI.IFM.Domain.Supervisor.Health.Evaluation.SupervisorActorThreadHealthEvaluator>();
+            services.AddSingleton<ISupervisorManagedActorMetricsSource>(provider =>
+                new SupervisorManagedActorMetricsSource(
+                    provider.GetRequiredService<IActorSupervisor>().RuntimeContext,
+                    provider.GetRequiredService<TomasAI.IFM.Domain.Supervisor.Health.Evaluation.SupervisorActorThreadHealthEvaluator>(),
+                    provider.GetRequiredService<ILogger<SupervisorManagedActorMetricsSource>>()));
+            services.AddSingleton<ISupervisorExceptionLog, SupervisorExceptionLog>();
+            services.AddSingleton<ISupervisorHealthLlmAdvisorySink, NoOpSupervisorHealthLlmAdvisorySink>();
+            services.AddSingleton<ISupervisorActorMetricsPollingService, SupervisorActorMetricsPollingService>();
+            services.AddSingleton<ISupervisorBootstrap,
+                TomasAI.IFM.Domain.Supervisor.Lifecycle.SupervisorBootstrap>();
+            services.AddSingleton<ISupervisorManagedActorLifecycle,
+                TomasAI.IFM.Domain.Supervisor.Lifecycle.SupervisorManagedActorLifecycle>();
+            services.AddSingleton<ISupervisorOperatorAuthorizer>(_ =>
+                new TomasAI.IFM.Domain.Supervisor.Lifecycle.SupervisorOperatorAuthorizer(
+                    config.GetSection("Supervisor:AllowedOperators").Get<string[]>() ?? []));
+            services.AddSingleton<SupervisorOperationStore>();
+            services.AddSingleton<ISupervisorOperationStore>(provider => provider.GetRequiredService<SupervisorOperationStore>());
+            services.AddSingleton<ISupervisorHealthManager, SupervisorHealthManager>();
+            services.AddSingleton<IActorRuntimeMetricsSourceProvider>(provider =>
+                provider.GetRequiredService<IActorSupervisor>().RuntimeContext);
+            services.AddSingleton<ISupervisorHistoryPersistence, SupervisorFileHistoryPersistence>();
+            services.AddSingleton(new SupervisorHealthActionOptions
+            {
+                AutomaticMutationEnabled = config.GetValue<bool>("Supervisor:AutomaticMutationEnabled")
+            });
+            services.AddSingleton<SupervisorIncidentStore>();
+            services.AddSingleton<ISupervisorIncidentStore>(provider => provider.GetRequiredService<SupervisorIncidentStore>());
+            services.AddSingleton<SupervisorHistoryStore>();
+            services.AddSingleton<ISupervisorHistoryStore>(provider => provider.GetRequiredService<SupervisorHistoryStore>());
+            services.AddSingleton<ISupervisorHealthActionCoordinator, SupervisorHealthActionCoordinator>();
             services.AddSingleton<IActorRegistry>(_ =>
             {
                 var actorTypes = (
@@ -1079,15 +1121,18 @@ public static class Startup
             SecuritiesActorAssembly.Current,
             SystemAdminActorAssembly.Current,
             TradeActorAssembly.Current,
+            TomasAI.IFM.Domain.Supervisor.SupervisorActorAssembly.Current,
             TomasAI.IFM.Domain.BrokerAccount.BrokerAccountActorAssembly.Current
         };
         var selectedDomain = config["IFM_TEST_ACTOR_DOMAIN"];
         var actorAssemblies = string.IsNullOrWhiteSpace(selectedDomain)
             ? domainAssemblies
             : domainAssemblies
-                .Where(assembly => selectedDomain
-                    .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-                    .Contains(assembly.GetName().Name, StringComparer.Ordinal))
+                .Where(assembly =>
+                    assembly == TomasAI.IFM.Domain.Supervisor.SupervisorActorAssembly.Current
+                    || selectedDomain
+                        .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                        .Contains(assembly.GetName().Name, StringComparer.Ordinal))
                 .ToList();
         if (actorAssemblies.Count == 0)
             throw new InvalidOperationException($"No actor assembly matched IFM_TEST_ACTOR_DOMAIN '{selectedDomain}'.");
@@ -1116,6 +1161,7 @@ public static class Startup
         siContainer.AddRegistration<ISystemAdminDbContext>(systemAdminRegistration);
         siContainer.AddRegistration<IObjectRepository<SystemAdminDbContext>>(systemAdminRegistration);
         siContainer.Register(typeof(IActor<>), actorAssemblies, Lifestyle.Singleton);
+        siContainer.RegisterSingleton<TomasAI.IFM.Domain.Supervisor.Context.SupervisorActorContext>();
         siContainer.Register(typeof(ICommandActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IFunctionActorContext<>), domainAssemblies, Lifestyle.Singleton);
         // Both context contracts share the same singleton registration.

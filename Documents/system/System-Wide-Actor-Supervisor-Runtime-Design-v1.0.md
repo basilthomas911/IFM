@@ -1939,7 +1939,27 @@ Before reducing the two-Information-record baseline, representative evidence mus
 latency, storage, and diagnostic value. Any later sampling policy is a documented system-wide policy and never silently
 removes exception, limit, degradation, restart, or recovery records.
 
-### 30.9 Logging verification
+### 30.9 High-frequency Information suppression
+
+The base standard emits one Information entry and one Information exit for Command and Query messages. Event and
+Realtime actor messages suppress both routine Information records by default because their fan-out and market-data
+frequency make per-message base logging operationally unsafe. API startup compiles an immutable set of suppressed actor
+types plus explicitly suppressed routes. Route matching is exact on {ActorType, ActorName, Verb}; entity IDs, wildcards,
+runtime mutation, and sampling are not supported. Command or Query routes may be added to SuppressedRoutes when
+measured evidence justifies quieter operation. Invalid, incomplete, or duplicate configuration fails startup before
+the Supervisor and domain actors are constructed.
+
+Suppression never changes actor execution, metrics, tracing, admission, health evaluation, or failure capture. Failed
+and cancelled messages still emit entry and terminal exit records, and Warning, Error, Critical, exception, mailbox
+pressure, degradation, restart, and recovery evidence is never suppressed. The policy lookup is frozen and performs no
+per-message allocation.
+
+Logging duration and optional metric duration use independent monotonic start timestamps. Disabling the handler
+duration instrument may cause its metric start value to be zero, but an emitted logging duration must always use a
+valid Stopwatch timestamp captured at the base processing boundary. This prevents elapsed log values from representing
+process uptime.
+
+### 30.10 Logging verification
 
 Tests and benchmarks verify:
 

@@ -170,6 +170,18 @@ MACD, ADX, and ATR implement the same durable event-driven lifecycle as RSI for 
 
 The shared timer registry guarantees one loop per entity, makes duplicate Start events idempotent, serializes callbacks within a loop, waits for an in-flight callback during Stop, and drains all loops during actor shutdown. The registry cancellation source is local lifecycle control. Daily signal entity types have no Start/Stop contracts or timer registrations: they remain one-shot commands intended to be scheduled once after market close.
 
+### Accumulator restart and recovery policy
+
+Stateful signals restore their event-sourced calculation checkpoint before accepting newer observations. RSI, ATR, EMA, Bollinger Bands, VWAP, and VX term structure carry explicit accumulator checkpoints. MACD carries its fast EMA, slow EMA, signal line, observation count, and observation lineage in its latest generated snapshot. ADX restores the bounded typed event range required by its configured period. Duplicate or older observations are normal idempotent outcomes and do not advance state.
+
+An intraday ATR, ADX, or MACD Started event carries the latest restored signal as an append-only lifecycle member. The Event actor attaches the closed-bar route and republishes an eligible warm restored signal to the process-local Market Outlook owner. A restart therefore does not require a new market bar merely to repopulate a volatile cache. RSI retains its equivalent restored-signal handoff; EMA and Bollinger retain their ordered Daily replay and unconditional cache handoff.
+
+Startup five-minute recovery reads the required completed observation window in market-time order. It submits ADX, ATR, and MACD independently for each observation, uses bounded retry for transient request failure, and stops rather than skipping a rejected observation. Live accumulator input remains protected by observation identity and interval watermarks, so overlap between restoration and realtime delivery is idempotent.
+
+Analytics attachments, processing, chart bars, ITI, and Market Outlook are downstream lifecycle-owned components. Their degradation receives targeted recovery and must not trigger a Databento feed hard reset. Feed-wide reset is reserved for required infrastructure or dataset-owned upstream failure. This separation prevents recovery from repeatedly destroying accumulator progress.
+
+VWAP retains its trade-exact current-session recovery batches and source-ordinal fencing; it must not be converted to bar replay. VX term structure restores its latest checkpoint and becomes current from a synchronized front/second-contract observation; it has no multi-period mathematical warm-up. The trade-session bar accumulator remains the observation authority: completed bars are durable replay inputs, while any open interval must be reconstructed from source trades rather than treated as completed history.
+
 ### Realtime intraday indicator data plane (Phase 2)
 
 The UI-started intraday profile is exactly `15 seconds`, `1 minute`, `5 minutes`, `15 minutes`, `1 hour`, and `4 hours`. Every period starts RSI-13, ATR-14, ADX-14, and conventional MACD with signal/fast/slow EMA periods `9/12/26`. TDI has no timer of its own; every accepted RSI-13 series produces its TDI input window for the same contract, value date, and timeframe.

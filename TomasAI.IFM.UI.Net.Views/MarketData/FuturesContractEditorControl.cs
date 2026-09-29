@@ -69,7 +69,7 @@ public partial class FuturesContractEditorControl
     {
         _editMode = EditMode.View;
         _dataLoaded = dataLoaded;
-        _ = LoadEditorAsync();
+        UiExceptionReporter.Observe(LoadEditorAsync(), nameof(LoadEditorAsync), this);
     }
 
     /// <summary>
@@ -125,7 +125,7 @@ public partial class FuturesContractEditorControl
                 {
                     var value = imported with { Description = txtDescription.Text, OnTheRun = ddlOnTheRun.SelectedIndex == 0 };
                     _viewModel.PrepareAdd(value);
-                    _ = AddPreparedContractAsync(value.ContractId);
+                    UiExceptionReporter.Observe(AddPreparedContractAsync(value.ContractId), nameof(AddPreparedContractAsync), this);
                     break;
                 }
                 var symbol = _viewModel.GetSymbol(ddlSymbol.SelectedIndex);
@@ -145,7 +145,7 @@ public partial class FuturesContractEditorControl
                     onTheRun: ddlOnTheRun.SelectedIndex == 0
                 );
                 _viewModel.PrepareAdd(futuresContract);
-                _ = AddPreparedContractAsync(futuresContract.ContractId);
+                UiExceptionReporter.Observe(AddPreparedContractAsync(futuresContract.ContractId), nameof(AddPreparedContractAsync), this);
                 break;
         }
     }
@@ -209,7 +209,7 @@ public partial class FuturesContractEditorControl
                 {
                     var value = imported with { Description = txtDescription.Text, OnTheRun = ddlOnTheRun.SelectedIndex == 0 };
                     _viewModel.PrepareChange(_viewModel.GetFuturesContract(_lastContractIndex)!.Id, value);
-                    _ = ChangePreparedContractAsync(value.ContractId);
+                    UiExceptionReporter.Observe(ChangePreparedContractAsync(value.ContractId), nameof(ChangePreparedContractAsync), this);
                     break;
                 }
                 var symbol = _viewModel.GetSymbol(ddlSymbol.SelectedIndex);
@@ -230,7 +230,7 @@ public partial class FuturesContractEditorControl
                     onTheRun: ddlOnTheRun.SelectedIndex == 0
                 );
                 _viewModel.PrepareChange(futuresContractId, futuresContract);
-                _ = ChangePreparedContractAsync(futuresContract.ContractId);
+                UiExceptionReporter.Observe(ChangePreparedContractAsync(futuresContract.ContractId), nameof(ChangePreparedContractAsync), this);
                 break;
         }
     }
@@ -249,7 +249,7 @@ public partial class FuturesContractEditorControl
             if (MessageBox.Show($"Are you sure you want to remove Futures Contract: {contractId} ?", "Remove Futures Contract", MessageBoxButtons.YesNo) == DialogResult.Yes)
             {
                 _viewModel.PrepareRemove(contract!.Id);
-                _ = RemovePreparedContractAsync();
+                UiExceptionReporter.Observe(RemovePreparedContractAsync(), nameof(RemovePreparedContractAsync), this);
             }
     }
 
@@ -265,7 +265,7 @@ public partial class FuturesContractEditorControl
 
     public void Close()
     {
-        _ = ((IAsyncFormControl)this).CloseAsync();
+        UiExceptionReporter.Observe(((IAsyncFormControl)this).CloseAsync(), nameof(IAsyncFormControl.CloseAsync), this);
     }
 
     async ValueTask IAsyncFormControl.CloseAsync()

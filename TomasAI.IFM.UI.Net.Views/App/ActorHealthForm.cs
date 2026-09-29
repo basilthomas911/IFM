@@ -103,6 +103,7 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
         var status = StatusName(value.OverallStatus);
         var healthyWorkers = value.Workers.Count(worker => !worker.IsFaulted);
         summary.Text = $"{status} | Actors {value.RunningActorCount}/{value.ActorCount} running | "
+            + $"Health {value.Collection.HealthyActors} healthy, {value.Collection.DegradedActors} degraded, {value.Collection.CriticalActors} critical, {value.Collection.UnknownActors} unknown | "
             + $"Workers {healthyWorkers}/{value.Workers.Count} available | "
             + $"Mailboxes processing {value.ProcessingMailboxCount} | Messages waiting {value.QueuedMessageCount} | "
             + $"Observed {value.ObservedUtc.ToUniversalTime():yyyy-MM-dd HH:mm:ss} UTC";
@@ -158,6 +159,35 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
             });
         }
         tree.Nodes.Add(projectorsNode);
+
+        var incidentsNode = new TreeNode($"Active incidents ({value.Incidents.Count})") { Name = "incidents" };
+        foreach (var incident in value.Incidents.OrderByDescending(incident => incident.LastObservedUtc))
+            incidentsNode.Nodes.Add(new TreeNode($"{StatusGlyph(incident.Health == 1 ? 1 : 2)} {incident.ThreadId.Name}.{incident.ThreadId.EntityId}")
+            {
+                Name = $"incident:{incident.ThreadId.ActorType}:{incident.ThreadId.Name}:{incident.ThreadId.EntityId}",
+                Tag = incident,
+                ForeColor = incident.Health == 1 ? Color.Khaki : Color.Salmon
+            });
+        tree.Nodes.Add(incidentsNode);
+
+        var operationsNode = new TreeNode($"Lifecycle operations ({value.Operations.Count})") { Name = "operations" };
+        foreach (var operation in value.Operations.OrderByDescending(operation => operation.StartedUtc))
+            operationsNode.Nodes.Add(new TreeNode($"{operation.StartedUtc.ToUniversalTime():HH:mm:ss} {operation.ThreadId.Name}.{operation.ThreadId.EntityId}")
+            {
+                Name = $"operation:{operation.OperationId:D}",
+                Tag = operation,
+                ForeColor = operation.Outcome == 0 ? Color.LightGreen : Color.Khaki
+            });
+        tree.Nodes.Add(operationsNode);
+
+        var historyNode = new TreeNode($"Health history ({value.History.Count})") { Name = "history" };
+        foreach (var point in value.History.OrderByDescending(point => point.ObservedUtc))
+            historyNode.Nodes.Add(new TreeNode($"{point.ObservedUtc.ToUniversalTime():HH:mm:ss} H:{point.HealthyActors} D:{point.DegradedActors} C:{point.CriticalActors}")
+            {
+                Name = $"history:{point.Revision}", Tag = point,
+                ForeColor = point.CriticalActors > 0 ? Color.Salmon : point.DegradedActors > 0 ? Color.Khaki : Color.LightGreen
+            });
+        tree.Nodes.Add(historyNode);
 
         var workersNode = new TreeNode($"Shared workers ({value.Workers.Count})") { Name = "workers" };
         foreach (var worker in value.Workers.OrderBy(worker => worker.WorkerId))
@@ -229,6 +259,16 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
                         projector.IsReady,
                         projector.RecoveryEventsDiscovered,
                         projector.RecoveryEventsQueued,
+                        projector.PendingCount,
+                        projector.OldestPendingAgeSeconds,
+                        projector.BlockedCount,
+                        projector.TerminalFailedCount,
+                        projector.ExpiredLeaseCount,
+                        projector.OutboxPendingCount,
+                        projector.OldestOutboxAgeSeconds,
+                        projector.OutboxRetryCount,
+                        projector.BusyWorkers,
+                        projector.WorkerCapacity,
                         UpdatedUtc = Utc(projector.UpdatedUtc),
                         projector.FailureReason
                     }
@@ -251,6 +291,18 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
                         worker.FailureReason
                     }
                 };
+                break;
+            case ActorHealthIncident incident:
+                selection.Text = $"Incident: {incident.ThreadId.Name}.{incident.ThreadId.EntityId}";
+                details.DataSource = new[] { incident };
+                break;
+            case ActorHealthOperation operation:
+                selection.Text = $"Operation: {operation.OperationId:D} | {operation.ThreadId.Name}.{operation.ThreadId.EntityId}";
+                details.DataSource = new[] { operation };
+                break;
+            case ActorHealthHistoryPoint point:
+                selection.Text = $"Health collection {point.Revision} | {Utc(point.ObservedUtc)}";
+                details.DataSource = new[] { point };
                 break;
             default:
                 selection.Text = args.Node.Text;

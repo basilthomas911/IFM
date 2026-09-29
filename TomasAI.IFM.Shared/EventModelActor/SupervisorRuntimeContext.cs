@@ -78,12 +78,35 @@ public sealed record SupervisorProjectorSnapshot(
     long RecoveryEventsDiscovered,
     long RecoveryEventsQueued,
     DateTime UpdatedUtc,
-    string FailureReason);
+    string FailureReason,
+    long PendingCount = 0,
+    double OldestPendingAgeSeconds = 0,
+    long BlockedCount = 0,
+    long TerminalFailedCount = 0,
+    long ExpiredLeaseCount = 0,
+    long OutboxPendingCount = 0,
+    double OldestOutboxAgeSeconds = 0,
+    long OutboxRetryCount = 0,
+    int BusyWorkers = 0,
+    int WorkerCapacity = 0);
 
 public interface ISupervisorProjectorMetricsSource
 {
     string SupervisorProjectorKey { get; }
     SupervisorProjectorSnapshot CaptureSupervisorSnapshot();
+}
+
+/// <summary>Read-only runtime source for one actor. It exposes metrics snapshots but no lifecycle authority.</summary>
+public interface IActorRuntimeMetricsSource
+{
+    ActorMailboxId ActorId { get; }
+    SupervisorActorSnapshot CaptureSnapshot();
+}
+
+/// <summary>Publishes a stable read-only actor-source list for one collection cycle.</summary>
+public interface IActorRuntimeMetricsSourceProvider
+{
+    IReadOnlyList<IActorRuntimeMetricsSource> CaptureActorMetricsSources();
 }
 
 public interface IActorFailureSink
@@ -121,7 +144,7 @@ public sealed record SupervisorFailureRecord(
 /// Singleton root for actor-wide operational data. Snapshot collection reads actor-owned counters directly and never
 /// sends a message through an actor mailbox.
 /// </summary>
-public sealed class SupervisorRuntimeContext : IActorFailureSink
+public sealed class SupervisorRuntimeContext : IActorFailureSink, IActorRuntimeMetricsSourceProvider
 {
     internal const string FailureIdExceptionDataKey = "IFM.SupervisorFailureId";
     const int MaximumFailureHistory = 512;
@@ -359,6 +382,14 @@ public sealed class SupervisorRuntimeContext : IActorFailureSink
             workers);
     }
 
+    /// <inheritdoc />
+    public IReadOnlyList<IActorRuntimeMetricsSource> CaptureActorMetricsSources() =>
+        _actors.Values
+            .Select(static entry => (IActorRuntimeMetricsSource)new ActorRuntimeMetricsSource(entry))
+            .OrderBy(static source => source.ActorId.ActorType)
+            .ThenBy(static source => source.ActorId.Name, StringComparer.Ordinal)
+            .ToArray();
+
     public Guid RecordFailure(
         ActorMailboxId actorId,
         ActorThreadId threadId,
@@ -474,6 +505,13 @@ public sealed class SupervisorRuntimeContext : IActorFailureSink
         internal readonly SemaphoreSlim Gate = new(1, 1);
         internal volatile SupervisorActorLifecycleState State = SupervisorActorLifecycleState.Registered;
         internal long Generation;
+    }
+
+    sealed class ActorRuntimeMetricsSource(ActorEntry entry) : IActorRuntimeMetricsSource
+    {
+        public ActorMailboxId ActorId => entry.Actor.Id;
+
+        public SupervisorActorSnapshot CaptureSnapshot() => Capture(entry);
     }
 
     sealed class MailboxOperationGate

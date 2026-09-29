@@ -1,12 +1,40 @@
 # IFM System-Wide Actor Supervisor Health and Lifecycle Implementation Specification
 
 **Work package:** Supervisor domain, managed actor lifecycle, polling, metrics, and logging
-**Status:** Proposed; implementation not started
+**Status:** Implemented through the approved Supervisor lifecycle, health, durable-history, projector-observability, and Actor Health operational stages; locally executable Stage 9 qualification passed, with production observation gates retained
 **Version:** 1.1
 **Created:** 2026-09-28
 **Owner:** IFM engineering
 **Architectural authority:** `System-Wide-Actor-Supervisor-Runtime-Design-v1.0.md`, version 1.12 or later
 **Supersedes for this work:** direct API ownership of non-Supervisor actor startup/shutdown and unrestricted Supervisor runtime access from domain actors
+
+## Implementation progress record (2026-09-28)
+
+The four final implementation increments are complete:
+
+1. Supervisor command and event actors now execute only authorized, bounded, generation-fenced lifecycle operations;
+   every accepted or rejected operation is retained as immutable audit evidence and event publication is best-effort.
+2. Minute-level aggregate health history is retained in memory for immediate range queries and written through a
+   bounded asynchronous channel to a compacted seven-day host journal. The polling thread performs no file I/O.
+3. Projector health includes the real durable pending/blocked/terminal-failure backlog, expired leases, outbox backlog
+   and age, retry count, and worker utilization in addition to recovery readiness.
+4. Actor Health exposes hierarchy/detail, polling liveness, process/GC/thread-pool metrics, incidents, lifecycle
+   operations, durable history, projector/replay evidence, and bounded time-range refresh through the operational HTTP
+   endpoint. Actor mutations remain on the authorized NATS Supervisor command boundary.
+
+Verification completed on 2026-09-28:
+
+- full solution build: succeeded with zero warnings and zero errors;
+- production composition-root startup verification: succeeded;
+- Supervisor unit tests: 41 passed;
+- focused actor runtime/restart/metrics tests: 40 passed;
+- UI architecture tests: 366 passed;
+- Actor Health rendering system test: passed;
+- `ParameterSetActorRuntimeTests`: passed through isolated PostgreSQL, Redis, NATS, CQL, and Kestrel;
+- complete Reference integration project: 17 passed;
+- full sequential solution matrix: every discovered runnable test passed;
+- 30-minute accelerated synthetic soak, runtime counters/trace, and BenchmarkDotNet qualification: passed and retained in `Supervisor-Stage-9-Qualification-2026-09-28.md`;
+- automatic lifecycle mutation: disabled by default pending the full trading-session observe-only production gate.
 
 ## 1. Purpose
 
@@ -1046,6 +1074,17 @@ Exit gate:
 - exceptions cannot suppress exit;
 - no payload leakage;
 - allocation/latency and sink-pressure gates pass.
+
+The Stage 5 base policy includes startup-compiled immutable actor-type and exact-route suppression sets. Event and
+Realtime successful messages suppress routine base Information entry/exit by default. Command and Query messages log
+both records by default and may be selectively suppressed through exact {ActorType, ActorName, Verb} entries in
+SuppressedRoutes. Failures and cancellations retain entry, exit, elapsed time, and exception evidence; metrics,
+traces, health, warnings, degradation, restarts, and recovery are unaffected. Invalid, incomplete, or duplicate
+configuration fails API startup before actor construction. Logging elapsed time has its own valid monotonic timestamp
+and is never derived from the optional metric timer or its disabled zero sentinel.
+
+Stage 5 verification additionally proves exact-match behavior, failure/cancellation retention, unchanged metric
+recording, startup validation, and valid elapsed logging while the duration metric is disabled.
 
 ### Stage 6: Complete actor/thread metrics
 

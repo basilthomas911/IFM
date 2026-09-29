@@ -88,7 +88,7 @@ public sealed partial class TradeSelectionRuntimeTests
                 RiskContracts.Hash((await Execute(request)).Result).Should().Be(RiskContracts.Hash(result.Result));
             }
         }
-        finally { await supervisor.ShutdownAsync(); await producer.StopAsync(); }
+        finally { await global::SupervisorTestLifecycle.ShutdownAsync(host.Services); await producer.StopAsync(); }
     }
     [Fact, Trait("Category", "PortfolioFinancialRuntime"), Trait("Gate", "PF-FIN-05")]
     public async Task Risk_profiles_publish_exact_horizon_versions_in_real_configuration_storage()
@@ -113,7 +113,7 @@ public sealed partial class TradeSelectionRuntimeTests
                 (await db.GetSelectionPipelinePolicyAsync(kind, policy.ParameterSetId, 1))!.PayloadSha256.Should().Be(policy.Hash());
             }
         }
-        finally { await supervisor.ShutdownAsync(); }
+        finally { await global::SupervisorTestLifecycle.ShutdownAsync(host.Services); }
     }
     [Theory, Trait("Category", "PortfolioFinancialRuntime"), Trait("Gate", "PF-FIN-05")]
     [InlineData(TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily)]
@@ -144,7 +144,7 @@ public sealed partial class TradeSelectionRuntimeTests
                 var restored = await repository.LoadStateAsync(request); RiskContracts.Hash(restored.CompletedEvent!.Result).Should().Be(RiskContracts.Hash(result));
             }
         }
-        finally { await supervisor.ShutdownAsync(); await producer.StopAsync(); }
+        finally { await global::SupervisorTestLifecycle.ShutdownAsync(host.Services); await producer.StopAsync(); }
     }
     [Fact, Trait("Category", "PortfolioFinancialRuntime"), Trait("Gate", "PF-FIN-05")]
     public async Task Audited_but_uncommitted_risk_preparation_is_resumed_by_the_actual_workflow_actor()
@@ -206,7 +206,7 @@ public sealed partial class TradeSelectionRuntimeTests
             replay.Success.Should().BeTrue(replay.ErrorMessage);
             (await repository.LoadStateAsync(command)).CurrentView!.WorkflowRevision.Should().Be(6);
         }
-        finally { await supervisor.ShutdownAsync(); await producer.StopAsync(); }
+        finally { await global::SupervisorTestLifecycle.ShutdownAsync(host.Services); await producer.StopAsync(); }
     }
     [Fact, Trait("Category", "PortfolioFinancialRuntime"), Trait("Gate", "PF-FIN-05")]
     public async Task Risk_real_actor_pool_NATS_Postgres_completion_reconstruction_and_conflict()
@@ -242,6 +242,6 @@ public sealed partial class TradeSelectionRuntimeTests
                 FunctionResult<RiskManagementFunctionCompletedEvent, RiskManagementFunctionFailedEvent>>(changed.Subject, changed, changed.EntityId);
             conflict.Value!.Failed!.ReasonCode.Should().Be("RM.INPUT.CONFLICTING_DUPLICATE");
         }
-        finally { await supervisor.ShutdownAsync(); await producer.StopAsync(); }
+        finally { await global::SupervisorTestLifecycle.ShutdownAsync(host.Services); await producer.StopAsync(); }
     }
 }

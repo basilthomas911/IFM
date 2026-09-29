@@ -76,10 +76,10 @@ public sealed class RegimeDiscoveryWorkflowVerificationTests(TomasAI.IFM.Integra
         VerificationExecution execution,
         Guid triggerEventId)
     {
-        var command = await fixture.Probe.WaitAsync(
-            execution.EntityId, RegimeDiscoveryVerificationFixture.ScenarioTimeout);
         var advanced = await fixture.WaitForRevisionAsync(
             execution.EntityId, 2, StrategyWorkflowStage.MarketCondition);
+        var command = await fixture.Probe.WaitAsync(
+            execution.EntityId, RegimeDiscoveryVerificationFixture.ScenarioTimeout);
         var projected = await fixture.Database.TradeDb.GetRegimeDiscoveryAsync(advanced.WorkflowId);
         projected.Should().NotBeNull();
         projected!.Status.Should().Be("Completed");

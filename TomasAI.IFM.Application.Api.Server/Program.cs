@@ -13,6 +13,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development;
 using Microsoft.AspNetCore.OutputCaching;
+using TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
 
 try
 {
@@ -55,10 +56,34 @@ try
         (MarketDataOperationsHealthService health, LivePipelineMonitor monitor) => Results.Ok(LivePipelineEndpoints.OperationsSnapshot(health, monitor)))
         .CacheOutput(ApiOutputCachePolicies.OperationalSnapshot);
     app.MapGet("/api/actor-health",
-        (IActorSupervisor supervisor, DateTime? fromUtc, DateTime? toUtc) =>
-            fromUtc > toUtc
-                ? Results.BadRequest(new { Error = "fromUtc must be before toUtc." })
-                : Results.Ok(supervisor.RuntimeContext.CaptureSnapshot(fromUtc, toUtc)))
+        (IActorSupervisor supervisor, ISupervisorActorMetricsState metrics,
+            ISupervisorIncidentStore incidents, ISupervisorOperationStore operations,
+            ISupervisorHistoryStore history, ISupervisorActorMetricsPollingService poller,
+            DateTime? fromUtc, DateTime? toUtc) =>
+        {
+            if (fromUtc > toUtc) return Results.BadRequest(new { Error = "fromUtc must be before toUtc." });
+            var runtime = supervisor.RuntimeContext.CaptureSnapshot(fromUtc, toUtc);
+            var from = (fromUtc ?? runtime.ObservedUtc.AddHours(-1)).ToUniversalTime();
+            var to = (toUtc ?? runtime.ObservedUtc).ToUniversalTime();
+            return Results.Ok(new
+            {
+                runtime.ObservedUtc,
+                runtime.OverallStatus,
+                runtime.ActorCount,
+                runtime.RunningActorCount,
+                runtime.ProcessingMailboxCount,
+                runtime.QueuedMessageCount,
+                runtime.Actors,
+                runtime.Failures,
+                runtime.Projectors,
+                Workers = runtime.Workers ?? [],
+                Collection = metrics.Current,
+                Polling = poller.CaptureStatus(),
+                Incidents = incidents.ActiveIncidents,
+                Operations = operations.RecentOperations,
+                History = history.Read(from, to)
+            });
+        })
         .CacheOutput(ApiOutputCachePolicies.OperationalSnapshot);
     app.MapLivePipelineHealth();
     if (verifyStartupOnly)
@@ -139,7 +164,10 @@ try
         // duplicate API host owns the port), no actor can consume messages from
         // a service provider that is immediately torn down.
         await app.StartAsync();
-        var actorSupervisor = app.Services.GetRequiredService<IActorSupervisor>();
+        var managedActorLifecycle = app.Services.GetRequiredService<
+            TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi.ISupervisorManagedActorLifecycle>();
+        var supervisorBootstrap = app.Services.GetRequiredService<
+            TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi.ISupervisorBootstrap>();
         var actorStartupSignal = app.Services.GetRequiredService<ActorRuntimeStartupSignal>();
         var actorsStarted = false;
         try
@@ -173,7 +201,19 @@ try
         finally
         {
             if (actorsStarted)
-                await actorSupervisor.ShutdownAsync(CancellationToken.None);
+            {
+                var shutdown = await managedActorLifecycle.ShutdownActorsAsync(CancellationToken.None);
+                if (!shutdown.Succeeded)
+                    logger.LogError(
+                        "Supervisor actor shutdown {OperationId} ended with {Outcome} at {Stage}: {FailureReason}",
+                        shutdown.OperationId, shutdown.Outcome, shutdown.Stage, shutdown.FailureReason);
+                var supervisorShutdown = await supervisorBootstrap.StopSupervisorAsync(CancellationToken.None);
+                if (!supervisorShutdown.Succeeded)
+                    logger.LogError(
+                        "Supervisor bootstrap shutdown {OperationId} ended with {Outcome} at {Stage}: {FailureReason}",
+                        supervisorShutdown.OperationId, supervisorShutdown.Outcome,
+                        supervisorShutdown.Stage, supervisorShutdown.FailureReason);
+            }
         }
     }
 }

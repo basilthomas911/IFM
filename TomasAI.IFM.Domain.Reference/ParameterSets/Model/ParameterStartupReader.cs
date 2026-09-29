@@ -22,11 +22,14 @@ public static class ParameterStartupReader
      IEventSourceActorStateRepository<ParameterSetCommandState> setRepository, CancellationToken token)
     {
         var assignments = new List<ParameterAssignmentRevision>(); var versions = new Dictionary<ParameterVersionRef, ParameterSetVersion>();
-        foreach (var horizon in new[] { TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly })
+        var scopes = new[] { TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly }
+            .Select(horizon => WorkflowParameterScopeModel.Create(IntrinsicTimeStrategyWorkflowDefinition.Id, horizon))
+            .Append(OptionSpreadStrategyParameterScopeModel.IronCondor())
+            .Append(OptionSpreadStrategyParameterScopeModel.VerticalSpread());
+        foreach (var scope in scopes)
         {
             token.ThrowIfCancellationRequested();
-            var scope = WorkflowParameterScopeModel.Create(IntrinsicTimeStrategyWorkflowDefinition.Id, horizon);
-            var id = new ParameterAssignmentEntityId(WorkflowParameterScopeModel.AssignmentId(scope));
+            var id = new ParameterAssignmentEntityId(ParameterAssignmentPolicyModel.AssignmentId(scope));
             var address = new AssignParameterVersionCommand { EntityId = id, Scope = scope, Subject = new ActorSubject(ActorType.Command, AssignParameterVersionCommand.Actor, AssignParameterVersionCommand.Verb, id.Format()) };
             var state = await assignmentRepository.LoadStateAsync(address);
             if (state.Assignment is not { } assignment) continue;

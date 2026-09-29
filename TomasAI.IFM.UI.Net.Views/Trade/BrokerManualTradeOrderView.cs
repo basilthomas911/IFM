@@ -71,7 +71,7 @@ public sealed class BrokerManualTradeOrderView : DarkTradingView, ITradeOrderCon
         _qualification.Click += ManageQualificationClicked;
         Controls.Add(layout);
         AccessibleName = $"{viewModel.StrategyKind} emulator trade order editor";
-        _ = RefreshAccountAsync();
+        UiExceptionReporter.Observe(RefreshAccountAsync(), nameof(RefreshAccountAsync), this);
     }
 
     /// <inheritdoc />
@@ -110,7 +110,7 @@ public sealed class BrokerManualTradeOrderView : DarkTradingView, ITradeOrderCon
         => _viewModel.SetExecutionSelection(orderType, algorithm);
 
     /// <summary>Starts the view.</summary>
-    public void Open() => _ = RefreshAccountAsync();
+    public void Open() => UiExceptionReporter.Observe(RefreshAccountAsync(), nameof(RefreshAccountAsync), this);
 
     /// <summary>Closes the view.</summary>
     public void Close() { }

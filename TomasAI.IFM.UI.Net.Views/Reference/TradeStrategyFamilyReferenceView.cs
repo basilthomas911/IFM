@@ -260,9 +260,10 @@ public sealed class TradeStrategyFamilyReferenceView : DarkTradingView, IControl
     }
     void ShowError(string message) { _error.Text = message; _error.Visible = true; _error.BringToFront(); }
     public void Import() { }
-    public void Load(IAppRoot appRoot, Action<bool> dataLoaded) => _ = LoadAndNotifyAsync(dataLoaded);
+    public void Load(IAppRoot appRoot, Action<bool> dataLoaded) =>
+        UiExceptionReporter.Observe(LoadAndNotifyAsync(dataLoaded), nameof(LoadAndNotifyAsync), this);
     async Task LoadAndNotifyAsync(Action<bool> dataLoaded) { await LoadAsync(); if (!_closing) dataLoaded(CanAdd); }
-    public void Unload() => _ = CloseAsync();
+    public void Unload() => UiExceptionReporter.Observe(CloseAsync(), nameof(CloseAsync), this);
     public async ValueTask CloseAsync()
     {
         if (IsDisposed) return;

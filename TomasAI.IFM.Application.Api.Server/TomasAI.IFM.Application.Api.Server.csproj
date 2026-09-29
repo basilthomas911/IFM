@@ -42,6 +42,8 @@
 		<ProjectReference Include="..\TomasAI.IFM.Domain.OptionPricer\TomasAI.IFM.Domain.OptionPricer.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.Reference\TomasAI.IFM.Domain.Reference.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.SystemAdmin\TomasAI.IFM.Domain.SystemAdmin.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Domain.Supervisor\TomasAI.IFM.Domain.Supervisor.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Domain.Supervisor.Shared\TomasAI.IFM.Domain.Supervisor.Shared.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.Trade\TomasAI.IFM.Domain.Trade.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.BrokerAccount\TomasAI.IFM.Domain.BrokerAccount.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Framework.Messaging\TomasAI.IFM.Framework.Messaging.csproj" />

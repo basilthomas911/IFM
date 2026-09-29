@@ -76,6 +76,11 @@ using TomasAI.IFM.Service.TradePosition.HostedService;
 using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.Application.Event;
+using TomasAI.IFM.Domain.Supervisor.Health;
+using TomasAI.IFM.Domain.Supervisor.Health.Collection;
+using TomasAI.IFM.Domain.Supervisor.Logging;
+using TomasAI.IFM.Domain.Supervisor.Metrics;
+using TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
 using DomainApplicationActorAssembly = TomasAI.IFM.Domain.Application.Actor.ApplicationActorAssembly;
 using TomasAI.IFM.Shared.Caching;
 using TomasAI.IFM.Shared.Domain;
@@ -302,8 +307,42 @@ public static class Startup
             services.AddSingleton<IOptionTradeLiveFeedMap, OptionTradeLiveFeedMap>();
 
             // register Event Model Actor instances...
+            services.AddSingleton(new ActorRuntimeStartupOptions());
+            var actorInformationLoggingPolicy = (config
+                .GetSection(ActorInformationLoggingOptions.SectionName)
+                .Get<ActorInformationLoggingOptions>() ?? new ActorInformationLoggingOptions())
+                .Compile();
+            services.AddSingleton(actorInformationLoggingPolicy);
             services.AddSingleton<IActorSupervisor, ActorSupervisor>();
             services.AddSingleton<IActorService, ActorService>();
+            services.AddSingleton<ISupervisorActorMetricsState, SupervisorActorMetricsState>();
+            services.AddSingleton<TomasAI.IFM.Domain.Supervisor.Health.Evaluation.SupervisorActorThreadHealthEvaluator>();
+            services.AddSingleton<ISupervisorManagedActorMetricsSource>(provider =>
+                new SupervisorManagedActorMetricsSource(
+                    provider.GetRequiredService<IActorSupervisor>().RuntimeContext,
+                    provider.GetRequiredService<TomasAI.IFM.Domain.Supervisor.Health.Evaluation.SupervisorActorThreadHealthEvaluator>(),
+                    provider.GetRequiredService<ILogger<SupervisorManagedActorMetricsSource>>()));
+            services.AddSingleton<ISupervisorExceptionLog, SupervisorExceptionLog>();
+            services.AddSingleton<ISupervisorHealthLlmAdvisorySink, NoOpSupervisorHealthLlmAdvisorySink>();
+            services.AddSingleton<ISupervisorActorMetricsPollingService, SupervisorActorMetricsPollingService>();
+            services.AddSingleton<ISupervisorBootstrap,
+                TomasAI.IFM.Domain.Supervisor.Lifecycle.SupervisorBootstrap>();
+            services.AddSingleton<ISupervisorManagedActorLifecycle,
+                TomasAI.IFM.Domain.Supervisor.Lifecycle.SupervisorManagedActorLifecycle>();
+            services.AddSingleton<ISupervisorOperatorAuthorizer>(_ =>
+                new TomasAI.IFM.Domain.Supervisor.Lifecycle.SupervisorOperatorAuthorizer(["integration-test"]));
+            services.AddSingleton<SupervisorOperationStore>();
+            services.AddSingleton<ISupervisorOperationStore>(provider => provider.GetRequiredService<SupervisorOperationStore>());
+            services.AddSingleton<ISupervisorHealthManager, SupervisorHealthManager>();
+            services.AddSingleton<IActorRuntimeMetricsSourceProvider>(provider =>
+                provider.GetRequiredService<IActorSupervisor>().RuntimeContext);
+            services.AddSingleton<ISupervisorHistoryPersistence, NoOpSupervisorHistoryPersistence>();
+            services.AddSingleton(new SupervisorHealthActionOptions { AutomaticMutationEnabled = false });
+            services.AddSingleton<SupervisorIncidentStore>();
+            services.AddSingleton<ISupervisorIncidentStore>(provider => provider.GetRequiredService<SupervisorIncidentStore>());
+            services.AddSingleton<SupervisorHistoryStore>();
+            services.AddSingleton<ISupervisorHistoryStore>(provider => provider.GetRequiredService<SupervisorHistoryStore>());
+            services.AddSingleton<ISupervisorHealthActionCoordinator, SupervisorHealthActionCoordinator>();
             services.AddSingleton<IActorRegistry>(_ =>
             {
                 var actorTypes = (
@@ -315,10 +354,11 @@ public static class Startup
                 if (Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK") == "true")
                 {
                     actorTypes = actorTypes
-                        .Where(type => type.GenericTypeArguments[0] == typeof(TickAggregationRealtimeActor))
+                        .Where(type => type.GenericTypeArguments[0] == typeof(TickAggregationRealtimeActor)
+                            || type.GenericTypeArguments[0].Assembly == TomasAI.IFM.Domain.Supervisor.SupervisorActorAssembly.Current)
                         .ToArray();
-                    if (actorTypes.Length != 1)
-                        throw new InvalidOperationException("Isolated quote soak requires exactly one TickAggregation realtime actor.");
+                    if (actorTypes.Count(type => type.GenericTypeArguments[0] == typeof(TickAggregationRealtimeActor)) != 1)
+                        throw new InvalidOperationException("Isolated quote soak requires exactly one TickAggregation realtime actor and the Supervisor actor.");
                 }
                 return new ActorRegistry(actorTypes);
             });
@@ -699,13 +739,17 @@ public static class Startup
             SystemAdminActorAssembly.Current,
             TradeActorAssembly.Current,
             TomasAI.IFM.Domain.BrokerAccount.BrokerAccountActorAssembly.Current,
-            TomasAI.IFM.Domain.Portfolio.PortfolioActorAssembly.Current
+            TomasAI.IFM.Domain.Portfolio.PortfolioActorAssembly.Current,
+            TomasAI.IFM.Domain.Supervisor.SupervisorActorAssembly.Current
         };
         // Focused transport tests can boot only their owning domain, avoiding unrelated
         // actors and background execution while using the real production runtime.
         var selectedDomain = config["IFM_TEST_ACTOR_DOMAIN"];
         if (!string.IsNullOrWhiteSpace(selectedDomain))
-            domainAssemblies = domainAssemblies.Where(a => selectedDomain.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Contains(a.GetName().Name, StringComparer.Ordinal)).ToList();
+            domainAssemblies = domainAssemblies.Where(a =>
+                a == TomasAI.IFM.Domain.Supervisor.SupervisorActorAssembly.Current
+                || selectedDomain.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                    .Contains(a.GetName().Name, StringComparer.Ordinal)).ToList();
         var assemblies = new List<Assembly>(AppDomain.CurrentDomain.GetAssemblies()
             .Where(static assembly => !assembly.IsDynamic));
         assemblies.AddRange(domainAssemblies);
@@ -721,6 +765,7 @@ public static class Startup
         siContainer.Register(typeof(IValidationRules<>), assemblies, Lifestyle.Singleton);
         // Test assemblies can contain derived actor probes, not runtime actors.
         siContainer.Register(typeof(IActor<>), domainAssemblies, Lifestyle.Singleton);
+        siContainer.RegisterSingleton<TomasAI.IFM.Domain.Supervisor.Context.SupervisorActorContext>();
         siContainer.Register(typeof(ICommandActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IFunctionActorContext<>), domainAssemblies, Lifestyle.Singleton);
         if (domainAssemblies.Contains(TomasAI.IFM.Domain.Portfolio.PortfolioActorAssembly.Current))

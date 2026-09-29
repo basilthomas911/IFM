@@ -2889,14 +2889,12 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
             .ConfigureAwait(false);
     }
 
-    internal const string DownloadLogSelect = "SELECT dataset, provider, scope, value_date, requested_at_utc, import_command_id, log_command_id, source_terminal_event_id, schema_version, status, started_at_utc, finished_at_utc, elapsed_milliseconds, downloaded_record_count, persisted_record_count, error_code, error_message, payload_sha256, projected_at_utc FROM market_data_download_log WHERE dataset = :Dataset AND provider = :Provider AND scope = :Scope AND value_date = :ValueDate";
-    internal const string DownloadLogInsert = "INSERT INTO market_data_download_log (dataset, provider, scope, value_date, requested_at_utc, import_command_id, log_command_id, source_terminal_event_id, schema_version, status, started_at_utc, finished_at_utc, elapsed_milliseconds, downloaded_record_count, persisted_record_count, error_code, error_message, payload_sha256, projected_at_utc) VALUES (:Dataset, :Provider, :Scope, :ValueDate, :RequestedAtUtc, :ImportCommandId, :LogCommandId, :SourceTerminalEventId, :SchemaVersion, :Status, :StartedAtUtc, :FinishedAtUtc, :ElapsedMilliseconds, :DownloadedRecordCount, :PersistedRecordCount, :ErrorCode, :ErrorMessage, :PayloadSha256, :ProjectedAtUtc);";
     public async Task InsertMarketDataDownloadLogAsync(MarketDataDownloadOutcome outcome, Guid logCommandId, string payloadSha256, CancellationToken cancellationToken = default)
     {
         var command = new InsertMarketDataDownloadLogCommand(outcome);
         if (command.CommandId != logCommandId || command.PayloadSha256 != payloadSha256)
             throw new ArgumentException("DownloadLog projection identity/hash mismatch.");
-        await _dbFactory.MarketDataDb.Use("DownloadLog.Insert", DownloadLogInsert)
+        await _dbFactory.MarketDataDb.Use("DownloadLog.Insert", MarketDataDbCql.DownloadLogInsert)
             .SetParameters(new DownloadLogParameters(outcome.Dataset.ToString(), outcome.Provider, outcome.Scope, outcome.ValueDate, outcome.RequestedAtUtc, outcome.ImportCommandId, logCommandId, outcome.SourceTerminalEventId, outcome.SchemaVersion, outcome.Status.ToString(), outcome.StartedAtUtc, outcome.FinishedAtUtc, outcome.ElapsedMilliseconds, outcome.DownloadedRecordCount, outcome.PersistedRecordCount, outcome.ErrorCode, outcome.ErrorMessage, payloadSha256, DateTime.UtcNow))
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -2906,7 +2904,7 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     {
         partition.Validate();
         MarketDataDbContextExtensions.ValidateDownloadCursor(attempt);
-        var rows = await _dbFactory.MarketDataDb.Use("DownloadLog.Exact", DownloadLogSelect + " AND requested_at_utc = :RequestedAtUtc AND import_command_id = :ImportCommandId LIMIT 1;")
+        var rows = await _dbFactory.MarketDataDb.Use("DownloadLog.Exact", MarketDataDbCql.DownloadLogSelect + " AND requested_at_utc = :RequestedAtUtc AND import_command_id = :ImportCommandId LIMIT 1;")
             .SetParameters(new DownloadLogReadParameters(partition.Dataset.ToString(), partition.Provider, partition.Scope, partition.ValueDate, attempt.RequestedAtUtc, attempt.ImportCommandId, 1, true))
             .ExecuteQueryAsync(MapToDownloadLog, cancellationToken)
             .ConfigureAwait(false);
@@ -2920,7 +2918,7 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
             throw new ArgumentOutOfRangeException(nameof(pageSize));
         if (cursor is not null)
             MarketDataDbContextExtensions.ValidateDownloadCursor(cursor);
-        var cql = DownloadLogSelect + (cursor is null ? "" : " AND (requested_at_utc, import_command_id) < (:RequestedAtUtc, :ImportCommandId)") + " LIMIT :RowLimit;";
+        var cql = MarketDataDbCql.DownloadLogSelect + (cursor is null ? "" : " AND (requested_at_utc, import_command_id) < (:RequestedAtUtc, :ImportCommandId)") + " LIMIT :RowLimit;";
         var rows = await _dbFactory.MarketDataDb.Use(cursor is null ? "DownloadLog.History" : "DownloadLog.HistoryAfter", cql)
             .SetParameters(new DownloadLogReadParameters(partition.Dataset.ToString(), partition.Provider, partition.Scope, partition.ValueDate, cursor?.RequestedAtUtc ?? DateTime.UnixEpoch, cursor?.ImportCommandId ?? Guid.Empty, pageSize + 1))
             .ExecuteQueryAsync(MapToDownloadLog, cancellationToken)

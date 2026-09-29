@@ -50,13 +50,13 @@ public sealed class ActorThreadQueues(
         var threadId = subject.ThreadId;
         if (!IsAdmissionOpen(threadId))
         {
-            RecordRejected(threadId);
+            RecordRejected(threadId, ActorAdmissionReason.Stopping, subject.Verb);
             return ActorAdmissionResult.Rejected(ActorAdmissionReason.Stopping);
         }
         var admission = _admissionController.TryReserve(message, threadId.ActorType, out var charge);
         if (!admission.Accepted)
         {
-            RecordRejected(threadId);
+            RecordRejected(threadId, admission.Reason, subject.Verb);
             return admission;
         }
 
@@ -101,7 +101,7 @@ public sealed class ActorThreadQueues(
 
                 _admissionController.Release(charge);
                 reservationOwned = false;
-                RecordRejected(threadId);
+                RecordRejected(threadId, result.Reason, subject.Verb);
                 return result;
             }
         }
@@ -137,13 +137,13 @@ public sealed class ActorThreadQueues(
         var threadId = subject.ThreadId;
         if (!IsAdmissionOpen(threadId))
         {
-            RecordRejected(threadId);
+            RecordRejected(threadId, ActorAdmissionReason.Stopping, subject.Verb);
             return ActorAdmissionResult.Rejected(ActorAdmissionReason.Stopping);
         }
         var admission = _admissionController.TryReserve(message, threadId.ActorType, out var charge);
         if (!admission.Accepted)
         {
-            RecordRejected(threadId);
+            RecordRejected(threadId, admission.Reason, subject.Verb);
             return admission;
         }
 
@@ -190,7 +190,7 @@ public sealed class ActorThreadQueues(
 
                 _admissionController.Release(charge);
                 reservationOwned = false;
-                RecordRejected(threadId);
+                RecordRejected(threadId, result.Reason, subject.Verb);
                 return result;
             }
         }
@@ -234,6 +234,9 @@ public sealed class ActorThreadQueues(
 
     public bool TryGetThreadQueue(ActorThreadId threadId, out IActorThreadQueue? queue)
         => _threadQueues.TryGetValue(threadId, out queue);
+
+    public long GetGeneration(ActorThreadId threadId)
+        => _generations.TryGetValue(threadId, out var generation) ? generation : 1;
 
     public void PauseAdmission()
     {
@@ -309,6 +312,7 @@ public sealed class ActorThreadQueues(
             var queued = _threadQueues.TryGetValue(threadId, out var queue) ? queue.Count : 0;
             var processing = _metrics?.TryGetMailboxSnapshot(threadId, out var snapshot) == true
                 && snapshot?.IsProcessing == true;
+            processing |= queue is IScheduledActorThreadQueue { IsScheduled: true };
             if (queued == 0 && !processing)
             {
                 if (_metrics?.TryGetMailboxSnapshot(threadId, out _) == true
@@ -384,11 +388,11 @@ public sealed class ActorThreadQueues(
         }
     }
 
-    void RecordRejected(ActorThreadId threadId)
+    void RecordRejected(ActorThreadId threadId, ActorAdmissionReason reason, string verb)
     {
         if (_metrics is null || !_threadQueues.TryGetValue(threadId, out var queue))
             return;
-        _metrics.GetOrRegister(threadId, queue).RecordRejected();
+        _metrics.GetOrRegister(threadId, queue).RecordRejected(reason, verb);
     }
 
     static InvalidOperationException CreateQueueConfigurationException(IActorThreadQueue queue)

@@ -10,4 +10,5 @@ public interface IParameterRuntimeSnapshot
     void Apply(ParameterStartupRun run);
     void Clear();
     ParameterRuntimeResolution Resolve(string workflowDefinitionId, TimeFrameType horizon);
+    ParameterRuntimeResolution Resolve(ParameterAssignmentScope scope);
 }

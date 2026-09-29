@@ -42,11 +42,11 @@ public partial class YieldCurveRateEditorControl
     void IControlCommand.Load(IAppRoot appRoot, Action<bool> dataLoaded)
     {
         _dataLoaded = dataLoaded;
-        _ = LoadEditorAsync();
+        UiExceptionReporter.Observe(LoadEditorAsync(), nameof(LoadEditorAsync), this);
     }
 
     void IControlCommand.Unload()
-        => _ = ((IAsyncFormControl)this).CloseAsync();
+        => UiExceptionReporter.Observe(((IAsyncFormControl)this).CloseAsync(), nameof(IAsyncFormControl.CloseAsync), this);
 
     /// <summary>Shows the rate dialog and submits a guarded add operation when accepted.</summary>
     public void Add(Action<bool> addAction)
@@ -58,7 +58,7 @@ public partial class YieldCurveRateEditorControl
         if (dialog.ShowDialog() == DialogResult.OK)
         {
             _viewModel.PrepareAdd(dialog.YieldCurveRate);
-            _ = AddPreparedRateAsync();
+            UiExceptionReporter.Observe(AddPreparedRateAsync(), nameof(AddPreparedRateAsync), this);
         }
         else
             addAction(true);
@@ -78,7 +78,7 @@ public partial class YieldCurveRateEditorControl
         if (dialog.ShowDialog() == DialogResult.OK)
         {
             _viewModel.PrepareChange(dialog.YieldCurveRate);
-            _ = ChangePreparedRateAsync();
+            UiExceptionReporter.Observe(ChangePreparedRateAsync(), nameof(ChangePreparedRateAsync), this);
         }
         else
             changeAction(true);
@@ -99,7 +99,7 @@ public partial class YieldCurveRateEditorControl
                 MessageBoxIcon.Question) != DialogResult.Yes)
             return;
         _viewModel.PrepareRemove(rate);
-        _ = RemovePreparedRateAsync();
+        UiExceptionReporter.Observe(RemovePreparedRateAsync(), nameof(RemovePreparedRateAsync), this);
     }
 
     /// <summary>Imports external yield-curve rates through the guarded import operation.</summary>
@@ -108,7 +108,7 @@ public partial class YieldCurveRateEditorControl
         if (_viewModel.ImportOperation.IsRunning)
             return;
         _viewModel.PrepareImport(dtmImportDate.Value.Date);
-        _ = ImportPreparedRatesAsync();
+        UiExceptionReporter.Observe(ImportPreparedRatesAsync(), nameof(ImportPreparedRatesAsync), this);
     }
 
     /// <summary>Indicates that the control has no inline edit mode to cancel.</summary>
@@ -118,7 +118,7 @@ public partial class YieldCurveRateEditorControl
     public void Open() => throw new NotImplementedException();
 
     /// <summary>Stops the editor lifecycle asynchronously.</summary>
-    public void Close() => _ = ((IAsyncFormControl)this).CloseAsync();
+    public void Close() => UiExceptionReporter.Observe(((IAsyncFormControl)this).CloseAsync(), nameof(IAsyncFormControl.CloseAsync), this);
 
     async ValueTask IAsyncFormControl.CloseAsync()
         => await _viewModel.StopAsync(CancellationToken.None);
@@ -223,6 +223,6 @@ public partial class YieldCurveRateEditorControl
         _viewModel.SelectTimePeriod(
             ddlTimePeriod.SelectedIndex,
             DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System)));
-        _ = ReloadRatesAsync();
+        UiExceptionReporter.Observe(ReloadRatesAsync(), nameof(ReloadRatesAsync), this);
     }
 }

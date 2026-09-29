@@ -23,10 +23,11 @@ public sealed class ParameterRuntimeSnapshotModel(bool enabled) : IParameterRunt
     }
     public void Clear() => Interlocked.Exchange(ref current, null);
     public ParameterRuntimeResolution Resolve(string workflowDefinitionId, TimeFrameType horizon)
+        => Resolve(WorkflowParameterScopeModel.Create(workflowDefinitionId, horizon));
+    public ParameterRuntimeResolution Resolve(ParameterAssignmentScope scope)
     {
         if (!Enabled) return new(false, false, null);
         var value = Volatile.Read(ref current) ?? throw new InvalidOperationException("PARAM.STARTUP_NOT_APPLIED");
-        var scope = WorkflowParameterScopeModel.Create(workflowDefinitionId, horizon);
         var applied = value.Snapshot.Resolve(scope, value.Snapshot.StartupRunId);
         return new(value.Snapshot.HasScope(scope), value.Snapshot.HasScope(scope) && applied is null, applied);
     }

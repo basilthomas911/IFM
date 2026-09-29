@@ -108,6 +108,6 @@ public sealed partial class TradeSelectionRuntimeTests
             await db.UpsertRiskHistoryAsync((WorkflowStrategyStateUpdatedEvent)committed!);
             (await db.GetRiskInvocationAsync(input.WorkflowId.Value, input.CommandId))!.State.StopReasonCode.Should().Be("terminal");
         }
-        finally { await supervisor.ShutdownAsync(); await producer.StopAsync(); }
+        finally { await global::SupervisorTestLifecycle.ShutdownAsync(host.Services); await producer.StopAsync(); }
     }
 }

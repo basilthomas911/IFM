@@ -90,6 +90,8 @@
 	</ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../TomasAI.IFM.Domain.Portfolio/TomasAI.IFM.Domain.Portfolio.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Domain.Supervisor\TomasAI.IFM.Domain.Supervisor.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Domain.Supervisor.Shared\TomasAI.IFM.Domain.Supervisor.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.IntegrationTesting\TomasAI.IFM.IntegrationTesting.csproj" />
   </ItemGroup>
 </Project>

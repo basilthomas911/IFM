@@ -9,6 +9,7 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 internal interface IScheduledActorThreadQueue
 {
     bool IsRetired { get; }
+    bool IsScheduled { get; }
     bool TryWrite(IActorMessage message, CancellationToken cancellationToken);
     ValueTask<bool> TryWriteAsync(IActorMessage message, CancellationToken cancellationToken);
     ActorAdmissionResult TryWriteReserved(

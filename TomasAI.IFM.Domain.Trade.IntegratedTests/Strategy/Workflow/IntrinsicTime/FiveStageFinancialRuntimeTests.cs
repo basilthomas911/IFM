@@ -166,7 +166,7 @@ public sealed partial class TradeSelectionRuntimeTests
             risk.CompositionResult.PayloadSha256.Should().Be(oc.Value.Completed.Result.PayloadSha256);
             await VerifyCalculatedRiskFinancialBoundaryAsync(risk, rm.Value.Completed, composition.WorkflowView, financialBook);
         }
-        finally { await supervisor.ShutdownAsync(); await producer.StopAsync(); }
+        finally { await global::SupervisorTestLifecycle.ShutdownAsync(host.Services); await producer.StopAsync(); }
     }
     public static IEnumerable<object[]> FiveStageCases() => from horizon in new[] { TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly }
                                                             from variant in CompositionFixture.Variants

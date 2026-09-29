@@ -109,8 +109,8 @@ public sealed class FuturesItiSignalDailyPipelineIntegrationTests(
             notifications[TimeFrameType.Daily].SourceEventId.Should()
                 .Be(completed[TimeFrameType.Daily].Id);
             generated[TimeFrameType.Daily].FuturesItiSignal!.TradingDays.Should().Be(1);
-            generated[TimeFrameType.Weekly].FuturesItiSignal!.TradingDays.Should().Be(20);
-            generated[TimeFrameType.Monthly].FuturesItiSignal!.TradingDays.Should().Be(60);
+            generated[TimeFrameType.Weekly].FuturesItiSignal!.TradingDays.Should().Be(10);
+            generated[TimeFrameType.Monthly].FuturesItiSignal!.TradingDays.Should().Be(30);
 
             foreach (var period in expectedPeriods)
             {

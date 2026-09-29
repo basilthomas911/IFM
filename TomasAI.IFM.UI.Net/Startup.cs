@@ -81,9 +81,17 @@ namespace TomasAI.IFM.UI.Net
               .Enrich.FromLogContext()
               .MinimumLevel.Debug()
               .WriteTo.Console()
+              .WriteTo.Debug()
+              .WriteTo.File(
+                  Path.Combine(AppContext.BaseDirectory, "Logs", "ifm-ui-.log"),
+                  rollingInterval: RollingInterval.Day,
+                  shared: true,
+                  flushToDiskInterval: TimeSpan.FromSeconds(1))
               .CreateLogger();
             var loggerFactory = new SerilogLoggerFactory(Log.Logger);
-            _container!.RegisterInstance(loggerFactory.CreateLogger("IFM.UI"));
+            var uiLogger = loggerFactory.CreateLogger("IFM.UI");
+            _container!.RegisterInstance(uiLogger);
+            UiExceptionReporter.Configure(uiLogger);
             _container!.RegisterSingleton<ILogger<EventChannel>>(() => new EventChannelLogger(_container.GetInstance<Microsoft.Extensions.Logging.ILogger>()));
         }
 
@@ -221,8 +229,8 @@ namespace TomasAI.IFM.UI.Net
                 return;
 
             List<Exception> failures = [];
-            await StopAsync(_container.GetInstance<IStatusConsoleEventProducer>());
-            await StopAsync(_container.GetInstance<IActorProducer>());
+            await StopIfRegisteredAsync<IStatusConsoleEventProducer>();
+            await StopIfRegisteredAsync<IActorProducer>();
             try
             {
                 // The container owns the shared NATS connection manager. Dispose
@@ -251,6 +259,22 @@ namespace TomasAI.IFM.UI.Net
                 }
                 catch (Exception exception)
                 {
+                    failures.Add(exception);
+                }
+            }
+
+            async ValueTask StopIfRegisteredAsync<TProducer>() where TProducer : class, IActorProducer
+            {
+                try
+                {
+                    var registration = _container.GetRegistration(typeof(TProducer), throwOnFailure: false);
+                    if (registration?.GetInstance() is TProducer producer)
+                        await StopAsync(producer);
+                }
+                catch (Exception exception)
+                {
+                    UiExceptionReporter.Report(exception, "UiShutdown",
+                        $"ResolveOrStop:{typeof(TProducer).Name}", fatal: false);
                     failures.Add(exception);
                 }
             }

@@ -35,32 +35,39 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
+using TomasAI.IFM.IntegrationTesting;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
 
-public class MarketDataFixture : IDisposable
+public class MarketDataFixture : IAsyncLifetime
 {
-    public MarketDataFixture()
+    readonly IsolatedIntegrationInfrastructure _infrastructure = new("market-data-db-tests");
+    string _marketDataConnection = string.Empty;
+    string _securitiesConnection = string.Empty;
+
+    public async Task InitializeAsync()
     {
+        await _infrastructure.StartAsync();
+        var securitiesKeyspace = _infrastructure.CqlKeyspace + "_securities";
+        await _infrastructure.EnsureCqlKeyspaceAsync(securitiesKeyspace);
+        _marketDataConnection = _infrastructure.CqlConnectionString;
+        _securitiesConnection = _infrastructure.GetCqlConnectionString(securitiesKeyspace);
         SetSeqIdDatabase();
         SetSecDatabase();
         SetDevDatabase();
     }
 
-    public void Dispose()
-    {
-        // Do "global" teardown here; Only called once.
-    }
+    public async Task DisposeAsync() => await _infrastructure.DisposeAsync();
 
-    public Storage.MarketDataDb.MarketDataDbContext DevDatabase { get; private set; }
-    public Storage.SecuritiesDb.SecuritiesDbContext SecDatabase { get; private set; }
-    public Storage.SequenceIdDb.SequenceIdDbContext SeqIdDatabase { get; private set; }
-    public ISequenceIdGenerator SequenceIdGenerator { get; private set; }
+    public Storage.MarketDataDb.MarketDataDbContext DevDatabase { get; private set; } = null!;
+    public Storage.SecuritiesDb.SecuritiesDbContext SecDatabase { get; private set; } = null!;
+    public Storage.SequenceIdDb.SequenceIdDbContext SeqIdDatabase { get; private set; } = null!;
+    public ISequenceIdGenerator SequenceIdGenerator { get; private set; } = null!;
 
     void SetDevDatabase()
     {
         var dbConn = new DbConnectionSettings()
-            .Add("MarketDataDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=market_data_test_db", "System.Data.ScyllaDb");
+            .Add("MarketDataDbConnection", _marketDataConnection, "System.Data.ScyllaDb");
         var diContainer = new Dictionary<Type, IObjectRepository>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var redisCache = Substitute.For<IRedisCache>();
@@ -110,7 +117,7 @@ public class MarketDataFixture : IDisposable
     void SetSeqIdDatabase()
     {
         var dbConn = new DbConnectionSettings()
-             .Add("SequenceIdDbConnection", "Host=localhost;Port=5432;Database=sequence-id-test-db", "System.Data.Postgres");
+             .Add("SequenceIdDbConnection", _infrastructure.PostgresConnectionString, "System.Data.Postgres");
         var diContainer = new Dictionary<Type, SequenceIdDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
@@ -127,7 +134,7 @@ public class MarketDataFixture : IDisposable
     void SetSecDatabase()
     {
         var dbConn = new DbConnectionSettings()
-            .Add("SecuritiesDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=securities_test_db", "System.Data.ScyllaDb");
+            .Add("SecuritiesDbConnection", _securitiesConnection, "System.Data.ScyllaDb");
         var diContainer = new Dictionary<Type, SecuritiesDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
@@ -1789,14 +1796,9 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         string projectionName,
         string scopeKey)
     {
-        var method = typeof(MarketDataDbContext).GetMethod(
-            "GetProjectionScopeReadStampAsync",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-        var task = (Task)method.Invoke(
-            db,
-            new object[] { projectionName, new[] { scopeKey } })!;
-        await task;
-        var stamp = task.GetType().GetProperty("Result")!.GetValue(task);
+        var stamp = await db.GetProjectionScopeReadStampAsync(
+            projectionName,
+            new[] { scopeKey });
         stamp.Should().NotBeNull();
     }
 

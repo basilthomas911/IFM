@@ -58,7 +58,7 @@ public sealed partial class TradeSelectionRuntimeTests
             replay.Value.Completed.Result.PayloadSha256.Should().Be(completed.Result.PayloadSha256);
             source.Calls.Should().Be(1);
         }
-        finally { await supervisor.ShutdownAsync(); await producer.StopAsync(); }
+        finally { await global::SupervisorTestLifecycle.ShutdownAsync(factory.Services); await producer.StopAsync(); }
     }
 
     [Theory]
@@ -132,7 +132,7 @@ public sealed partial class TradeSelectionRuntimeTests
                     .LoadStateAsync(assessment)).IsCompleted.Should().BeFalse();
             }
         }
-        finally { await supervisor.ShutdownAsync(); await producer.StopAsync(); }
+        finally { await global::SupervisorTestLifecycle.ShutdownAsync(factory.Services); await producer.StopAsync(); }
     }
 
     sealed class PolicyAssessmentSource : IMarketConditionAssessmentSnapshotProvider

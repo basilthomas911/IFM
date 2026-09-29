@@ -23,11 +23,15 @@ public sealed class ParameterSchemaRegistry
     public const string OptionVolatilitySeriesComponent = "option-volatility.series";
     public const string OptionVolatilityConsumerRulesComponent = "option-volatility.consumer-rules";
     public const string OptionVolatilityRetentionComponent = "option-volatility.retention";
+    public const string IronCondorMarketSelectionComponent = "option-spread-strategy.iron-condor-defaults";
+    public const string VerticalSpreadMarketSelectionComponent = "option-spread-strategy.vertical-spread-defaults";
     public const int CurrentRegimeSchemaVersion = 5;
     public const int CurrentFuturesItiSignalSchemaVersion = 1;
     public const int CurrentOptionVolatilitySeriesSchemaVersion = 1;
     public const int CurrentOptionVolatilityConsumerRulesSchemaVersion = 1;
     public const int CurrentOptionVolatilityRetentionSchemaVersion = 1;
+    public const int CurrentIronCondorMarketSelectionSchemaVersion = 1;
+    public const int CurrentVerticalSpreadMarketSelectionSchemaVersion = 1;
     static readonly System.Collections.Concurrent.ConcurrentDictionary<PropertyInfo, NullabilityInfo> Nullability = new();
     public static ParameterSchemaRegistry Default { get; } = CreateDefault();
     readonly Dictionary<(string, int), (Type Type, ParameterSchemaDefinition Definition)> schemas = new();
@@ -55,6 +59,14 @@ public sealed class ParameterSchemaRegistry
             OptionVolatilityRetentionComponent,
             CurrentOptionVolatilityRetentionSchemaVersion,
             typeof(OptionVolatilityRetentionParameterSet));
+        registry.RegisterStrict(
+            IronCondorMarketSelectionComponent,
+            CurrentIronCondorMarketSelectionSchemaVersion,
+            typeof(IronCondorMarketSelectionParameterSet));
+        registry.RegisterStrict(
+            VerticalSpreadMarketSelectionComponent,
+            CurrentVerticalSpreadMarketSelectionSchemaVersion,
+            typeof(VerticalSpreadMarketSelectionParameterSet));
         return registry;
     }
 

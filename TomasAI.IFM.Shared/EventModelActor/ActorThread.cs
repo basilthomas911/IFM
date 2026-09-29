@@ -154,6 +154,10 @@ sealed class ActorThread : IActorThread
     async ValueTask OnMessageAsync(IActorMessage message)
     {
         using var trace = ActorTrace.Start(message);
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        var verb = message.Subject.Verb;
+        var outcome = "Succeeded";
+        ActorMessageProcessingLog.Entry(_logger!, _threadId, verb);
         _state = ActorThreadState.ProcessingMessage;
         ResetTimer();
 
@@ -165,11 +169,13 @@ sealed class ActorThread : IActorThread
         }
         catch (Exception ex)
         {
-            _logger?.LogErrorEvent("ActorThread - {ActorMailboxId}", ex, "Actor message processing failed for mailbox {ActorMailboxId}.", _actor!.Id);
+            outcome = "Failed";
+            ActorMessageProcessingLog.Failed(_logger!, _threadId, verb, started, ex);
             SetFaulted(ex);
         }
         finally
         {
+            ActorMessageProcessingLog.Exit(_logger!, _threadId, verb, outcome, started);
             message.Dispose();
         }
     }

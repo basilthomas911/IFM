@@ -15,6 +15,7 @@ namespace TomasAI.IFM.UI.Net.Services;
 
 /// <summary>Provides immutable, typed access to the registered UI domain services.</summary>
 public sealed class UiServiceCatalog(
+    TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterSetsApi parameterSets,
     IPortfolioCommandApi portfolioCommands,
     IPortfolioFundCommandApi portfolioFundCommands,
     IPortfolioQueryApi portfolioQueries,
@@ -55,6 +56,7 @@ public sealed class UiServiceCatalog(
     TradePositionFeedEventService tradePositionEvents,
     TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi portfolioFinancial, TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.IRiskQueryApi riskQueries) : IUiServiceCatalog
 {
+    public TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterSetsApi ParameterSets { get; } = parameterSets;
     public IPortfolioCommandApi PortfolioCommands { get; } = portfolioCommands;
     public IPortfolioFundCommandApi PortfolioFundCommands { get; } = portfolioFundCommands;
     public IPortfolioQueryApi PortfolioQueries { get; } = portfolioQueries;

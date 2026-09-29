@@ -85,6 +85,13 @@ public sealed class StartupOptionExpiryCacheIntegrationTests(SecuritiesDatabaseF
         actual.Should().OnlyContain(row => row.ExpiryDate >= valueDate && row.ExpiryDate <= secondMaturity);
         actual.Select(row => row.ExpiryDate).Distinct().Order().Should().Equal(expected);
         actual.Select(row => row.ProviderRoot).Should().Contain(["E1A", "EW1", "EW", "ES"]);
+
+        var overlappingHistoricalRequest = await fixture.Db.GetOptionContractExpiriesAsync(
+            "ES", valueDate.AddDays(-30), firstMaturity, CancellationToken.None);
+
+        overlappingHistoricalRequest.Should().NotBeEmpty();
+        overlappingHistoricalRequest.Should().OnlyContain(row => row.ExpiryDate >= valueDate);
+        overlappingHistoricalRequest.Should().Contain(row => row.ExpiryDate == valueDate);
     }
 
     static FuturesContractV3ReadModel Future(string contractId, DateOnly maturity, bool onTheRun) => new(

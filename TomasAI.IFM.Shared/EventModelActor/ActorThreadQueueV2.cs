@@ -22,6 +22,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
     const int Retired = 3;
 
     readonly object _startLock = new();
+    readonly int _capacity;
     readonly SemaphoreSlim _slots;
     readonly ActorAdmissionController _admissionController;
     Channel<QueuedActorMessage>? _channel;
@@ -49,6 +50,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
         if (capacity <= 0)
             throw new ArgumentOutOfRangeException(nameof(capacity));
 
+        _capacity = capacity;
         _slots = new SemaphoreSlim(capacity, capacity);
         _ = spinEnqueue;
         _ = spinDequeue;
@@ -56,8 +58,10 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
 
     public ActorThreadId Id => _id;
     public int Count => Volatile.Read(ref _count);
+    public int Capacity => _capacity;
     public bool IsStarted => Volatile.Read(ref _lifecycle) == Active;
     bool IScheduledActorThreadQueue.IsRetired => Volatile.Read(ref _lifecycle) == Retired;
+    bool IScheduledActorThreadQueue.IsScheduled => Volatile.Read(ref _scheduled) != 0;
 
     public IActorThreadQueue SetId(ActorThreadId id)
     {

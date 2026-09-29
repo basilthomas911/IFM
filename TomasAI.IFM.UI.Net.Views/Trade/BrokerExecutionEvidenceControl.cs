@@ -37,7 +37,7 @@ public sealed class BrokerExecutionEvidenceControl : DarkTradingView
             Text = "Loading durable broker evidence..."
         };
         Controls.Add(_content);
-        _ = RefreshAsync();
+        UiExceptionReporter.Observe(RefreshAsync(), nameof(RefreshAsync), this);
     }
 
     /// <summary>Reloads the current durable account, broker-order, and execution evidence.</summary>

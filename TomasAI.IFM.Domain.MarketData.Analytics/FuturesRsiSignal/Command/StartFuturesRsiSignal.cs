@@ -26,7 +26,7 @@ public static class StartFuturesRsiSignal
             checkpoint = result.Checkpoint;
             signal = FuturesRsiWilderSignalFactory.Create(observation, e.EntityId.PeriodLength, result);
         }
-        if (!state.Update(e.CreateFuturesRsiSignalStartedEvent() with { HistoricalSeedCount = seed.Observations.Length, HistoricalSeedReason = seed.Reason, RestoredSignal = state.AccumulatorCheckpoint is null ? null : state.FuturesRsiSignals.LastOrDefault() }, e)) return e.UpdateFailed("RSI start could not be applied.");
+        if (!state.Update(e.CreateFuturesRsiSignalStartedEvent() with { HistoricalSeedCount = seed.Observations.Length, HistoricalSeedReason = seed.Reason, RestoredSignal = state.AccumulatorCheckpoint is null ? null : state.FuturesRsiSignals.LastOrDefault(), RestoredCheckpoint = state.AccumulatorCheckpoint }, e)) return e.UpdateFailed("RSI start could not be applied.");
         // Publish only the final seed result; intermediate historical values must not race newer cache observations.
         if (signal is not null && !state.Update(new FuturesRsiSignalGeneratedEvent
         {

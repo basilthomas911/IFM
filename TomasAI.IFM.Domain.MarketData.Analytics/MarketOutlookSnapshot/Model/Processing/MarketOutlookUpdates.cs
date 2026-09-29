@@ -215,6 +215,20 @@ public sealed class MarketOutlookUpdateProcessor(
 
     public bool IsReady => metrics.GetSnapshot(reader).IsProcessorReady;
 
+    public override async Task StartAsync(CancellationToken cancellationToken)
+    {
+        metrics.SetProcessorReady(true);
+        try
+        {
+            await base.StartAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            metrics.SetProcessorReady(false);
+            throw;
+        }
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try

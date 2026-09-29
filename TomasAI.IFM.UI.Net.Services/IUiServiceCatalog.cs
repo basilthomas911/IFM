@@ -18,6 +18,7 @@ namespace TomasAI.IFM.UI.Net.Services;
 /// </summary>
 public interface IUiServiceCatalog
 {
+    TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterSetsApi ParameterSets { get; }
     IPortfolioCommandApi PortfolioCommands { get; }
     IPortfolioFundCommandApi PortfolioFundCommands { get; }
     IPortfolioQueryApi PortfolioQueries { get; }

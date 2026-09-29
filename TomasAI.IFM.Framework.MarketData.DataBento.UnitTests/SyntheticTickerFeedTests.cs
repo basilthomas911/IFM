@@ -36,22 +36,45 @@ public sealed class SyntheticTickerFeedTests
         {
             Synthetic = new SyntheticFeedOptions { RecordCount = 10 }
         };
-        using var feed = new DatabentoFeedFactory().CreateTickerFeed(options);
-        feed.Subscribe(
-        [
-            new TickerSubscription(
-                "ESM6",
-                DatabentoInputSymbology.RawSymbol,
-                MarketDataKinds.Trade)
-        ], TimeSpan.FromSeconds(1));
-
-        feed.Start(TimeSpan.FromSeconds(5), _ =>
+        var feed = new DatabentoFeedFactory().CreateTickerFeed(options);
+        var stopped = false;
+        try
         {
-            var instrument = feed.GetInstruments().Single().Instrument;
-            var sourceVariant = instrument with { PublisherId = ushort.MaxValue };
-            Assert.NotNull(feed.GetReader(sourceVariant));
-        });
-        feed.Stop(TimeSpan.FromSeconds(5));
+            feed.Subscribe(
+            [
+                new TickerSubscription(
+                    "ESM6",
+                    DatabentoInputSymbology.RawSymbol,
+                    MarketDataKinds.Trade)
+            ], TimeSpan.FromSeconds(1));
+
+            feed.Start(TimeSpan.FromSeconds(10), _ =>
+            {
+                var instrument = feed.GetInstruments().Single().Instrument;
+                var sourceVariant = instrument with { PublisherId = ushort.MaxValue };
+                Assert.NotNull(feed.GetReader(sourceVariant));
+            });
+            feed.Stop(TimeSpan.FromSeconds(10));
+            stopped = true;
+        }
+        finally
+        {
+            if (!stopped)
+            {
+                try
+                {
+                    feed.Stop(TimeSpan.FromSeconds(10));
+                    stopped = true;
+                }
+                catch
+                {
+                }
+            }
+            if (stopped)
+            {
+                feed.Dispose();
+            }
+        }
     }
 
     [Fact]

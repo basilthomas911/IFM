@@ -350,7 +350,7 @@ public sealed partial class TradeSelectionRuntimeTests
             consumed.Single().Count.Should().Be(partialClose ? 2 : 1);
             consumed.Single().Quantity.Should().Be(partialClose ? 2 : 1);
             consumed.Single().Basis.Should().Be(openingCost);
-            await supervisor.ShutdownAsync();
+            await global::SupervisorTestLifecycle.ShutdownAsync(host.Services);
             await host.DisposeAsync();
             stopped = true;
             await using var restartedHost = Host(brokerUrl: Environment.GetEnvironmentVariable("IFM_FINANCIAL_TEST_NATS_URL"), actualPortfolio: true);
@@ -374,9 +374,9 @@ public sealed partial class TradeSelectionRuntimeTests
                 replayedClose.FinancialRevision.Should().Be(closed.FinancialRevision);
                 replayedClose.Value!.Accounts.Should().BeEquivalentTo(closed.Value!.Accounts);
             }
-            finally { await restartedSupervisor.ShutdownAsync(); }
+            finally { await global::SupervisorTestLifecycle.ShutdownAsync(restartedHost.Services); }
         }
-        finally { if (!stopped) await supervisor.ShutdownAsync(); }
+        finally { if (!stopped) await global::SupervisorTestLifecycle.ShutdownAsync(host.Services); }
     }
 
     private sealed class PausedAccountingActorService(IActorService inner) : IActorService

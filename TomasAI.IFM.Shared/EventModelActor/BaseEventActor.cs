@@ -45,6 +45,9 @@ public abstract class BaseEventActor<TActor>(
     }
     public bool IsParent { get; protected set; }
 
+    IActorProducer? _startedCoreProducer;
+    IJSActorProducer? _startedJetStreamProducer;
+
     /// <summary>
     /// Starts the actor by wiring up producer/consumer and initializing the event actor context.
     /// </summary>
@@ -69,10 +72,12 @@ public abstract class BaseEventActor<TActor>(
                 case ActorDeliveryType.NatsCore:
                     coreProducer = _supervisor.GetProducer(_actorId);
                     await coreProducer.StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
+                    _startedCoreProducer = coreProducer;
                     break;
                 case ActorDeliveryType.NatsJetStream:
                     jetStreamProducer = _supervisor.GetJSProducer(_actorId);
                     await jetStreamProducer.StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
+                    _startedJetStreamProducer = jetStreamProducer;
                     break;
                 default:
                     throw new InvalidOperationException(
@@ -143,13 +148,12 @@ public abstract class BaseEventActor<TActor>(
                     switch (_actorId.ActorType.GetDeliveryType())
                     {
                         case ActorDeliveryType.NatsCore:
-                            await _supervisor.GetProducer(_actorId).StopAsync().ConfigureAwait(false);
+                            if (_startedCoreProducer is not null)
+                                await _startedCoreProducer.StopAsync().ConfigureAwait(false);
                             break;
                         case ActorDeliveryType.NatsJetStream:
-                            await _supervisor.GetJSProducer(_actorId).StopAsync().ConfigureAwait(false);
-                            var coreProducer = _supervisor.GetProducer(_actorId);
-                            if (coreProducer?.IsRunning == true)
-                                await coreProducer.StopAsync().ConfigureAwait(false);
+                            if (_startedJetStreamProducer is not null)
+                                await _startedJetStreamProducer.StopAsync().ConfigureAwait(false);
                             break;
                         default:
                             throw new InvalidOperationException(
@@ -162,6 +166,8 @@ public abstract class BaseEventActor<TActor>(
         }
         finally
         {
+            _startedCoreProducer = null;
+            _startedJetStreamProducer = null;
             Volatile.Write(ref _lifecycle, 0);
         }
     }

@@ -185,7 +185,7 @@ public sealed partial class TradeSelectionRuntimeTests
         }
         finally
         {
-            await supervisor.ShutdownAsync();
+            await global::SupervisorTestLifecycle.ShutdownAsync(host.Services);
             await producer.StopAsync();
         }
 

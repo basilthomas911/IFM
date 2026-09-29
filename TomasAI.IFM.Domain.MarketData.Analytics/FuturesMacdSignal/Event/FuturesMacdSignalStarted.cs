@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Event;
 
@@ -15,7 +16,14 @@ public static class FuturesMacdSignalStarted
     public static async ValueTask<bool> ExecuteAsync(this FuturesMacdSignalStartedEvent @event,
         IFuturesMacdSignalEventContext context, ILogger<FuturesMacdSignalEventActor> logger)
     {
-        try { FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>.Attach(@event.EntityId); return true; }
+        try
+        {
+            FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>.Attach(@event.EntityId);
+            if (@event.RestoredSignal is { IsWarm: true, Metadata.IsValid: true })
+                await ((TomasAI.IFM.Shared.EventModelActor.Contracts.IEventActorContext<FuturesMacdSignalEventActor>)context)
+                    .PublishMarketOutlookComponentAsync(@event).ConfigureAwait(false);
+            return true;
+        }
         catch (Exception exception)
         {
             logger.LogError(exception, "Unable to attach MACD observation identity {EntityId}", @event.EntityId);

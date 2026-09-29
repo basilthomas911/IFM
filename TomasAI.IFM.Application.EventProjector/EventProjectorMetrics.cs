@@ -148,6 +148,34 @@ internal static class EventProjectorMetrics
             AgeSeconds(observedAtUtc, snapshot.OldestOutboxPendingAtUtc));
     }
 
+    public static ProjectorOperationalMetrics CaptureSnapshot(string projectorName)
+    {
+        if (!Measurements.TryGetValue(projectorName, out var value)) return default;
+        return new(
+            Volatile.Read(ref value.Pending),
+            Volatile.Read(ref value.OldestPendingAgeSeconds),
+            Volatile.Read(ref value.Blocked),
+            Volatile.Read(ref value.TerminalFailed),
+            Volatile.Read(ref value.ExpiredLeases),
+            Volatile.Read(ref value.OutboxPending),
+            Volatile.Read(ref value.OldestOutboxAgeSeconds),
+            Volatile.Read(ref value.OutboxRetrying),
+            Volatile.Read(ref value.BusyWorkers),
+            Volatile.Read(ref value.WorkerCapacity));
+    }
+
+    internal readonly record struct ProjectorOperationalMetrics(
+        long PendingCount,
+        double OldestPendingAgeSeconds,
+        long BlockedCount,
+        long TerminalFailedCount,
+        long ExpiredLeaseCount,
+        long OutboxPendingCount,
+        double OldestOutboxAgeSeconds,
+        long OutboxRetryCount,
+        int BusyWorkers,
+        int WorkerCapacity);
+
     static double AgeSeconds(DateTime nowUtc, DateTime? timestampUtc)
         => timestampUtc.HasValue ? Math.Max(0, (nowUtc - timestampUtc.Value).TotalSeconds) : 0;
 

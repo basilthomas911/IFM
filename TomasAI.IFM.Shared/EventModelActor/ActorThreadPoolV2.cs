@@ -10,10 +10,12 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// </summary>
 public sealed class ActorThreadPoolV2(
     IActorSupervisor supervisor,
-    ILogger logger) : IActorThreadPool, IAsyncDisposable
+    ILogger logger,
+    ActorInformationLoggingPolicy? informationLoggingPolicy = null) : IActorThreadPool, IAsyncDisposable
 {
     readonly IActorSupervisor _supervisor = IsArgumentNull.Set(supervisor);
     readonly ILogger _logger = IsArgumentNull.Set(logger);
+    readonly ActorInformationLoggingPolicy _informationLoggingPolicy = informationLoggingPolicy ?? ActorInformationLoggingPolicy.Default;
     readonly ActorReadyQueue _readyQueue = new();
     readonly ActorThreadPoolMetricsState _metricsState = new();
     ActorThreadV2[] _workers = [];
@@ -33,7 +35,7 @@ public sealed class ActorThreadPoolV2(
         var workers = new ActorThreadV2[initialThreadCount];
         for (var index = 0; index < workers.Length; index++)
         {
-            var worker = new ActorThreadV2(_supervisor, _logger, _readyQueue, _metricsState, index + 1);
+            var worker = new ActorThreadV2(_supervisor, _logger, _readyQueue, _metricsState, index + 1, _informationLoggingPolicy);
             _supervisor.RuntimeContext?.RegisterWorker(worker);
             worker.Start();
             workers[index] = worker;

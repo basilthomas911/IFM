@@ -18,13 +18,15 @@ sealed class ActorThreadV2(
     ILogger logger,
     ActorReadyQueue readyQueue,
     ActorThreadPoolMetricsState metricsState,
-    int workerId) : IActorThread, IAsyncDisposable, ISupervisorWorkerMetricsSource
+    int workerId,
+    ActorInformationLoggingPolicy informationLoggingPolicy) : IActorThread, IAsyncDisposable, ISupervisorWorkerMetricsSource
 {
     const int MaxBatchSize = 64;
     readonly ILogger _logger = IsArgumentNull.Set(logger);
     readonly IActorSupervisor _supervisor = IsArgumentNull.Set(supervisor);
     readonly ActorReadyQueue _readyQueue = IsArgumentNull.Set(readyQueue);
     readonly ActorThreadPoolMetricsState _metricsState = IsArgumentNull.Set(metricsState);
+    readonly ActorInformationLoggingPolicy _informationLoggingPolicy = IsArgumentNull.Set(informationLoggingPolicy);
     readonly CancellationTokenSource _cts = new();
     volatile ActorThreadState _state = ActorThreadState.Ready;
     Task? _processingTask;
@@ -197,12 +199,22 @@ sealed class ActorThreadV2(
                        && !cancellationToken.IsCancellationRequested
                        && scheduled.TryRead(out var message))
                 {
+                    var loggingStarted = System.Diagnostics.Stopwatch.GetTimestamp();
                     var handlerStarted = ActorRuntimeMetrics.StartHandler();
+                    var verb = message!.Subject.Verb;
+                    var outcome = "Succeeded";
+                    var suppressRoutineInformation = _informationLoggingPolicy.SuppressesRoutineInformation(threadId, verb);
+                    var informationEntryLogged = false;
+                    if (!suppressRoutineInformation)
+                    {
+                        ActorMessageProcessingLog.Entry(_logger, threadId, verb);
+                        informationEntryLogged = true;
+                    }
                     var deliverySucceeded = false;
                     Guid? escapedFailureId = null;
                     var mailboxMetrics = (actor.Mailbox.Metrics as ActorMetricsStore)
                         ?.GetOrRegister(threadId, queue);
-                    mailboxMetrics?.RecordDequeued(message!.Subject.Verb);
+                    mailboxMetrics?.RecordDequeued(verb);
                     try
                     {
                         _state = ActorThreadState.ProcessingMessage;
@@ -213,11 +225,23 @@ sealed class ActorThreadV2(
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                     {
+                        outcome = "Cancelled";
+                        if (!informationEntryLogged)
+                        {
+                            ActorMessageProcessingLog.Entry(_logger, threadId, verb);
+                            informationEntryLogged = true;
+                        }
                         ActorRuntimeMetrics.RecordCanceled(threadId.ActorType);
                         mailboxMetrics?.RecordCancelled();
                     }
                     catch (Exception exception)
                     {
+                        outcome = "Failed";
+                        if (!informationEntryLogged)
+                        {
+                            ActorMessageProcessingLog.Entry(_logger, threadId, verb);
+                            informationEntryLogged = true;
+                        }
                         ActorRuntimeMetrics.RecordFailed(threadId.ActorType);
                         mailboxMetrics?.RecordEscapedFailure(exception);
                         if (SupervisorRuntimeContext.TryGetRecordedFailureId(exception, out var recordedFailureId))
@@ -226,8 +250,7 @@ sealed class ActorThreadV2(
                             escapedFailureId = _supervisor.RuntimeContext?.RecordFailure(
                                 threadId.MailboxId, threadId, message!.Subject.Verb,
                                 ActorFailureStage.Execution, exception);
-                        _logger.LogErrorEvent(threadId.ToString(), exception,
-                            "Error processing a message in the actor mailbox.");
+                        ActorMessageProcessingLog.Failed(_logger, threadId, verb, loggingStarted, exception);
                     }
                     finally
                     {
@@ -239,6 +262,12 @@ sealed class ActorThreadV2(
                             }
                             catch (Exception acknowledgementFailure)
                             {
+                                outcome = "Failed";
+                                if (!informationEntryLogged)
+                                {
+                                    ActorMessageProcessingLog.Entry(_logger, threadId, verb);
+                                    informationEntryLogged = true;
+                                }
                                 _supervisor.RuntimeContext?.RecordFailure(
                                     threadId.MailboxId, threadId, message.Subject.Verb,
                                     ActorFailureStage.Publication, acknowledgementFailure,
@@ -254,6 +283,12 @@ sealed class ActorThreadV2(
                         }
                         catch (Exception disposalFailure)
                         {
+                            outcome = "Failed";
+                            if (!informationEntryLogged)
+                            {
+                                ActorMessageProcessingLog.Entry(_logger, threadId, verb);
+                                informationEntryLogged = true;
+                            }
                             _supervisor.RuntimeContext?.RecordFailure(
                                 threadId.MailboxId, threadId, message?.Subject.Verb ?? string.Empty,
                                 ActorFailureStage.Cleanup, disposalFailure, escapedFailureId,
@@ -263,6 +298,8 @@ sealed class ActorThreadV2(
                         }
                         _metricsState.RecordMessageCompleted();
                         ActorRuntimeMetrics.RecordHandler(handlerStarted, threadId.ActorType);
+                        if (!suppressRoutineInformation || outcome != "Succeeded")
+                            ActorMessageProcessingLog.Exit(_logger, threadId, verb, outcome, loggingStarted);
                     }
 
                     processed++;

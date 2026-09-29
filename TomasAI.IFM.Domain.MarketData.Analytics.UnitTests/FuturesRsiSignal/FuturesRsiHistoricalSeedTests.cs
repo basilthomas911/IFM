@@ -44,7 +44,9 @@ public sealed class FuturesRsiHistoricalSeedTests
         Assert.Equal(expected, restored.AccumulatorCheckpoint);
         var restoredEvent = Assert.Single(restored.Events.OfType<FuturesRsiSignalStartedEvent>());
         Assert.NotNull(restoredEvent.RestoredSignal);
+        Assert.NotNull(restoredEvent.RestoredCheckpoint);
         Assert.NotNull(MessagePackSerializer.Deserialize<FuturesRsiSignalStartedEvent>(MessagePackSerializer.Serialize(restoredEvent)).RestoredSignal);
+        Assert.NotNull(MessagePackSerializer.Deserialize<FuturesRsiSignalStartedEvent>(MessagePackSerializer.Serialize(restoredEvent)).RestoredCheckpoint);
         var nextWindow = RsiHistoricalSeedWindowModel.Create(frame, 1, Cutoff.AddDays(frame == TimeFrameType.Daily ? 1 : 0).AddHours(frame == TimeFrameType.Daily ? 0 : 5), Calendar)[0];
         var last = command.HistoricalSeed.Observations[^1];
         var live = last with

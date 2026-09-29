@@ -16,6 +16,7 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 public sealed class ActorThreadQueue()
     : IActorThreadQueue, IDisposable
 {
+    const int QueueCapacity = 8192;
     volatile bool _started = false;
     bool _disposed = false;
     ActorThreadId _id;
@@ -33,6 +34,7 @@ public sealed class ActorThreadQueue()
     /// <remarks>If the message channel has not been initialized, this property returns 0. The value reflects
     /// the count of messages that can be read without waiting.</remarks>
     public int Count { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => _messageChannel?.Reader.Count ?? 0; }
+    public int Capacity => QueueCapacity;
 
     /// <summary>
     /// Indicates whether this thread queue has been started.
@@ -145,7 +147,7 @@ public sealed class ActorThreadQueue()
         {
             if (!_started)
             {
-                _messageChannel = Channel.CreateBounded<IActorMessage>(new BoundedChannelOptions(8192)
+                _messageChannel = Channel.CreateBounded<IActorMessage>(new BoundedChannelOptions(QueueCapacity)
                 {
                     SingleWriter = false,
                     SingleReader = true

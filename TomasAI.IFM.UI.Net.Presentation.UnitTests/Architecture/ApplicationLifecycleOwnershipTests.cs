@@ -65,16 +65,24 @@ public sealed class ApplicationLifecycleOwnershipTests
     {
         var actorStartup = File.ReadAllText(Path.Combine(
             root,
-            "TomasAI.IFM.Shared",
-            "EventModelActor",
-            "ActorRuntimeStartup.cs"));
+            "TomasAI.IFM.Domain.Supervisor",
+            "Lifecycle",
+            "SupervisorManagedActorLifecycle.cs"));
         var apiStartup = File.ReadAllText(Path.Combine(
             root,
             "TomasAI.IFM.Application.Api.Server",
             "Startup.cs"));
+        var actorMaps = File.ReadAllText(Path.Combine(
+            root,
+            "TomasAI.IFM.Application.Api.Server",
+            "ActorMaps.cs"));
 
         Assert.Contains("Parallel.ForEachAsync(", actorStartup, StringComparison.Ordinal);
         Assert.Contains("options.MaximumConcurrency", actorStartup, StringComparison.Ordinal);
+        Assert.Contains("ISupervisorBootstrap", actorMaps, StringComparison.Ordinal);
+        Assert.Contains("StartSupervisorAsync", actorMaps, StringComparison.Ordinal);
+        Assert.Contains("StartupActorsAsync", actorMaps, StringComparison.Ordinal);
+        Assert.DoesNotContain("ActorRuntimeStartup", actorMaps, StringComparison.Ordinal);
         Assert.Contains(
             "AddCheck<ActorRuntimeHealthCheck>(\"actor_runtime\", tags: [\"actor\", \"bootstrap\", \"launch\", \"ready\"])",
             apiStartup,

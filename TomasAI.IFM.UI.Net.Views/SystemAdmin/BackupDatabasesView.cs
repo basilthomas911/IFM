@@ -28,7 +28,7 @@ public partial class BackupDatabasesView : DarkTradingView, IAsyncFormControl
         => _initializeTask ??= _viewModel.InitializeAsync(CancellationToken.None);
 
     /// <inheritdoc />
-    public void Close() => _ = ((IAsyncFormControl)this).CloseAsync();
+    public void Close() => UiExceptionReporter.Observe(((IAsyncFormControl)this).CloseAsync(), nameof(IAsyncFormControl.CloseAsync), this);
 
     async ValueTask IAsyncFormControl.CloseAsync()
     {
@@ -127,7 +127,7 @@ public partial class BackupDatabasesView : DarkTradingView, IAsyncFormControl
         => this.Post(() => this.ShowErrorMessage(message, "Database Backup"));
 
     void RefreshRequested(Guid operationId)
-        => this.Post(() => _ = RefreshOnUiAsync());
+        => this.Post(() => UiExceptionReporter.Observe(RefreshOnUiAsync(), nameof(RefreshOnUiAsync), this));
 
     async Task RefreshOnUiAsync()
     {

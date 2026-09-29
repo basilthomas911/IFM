@@ -198,6 +198,10 @@ public class MarketDataQueryService(IMarketDataQueryApi queryApi, IMarketDataFee
         _queryApi.GetDatabentoOptionChainRangeAsync(
             underlyingSymbol, fromMaturityDate, throughMaturityDate, cancellationToken);
 
+    /// <summary>Gets the authoritative operational market value date.</summary>
+    public Task<ServiceResult<ScalarReadModel<DateOnly>>> QueryValueDateAsync() =>
+        _queryApi.GetValueDateAsync();
+
     public Task<ServiceResult<FuturesOptionContractReadModel[]>> QueryDatabentoOptionChainAsync(
         string underlyingSymbol,
         string providerRoot,

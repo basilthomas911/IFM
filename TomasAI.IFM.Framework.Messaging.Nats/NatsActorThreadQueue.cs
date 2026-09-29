@@ -34,6 +34,9 @@ public class NatsActorThreadQueue(IActorSupervisor actorSupervisor)
     /// updates automatically as items are added to or removed from the buffer.</remarks>
     public int Count => _buffer.Count;
 
+    /// <summary>Gets the maximum number of messages retained by the underlying ring buffer.</summary>
+    public int Capacity => _buffer?.Capacity ?? 0;
+
     /// <summary>
     /// Sets the identifier for the actor thread queue.
     /// </summary>

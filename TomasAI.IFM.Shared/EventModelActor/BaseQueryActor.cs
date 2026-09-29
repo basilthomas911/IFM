@@ -39,6 +39,7 @@ public abstract class BaseQueryActor<TActor>(
     string _serviceId = string.Empty;
 
     IActorSupervisor _supervisor;
+    IActorProducer? _startedProducer;
     int _lifecycle;
 
     // IActor properties
@@ -84,6 +85,7 @@ public abstract class BaseQueryActor<TActor>(
             Mailbox = supervisor.CreateMailbox(_actorId);
             producer = supervisor.GetProducer(_actorId);
             await producer.StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
+            _startedProducer = producer;
             _serviceId = typeof(TActor).Name;
             _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
             await OnStartup(_context, cancellationToken).ConfigureAwait(false);
@@ -134,13 +136,13 @@ public abstract class BaseQueryActor<TActor>(
             return;
         try
         {
-            var producer = _supervisor.GetProducer(_actorId);
             await ActorLifecycleGuard.StopAsync(
                 _context.SupervisorRuntime,
                 _actorId,
                 async () =>
                 {
-                    await producer.StopAsync().ConfigureAwait(false);
+                    if (_startedProducer is not null)
+                        await _startedProducer.StopAsync().ConfigureAwait(false);
                     _logger.LogInformationEvent(_serviceId, "Stopped {MailboxId} producer.", _actorId);
                 },
                 () => OnShutdown(_context!),
@@ -148,6 +150,7 @@ public abstract class BaseQueryActor<TActor>(
         }
         finally
         {
+            _startedProducer = null;
             Volatile.Write(ref _lifecycle, 0);
         }
     }

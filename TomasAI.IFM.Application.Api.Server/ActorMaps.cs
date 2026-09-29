@@ -1,5 +1,6 @@
 ﻿using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Application.Api.Server;
 
@@ -30,11 +31,20 @@ public static class ActorMaps
         ILogger logger,
         CancellationToken cancellationToken = default)
     {
-        var supervisor = app.Services.GetRequiredService<IActorSupervisor>();
-        var options = app.Services.GetRequiredService<ActorRuntimeStartupOptions>();
-        await ActorRuntimeStartup
-            .StartAsync(supervisor, logger, options, cancellationToken)
-            .ConfigureAwait(false);
+        var bootstrap = app.Services.GetRequiredService<ISupervisorBootstrap>();
+        var bootstrapResult = await bootstrap.StartSupervisorAsync(cancellationToken).ConfigureAwait(false);
+        if (!bootstrapResult.Succeeded)
+            throw new InvalidOperationException(
+                $"Supervisor bootstrap failed at {bootstrapResult.Stage}: {bootstrapResult.FailureReason}");
+
+        var lifecycle = app.Services.GetRequiredService<ISupervisorManagedActorLifecycle>();
+        var managedResult = await lifecycle.StartupActorsAsync(cancellationToken).ConfigureAwait(false);
+        if (!managedResult.Succeeded)
+        {
+            await bootstrap.StopSupervisorAsync(CancellationToken.None).ConfigureAwait(false);
+            throw new InvalidOperationException(
+                $"Managed actor startup failed at {managedResult.Stage}: {managedResult.FailureReason}");
+        }
 
         return app;
     }

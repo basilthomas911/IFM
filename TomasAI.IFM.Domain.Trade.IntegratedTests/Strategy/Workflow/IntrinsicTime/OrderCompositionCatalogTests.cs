@@ -49,6 +49,6 @@ public sealed partial class TradeSelectionRuntimeTests
             }
             await db.RetireStrategyCatalogAsync(schema.Key, schemaHash, ComposerCatalogNow(), "composer-integration");
         }
-        finally { await supervisor.ShutdownAsync(); }
+        finally { await global::SupervisorTestLifecycle.ShutdownAsync(factory.Services); }
     }
 }

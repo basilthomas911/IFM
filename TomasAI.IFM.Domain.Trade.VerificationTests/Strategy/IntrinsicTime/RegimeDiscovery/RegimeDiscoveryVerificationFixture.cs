@@ -65,8 +65,14 @@ public sealed class RegimeDiscoveryVerificationFixture : IAsyncDisposable
         Action<IServiceCollection>? configure = null)
     {
         MarketConditionPipelineCommandProbe probe = null!;
-        var factory = source.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        var factory = source.WithWebHostBuilder(builder =>
         {
+            // These scenarios publish and verify their own effective parameter sets. Keep this child host on the
+            // database-backed resolution path so the immutable Development startup snapshot cannot select a
+            // different parameter identity than the signal cache prepared below.
+            builder.UseSetting("ParameterSets:SingleUserDevelopmentEnabled", "false");
+            builder.ConfigureServices(services =>
+            {
             services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true });
             services.AddSingleton<IMarketConditionAssessmentSnapshotProvider, BlockingAssessmentSnapshotProvider>();
             var container = (SimpleInjector.Container)services.Single(descriptor =>
@@ -85,8 +91,9 @@ public sealed class RegimeDiscoveryVerificationFixture : IAsyncDisposable
             {
                 container.Options.AllowOverridingRegistrations = allowOverrides;
             }
-            configure?.Invoke(services);
-        }));
+                configure?.Invoke(services);
+            });
+        });
         _ = factory.CreateClient();
         var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
 
@@ -245,7 +252,7 @@ public sealed class RegimeDiscoveryVerificationFixture : IAsyncDisposable
             if (rows.Count > 0)
             {
                 var latest = rows.First();
-                last = $"revision {latest.WorkflowRevision}, stage {latest.CurrentStage}, status {latest.Status}";
+                last = $"revision {latest.WorkflowRevision}, stage {latest.CurrentStage}, status {latest.Status}, outcome {latest.Outcome}, reason {latest.StopReasonCode}";
             }
             var match = rows.FirstOrDefault(row => row.WorkflowRevision == revision &&
                                                    (stage is null || row.CurrentStage == stage));

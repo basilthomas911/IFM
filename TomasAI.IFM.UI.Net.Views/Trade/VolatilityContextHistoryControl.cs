@@ -84,7 +84,9 @@ public sealed class VolatilityContextHistoryControl : UserControl
         for (var pageNumber = 0; pageNumber < request.MaximumPages && collected.Count < request.MaximumRows; pageNumber++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var page = await query.GetMetricHistoryAsync(pageRequest, cancellationToken).ConfigureAwait(false);
+            var requestForPage = pageRequest;
+            var page = await QueryOffCallerThreadAsync(query, requestForPage, cancellationToken)
+                .ConfigureAwait(false);
             collected.AddRange(page.Items.Take(request.MaximumRows - collected.Count));
             if (page.PagingState is null || page.PagingState.Length == 0) break;
             pageRequest = pageRequest with { PagingState = page.PagingState };
@@ -135,6 +137,33 @@ public sealed class VolatilityContextHistoryControl : UserControl
 
     static string Value(decimal? value, string format) => value?.ToString(format) ?? "Unavailable";
     static Label ValueLabel(string name) => new() { Name = name, AutoSize = true, ForeColor = Color.White, Padding = new Padding(6, 2, 6, 0) };
+
+    static Task<VolatilityPage<OptionIvMetricRevision>> QueryOffCallerThreadAsync(
+        IOptionVolatilityQueryApi query,
+        VolatilityHistoryPageRequest request,
+        CancellationToken cancellationToken)
+    {
+        var completion = new TaskCompletionSource<VolatilityPage<OptionIvMetricRevision>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        ThreadPool.UnsafeQueueUserWorkItem(async state =>
+        {
+            var (source, pageRequest, token, result) = state;
+            try
+            {
+                result.TrySetResult(await source.GetMetricHistoryAsync(pageRequest, token)
+                    .ConfigureAwait(false));
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                result.TrySetCanceled(token);
+            }
+            catch (Exception exception)
+            {
+                result.TrySetException(exception);
+            }
+        }, (query, request, cancellationToken, completion), preferLocal: false);
+        return completion.Task;
+    }
 
     static Task OnUiAsync(SynchronizationContext? context, Action action, CancellationToken token)
     {

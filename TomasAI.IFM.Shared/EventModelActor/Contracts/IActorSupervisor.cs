@@ -45,6 +45,16 @@ public interface IActorSupervisor
     ValueTask<bool> PauseAsync(ActorThreadId threadId, TimeSpan timeout, CancellationToken cancellationToken = default);
     ValueTask ResumeAsync(ActorThreadId threadId, CancellationToken cancellationToken = default);
     ValueTask<bool> RestartAsync(ActorThreadId threadId, TimeSpan timeout, CancellationToken cancellationToken = default);
+    ValueTask<bool> RestartAsync(
+        ActorThreadId threadId,
+        long expectedGeneration,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default);
+    ValueTask<bool> RetireAsync(
+        ActorThreadId threadId,
+        long expectedGeneration,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default);
 
     IActorThread GetThread(ActorThreadId threadId);
     ValueTask<IActorThread> GetThreadAsync(ActorThreadId threadId, CancellationToken ct);

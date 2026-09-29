@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event;
 
@@ -24,6 +25,9 @@ public static class FuturesAdxSignalStarted
         try
         {
             FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Attach(e.EntityId);
+            if (e.RestoredSignal is { IsWarm: true, Metadata.IsValid: true })
+                await ((TomasAI.IFM.Shared.EventModelActor.Contracts.IEventActorContext<FuturesAdxSignalEventActor>)context)
+                    .PublishMarketOutlookComponentAsync(e).ConfigureAwait(false);
             return true;
         }
         catch (Exception ex)

@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.ConfigureApiServer(out var logger);
@@ -17,7 +18,8 @@ else
     await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.TradePlanDb.Schema.TradePlanSchemaDb>().CreateAllAsync();
 }
 await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.EventSourceDb.Schema.EventSourceSchemaDb>().CreateAllAsync();
-var actorSupervisor = app.Services.GetRequiredService<IActorSupervisor>();
+var actorLifecycle = app.Services.GetRequiredService<ISupervisorManagedActorLifecycle>();
+var supervisorBootstrap = app.Services.GetRequiredService<ISupervisorBootstrap>();
 bool actorsStarted = false;
 try
 {
@@ -46,7 +48,19 @@ catch (Exception exception) when (isolatedQuoteSoak)
 finally
 {
     if (actorsStarted)
-        await actorSupervisor.ShutdownAsync(CancellationToken.None);
+    {
+        var shutdown = await actorLifecycle.ShutdownActorsAsync(CancellationToken.None);
+        if (!shutdown.Succeeded)
+            logger.LogError(
+                "Supervisor actor shutdown {OperationId} ended with {Outcome} at {Stage}: {FailureReason}",
+                shutdown.OperationId, shutdown.Outcome, shutdown.Stage, shutdown.FailureReason);
+        var supervisorShutdown = await supervisorBootstrap.StopSupervisorAsync(CancellationToken.None);
+        if (!supervisorShutdown.Succeeded)
+            logger.LogError(
+                "Supervisor bootstrap shutdown {OperationId} ended with {Outcome} at {Stage}: {FailureReason}",
+                supervisorShutdown.OperationId, supervisorShutdown.Outcome,
+                supervisorShutdown.Stage, supervisorShutdown.FailureReason);
+    }
 }
 
 

@@ -14,7 +14,7 @@ public sealed class TradeBlotterLegStagerTests
             ("P-4975", false, 4975m, -.16), ("P-4950", false, 4950m, -.05));
 
         var result = TradeBlotterLegStager.Stage(snapshot,
-            new(TradeBlotterStrategy.IronCondor, TradeBlotterDirection.Short));
+            new(TradeBlotterStrategy.IronCondor, TradeBlotterDirection.Short, .16, 25m));
 
         Assert.Equal(new[] { "C-5050", "C-5025", "P-4975", "P-4950" }, result.Legs.Select(x => x.ContractId));
         Assert.Equal(new[] { "LL+", "SL-", "SL-", "LL+" }, result.Legs.Select(x => x.LegLabel));

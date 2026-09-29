@@ -18,7 +18,8 @@ public static class StartFuturesAtrSignal
                 FuturesAtrSignalStartedEvent.Verb, command.EntityId.Format()),
             EntityId = command.EntityId,
             StartedOn = command.OriginatedOn,
-            StartedBy = command.OriginatedBy
+            StartedBy = command.OriginatedBy,
+            RestoredSignal = state.AtrSignal
         }, command);
         return applied
             ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))

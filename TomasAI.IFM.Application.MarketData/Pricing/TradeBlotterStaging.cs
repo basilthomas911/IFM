@@ -11,7 +11,7 @@ public enum TradeBlotterPositionIntent : byte { Short = 1, Long = 2 }
 
 /// <summary>Selection settings are explicit; a deviation never silently changes the strategy.</summary>
 public sealed record TradeBlotterStagingRequest(TradeBlotterStrategy Strategy, TradeBlotterDirection Direction,
-    double TargetAbsoluteDelta = 0.16, decimal WingWidth = 25m, double DeltaTolerance = 0.03,
+    double TargetAbsoluteDelta, decimal WingWidth, double DeltaTolerance = 0.03,
     decimal WidthTolerance = 5m, TradeBlotterOptionRight VerticalRight = TradeBlotterOptionRight.Call);
 
 public sealed record StagedTradeLeg(Guid StagedLegId, string ContractId, TradeBlotterOptionRight? Right,

@@ -330,7 +330,7 @@ public partial class IronCondorView : DarkTradingView, IAsyncFormControl
     /// associated data feeds are disabled.</remarks>
     void IFormControl.Close()
     {
-        _ = ((IAsyncFormControl)this).CloseAsync().AsTask();
+        UiExceptionReporter.Observe(((IAsyncFormControl)this).CloseAsync(), nameof(IAsyncFormControl.CloseAsync), this);
     }
 
     async ValueTask IAsyncFormControl.CloseAsync()

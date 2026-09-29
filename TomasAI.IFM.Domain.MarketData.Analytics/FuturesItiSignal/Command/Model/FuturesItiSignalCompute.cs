@@ -329,8 +329,8 @@ public sealed class FuturesItiSignalCompute
         => timePeriod switch
         {
             TimeFrameType.Daily => 1,
-            TimeFrameType.Weekly => 20,
-            TimeFrameType.Monthly => 60,
+            TimeFrameType.Weekly => 10,
+            TimeFrameType.Monthly => 30,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(timePeriod),
                 $"Unsupported ITI time period: {timePeriod}")

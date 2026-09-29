@@ -80,6 +80,8 @@ public class ActorHealthJsonBenchmarks
         => new(
             new ActorThreadId(actorType, actorName, entity.ToString()),
             0,
+            8192,
+            32,
             2_500,
             2_500,
             2_500,

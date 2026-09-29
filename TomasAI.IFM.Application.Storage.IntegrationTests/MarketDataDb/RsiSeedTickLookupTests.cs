@@ -10,17 +10,20 @@ using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.IntegrationTesting;
 using TomasAI.IFM.Shared.Storage;
 using Xunit;
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
 
-/// <summary>Requires the dedicated parameter_sets_rsi_test keyspace on localhost; never uses an application keyspace.</summary>
+/// <summary>Runs against a disposable isolated CQL keyspace; never uses an application keyspace.</summary>
 public sealed class RsiSeedTickLookupTests
 {
     [Fact]
     public async Task Indexed_lookup_returns_nearest_preceding_tick_and_never_a_future_tick()
     {
-        var settings = new DbConnectionSettings().Add("MarketDataDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=parameter_sets_rsi_test", "System.Data.ScyllaDb");
+        await using var infrastructure = new IsolatedIntegrationInfrastructure("rsi-seed-tick-lookup");
+        await infrastructure.StartAsync();
+        var settings = new DbConnectionSettings().Add("MarketDataDbConnection", infrastructure.CqlConnectionString, "System.Data.ScyllaDb");
         var logger = Substitute.For<ILogger<DbProvider>>();
         await new MarketDataSchemaDb(settings, logger).CreateAllAsync();
         var repositories = new Dictionary<Type, IObjectRepository>();

@@ -28,11 +28,15 @@ namespace TomasAI.IFM.UI.Net.Contracts
             {
                 if (view is null)
                     return;
-                new WinFormsUiDispatcher(view).Post(() =>
-                    _ = new WinFormsUserInteraction(view).NotifyAsync(
-                        new UserNotification(errorMsg, caption, UserNotificationSeverity.Error)));
+                new WinFormsUiDispatcher(view).Post(() => UiExceptionReporter.Observe(
+                    new WinFormsUserInteraction(view).NotifyAsync(
+                        new UserNotification(errorMsg, caption, UserNotificationSeverity.Error)),
+                    nameof(WinFormsUserInteraction.NotifyAsync), view));
             }
-            catch { }
+            catch (Exception exception)
+            {
+                UiExceptionReporter.Report(exception, "UiNotification", nameof(ShowErrorMessage), view);
+            }
 
         }
 
@@ -48,7 +52,10 @@ namespace TomasAI.IFM.UI.Net.Contracts
                 if (view is not null && viewAction is not null)
                     new WinFormsUiDispatcher(view).Post(viewAction);
             }
-            catch { }
+            catch (Exception exception)
+            {
+                UiExceptionReporter.Report(exception, "UiDispatch", nameof(Post), view);
+            }
         }
 
         /// <summary>

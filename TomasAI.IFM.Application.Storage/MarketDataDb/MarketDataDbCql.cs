@@ -2,6 +2,10 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 internal static class MarketDataDbCql
 {
+    public const string DownloadLogSelect = "SELECT dataset, provider, scope, value_date, requested_at_utc, import_command_id, log_command_id, source_terminal_event_id, schema_version, status, started_at_utc, finished_at_utc, elapsed_milliseconds, downloaded_record_count, persisted_record_count, error_code, error_message, payload_sha256, projected_at_utc FROM market_data_download_log WHERE dataset = :Dataset AND provider = :Provider AND scope = :Scope AND value_date = :ValueDate";
+
+    public const string DownloadLogInsert = "INSERT INTO market_data_download_log (dataset, provider, scope, value_date, requested_at_utc, import_command_id, log_command_id, source_terminal_event_id, schema_version, status, started_at_utc, finished_at_utc, elapsed_milliseconds, downloaded_record_count, persisted_record_count, error_code, error_message, payload_sha256, projected_at_utc) VALUES (:Dataset, :Provider, :Scope, :ValueDate, :RequestedAtUtc, :ImportCommandId, :LogCommandId, :SourceTerminalEventId, :SchemaVersion, :Status, :StartedAtUtc, :FinishedAtUtc, :ElapsedMilliseconds, :DownloadedRecordCount, :PersistedRecordCount, :ErrorCode, :ErrorMessage, :PayloadSha256, :ProjectedAtUtc);";
+
     public const string InsertOptionTradeEvidence = """
         INSERT INTO option_trade_evidence(contract_id,value_date,source_id,source_digest,payload)
         VALUES(:contract,:date,:id,:digest,:payload) IF NOT EXISTS;

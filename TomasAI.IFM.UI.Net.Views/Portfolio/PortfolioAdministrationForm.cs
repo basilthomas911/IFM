@@ -182,7 +182,7 @@ public sealed partial class PortfolioAdministrationForm : DarkTradingForm, IForm
         try
         {
             var selection = _viewModel.SelectFundAsync(fund, _load?.Token ?? default);
-            _ = LoadMetricsAsync();
+            UiExceptionReporter.Observe(LoadMetricsAsync(), nameof(LoadMetricsAsync), this);
             BindConfiguration(); SetSelectionButtons();
             await selection;
             if (IsDisposed || Disposing || generation != _fundSelectionGeneration) return;

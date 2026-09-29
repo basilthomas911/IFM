@@ -43,6 +43,7 @@ public sealed class ApiApplicationStartupActivities(
     IMarketOutlookOperations marketOutlookOperations,
     IMarketOutlookHotCache marketOutlookCache,
     HistoricalAnalyticsWarmupOptions historicalWarmupOptions,
+    FmpImportScheduleOptions fmpImportScheduleOptions,
     ApplicationStartupOptions options,
     TimeProvider timeProvider,
     ILogger<ApiApplicationStartupActivities> logger,
@@ -60,6 +61,7 @@ public sealed class ApiApplicationStartupActivities(
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken); deadline.CancelAfter(options.ParticipantTimeout);
         await ParameterSets.FuturesItiSignalDefaultParameterSet.EnsureAsync(parameterSetsApi, deadline.Token);
         await ParameterSets.OptionVolatilityDefaultParameterSets.EnsureAsync(parameterSetsApi, deadline.Token);
+        await ParameterSets.OptionSpreadStrategyDefaultParameterSets.EnsureAsync(parameterSetsApi, deadline.Token);
         if (parameterRuntime is not { Enabled: true }) return ApplicationStartupActivityOutcome.AlreadySatisfied;
         var applied = await parameterSetsApi.ApplyStartupAsync(new() { CommandId = context.ProcessBootId, RunId = context.ProcessBootId }, deadline.Token);
         if (!applied.Success) throw new InvalidOperationException(applied.ErrorMessage);
@@ -148,8 +150,14 @@ public sealed class ApiApplicationStartupActivities(
         ApplicationStartupContext context,
         CancellationToken cancellationToken)
     {
+        var fromInclusive = context.ValueDate.AddDays(-fmpImportScheduleOptions.LookbackDays);
+        var toInclusive = context.ValueDate.AddDays(fmpImportScheduleOptions.ForwardDays);
         var result = await referenceImportCoordinator.ImportAsync(
-            new(context.ValueDate, context.ValueDate, IncludeTreasury: false),
+            new(
+                fromInclusive,
+                toInclusive,
+                IncludeTreasury: false,
+                CountryCodes: fmpImportScheduleOptions.CountryCodes),
             cancellationToken).ConfigureAwait(false);
         return result.RejectedSubmissions == 0
             ? ApplicationStartupActivityOutcome.Started
@@ -425,18 +433,19 @@ public sealed class ApiApplicationStartupActivities(
                 FuturesMacdConfiguration.ConventionalSlowEmaPeriod,
                 timestamp);
 
-            if (!await SubmitHistoricalSeedAsync(
+            var adxAccepted = await SubmitHistoricalSeedAsync(
                     new GenerateFuturesAdxSignalCommand(adxId, bar.Close, bar, true),
                     adxId.ToEntityId(),
-                    cancellationToken).ConfigureAwait(false)
-                || !await SubmitHistoricalSeedAsync(
+                    cancellationToken).ConfigureAwait(false);
+            var atrAccepted = await SubmitHistoricalSeedAsync(
                     new GenerateFuturesAtrSignalCommand(atrId, bar.Close, bar, true),
                     atrId.ToEntityId(),
-                    cancellationToken).ConfigureAwait(false)
-                || !await SubmitHistoricalSeedAsync(
+                    cancellationToken).ConfigureAwait(false);
+            var macdAccepted = await SubmitHistoricalSeedAsync(
                     new GenerateFuturesMacdSignalCommand(macdId, bar.Close, bar, true),
                     macdId.ToEntityId(),
-                    cancellationToken).ConfigureAwait(false))
+                    cancellationToken).ConfigureAwait(false);
+            if (!adxAccepted || !atrAccepted || !macdAccepted)
             {
                 logger.LogWarning(
                     "Market Outlook five-minute historical seed was rejected for {ContractId}; live bars will continue warming the indicators.",
@@ -555,11 +564,46 @@ public sealed class ApiApplicationStartupActivities(
             }),
             _ => throw new ArgumentOutOfRangeException(nameof(command))
         };
-        var result = await actorService!.RequestAsync<TCommand, TEntityId>(
-                command,
-                cancellationToken)
-            .ConfigureAwait(false);
-        return result.Success;
+        const int maximumAttempts = 3;
+        for (var attempt = 1; attempt <= maximumAttempts; attempt++)
+        {
+            try
+            {
+                var result = await actorService!.RequestAsync<TCommand, TEntityId>(
+                        command,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                if (result.Success)
+                    return true;
+                if (attempt == maximumAttempts)
+                {
+                    logger.LogWarning(
+                        "Historical accumulator replay rejected {CommandType} after {AttemptCount} attempts. ErrorCode={ErrorCode}; Error={ErrorMessage}",
+                        typeof(TCommand).Name,
+                        maximumAttempts,
+                        result.ErrorCode,
+                        result.ErrorMessage);
+                    return false;
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception) when (attempt < maximumAttempts)
+            {
+                logger.LogWarning(
+                    exception,
+                    "Historical accumulator replay transport failed for {CommandType}; retrying attempt {NextAttempt} of {AttemptCount}.",
+                    typeof(TCommand).Name,
+                    attempt + 1,
+                    maximumAttempts);
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(100 * attempt), timeProvider, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        return false;
     }
 
     public ValueTask<ApplicationStartupActivityOutcome> QualifyOperationalStateAsync(

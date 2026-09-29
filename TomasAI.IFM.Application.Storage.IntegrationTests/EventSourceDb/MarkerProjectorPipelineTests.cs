@@ -46,7 +46,8 @@ public sealed class MarkerProjectorFixture : IAsyncLifetime
         builder.Username = ""; builder.Password = "";
         Provider = builder.ConnectionString;
         _ = EventLogSqlLayout.ForBenchmark(Provider, batchProjectionMarkers: true); // Validate before schema creation.
-        Storage = new EventSourceActorSnapshotRangeFixture();
+        Storage = new EventSourceActorSnapshotRangeFixture(infrastructure);
+        await Storage.InitializeAsync();
         var cache = Substitute.For<IRedisCache>();
         var values = new ConcurrentDictionary<string, string>();
         cache.TryGet(Arg.Any<string>(), out Arg.Any<string>()).Returns(call =>
@@ -81,6 +82,8 @@ public sealed class MarkerProjectorFixture : IAsyncLifetime
     {
         Environment.SetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION", previousPostgres);
         Environment.SetEnvironmentVariable("IFM_MARKER_TEST_NATS_URL", previousNats);
+        if (Storage is not null)
+            await Storage.DisposeAsync();
         await infrastructure.DisposeAsync();
     }
 

@@ -109,7 +109,7 @@ public sealed class LivePipelineProbeIntegrationTests
         queries.GetRuntimeStatusAsync().Returns(new ServiceResult<MarketDataFeedRuntimeStatusReadModel>(new MarketDataFeedRuntimeStatusReadModel()
         { IsRunning = true, ActiveValueDate = f.Date, ObservedAtUtc = DateTimeOffset.UtcNow }));
         var activities = new ApiApplicationStartupActivities(f.Sessions, authority, rollover, null!, commands, queries,
-            null!, null!, f.Storage, f.Market, null!, null!, null!, new(), new(), TimeProvider.System, NullLogger<ApiApplicationStartupActivities>.Instance);
+            null!, null!, f.Storage, f.Market, null!, null!, null!, new(), new(), new(), TimeProvider.System, NullLogger<ApiApplicationStartupActivities>.Instance);
         var context = new ApplicationStartupContext(f.Date, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
         await activities.ReconcileCurrentContractsAsync(context, default);
         await rollover.Received(1).ExecuteAsync(f.Date, Arg.Any<CancellationToken>());

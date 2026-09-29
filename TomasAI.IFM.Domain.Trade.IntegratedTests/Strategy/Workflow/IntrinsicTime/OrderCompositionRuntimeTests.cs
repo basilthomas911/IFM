@@ -65,7 +65,7 @@ public sealed partial class TradeSelectionRuntimeTests
             if (page.Value.PagingState is { } cursor)
                 (await queries.GetHistoryAsync(1, 1, c.SelectionBinding.RequestedTradeDate.AddDays(1), 1, cursor)).Success.Should().BeFalse();
         }
-        finally { await supervisor.ShutdownAsync(); await producer.StopAsync(); }
+        finally { await global::SupervisorTestLifecycle.ShutdownAsync(factory.Services); await producer.StopAsync(); }
     }
     [Fact, Trait("Gate", "OC-05"), Trait("Gate", "OC-08")]
     public async Task OrderComposer_real_Scylla_orphan_after_append_failure_is_recovered_by_the_identical_Function_request()
@@ -90,7 +90,7 @@ public sealed partial class TradeSelectionRuntimeTests
             var retry = await producer.RequestFunctionAsync<ExecuteOrderCompositionPipelineCommand, OrderCompositionExecutionId, FunctionResult<OrderCompositionFunctionCompletedEvent, OrderCompositionFunctionFailedEvent>>(c.Subject, c, c.EntityId);
             retry.Value!.IsCompleted.Should().BeTrue(retry.Value.Failed?.ErrorMessage); (await recorder.Resolve().LoadStateAsync(c)).IsCompleted.Should().BeTrue();
         }
-        finally { await supervisor.ShutdownAsync(); await producer.StopAsync(); }
+        finally { await global::SupervisorTestLifecycle.ShutdownAsync(factory.Services); await producer.StopAsync(); }
     }
     sealed class CompositionFailingRepository : IEventSourceFunctionStateRepository<OrderCompositionFunctionState, ExecuteOrderCompositionPipelineCommand>
     {

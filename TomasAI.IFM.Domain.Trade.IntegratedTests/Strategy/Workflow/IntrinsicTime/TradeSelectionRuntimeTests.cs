@@ -83,7 +83,7 @@ public sealed partial class TradeSelectionRuntimeTests(TomasAI.IFM.IntegrationTe
             var conflict = await producer.RequestFunctionAsync<ExecuteTradeSelectionPipelineCommand, TradeSelectionExecutionId, FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>>(changed.Subject, changed, changed.EntityId);
             conflict.Value!.Failed!.ReasonCode.Should().Be("TS.CONTRACT.CONFLICTING_DUPLICATE");
         }
-        finally { await supervisor.ShutdownAsync(); await producer.StopAsync(); }
+        finally { await global::SupervisorTestLifecycle.ShutdownAsync(factory.Services); await producer.StopAsync(); }
     }
     [Fact, Trait("Gate", "TS-02")]
     public async Task Typed_policy_and_activation_use_real_Postgres_immutable_lifecycle()
@@ -128,7 +128,7 @@ public sealed partial class TradeSelectionRuntimeTests(TomasAI.IFM.IntegrationTe
             await db.RetireAsync(StrategyParameterSetKind.TradeSelection, p.ParameterSetId, 1, at.AddMilliseconds(1));
             Func<Task> retired = () => db.GetEffectiveTradeSelectionVersionAsync(p.ParameterSetId, p.Version, draft.PayloadSha256, DateTime.UtcNow); await retired.Should().ThrowAsync<InvalidOperationException>();
         }
-        finally { await supervisor.ShutdownAsync(); }
+        finally { await global::SupervisorTestLifecycle.ShutdownAsync(factory.Services); }
     }
     [Fact, Trait("Gate", "TS-03")]
     public async Task Real_Postgres_assignment_paging_crosses_history_and_returns_seventeen_row_overflow_sentinel()
@@ -185,7 +185,7 @@ public sealed partial class TradeSelectionRuntimeTests(TomasAI.IFM.IntegrationTe
             var retry = await producer.RequestFunctionAsync<ExecuteTradeSelectionPipelineCommand, TradeSelectionExecutionId, FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>>(c.Subject, c, c.EntityId);
             retry.Value!.IsCompleted.Should().BeTrue(retry.Value.Failed?.ErrorMessage); (await recorder.Resolve().LoadStateAsync(c)).IsCompleted.Should().BeTrue();
         }
-        finally { await supervisor.ShutdownAsync(); await producer.StopAsync(); }
+        finally { await global::SupervisorTestLifecycle.ShutdownAsync(factory.Services); await producer.StopAsync(); }
     }
     sealed class FailingRepository : IEventSourceFunctionStateRepository<TradeSelectionFunctionState, ExecuteTradeSelectionPipelineCommand>
     {

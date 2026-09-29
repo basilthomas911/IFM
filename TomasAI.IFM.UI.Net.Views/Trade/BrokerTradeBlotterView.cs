@@ -9,6 +9,8 @@ using TomasAI.IFM.UI.Net.Views.Presentation;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using TomasAI.IFM.Shared.EventSourcing;
+using System.Text.Json;
+using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using AppBrokerAlgorithm = TomasAI.IFM.Application.TradeBroker.Contracts.BrokerAlgorithm;
 using AppBrokerEnvironment = TomasAI.IFM.Application.TradeBroker.Contracts.BrokerEnvironment;
 using AppBrokerOrderType = TomasAI.IFM.Application.TradeBroker.Contracts.BrokerOrderType;
@@ -19,8 +21,6 @@ namespace TomasAI.IFM.UI.Net.Views.Trade;
 public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsyncFormControl
 {
     public const int VisibleChainRowCapacity = 14;
-    private const double DefaultOuterDelta = 0.16;
-    private const decimal DefaultWingWidth = 50m;
     private static readonly Color ShortColor = Color.FromArgb(110, 24, 30);
     private static readonly Color LongColor = Color.FromArgb(20, 54, 105);
     private readonly BrokerExecutionEvidenceControl _evidence;
@@ -47,8 +47,12 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     private readonly Label _tickValue;
     private readonly Label _settlementValue;
     private readonly ComboBox _expirationSelector;
-    private readonly ComboBox _presetSelector;
-    private readonly ComboBox _wingSelector;
+    private readonly NumericUpDown _shortCallDelta;
+    private readonly NumericUpDown _callSpreadWidth;
+    private readonly NumericUpDown _shortPutDelta;
+    private readonly NumericUpDown _putSpreadWidth;
+    private readonly NumericUpDown _shortLegDelta;
+    private readonly NumericUpDown _spreadWidth;
     private readonly ComboBox _liquiditySelector;
     private readonly TabPage _stagingTab;
     private readonly Control? _workflowControl;
@@ -83,6 +87,8 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     private DateOnly? _displayedEvaluatedExpiry;
     private DateOnly? _defaultSelectionExpiry;
     private bool _marketSelectionEditedManually;
+    private bool _spreadDefaultsLoaded;
+    private bool _bindingSpreadDefaults;
     private readonly System.Windows.Forms.Timer _chainRefreshTimer = new() { Interval = 1000 };
 
     public event EventHandler? SubmitOpeningRequested;
@@ -241,8 +247,14 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         _expirationSelector = Selector("expirationSelector", [], "");
         _expirationSelector.Width = 130;
         _expirationSelector.SelectedIndexChanged += ExpirationSelectorSelectedIndexChanged;
-        _presetSelector = Selector("presetSelector", ["16 Delta Condor"], "16 Delta Condor");
-        _wingSelector = Selector("wingSelector", ["50"], "50");
+        _shortCallDelta = DeltaInput("shortCallDelta");
+        _callSpreadWidth = WidthInput("callSpreadWidth");
+        _shortPutDelta = DeltaInput("shortPutDelta");
+        _putSpreadWidth = WidthInput("putSpreadWidth");
+        _shortLegDelta = DeltaInput("shortLegDelta");
+        _spreadWidth = WidthInput("spreadWidth");
+        foreach (var input in new[] { _shortCallDelta, _callSpreadWidth, _shortPutDelta, _putSpreadWidth, _shortLegDelta, _spreadWidth })
+            input.ValueChanged += SpreadSelectionValueChanged;
         _liquiditySelector = Selector("liquiditySelector", ["Not evaluated"], "Not evaluated");
         _marketSelectionLabel = MarketValueLabel(
             $"Selected legs: 0 / {MaximumSelectedLegs}     Click Call or Put side to stage a leg");
@@ -305,8 +317,10 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         SetSelectorsReadOnly(_readOnly);
         BindTradeContracts(trade);
         _underlyingContractId = trade.BaseContractId?.Trim() ?? string.Empty;
-        _chainRefreshTimer.Tick += async (_, _) => await RefreshEvaluatedChainAsync();
-        HandleCreated += async (_, _) => await LoadOptionDefinitionsAsync(appRoot, trade);
+        _chainRefreshTimer.Tick += (_, _) => UiExceptionReporter.Observe(
+            RefreshEvaluatedChainAsync(), nameof(RefreshEvaluatedChainAsync), this);
+        HandleCreated += (_, _) => UiExceptionReporter.Observe(
+            LoadOptionDefinitionsAsync(appRoot, trade), nameof(LoadOptionDefinitionsAsync), this);
     }
 
     public bool IsReadOnly => _readOnly;
@@ -399,8 +413,18 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         AddMarketMetric(secondary, "IV RANK:", _ivRankValue, 50);
         AddMarketMetric(secondary, "QUOTE AGE:", _quoteAgeValue, 74);
         var tertiary = MarketInformationRow();
-        AddMarketMetric(tertiary, "PRESET:", _presetSelector, 170);
-        AddMarketMetric(tertiary, "WING:", _wingSelector, 72);
+        if (_strategy == TradeBlotterStrategy.IronCondor)
+        {
+            AddMarketMetric(tertiary, "SHORT CALL DELTA:", _shortCallDelta, 58);
+            AddMarketMetric(tertiary, "WIDTH:", _callSpreadWidth, 68);
+            AddMarketMetric(tertiary, "SHORT PUT DELTA:", _shortPutDelta, 58);
+            AddMarketMetric(tertiary, "WIDTH:", _putSpreadWidth, 68);
+        }
+        else if (_strategy == TradeBlotterStrategy.VerticalSpread)
+        {
+            AddMarketMetric(tertiary, "SHORT LEG DELTA:", _shortLegDelta, 58);
+            AddMarketMetric(tertiary, "WIDTH:", _spreadWidth, 68);
+        }
         AddMarketMetric(tertiary, "LIQUIDITY:", _liquiditySelector, 115);
         information.Controls.Add(primary, 0, 0);
         information.Controls.Add(secondary, 0, 1);
@@ -591,10 +615,11 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
 
     private async Task LoadOptionDefinitionsAsync(IAppRoot appRoot, PortfolioFundOrderTradeEditorModel trade)
     {
+        _underlyingSymbol = ResolveUnderlyingSymbol(trade);
+        await LoadSpreadDefaultsAsync();
         if (_optionDefinitionsLoaded)
             return;
         _optionDefinitionsLoaded = true;
-        _underlyingSymbol = ResolveUnderlyingSymbol(trade);
         if (string.IsNullOrWhiteSpace(_underlyingSymbol))
         {
             SetExpiryState("Underlying symbol unavailable");
@@ -610,9 +635,13 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
                 _standardDeviationAmount = (decimal)value.DailyStdDevAmount;
             }
         }
+        var valueDateResult = await appRoot.Services.MarketDataQueries.QueryValueDateAsync();
+        var expiryRangeStart = valueDateResult.Success && valueDateResult.Value is { } valueDate
+            ? valueDate.Value
+            : _tradeDate;
         var result = await appRoot.Services.MarketDataQueries.QueryDatabentoOptionChainRangeAsync(
             _underlyingSymbol,
-            _tradeDate,
+            expiryRangeStart,
             _requestedMaturityDate);
         for (var attempt = 1; result.Success && (result.Value is null || result.Value.Length == 0)
                                   && attempt < 15; attempt++)
@@ -623,7 +652,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
                 return;
             result = await appRoot.Services.MarketDataQueries.QueryDatabentoOptionChainRangeAsync(
                 _underlyingSymbol,
-                _tradeDate,
+                expiryRangeStart,
                 _requestedMaturityDate);
         }
         if (!result.Success)
@@ -640,8 +669,76 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             .ToArray();
         BindAvailableExpiries(
             _availableExpiryRows.Select(row => row.ExpiryDate),
-            _tradeDate,
+            expiryRangeStart,
             _requestedMaturityDate);
+    }
+
+    private async Task LoadSpreadDefaultsAsync()
+    {
+        var component = _strategy switch
+        {
+            TradeBlotterStrategy.IronCondor => ParameterSchemaRegistry.IronCondorMarketSelectionComponent,
+            TradeBlotterStrategy.VerticalSpread => ParameterSchemaRegistry.VerticalSpreadMarketSelectionComponent,
+            _ => string.Empty
+        };
+        if (component.Length == 0) { _spreadDefaultsLoaded = true; return; }
+        var result = await _appRoot.Services.ParameterSets.StartupRunsAsync();
+        if (!result.Success || result.Value is null)
+        {
+            _marketSelectionLabel.Text = result.ErrorMessage ?? "Option-spread startup parameters are unavailable.";
+            return;
+        }
+        var run = result.Value.OrderByDescending(candidate => candidate.CreatedAtUtc)
+            .FirstOrDefault(candidate => candidate.Scopes.Any(scope => scope.Enabled && scope.Scope.ComponentCode == component));
+        var assignment = run?.Scopes.SingleOrDefault(scope => scope.Enabled && scope.Scope.ComponentCode == component);
+        var version = assignment is null ? null : run!.Versions.SingleOrDefault(candidate => candidate.Reference == assignment.Reference);
+        if (version is null)
+        {
+            _marketSelectionLabel.Text = $"No applied startup defaults are available for {component}.";
+            return;
+        }
+        _bindingSpreadDefaults = true;
+        try
+        {
+            if (_strategy == TradeBlotterStrategy.IronCondor)
+            {
+                var defaults = JsonSerializer.Deserialize<IronCondorMarketSelectionParameterSet>(version.PayloadJson)
+                    ?? throw new InvalidDataException("Iron Condor defaults are invalid.");
+                var symbol = Resolve(defaults.DefaultSymbol, defaults.Symbols, value => value.Symbol);
+                _shortCallDelta.Value = symbol.ShortCallDelta;
+                _callSpreadWidth.Value = symbol.CallSpreadWidth;
+                _shortPutDelta.Value = symbol.ShortPutDelta;
+                _putSpreadWidth.Value = symbol.PutSpreadWidth;
+            }
+            else
+            {
+                var defaults = JsonSerializer.Deserialize<VerticalSpreadMarketSelectionParameterSet>(version.PayloadJson)
+                    ?? throw new InvalidDataException("Vertical Spread defaults are invalid.");
+                var symbol = Resolve(defaults.DefaultSymbol, defaults.Symbols, value => value.Symbol);
+                _shortLegDelta.Value = symbol.ShortLegDelta;
+                _spreadWidth.Value = symbol.SpreadWidth;
+            }
+            _spreadDefaultsLoaded = true;
+            foreach (var input in new[] { _shortCallDelta, _callSpreadWidth, _shortPutDelta, _putSpreadWidth, _shortLegDelta, _spreadWidth })
+                input.Enabled = !_readOnly;
+        }
+        finally { _bindingSpreadDefaults = false; }
+
+        T Resolve<T>(string defaultSymbol, IEnumerable<T> values, Func<T, string> getSymbol)
+        {
+            var requested = string.IsNullOrWhiteSpace(_underlyingSymbol) ? defaultSymbol : _underlyingSymbol;
+            return values.SingleOrDefault(value => string.Equals(getSymbol(value), requested, StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException($"No option-spread defaults are configured for {requested}.");
+        }
+    }
+
+    private void SpreadSelectionValueChanged(object? sender, EventArgs e)
+    {
+        if (_bindingSpreadDefaults || !_spreadDefaultsLoaded || _marketSelectionEditedManually) return;
+        _defaultSelectionExpiry = null;
+        _selectedMarketContracts.Clear();
+        _selectedMarketRoles.Clear();
+        if (_displayedEvaluatedExpiry is not null) RefreshSelectedLegRows();
     }
 
     private static string ResolveUnderlyingSymbol(PortfolioFundOrderTradeEditorModel trade)
@@ -696,7 +793,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             _expirationSelector.EndUpdate();
         }
         _expirationSelector.Enabled = displayed.Length > 0;
-        _ = UpdateSelectedExpiryDteAsync();
+        UiExceptionReporter.Observe(UpdateSelectedExpiryDteAsync(), nameof(UpdateSelectedExpiryDteAsync), this);
     }
 
     private void SetExpiryState(string text)
@@ -912,7 +1009,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             else pair.Put = MergeEvaluatedContract(pair.Put, contract);
             byStrike[contract.Strike] = pair;
         }
-        TryApplyDefaultCondorSelection(chain);
+        TryApplyDefaultOptionSpreadSelection(chain);
         var strikes = byStrike.Keys.ToArray();
         Array.Sort(strikes);
         var nextRows = new List<OptionChainDisplayRow>(strikes.Length);
@@ -987,34 +1084,43 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         SetSelectionText(_liquiditySelector, chain.WindowMethod);
     }
 
-    private void TryApplyDefaultCondorSelection(EvaluatedOptionChainReadModel chain)
+    private void TryApplyDefaultOptionSpreadSelection(EvaluatedOptionChainReadModel chain)
     {
+        if (!_spreadDefaultsLoaded || _marketSelectionEditedManually) return;
+        if (_strategy == TradeBlotterStrategy.VerticalSpread)
+        {
+            TryApplyDefaultVerticalSelection(chain);
+            return;
+        }
         if (_tradeType is not (TradeType.ShortIronCondor or TradeType.LongIronCondor)
-            || _defaultSelectionExpiry == chain.ExpiryDate
-            || _marketSelectionEditedManually || _selectedMarketContracts.Count != 0)
+            || _strategy != TradeBlotterStrategy.IronCondor)
             return;
         var call = chain.Contracts
             .Where(value => value.IsCall && value.Delta is > 0 and < 0.5)
-            .OrderBy(value => Math.Abs(value.Delta!.Value - DefaultOuterDelta))
+            .OrderBy(value => Math.Abs(value.Delta!.Value - (double)(_shortCallDelta.Value / 100m)))
             .ThenBy(value => chain.UnderlyingPrice is { } price
                 ? Math.Abs(value.Strike - price) : 0m)
             .FirstOrDefault();
         var put = chain.Contracts
             .Where(value => !value.IsCall && value.Delta is < 0 and > -0.5)
-            .OrderBy(value => Math.Abs(Math.Abs(value.Delta!.Value) - DefaultOuterDelta))
+            .OrderBy(value => Math.Abs(Math.Abs(value.Delta!.Value) - (double)(_shortPutDelta.Value / 100m)))
             .ThenBy(value => chain.UnderlyingPrice is { } price
                 ? Math.Abs(value.Strike - price) : 0m)
             .FirstOrDefault();
         if (call is null || put is null) return;
-        var callWing = FindWingContract(chain, call.Strike + DefaultWingWidth, true);
-        var putWing = FindWingContract(chain, put.Strike - DefaultWingWidth, false);
+        var shortCondor = _tradeType == TradeType.ShortIronCondor;
+        var callWing = FindWingContract(chain,
+            call.Strike + (shortCondor ? _callSpreadWidth.Value : -_callSpreadWidth.Value), true);
+        var putWing = FindWingContract(chain,
+            put.Strike + (shortCondor ? -_putSpreadWidth.Value : _putSpreadWidth.Value), false);
         if (callWing is null || putWing is null) return;
 
-        var shortCondor = _tradeType == TradeType.ShortIronCondor;
-        Add(call.ContractId, shortCondor ? "-SC" : "+LC");
-        Add(callWing, shortCondor ? "+LC" : "-SC");
-        Add(put.ContractId, shortCondor ? "-SP" : "+LP");
-        Add(putWing, shortCondor ? "+LP" : "-SP");
+        _selectedMarketContracts.Clear();
+        _selectedMarketRoles.Clear();
+        Add(call.ContractId, "-SC");
+        Add(callWing, "+LC");
+        Add(put.ContractId, "-SP");
+        Add(putWing, "+LP");
         _defaultSelectionExpiry = chain.ExpiryDate;
         UpdateMarketSelectionStatus();
 
@@ -1023,6 +1129,32 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             _selectedMarketContracts.Add(contractId);
             _selectedMarketRoles[contractId] = label;
         }
+    }
+
+    private void TryApplyDefaultVerticalSelection(EvaluatedOptionChainReadModel chain)
+    {
+        var isCall = _tradeType is TradeType.CallCreditSpread or TradeType.CallDebitSpread;
+        var isPut = _tradeType is TradeType.PutCreditSpread or TradeType.PutDebitSpread;
+        if (!isCall && !isPut) return;
+        var shortLeg = chain.Contracts
+            .Where(value => value.IsCall == isCall && value.Delta is not null
+                && (isCall ? value.Delta is > 0 and < 0.5 : value.Delta is < 0 and > -0.5))
+            .OrderBy(value => Math.Abs(Math.Abs(value.Delta!.Value) - (double)(_shortLegDelta.Value / 100m)))
+            .ThenBy(value => chain.UnderlyingPrice is { } price ? Math.Abs(value.Strike - price) : 0m)
+            .FirstOrDefault();
+        if (shortLeg is null) return;
+        var credit = _tradeType is TradeType.CallCreditSpread or TradeType.PutCreditSpread;
+        var longDirection = isCall ? (credit ? 1m : -1m) : (credit ? -1m : 1m);
+        var longLeg = FindWingContract(chain, shortLeg.Strike + longDirection * _spreadWidth.Value, isCall);
+        if (longLeg is null) return;
+        _selectedMarketContracts.Clear();
+        _selectedMarketRoles.Clear();
+        _selectedMarketContracts.Add(shortLeg.ContractId);
+        _selectedMarketRoles[shortLeg.ContractId] = isCall ? "-SC" : "-SP";
+        _selectedMarketContracts.Add(longLeg);
+        _selectedMarketRoles[longLeg] = isCall ? "+LC" : "+LP";
+        _defaultSelectionExpiry = chain.ExpiryDate;
+        UpdateMarketSelectionStatus();
     }
 
     private string? FindWingContract(EvaluatedOptionChainReadModel chain, decimal strike, bool isCall)
@@ -1390,6 +1522,18 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         if (result.SelectedIndex < 0 && result.Items.Count > 0) result.SelectedIndex = 0;
         return result;
     }
+    private static NumericUpDown DeltaInput(string name) => new()
+    {
+        Name = name, Minimum = 1, Maximum = 100, Increment = 1, Value = 1,
+        DecimalPlaces = 0, ThousandsSeparator = false, Enabled = false,
+        BackColor = Color.Black, ForeColor = Color.White, TextAlign = HorizontalAlignment.Right
+    };
+    private static NumericUpDown WidthInput(string name) => new()
+    {
+        Name = name, Minimum = 0.01m, Maximum = 100000m, Increment = 1, Value = 0.01m,
+        DecimalPlaces = 2, ThousandsSeparator = false, Enabled = false,
+        BackColor = Color.Black, ForeColor = Color.White, TextAlign = HorizontalAlignment.Right
+    };
     private static void SetSelectorReadOnly(ComboBox selector, bool readOnly = true) => selector.Enabled = !readOnly;
     private static Button ActionButton(string name, string text, EventHandler handler, bool readOnly)
     {
@@ -1498,10 +1642,10 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     public void Open()
     {
         if (_workflowControl is IFormControl formControl) formControl.Open();
-        _ = _evidence.RefreshAsync();
+        UiExceptionReporter.Observe(_evidence.RefreshAsync(), nameof(BrokerExecutionEvidenceControl.RefreshAsync), this);
     }
     public Task RefreshAsync() => _evidence.RefreshAsync();
-    public void Close() => _ = CloseAsync();
+    public void Close() => UiExceptionReporter.Observe(CloseAsync(), nameof(CloseAsync), this);
     public async ValueTask CloseAsync()
     {
         _chainRefreshTimer.Stop();

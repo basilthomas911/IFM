@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Application.Actor.IntegrationTests;
 
@@ -16,18 +15,25 @@ namespace TomasAI.IFM.Application.Actor.IntegrationTests;
 /// logger. This class is intended to be used as part of the application's initialization pipeline.</remarks>
 public static class ActorMaps
 {
-    public static IActorSupervisor Supervisor => _supervisor;
-
-    static IActorSupervisor _supervisor = default!;
     public static async Task<WebApplication> MapEventModelActorsAsync(
         this WebApplication app,
         ILogger logger,
         CancellationToken cancellationToken = default)
     {
-        _supervisor = app.Services.GetRequiredService<IActorSupervisor>();
-        await ActorRuntimeStartup
-            .StartAsync(_supervisor, logger, cancellationToken)
-            .ConfigureAwait(false);
+        var bootstrap = app.Services.GetRequiredService<ISupervisorBootstrap>();
+        var bootstrapResult = await bootstrap.StartSupervisorAsync(cancellationToken).ConfigureAwait(false);
+        if (!bootstrapResult.Succeeded)
+            throw new InvalidOperationException(
+                $"Supervisor bootstrap failed at {bootstrapResult.Stage}: {bootstrapResult.FailureReason}");
+
+        var lifecycle = app.Services.GetRequiredService<ISupervisorManagedActorLifecycle>();
+        var managedResult = await lifecycle.StartupActorsAsync(cancellationToken).ConfigureAwait(false);
+        if (!managedResult.Succeeded)
+        {
+            await bootstrap.StopSupervisorAsync(CancellationToken.None).ConfigureAwait(false);
+            throw new InvalidOperationException(
+                $"Managed actor startup failed at {managedResult.Stage}: {managedResult.FailureReason}");
+        }
 
         return app;
     }

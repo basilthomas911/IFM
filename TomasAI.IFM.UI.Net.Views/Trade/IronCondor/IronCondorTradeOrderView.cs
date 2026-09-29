@@ -438,7 +438,7 @@ public partial class IronCondorTradeOrderView : DarkTradingView, IAsyncFormContr
 
     public void Close()
     {
-        _ = ((IAsyncFormControl)this).CloseAsync();
+        UiExceptionReporter.Observe(((IAsyncFormControl)this).CloseAsync(), nameof(IAsyncFormControl.CloseAsync), this);
     }
 
     async ValueTask IAsyncFormControl.CloseAsync()

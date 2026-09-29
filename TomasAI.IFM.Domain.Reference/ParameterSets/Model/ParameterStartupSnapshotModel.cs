@@ -8,7 +8,7 @@ public sealed class ParameterStartupSnapshotModel
 {
     readonly Dictionary<Guid, AppliedParameterAssignment> assignments;
     readonly Dictionary<Guid, ParameterAssignmentRevision> scopes = new();
-    public bool HasScope(ParameterAssignmentScope scope) => scopes.ContainsKey(WorkflowParameterScopeModel.AssignmentId(scope));
+    public bool HasScope(ParameterAssignmentScope scope) => scopes.ContainsKey(ParameterAssignmentPolicyModel.AssignmentId(scope));
     public IReadOnlyList<ParameterAssignmentRevision> Scopes => scopes.Values.OrderBy(x => x.AssignmentId).ToArray();
     public Guid StartupRunId { get; }
     public string Fingerprint { get; }
@@ -23,8 +23,7 @@ public sealed class ParameterStartupSnapshotModel
         var seen = new HashSet<Guid>();
         foreach (var assignment in pending)
         {
-            WorkflowParameterScopeModel.Validate(assignment.Scope);
-            if (assignment.AssignmentId != WorkflowParameterScopeModel.AssignmentId(assignment.Scope) || !seen.Add(assignment.AssignmentId))
+            if (assignment.AssignmentId != ParameterAssignmentPolicyModel.AssignmentId(assignment.Scope) || !seen.Add(assignment.AssignmentId))
                 throw new ArgumentException("PARAM.ASSIGNMENT_ID_INVALID");
             if (assignment.Revision <= 0 || assignment.ApplicationPolicy != ParameterApplicationPolicy.NextStartup)
                 throw new ArgumentException("PARAM.ASSIGNMENT_INVALID");
@@ -46,6 +45,6 @@ public sealed class ParameterStartupSnapshotModel
     public AppliedParameterAssignment? Resolve(ParameterAssignmentScope scope, Guid startupRunId)
     {
         if (startupRunId != StartupRunId) throw new InvalidOperationException("PARAM.STARTUP_GENERATION_MISMATCH");
-        return assignments.GetValueOrDefault(WorkflowParameterScopeModel.AssignmentId(scope));
+        return assignments.GetValueOrDefault(ParameterAssignmentPolicyModel.AssignmentId(scope));
     }
 }

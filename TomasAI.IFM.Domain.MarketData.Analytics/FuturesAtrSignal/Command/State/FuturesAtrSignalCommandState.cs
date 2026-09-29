@@ -16,6 +16,7 @@ public class FuturesAtrSignalCommandState
     : BaseEventSourceActorState<FuturesAtrSignalCommandState>, IEventSourceActorState<FuturesAtrSignalCommandState>
 {
     FuturesAtrAccumulatorCheckpoint? _calculationState;
+    FuturesAtrSignalReadModel? _atrSignal;
 
     /// <summary>
     /// Gets or sets the unique identifier for the actor thread associated with this state.
@@ -33,12 +34,12 @@ public class FuturesAtrSignalCommandState
         {
             FuturesAtrSignalStartedEvent => true,
             FuturesAtrSignalStoppedEvent => true,
-            FuturesAtrSignalGeneratedEvent e => On(e.CalculationState),
-            FuturesAtrDailySignalGeneratedEvent e => On(e.CalculationState),
+            FuturesAtrSignalGeneratedEvent e => On(e.CalculationState, e.FuturesAtrSignal),
+            FuturesAtrDailySignalGeneratedEvent e => On(e.CalculationState, e.FuturesAtrSignal),
             _ => false
         };
 
-        bool On(FuturesAtrAccumulatorCheckpoint? calculationState)
+        bool On(FuturesAtrAccumulatorCheckpoint? calculationState, FuturesAtrSignalReadModel? signal)
         {
             if (calculationState is null)
                 return false;
@@ -47,11 +48,15 @@ public class FuturesAtrSignalCommandState
                 SeedTrueRanges = [.. calculationState.SeedTrueRanges],
                 CompletedAtrValues = [.. calculationState.CompletedAtrValues]
             };
+            _atrSignal = signal ?? _atrSignal;
             return true;
         }
     }
 
     /// <summary>Gets the replayed Wilder checkpoint for the current aggregate stream.</summary>
     internal FuturesAtrAccumulatorCheckpoint? CalculationState => _calculationState;
+
+    /// <summary>Gets the latest event-sourced ATR signal restored with the checkpoint.</summary>
+    internal FuturesAtrSignalReadModel? AtrSignal => _atrSignal;
 
 }

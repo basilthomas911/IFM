@@ -57,7 +57,8 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             container,
             logger,
             new ActorAdmissionOptions(),
-            ActorAdmissionController.Disabled)
+            ActorAdmissionController.Disabled,
+            ActorInformationLoggingPolicy.Default)
     {
     }
 
@@ -65,7 +66,8 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
         IContainerInstance container,
         ILogger<ActorSupervisor> logger,
         ActorAdmissionOptions admissionOptions,
-        ActorAdmissionController admissionController)
+        ActorAdmissionController admissionController,
+        ActorInformationLoggingPolicy? informationLoggingPolicy = null)
     {
         _container = IsArgumentNull.Set(container);
         _logger = logger ?? NullLogger<ActorSupervisor>.Instance;
@@ -85,7 +87,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
 
         // Initialize thread pool with one thread per logical processor.
         //var pool = new ActorThreadPool(this, _logger);
-        var pool = new ActorThreadPoolV2(this, _logger);
+        var pool = new ActorThreadPoolV2(this, _logger, informationLoggingPolicy);
         pool.Initialize(Environment.ProcessorCount * 2);
         _threadPool = pool;
     }
@@ -425,6 +427,13 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
         ActorThreadId threadId,
         TimeSpan timeout,
         CancellationToken cancellationToken = default)
+        => RestartAsync(threadId, -1, timeout, cancellationToken);
+
+    public ValueTask<bool> RestartAsync(
+        ActorThreadId threadId,
+        long expectedGeneration,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
     {
         if (!_children.TryGetValue(threadId.MailboxId, out var actor))
             throw new InvalidOperationException($"Actor with mailbox id '{threadId.MailboxId}' not found.");
@@ -432,6 +441,9 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             threadId,
             async () =>
             {
+                if (expectedGeneration >= 0
+                    && actor.Mailbox.ThreadQueues.GetGeneration(threadId) != expectedGeneration)
+                    return false;
                 actor.Mailbox.ThreadQueues.PauseAdmission(threadId);
                 if (!await actor.Mailbox.ThreadQueues
                     .WaitForIdleAsync(threadId, timeout, cancellationToken)
@@ -442,6 +454,29 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
                 if (_threadState.TryGetValue(threadId, out var state))
                     RemoveThreadState(state);
                 actor.Mailbox.ThreadQueues.ResumeAdmission(threadId);
+                return true;
+            },
+            cancellationToken);
+    }
+
+    public ValueTask<bool> RetireAsync(
+        ActorThreadId threadId,
+        long expectedGeneration,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_children.TryGetValue(threadId.MailboxId, out var actor))
+            throw new InvalidOperationException($"Actor with mailbox id '{threadId.MailboxId}' not found.");
+        return RuntimeContext.RunMailboxOperationAsync(
+            threadId,
+            async () =>
+            {
+                if (actor.Mailbox.ThreadQueues.GetGeneration(threadId) != expectedGeneration) return false;
+                actor.Mailbox.ThreadQueues.PauseAdmission(threadId);
+                if (!await actor.Mailbox.ThreadQueues.WaitForIdleAsync(threadId, timeout, cancellationToken).ConfigureAwait(false))
+                    return false;
+                if (!actor.Mailbox.ThreadQueues.Retire(threadId)) return false;
+                if (_threadState.TryGetValue(threadId, out var state)) RemoveThreadState(state);
                 return true;
             },
             cancellationToken);

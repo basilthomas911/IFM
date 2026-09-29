@@ -35,7 +35,7 @@ public class FuturesRsiSignalCommandState
     {
         return domainEvent switch
         {
-            FuturesRsiSignalStartedEvent => true,
+            FuturesRsiSignalStartedEvent e => OnStarted(e),
             FuturesRsiSignalStoppedEvent => true,
             FuturesRsiSignalGeneratedEvent e => On(e),
             FuturesRsiDailySignalGeneratedEvent e => OnDaily(e),
@@ -43,6 +43,14 @@ public class FuturesRsiSignalCommandState
             FuturesRsiDailySignalsGeneratedEvent => true,
             _ => false
         };
+
+        bool OnStarted(FuturesRsiSignalStartedEvent e)
+        {
+            AccumulatorCheckpoint = e.RestoredCheckpoint ?? AccumulatorCheckpoint;
+            if (e.RestoredSignal is { } signal && _futuresRsiSignals.Count == 0)
+                _futuresRsiSignals.Add(signal);
+            return true;
+        }
 
         bool On(FuturesRsiSignalGeneratedEvent e)
         {

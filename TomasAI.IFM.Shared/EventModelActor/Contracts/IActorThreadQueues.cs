@@ -34,4 +34,5 @@ public interface IActorThreadQueues
     ValueTask<bool> WaitForIdleAsync(ActorThreadId threadId, TimeSpan timeout, CancellationToken cancellationToken = default)
         => ValueTask.FromResult(true);
     bool Retire(ActorThreadId threadId) => false;
+    long GetGeneration(ActorThreadId threadId) => 0;
 }

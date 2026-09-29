@@ -149,23 +149,23 @@ public sealed class ParameterSetsReferenceView : DarkTradingView, IControlComman
     }
     public bool HasWorkingCopy => editor.IsEditing;
     void IControlCommand.Load(IAppRoot appRoot, Action<bool> dataLoaded)
-     => _ = Run(async () => { await RefreshAsync(); dataLoaded(CanChangeRemove); });
+     => UiExceptionReporter.Observe(Run(async () => { await RefreshAsync(); dataLoaded(CanChangeRemove); }), nameof(RefreshAsync), this);
     public void Unload() { if (!lifetime.IsCancellationRequested) lifetime.Cancel(); }
     public void Add(Action<bool> addAction)
     {
         if (editMode == EditMode.View)
-            _ = Run(async () => { await NewAsync(); editMode = EditMode.Add; addAction(false); });
+            UiExceptionReporter.Observe(Run(async () => { await NewAsync(); editMode = EditMode.Add; addAction(false); }), nameof(NewAsync), this);
         else if (editMode == EditMode.Add)
-            _ = Run(async () => { await SaveAsync(); editMode = EditMode.View; addAction(true); });
+            UiExceptionReporter.Observe(Run(async () => { await SaveAsync(); editMode = EditMode.View; addAction(true); }), nameof(SaveAsync), this);
     }
     public void Change(Action<bool> changeAction)
     {
         if (editMode == EditMode.View)
-            _ = Run(async () => { await EditAsync(); editMode = EditMode.Change; changeAction(false); });
+            UiExceptionReporter.Observe(Run(async () => { await EditAsync(); editMode = EditMode.Change; changeAction(false); }), nameof(EditAsync), this);
         else if (editMode == EditMode.Change)
-            _ = Run(async () => { await SaveAsync(); editMode = EditMode.View; changeAction(true); });
+            UiExceptionReporter.Observe(Run(async () => { await SaveAsync(); editMode = EditMode.View; changeAction(true); }), nameof(SaveAsync), this);
     }
-    public void Remove() { if (CanRemove) _ = Run(RetireAsync); }
+    public void Remove() { if (CanRemove) UiExceptionReporter.Observe(Run(RetireAsync), nameof(RetireAsync), this); }
     public void Import() { }
     public bool Close(Action<bool> closeAction)
     {

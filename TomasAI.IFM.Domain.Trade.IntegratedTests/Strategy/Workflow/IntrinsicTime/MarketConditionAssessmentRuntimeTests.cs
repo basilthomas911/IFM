@@ -69,7 +69,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
             observed.Success.Should().BeTrue(observed.ErrorMessage); observed.Value!.WorkflowAcceptedMarketAssessment.Should().BeFalse();
             observed.Value.MarketAssessmentOrphanSuspected.Should().Be(failure == "append");
         }
-        finally { source.Release.TrySetResult(); await pipelines.DisposeAsync(); await supervisor.ShutdownAsync(); await publisher.StopAsync(); }
+        finally { source.Release.TrySetResult(); await pipelines.DisposeAsync(); await global::SupervisorTestLifecycle.ShutdownAsync(factory.Services); await publisher.StopAsync(); }
     }
 
     sealed class FailingAssessmentProjector : IFunctionProjector<MarketConditionAssessmentCompletedEvent>
@@ -128,7 +128,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
                 source.Calls[TimeFrameType.Weekly].Should().Be(1);
 
             }
-            finally { await pipelines.DisposeAsync(); await supervisor.ShutdownAsync(); await producer.StopAsync(); }
+            finally { await pipelines.DisposeAsync(); await global::SupervisorTestLifecycle.ShutdownAsync(first.Services); await producer.StopAsync(); }
         }
         var afterRestart = new AssessmentSourceFixture();
         await using var restarted = sourceFactory.WithWebHostBuilder(builder => builder
@@ -162,7 +162,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
             afterRestart.Calls.Should().BeEmpty();
             (await new MarketConditionAssessmentQueryApi(publisher).GetAsync(restored.WorkflowId)).Value!.Result.Payload.ToArray().Should().Equal(acceptedPayload);
         }
-        finally { await later.DisposeAsync(); await supervisor2.ShutdownAsync(); await publisher.StopAsync(); }
+        finally { await later.DisposeAsync(); await global::SupervisorTestLifecycle.ShutdownAsync(restarted.Services); await publisher.StopAsync(); }
     }
 
     sealed class RecordingAssessmentRepository : IEventSourceFunctionStateRepository<MarketConditionAssessmentState, ExecuteMarketConditionAssessmentCommand>

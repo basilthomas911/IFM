@@ -3,6 +3,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using TomasAI.IFM.UI.Net.Views.App;
+using TomasAI.IFM.UI.Net.Views.Presentation;
 using WinForms = System.Windows.Forms;
 
 namespace TomasAI.IFM.UI.Net
@@ -20,6 +21,7 @@ namespace TomasAI.IFM.UI.Net
             WinForms.Application.ThreadException += Application_ThreadException;
             WinForms.Application.SetUnhandledExceptionMode(WinForms.UnhandledExceptionMode.CatchException);
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+            TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
             WinForms.Application.EnableVisualStyles();
             WinForms.Application.SetCompatibleTextRenderingDefault(false);
             WinForms.Application.SetHighDpiMode(HighDpiMode.SystemAware);
@@ -65,10 +67,14 @@ namespace TomasAI.IFM.UI.Net
 
         static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
+            var exception = e.ExceptionObject as Exception
+                ?? new InvalidOperationException($"Unhandled non-exception object: {e.ExceptionObject}");
+            UiExceptionReporter.Report(exception, "AppDomain", "CurrentDomain.UnhandledException",
+                fatal: e.IsTerminating);
             var errorMessage = new StringBuilder();
-            errorMessage.AppendLine(((Exception)e.ExceptionObject).GetType().FullName);
-            errorMessage.AppendLine(((Exception)e.ExceptionObject).Message);
-            errorMessage.AppendLine(((Exception)e.ExceptionObject).StackTrace);
+            errorMessage.AppendLine(exception.GetType().FullName);
+            errorMessage.AppendLine(exception.Message);
+            errorMessage.AppendLine(exception.StackTrace);
             Console.Error.WriteLine(errorMessage);
             WinForms.MessageBox.Show($"{errorMessage}", "UnhandledException", WinForms.MessageBoxButtons.OK, WinForms.MessageBoxIcon.Error);
             Environment.ExitCode = 1;
@@ -77,6 +83,7 @@ namespace TomasAI.IFM.UI.Net
 
         static void Application_ThreadException(object sender, System.Threading.ThreadExceptionEventArgs e)
         {
+            UiExceptionReporter.Report(e.Exception, "WinForms", "Application.ThreadException", fatal: true);
             var errorMessage = new StringBuilder();
             var exception = e.Exception;
             while (exception.InnerException != null)
@@ -90,8 +97,16 @@ namespace TomasAI.IFM.UI.Net
             WinForms.Application.Exit();
         }
 
+        static void TaskScheduler_UnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+        {
+            UiExceptionReporter.Report(e.Exception.Flatten(), "TaskScheduler",
+                "UnobservedTaskException");
+            e.SetObserved();
+        }
+
         static void ShowFatalError(Exception exception, string caption)
         {
+            UiExceptionReporter.Report(exception, "Application", caption, fatal: true);
             var errorMessage = new StringBuilder();
             for (var current = exception; current is not null; current = current.InnerException)
             {

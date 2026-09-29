@@ -94,13 +94,15 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
                 ddlCountryCodes.Enabled = true;
                 UpdateCountryCodeAccessibility();
                 var countryCode = _viewModel.GetCountryCode(ddlCountryCodes.SelectedIndex) ?? string.Empty;
-                _ = LoadCalendarsAsync(DateOnly.FromDateTime(dtmEventDate.Value), countryCode);
+                UiExceptionReporter.Observe(
+                    LoadCalendarsAsync(DateOnly.FromDateTime(dtmEventDate.Value), countryCode),
+                    nameof(LoadCalendarsAsync), this);
             });
 
             _viewModel.OnWaitCursor = () => this.Post(() => Cursor = Cursors.WaitCursor);
             _viewModel.OnDefaultCursor = () => this.Post(() => Cursor = Cursors.Default);
 
-            _ = LoadEditorAsync();
+            UiExceptionReporter.Observe(LoadEditorAsync(), nameof(LoadEditorAsync), this);
         }
 
         /// <summary>
@@ -108,7 +110,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
         /// </summary>
         void IControlCommand.Unload()
         {
-            _ = ((IAsyncFormControl)this).CloseAsync();
+            UiExceptionReporter.Observe(((IAsyncFormControl)this).CloseAsync(), nameof(IAsyncFormControl.CloseAsync), this);
         }
 
         /// <summary>
@@ -246,11 +248,11 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
                 return;
             }
             _viewModel.PrepareImport(dtmEventDate.Value.Date, countryCode);
-            _ = ImportPreparedCalendarsAsync();
+            UiExceptionReporter.Observe(ImportPreparedCalendarsAsync(), nameof(ImportPreparedCalendarsAsync), this);
         }
 
         void ObserveMutation(Task operation, string caption)
-            => _ = ObserveMutationAsync(operation, caption);
+            => UiExceptionReporter.Observe(ObserveMutationAsync(operation, caption), nameof(ObserveMutationAsync), this);
 
         async Task ObserveMutationAsync(Task operation, string caption)
         {
@@ -403,7 +405,9 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
                 return;
             var countryCode = _viewModel.GetCountryCode(ddlCountryCodes.SelectedIndex) ?? string.Empty;
             if (!string.IsNullOrWhiteSpace(countryCode))
-                _ = LoadCalendarsAsync(DateOnly.FromDateTime(dtmEventDate.Value), countryCode);
+                UiExceptionReporter.Observe(
+                    LoadCalendarsAsync(DateOnly.FromDateTime(dtmEventDate.Value), countryCode),
+                    nameof(LoadCalendarsAsync), this);
         }
 
         void UpdateCountryCodeAccessibility()
@@ -426,7 +430,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             throw new NotImplementedException();
         }
 
-        public void Close() => _ = ((IAsyncFormControl)this).CloseAsync();
+        public void Close() => UiExceptionReporter.Observe(((IAsyncFormControl)this).CloseAsync(), nameof(IAsyncFormControl.CloseAsync), this);
 
         async ValueTask IAsyncFormControl.CloseAsync()
             => await _viewModel.StopAsync(CancellationToken.None);
@@ -436,7 +440,9 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             if (dtmEventDate.Enabled)
             {
                 var countryCode = _viewModel.GetCountryCode(ddlCountryCodes.SelectedIndex) ?? string.Empty;
-                _ = LoadCalendarsAsync(DateOnly.FromDateTime(dtmEventDate.Value), countryCode);
+                UiExceptionReporter.Observe(
+                    LoadCalendarsAsync(DateOnly.FromDateTime(dtmEventDate.Value), countryCode),
+                    nameof(LoadCalendarsAsync), this);
             }
         }
 

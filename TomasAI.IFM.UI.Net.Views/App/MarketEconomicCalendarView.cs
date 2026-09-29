@@ -188,7 +188,7 @@ public partial class MarketEconomicCalendarView : DarkTradingView, IAsyncFormCon
 
     void IFormControl.Resize(Control parentControl) { }
 
-    public void Close() => _ = ((IAsyncFormControl)this).CloseAsync();
+    public void Close() => UiExceptionReporter.Observe(((IAsyncFormControl)this).CloseAsync(), nameof(IAsyncFormControl.CloseAsync), this);
 
     async ValueTask IAsyncFormControl.CloseAsync()
     {
