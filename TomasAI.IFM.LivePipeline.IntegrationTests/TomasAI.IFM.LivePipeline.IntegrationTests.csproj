@@ -12,6 +12,7 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
     <PackageReference Include="NSubstitute" Version="6.0.0" />
     <ProjectReference Include="../TomasAI.IFM.Application.Api.Server/TomasAI.IFM.Application.Api.Server.csproj" />
+    <ProjectReference Include="../TomasAI.IFM.Application.Api.Server.RecoveryChildProbe/TomasAI.IFM.Application.Api.Server.RecoveryChildProbe.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../TomasAI.IFM.UI.Net.Services/TomasAI.IFM.UI.Net.Services.csproj" />
   </ItemGroup>
 </Project>

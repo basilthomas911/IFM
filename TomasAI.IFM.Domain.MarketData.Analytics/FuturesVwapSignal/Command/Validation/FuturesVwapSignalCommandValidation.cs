@@ -12,7 +12,19 @@ public static class FuturesVwapSignalCommandValidation
         this List<ValidationError> errors, UpdateFuturesVwapSignalCommand command)
     {
         ValidateConfiguration(errors, command.EntityId, command.Subject.EntityId, command.Configuration);
-        ValidateTrade(errors, command.EntityId, command.Observation, true);
+        if (command.SourceCheckpoint is { } source)
+        {
+            if (source.Version != 1 || source.StreamEpochId == Guid.Empty
+                || !source.IsReplayComplete || source.LastTradeOrdinal < 0
+                || source.AsOfUtc.Offset != TimeSpan.Zero
+                || command.SessionStartUtc.Offset != TimeSpan.Zero
+                || command.SessionEndUtc.Offset != TimeSpan.Zero
+                || command.SessionStartUtc >= command.SessionEndUtc
+                || source.AsOfUtc < command.SessionStartUtc
+                || source.AsOfUtc > command.SessionEndUtc)
+                errors.Add(new("VWAP.CHECKPOINT", "VWAP source checkpoint is invalid."));
+        }
+        else ValidateTrade(errors, command.EntityId, command.Observation, true);
         return errors;
     }
 

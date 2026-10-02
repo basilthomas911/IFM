@@ -145,6 +145,7 @@ public sealed class NatsActorConsumerRealtimeRoutingTests
         var message = new NatsActorMessage(sourceMessage, destination);
 
         message.Subject.Should().Be(destination);
+        message.SourceSubject.Should().Be(Source);
         message.GetMessage().Subject.Should().Be(Source.ToString());
         message.GetMessage().Data.Should().BeSameAs(payload);
     }

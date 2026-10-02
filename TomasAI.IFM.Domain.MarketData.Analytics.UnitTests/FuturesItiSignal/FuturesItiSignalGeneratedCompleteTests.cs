@@ -101,13 +101,17 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
     }
 
     [Theory]
-    [InlineData(TimeFrameType.Daily)]
-    [InlineData(TimeFrameType.Weekly)]
-    [InlineData(TimeFrameType.Monthly)]
-    public async Task GenerateCompletion_StartsOneStrategyWorkflowWithPersistedTrigger(
-        TimeFrameType period)
+    [InlineData(TimeFrameType.Daily, false)]
+    [InlineData(TimeFrameType.Weekly, false)]
+    [InlineData(TimeFrameType.Monthly, false)]
+    [InlineData(TimeFrameType.Daily, true)]
+    public async Task GenerateCompletion_UsesItiCommandAsTriggerAndDistinctWorkflowCommand(
+        TimeFrameType period, bool missingEventId)
     {
-        var completed = CreateCompletion(period);
+        var completed = CreateCompletion(period) with
+        {
+            Id = missingEventId ? Guid.Empty : Guid.NewGuid()
+        };
         var context = CreateSuccessfulContext();
 
         await FuturesItiSignalGeneratedComplete.StartStrategyWorkflowAsync(completed, context);
@@ -115,8 +119,11 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
         await context.Received(1).SendAsync<ExecuteIntrinsicTimeStrategyWorkflowCommand,
             IntrinsicTimeStrategyWorkflowEntityId>(
             Arg.Is<ExecuteIntrinsicTimeStrategyWorkflowCommand>(command =>
-                command.CommandId == completed.Id
-                && command.TriggerEventId == completed.Id
+                command.CommandId != Guid.Empty
+                && command.CommandId != completed.CommandId
+                && command.TriggerEventId == completed.CommandId
+                && command.TriggerEvent.Id == completed.CommandId
+                && command.CorrelationId == completed.CommandId
                 && command.EntityId.ItiSignalEntityId == completed.EntityId
                 && command.TriggerEvent.FuturesItiSignal == completed.FuturesItiSignal
                 && command.TriggerEvent.EntityId.TimePeriod == period),

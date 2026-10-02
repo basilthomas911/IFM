@@ -1,18 +1,27 @@
 ﻿using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models.Operations;
 using TomasAI.IFM.UI.Net.Services.Operations;
+using TomasAI.IFM.Domain.Supervisor.Shared.Enums;
+using TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
+using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.UI.Net.Views.App;
 
-/// <summary>Read-only actor-system health explorer. All values come from supervisor snapshots.</summary>
+/// <summary>Actor-system health explorer and authorized Supervisor lifecycle control surface.</summary>
 public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
 {
     readonly IActorHealthQueryService service;
+    readonly ISupervisorCommandApi commands;
+    readonly SupervisorControlOptions controlOptions;
     readonly CancellationTokenSource closing = new();
     readonly System.Windows.Forms.Timer timer = new() { Interval = 15000 };
     readonly DateTimePicker from = Picker("actorHealthFrom");
     readonly DateTimePicker to = Picker("actorHealthTo");
     readonly Button refresh = new() { Name = "refreshActorHealth", Text = "Refresh", AutoSize = true };
+    readonly Label mode = new() { Name = "actorHealthMode", AutoSize = true, Padding = new Padding(8, 7, 8, 0) };
+    readonly ComboBox operation = new() { Name = "actorHealthOperation", Width = 120, DropDownStyle = ComboBoxStyle.DropDownList };
+    readonly TextBox reason = new() { Name = "actorHealthReason", Width = 420, MaxLength = 1024, PlaceholderText = "Required operational reason" };
+    readonly Button execute = new() { Name = "executeActorHealthOperation", Text = "Execute", AutoSize = true, Enabled = false };
     readonly Label summary = new() { Name = "actorHealthSummary", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
     readonly TreeView tree = new() { Name = "actorHealthTree", Dock = DockStyle.Fill, HideSelection = false };
     readonly Label selection = new() { Name = "actorHealthSelection", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
@@ -20,11 +29,14 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
     ActorHealthSnapshot? snapshot;
     bool closeComplete;
 
-    public ActorHealthForm(IActorHealthQueryService service)
+    public ActorHealthForm(IActorHealthQueryService service, ISupervisorCommandApi commands,
+        SupervisorControlOptions controlOptions)
     {
         this.service = service ?? throw new ArgumentNullException(nameof(service));
+        this.commands = commands ?? throw new ArgumentNullException(nameof(commands));
+        this.controlOptions = controlOptions ?? throw new ArgumentNullException(nameof(controlOptions));
         Name = "ActorHealthForm";
-        Text = "Actor Health (read-only)";
+        Text = "Actor Health";
         ClientSize = new Size(1280, 760);
         MinimumSize = new Size(960, 600);
         StartPosition = FormStartPosition.CenterParent;
@@ -33,7 +45,8 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
         Font = new Font("Segoe UI", 10);
         AutoScaleMode = AutoScaleMode.Dpi;
 
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1, Padding = new Padding(12) };
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, ColumnCount = 1, Padding = new Padding(12) };
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -41,9 +54,21 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
         filters.Controls.AddRange([
             Caption("From (UTC)"), from,
             Caption("To (UTC)"), to,
-            refresh,
-            new Label { AutoSize = true, Text = "Read-only; refreshes every 15 seconds while open.", Padding = new Padding(12, 7, 0, 0) }
+            refresh, mode
         ]);
+        var controls = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        operation.Items.AddRange([
+            nameof(SupervisorActorOperationKind.Pause),
+            nameof(SupervisorActorOperationKind.Drain),
+            nameof(SupervisorActorOperationKind.Resume),
+            nameof(SupervisorActorOperationKind.Restart),
+            nameof(SupervisorActorOperationKind.Quarantine),
+            nameof(SupervisorActorOperationKind.Retire),
+            nameof(SupervisorActorOperationKind.Recycle),
+            nameof(SupervisorActorOperationKind.AcknowledgeIncident)
+        ]);
+        operation.SelectedItem = nameof(SupervisorActorOperationKind.Restart);
+        controls.Controls.AddRange([Caption("Selected mailbox action"), operation, reason, execute]);
         var split = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 390 };
         tree.BackColor = Color.FromArgb(30, 30, 30);
         tree.ForeColor = Color.Gainsboro;
@@ -56,8 +81,9 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
         right.Controls.Add(details, 0, 1);
         split.Panel2.Controls.Add(right);
         root.Controls.Add(filters, 0, 0);
-        root.Controls.Add(summary, 0, 1);
-        root.Controls.Add(split, 0, 2);
+        root.Controls.Add(controls, 0, 1);
+        root.Controls.Add(summary, 0, 2);
+        root.Controls.Add(split, 0, 3);
         Controls.Add(root);
 
         var now = DateTime.UtcNow;
@@ -66,6 +92,8 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
         refresh.BackColor = Color.FromArgb(60, 60, 60);
         refresh.ForeColor = Color.White;
         refresh.Click += Refresh_Click;
+        execute.Click += Execute_Click;
+        reason.TextChanged += (_, _) => UpdateControlAvailability();
         tree.AfterSelect += Tree_AfterSelect;
         timer.Tick += Refresh_Click;
         Shown += Form_Shown;
@@ -100,6 +128,12 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
 
     void RenderSnapshot(ActorHealthSnapshot value)
     {
+        var controlsAvailable = controlOptions.Enabled && value.ManualMutationEnabled
+            && !string.Equals(value.SupervisorAuthorityState, nameof(SupervisorAuthorityState.HostRecoveryRequired), StringComparison.Ordinal);
+        mode.Text = controlsAvailable
+            ? $"Controlled | automatic recovery {(value.AutomaticMutationEnabled ? "enabled" : "disabled")}; refreshes every 15 seconds."
+            : "Observation only; refreshes every 15 seconds.";
+        mode.ForeColor = controlsAvailable ? Color.LightGreen : Color.Khaki;
         var status = StatusName(value.OverallStatus);
         var healthyWorkers = value.Workers.Count(worker => !worker.IsFaulted);
         summary.Text = $"{status} | Actors {value.RunningActorCount}/{value.ActorCount} running | "
@@ -162,11 +196,11 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
 
         var incidentsNode = new TreeNode($"Active incidents ({value.Incidents.Count})") { Name = "incidents" };
         foreach (var incident in value.Incidents.OrderByDescending(incident => incident.LastObservedUtc))
-            incidentsNode.Nodes.Add(new TreeNode($"{StatusGlyph(incident.Health == 1 ? 1 : 2)} {incident.ThreadId.Name}.{incident.ThreadId.EntityId}")
+            incidentsNode.Nodes.Add(new TreeNode($"{StatusGlyph(string.Equals(incident.Health, nameof(SupervisorActorHealth.Degraded), StringComparison.Ordinal) ? 1 : 2)} {incident.ThreadId.Name}.{incident.ThreadId.EntityId}")
             {
                 Name = $"incident:{incident.ThreadId.ActorType}:{incident.ThreadId.Name}:{incident.ThreadId.EntityId}",
                 Tag = incident,
-                ForeColor = incident.Health == 1 ? Color.Khaki : Color.Salmon
+                ForeColor = string.Equals(incident.Health, nameof(SupervisorActorHealth.Degraded), StringComparison.Ordinal) ? Color.Khaki : Color.Salmon
             });
         tree.Nodes.Add(incidentsNode);
 
@@ -176,7 +210,7 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
             {
                 Name = $"operation:{operation.OperationId:D}",
                 Tag = operation,
-                ForeColor = operation.Outcome == 0 ? Color.LightGreen : Color.Khaki
+                ForeColor = string.Equals(operation.Outcome, nameof(SupervisorOperationOutcome.Succeeded), StringComparison.Ordinal) ? Color.LightGreen : Color.Khaki
             });
         tree.Nodes.Add(operationsNode);
 
@@ -192,7 +226,7 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
         var workersNode = new TreeNode($"Shared workers ({value.Workers.Count})") { Name = "workers" };
         foreach (var worker in value.Workers.OrderBy(worker => worker.WorkerId))
         {
-            var workerStatus = worker.IsFaulted ? 2 : worker.State == 3 ? 1 : 0;
+            var workerStatus = worker.IsFaulted ? 2 : worker.State == ActorThreadState.ProcessingMessage ? 1 : 0;
             workersNode.Nodes.Add(new TreeNode(
                 $"{StatusGlyph(workerStatus)} Worker {worker.WorkerId} [{WorkerStateName(worker.State)}]")
             {
@@ -208,6 +242,7 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
             tree.SelectedNode = restored;
         else if (tree.Nodes.Count > 0)
             tree.Nodes[0].Expand();
+        UpdateControlAvailability();
     }
 
     void Tree_AfterSelect(object? sender, TreeViewEventArgs args)
@@ -310,6 +345,67 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
                 break;
         }
         FormatGrid();
+        UpdateControlAvailability();
+    }
+
+    async void Execute_Click(object? sender, EventArgs args)
+    {
+        if (snapshot is null || !TryGetSelectedTarget(out var target, out var generation)
+            || !Enum.TryParse<SupervisorActorOperationKind>(operation.SelectedItem?.ToString(), out var selectedOperation))
+            return;
+        var auditReason = reason.Text.Trim();
+        if (auditReason.Length == 0) return;
+        var confirmation = MessageBox.Show(this,
+            $"{selectedOperation} {target.Name}.{target.EntityId} generation {generation}?\n\nReason: {auditReason}",
+            "Confirm Supervisor operation", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+            MessageBoxDefaultButton.Button2);
+        if (confirmation != DialogResult.Yes) return;
+        execute.Enabled = false;
+        try
+        {
+            var result = await commands.ExecuteActorOperationAsync(target, generation, selectedOperation,
+                controlOptions.Requester, auditReason, controlOptions.Timeout, closing.Token);
+            selection.Text = result.Success
+                ? $"Supervisor command {result.Value?.Guid:D} accepted; refresh health for the projected outcome."
+                : $"Operation rejected or failed: {result.ErrorMessage}";
+            selection.ForeColor = result.Success ? Color.LightGreen : Color.Salmon;
+            reason.Clear();
+            await RefreshAsync(closing.Token);
+        }
+        catch (OperationCanceledException) when (closing.IsCancellationRequested) { }
+        finally { UpdateControlAvailability(); }
+    }
+
+    bool TryGetSelectedTarget(out ActorThreadId target, out long generation)
+    {
+        switch (tree.SelectedNode?.Tag)
+        {
+            case ActorHealthMailboxSnapshot mailbox:
+                target = new((ActorType)mailbox.ThreadId.ActorType, mailbox.ThreadId.Name, mailbox.ThreadId.EntityId);
+                generation = mailbox.Generation;
+                return true;
+            case ActorHealthIncident incident:
+                target = new((ActorType)incident.ThreadId.ActorType, incident.ThreadId.Name, incident.ThreadId.EntityId);
+                generation = incident.Generation;
+                return true;
+            default:
+                target = default;
+                generation = 0;
+                return false;
+        }
+    }
+
+    void UpdateControlAvailability()
+    {
+        var authorityAvailable = snapshot is { ManualMutationEnabled: true }
+            && !string.Equals(snapshot.SupervisorAuthorityState, nameof(SupervisorAuthorityState.HostRecoveryRequired), StringComparison.Ordinal);
+        var canExecute = controlOptions.Enabled && authorityAvailable
+            && !string.IsNullOrWhiteSpace(controlOptions.Requester) && controlOptions.Timeout > TimeSpan.Zero
+            && controlOptions.Timeout <= TimeSpan.FromMinutes(10) && reason.TextLength > 0
+            && TryGetSelectedTarget(out _, out _);
+        operation.Enabled = controlOptions.Enabled && authorityAvailable;
+        reason.Enabled = controlOptions.Enabled && authorityAvailable;
+        execute.Enabled = canExecute;
     }
 
     static object MailboxRow(ActorHealthMailboxSnapshot mailbox) => new
@@ -401,44 +497,52 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
     };
     static int MailboxStatus(ActorHealthMailboxSnapshot value) => value.IsProcessing || value.QueueDepth > 0 ? 1
         : value.LastFailedUtc is not null && (value.LastCompletedUtc is null || value.LastFailedUtc >= value.LastCompletedUtc) ? 2 : 0;
+    static string StatusName(SupervisorActorHealthStatus status) => status.ToString();
     static string StatusName(int status) => status switch { 0 => "Green", 1 => "Yellow", _ => "Red" };
-    static string LifecycleName(int state) => state switch
+    static string LifecycleName(SupervisorActorLifecycleState state) => state switch
     {
-        0 => "Registered",
-        1 => "Starting",
-        2 => "Running",
-        3 => "Draining",
-        4 => "Stopped",
-        5 => "Restarting",
-        6 => "Faulted",
-        7 => "Timed out",
-        8 => "Quarantined",
-        _ => $"Unknown ({state})"
+        SupervisorActorLifecycleState.Registered => "Registered",
+        SupervisorActorLifecycleState.Starting => "Starting",
+        SupervisorActorLifecycleState.Running => "Running",
+        SupervisorActorLifecycleState.Draining => "Draining",
+        SupervisorActorLifecycleState.Stopped => "Stopped",
+        SupervisorActorLifecycleState.Restarting => "Restarting",
+        SupervisorActorLifecycleState.Faulted => "Faulted",
+        SupervisorActorLifecycleState.TimedOut => "Timed out",
+        SupervisorActorLifecycleState.Quarantined => "Quarantined",
+        _ => $"Unknown ({(int)state})"
     };
 
-    static string MailboxLifecycleName(int state) => state switch
+    static string MailboxLifecycleName(ActorMailboxLifecycleState state) => state switch
     {
-        0 => "Running",
-        1 => "Draining",
-        2 => "Paused",
-        3 => "Quarantined",
-        4 => "Retired",
-        _ => $"Unknown ({state})"
+        ActorMailboxLifecycleState.Running => "Running",
+        ActorMailboxLifecycleState.Draining => "Draining",
+        ActorMailboxLifecycleState.Paused => "Paused",
+        ActorMailboxLifecycleState.Quarantined => "Quarantined",
+        ActorMailboxLifecycleState.Retired => "Retired",
+        _ => $"Unknown ({(int)state})"
     };
-    static string WorkerStateName(int state) => state switch
+    static string WorkerStateName(ActorThreadState state) => state switch
     {
-        0 => "Unknown",
-        1 => "Ready",
-        2 => "Started",
-        3 => "Processing",
-        4 => "Waiting",
-        5 => "Stopped",
-        6 => "Faulted",
-        7 => "Timed out",
-        _ => $"Unknown ({state})"
+        ActorThreadState.Unknown => "Unknown",
+        ActorThreadState.Ready => "Ready",
+        ActorThreadState.Started => "Started",
+        ActorThreadState.ProcessingMessage => "Processing",
+        ActorThreadState.WaitingForMessage => "Waiting",
+        ActorThreadState.Stopped => "Stopped",
+        ActorThreadState.Faulted => "Faulted",
+        ActorThreadState.TimedOut => "Timed out",
+        _ => $"Unknown ({(int)state})"
     };
     static string StatusGlyph(int status) => "\u25CF";
+    static string StatusGlyph(SupervisorActorHealthStatus status) => "\u25CF";
     static Color StatusColor(int status) => status switch { 0 => Color.LightGreen, 1 => Color.Khaki, _ => Color.Salmon };
+    static Color StatusColor(SupervisorActorHealthStatus status) => status switch
+    {
+        SupervisorActorHealthStatus.Green => Color.LightGreen,
+        SupervisorActorHealthStatus.Yellow => Color.Khaki,
+        _ => Color.Salmon
+    };
     static string Utc(DateTime? value) => value?.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss 'UTC'") ?? "Never";
     static TreeNode? Find(TreeNodeCollection nodes, string? key)
     {

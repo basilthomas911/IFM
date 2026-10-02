@@ -7,6 +7,7 @@ using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
@@ -89,6 +90,78 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
     }
 
     [Fact]
+    public async Task Supervised_core_futures_route_completes_without_legacy_subscription()
+    {
+        var api = Substitute.For<IMarketDataApi>();
+        api.CoreFuturesRoutesAreRuntimeOwned.Returns(true);
+        api.GetRuntimeStatus().Returns(new MarketDataFeedRuntimeStatusReadModel
+        {
+            IsRunning = true,
+            ActiveValueDate = ValueDate,
+            ObservedAtUtc = DateTimeOffset.UtcNow
+        });
+        api.IsTickDataStreamActive(ContractId).Returns(true);
+        var parameters = new TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.FuturesTickDataEventParameters(
+            api, Substitute.For<IBlackboardService>(), Substitute.For<IStatusConsoleWriter>(),
+            Substitute.For<ILogger<FuturesTickDataEventActor>>());
+        var eventApi = Substitute.For<IEventActorContext>();
+        var started = new FuturesTickDataStreamingStartedEvent
+        {
+            EntityId = new FuturesTickDataStreamingId(ValueDate),
+            ValueDate = ValueDate,
+            Contract = new FuturesContractV3ReadModel(ContractId, "VIX Futures", "VX", "VXU6",
+                "FUT", "USD", "CFE", "1000", new DateOnly(2026, 9, 16), true)
+        };
+
+        var result = await TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event
+            .FuturesTickDataStreamingStarted.ExecuteAsync(started, eventApi, eventApi, parameters,
+                Substitute.For<ILogger<FuturesTickDataEventActor>>());
+
+        result.Should().BeTrue();
+        await eventApi.Received(1).SendAsync<FuturesTickDataStreamingStartedCompleteEvent, FuturesTickDataStreamingId>(
+            Arg.Any<FuturesTickDataStreamingStartedCompleteEvent>());
+        _ = api.DidNotReceiveWithAnyArgs().StartStreamingFuturesTickDataAsync(
+            Arg.Any<string>(),
+            Arg.Any<TomasAI.IFM.Framework.MarketData.Contracts.Ticker.TickerStreamOwner?>());
+    }
+
+    [Fact]
+    public async Task Supervised_core_futures_route_fails_when_worker_has_not_admitted_contract()
+    {
+        var api = Substitute.For<IMarketDataApi>();
+        api.CoreFuturesRoutesAreRuntimeOwned.Returns(true);
+        api.GetRuntimeStatus().Returns(new MarketDataFeedRuntimeStatusReadModel
+        {
+            IsRunning = true,
+            ActiveValueDate = ValueDate,
+            ObservedAtUtc = DateTimeOffset.UtcNow
+        });
+        var status = Substitute.For<IStatusConsoleWriter>();
+        var parameters = new TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.FuturesTickDataEventParameters(
+            api, Substitute.For<IBlackboardService>(), status,
+            Substitute.For<ILogger<FuturesTickDataEventActor>>());
+        var eventApi = Substitute.For<IEventActorContext>();
+        var started = new FuturesTickDataStreamingStartedEvent
+        {
+            EntityId = new FuturesTickDataStreamingId(ValueDate),
+            ValueDate = ValueDate,
+            Contract = new FuturesContractV3ReadModel(ContractId, "VIX Futures", "VX", "VXU6",
+                "FUT", "USD", "CFE", "1000", new DateOnly(2026, 9, 16), true)
+        };
+
+        var result = await TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event
+            .FuturesTickDataStreamingStarted.ExecuteAsync(started, eventApi, eventApi, parameters,
+                Substitute.For<ILogger<FuturesTickDataEventActor>>());
+
+        result.Should().BeFalse();
+        await eventApi.Received(1).SendAsync<FuturesTickDataStreamingStartedFailEvent, FuturesTickDataStreamingId>(
+            Arg.Any<FuturesTickDataStreamingStartedFailEvent>());
+        _ = api.DidNotReceiveWithAnyArgs().StartStreamingFuturesTickDataAsync(
+            Arg.Any<string>(),
+            Arg.Any<TomasAI.IFM.Framework.MarketData.Contracts.Ticker.TickerStreamOwner?>());
+    }
+
+    [Fact]
     public async Task Realtime_actor_registers_all_live_eod_routes_and_projector_lifecycle()
     {
         var projector = CreateProjector();
@@ -145,6 +218,66 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
     }
 
     [Fact]
+    public async Task Realtime_actor_consumes_eod_updated_notification_without_reprojecting_it()
+    {
+        var entityId = new FuturesEodDataId("ES20260918", ValueDate);
+        var source = new FuturesEodDataUpdatedEvent
+        {
+            Subject = new ActorSubject(ActorType.Event, FuturesEodDataUpdatedEvent.Actor,
+                FuturesEodDataUpdatedEvent.Verb, entityId.Format()),
+            Id = Guid.NewGuid(),
+            EntityId = entityId,
+            CommandId = Guid.NewGuid(),
+            AggregateId = entityId.Format(),
+            EventSource = "unit-test",
+            ReceivedOn = DateTime.UtcNow,
+            FuturesEodData = new FuturesEodDataV2ReadModel(
+                "ES20260918", ValueDate, "ES", 5390m, 5460m, 5370m, 5425m, 1000,
+                0.1, 0.01, 54.25, 5500, 5425, 5350,
+                MarketDirectionType.NeutralUp, MarketVolatilityType.Normal,
+                PriceDirectionType.Falling, PriceVolatilityType.Falling)
+        };
+        NatsMsg<byte[]> message = new()
+        {
+            Subject = new ActorSubject(ActorType.Realtime, FuturesEodDataRealtimeActor.ActorName,
+                FuturesEodDataUpdatedEvent.Verb, entityId.Format()).ToString(),
+            Data = ActorExtensions.DataSerializer!.Serialize(source)
+        };
+        var projector = CreateProjector();
+        var actor = CreateRealtimeActor(projector, out _);
+        var context = Substitute.For<IEventActorContext<FuturesEodDataRealtimeActor>>();
+
+        var parsed = actor.Parse(context, new NatsActorMessage(message))
+            .Should().BeOfType<FuturesEodDataUpdatedEvent>().Which;
+        await actor.Receive(context, parsed);
+
+        parsed.EntityId.Should().Be(entityId);
+        await projector.DidNotReceiveWithAnyArgs().ProcessRealtimeEventAsync(default!, default);
+    }
+
+    [Fact]
+    public void Realtime_actor_keeps_routed_market_price_updated_payload_type()
+    {
+        var actor = CreateRealtimeActor(CreateProjector(), out _);
+        var message = Substitute.For<IActorMessage>();
+        message.Subject.Returns(new ActorSubject(ActorType.Realtime,
+            FuturesEodDataRealtimeActor.ActorName, FuturesMarketPriceUpdatedRealtimeEvent.Verb,
+            "1:20261002:ES20261218"));
+        message.SourceSubject.Returns(new ActorSubject(ActorType.Realtime,
+            FuturesMarketPriceUpdatedRealtimeEvent.Actor, FuturesMarketPriceUpdatedRealtimeEvent.Verb,
+            "1:20261002:ES20261218"));
+        var source = new FuturesMarketPriceUpdatedRealtimeEvent();
+        var payload = ActorExtensions.DataSerializer!.Serialize(source);
+        message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>().Returns(
+            _ => ActorExtensions.DataSerializer!.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(payload));
+
+        actor.Parse(Substitute.For<IEventActorContext<FuturesEodDataRealtimeActor>>(), message)
+            .Should().BeOfType<FuturesMarketPriceUpdatedRealtimeEvent>();
+        _ = message.Received(1).AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>();
+        _ = message.DidNotReceive().AsEvent<FuturesEodDataUpdatedEvent>();
+    }
+
+    [Fact]
     public async Task Active_vix_trade_is_projected_without_a_command_actor()
     {
         var projector = CreateProjector();
@@ -170,6 +303,211 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
                 && inserted.VixFuturesTickData.Price == 20.15m
                 && inserted.VixFuturesTickData.Size == 17),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Es_trade_reuses_successfully_projected_eod_and_ignores_duplicate_sequence()
+    {
+        const string contractId = "ES20261218";
+        var projector = CreateProjector();
+        var actor = CreateRealtimeActor(projector, out var marketDataApi);
+        marketDataApi.IsTickDataStreamActive(contractId).Returns(true);
+        marketDataApi.GetFuturesContractAsync(contractId).Returns(new FuturesContractV3ReadModel(
+            contractId, "ES Futures", "ES", "ESZ6", "FUT", "USD", "CME", "50",
+            new DateOnly(2026, 12, 18), true));
+        var current = new FuturesEodDataV2ReadModel(
+            contractId, ValueDate, "ES", 5400m, 5420m, 5390m, 5410m, 100,
+            0.1, 0.01, 54.25, 5500, 5425, 5350,
+            MarketDirectionType.NeutralUp, MarketVolatilityType.Normal,
+            PriceDirectionType.Falling, PriceVolatilityType.Falling);
+        var context = actor.Context;
+        context.RequestAsync<FuturesEodDataV2ReadModel, GetFuturesEodDataQuery>(
+                Arg.Any<GetFuturesEodDataQuery>())
+            .Returns(new ServiceOk<FuturesEodDataV2ReadModel>(current));
+        var first = CreateTrade() with
+        {
+            EntityId = new TickDataEntityId(contractId, ValueDate, AssetTypeId.Futures),
+            TickDataId = new TickDataId(contractId, ValueDate, 2, DateTime.UtcNow),
+            TradeData = CreateTrade().TradeData with { Price = 5411m }
+        };
+        var second = first with
+        {
+            Id = Guid.NewGuid(),
+            TickDataId = first.TickDataId with { SequenceId = 3 },
+            TradeData = first.TradeData with { Price = 5412m }
+        };
+
+        await actor.Receive(context, first);
+        await actor.Receive(context, second);
+        await actor.Receive(context, first);
+
+        _ = context.Received(1).RequestAsync<FuturesEodDataV2ReadModel, GetFuturesEodDataQuery>(
+            Arg.Any<GetFuturesEodDataQuery>());
+        await projector.Received(2).ProcessRealtimeEventAsync(
+            Arg.Any<FuturesEodDataInsertedEvent>(), Arg.Any<CancellationToken>());
+        await projector.Received(1).ProcessRealtimeEventAsync(
+            Arg.Is<FuturesEodDataInsertedEvent>(e => e.FuturesEodData.ClosePrice == 5412m),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Es_trade_does_not_treat_failed_current_row_query_as_an_empty_session()
+    {
+        const string contractId = "ES20261218";
+        var projector = CreateProjector();
+        var actor = CreateRealtimeActor(projector, out var marketDataApi);
+        marketDataApi.IsTickDataStreamActive(contractId).Returns(true);
+        marketDataApi.GetFuturesContractAsync(contractId).Returns(new FuturesContractV3ReadModel(
+            contractId, "ES Futures", "ES", "ESZ6", "FUT", "USD", "CME", "50",
+            new DateOnly(2026, 12, 18), true));
+        var context = actor.Context;
+        context.RequestAsync<FuturesEodDataV2ReadModel, GetFuturesEodDataQuery>(
+                Arg.Any<GetFuturesEodDataQuery>())
+            .Returns(new ServiceResult<FuturesEodDataV2ReadModel>(503, "query unavailable"));
+        var trade = CreateTrade() with
+        {
+            EntityId = new TickDataEntityId(contractId, ValueDate, AssetTypeId.Futures),
+            TickDataId = new TickDataId(contractId, ValueDate, 2, DateTime.UtcNow)
+        };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await actor.Receive(context, trade));
+
+        _ = context.DidNotReceiveWithAnyArgs().RequestAsync<
+            FuturesEodDataV2ReadModel, GetLastFuturesEodDataQuery>(default!);
+        await projector.DidNotReceiveWithAnyArgs().ProcessRealtimeEventAsync(
+            default!, default);
+    }
+
+    [Fact]
+    public async Task Experimental_eod_worker_releases_mailbox_before_slow_projection_finishes()
+    {
+        var projector = CreateProjector();
+        var projectionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseProjection = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        projector.ProcessRealtimeEventAsync(Arg.Any<VixFuturesEodDataInsertedEvent>(),
+                Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                projectionStarted.TrySetResult();
+                return new ValueTask<bool>(releaseProjection.Task);
+            });
+        var actor = CreateRealtimeActor(projector, out var marketDataApi);
+        actor.Context.EnableAsyncTradeWorker.Returns(true);
+        marketDataApi.IsTickDataStreamActive(ContractId).Returns(true);
+        marketDataApi.GetFuturesContractAsync(ContractId).Returns(new FuturesContractV3ReadModel(
+            ContractId, "VIX Futures", "VX", "VXU6", "FUT", "USD", "CFE", "1000",
+            new DateOnly(2026, 9, 16), true));
+        var context = (IEventActorContext<FuturesEodDataRealtimeActor>)actor.Context;
+        await actor.Start(context);
+        try
+        {
+            await actor.Receive(context, CreateTrade());
+            await projectionStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            releaseProjection.Task.IsCompleted.Should().BeFalse();
+        }
+        finally
+        {
+            releaseProjection.TrySetResult(true);
+            await actor.Stop(context);
+        }
+
+        await projector.Received(1).ProcessRealtimeEventAsync(
+            Arg.Any<VixFuturesEodDataInsertedEvent>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Experimental_eod_worker_preserves_order_and_waits_when_full()
+    {
+        var firstStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var processed = new List<Guid>();
+        var first = CreateTrade();
+        var second = CreateTrade();
+        var third = CreateTrade();
+        var worker = new FuturesEodTradeWorker(1, async trade =>
+        {
+            if (trade.Id == first.Id)
+            {
+                firstStarted.TrySetResult();
+                await releaseFirst.Task;
+            }
+            processed.Add(trade.Id);
+            return true;
+        }, Substitute.For<ILogger<FuturesEodDataRealtimeActor>>());
+
+        try
+        {
+            await worker.EnqueueAsync(first);
+            await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await worker.EnqueueAsync(second);
+            var blocked = worker.EnqueueAsync(third).AsTask();
+            blocked.IsCompleted.Should().BeFalse();
+
+            releaseFirst.TrySetResult();
+            await blocked.WaitAsync(TimeSpan.FromSeconds(5));
+            await worker.DrainAsync();
+            processed.Should().Equal(first.Id, second.Id, third.Id);
+            worker.Pending.Should().Be(0);
+        }
+        finally
+        {
+            releaseFirst.TrySetResult();
+            await worker.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Experimental_eod_workers_isolate_contracts_and_do_not_drain_on_update()
+    {
+        const string otherContract = "VX20261021";
+        var blockedStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseBlocked = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var otherCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var projector = CreateProjector();
+        projector.ProcessRealtimeEventAsync(Arg.Any<VixFuturesEodDataInsertedEvent>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var projected = call.Arg<VixFuturesEodDataInsertedEvent>();
+                if (projected.VixFuturesTickData.ContractId == ContractId)
+                {
+                    blockedStarted.TrySetResult();
+                    return new ValueTask<bool>(releaseBlocked.Task);
+                }
+                otherCompleted.TrySetResult();
+                return ValueTask.FromResult(true);
+            });
+        var actor = CreateRealtimeActor(projector, out var marketDataApi);
+        actor.Context.EnableAsyncTradeWorker.Returns(true);
+        marketDataApi.IsTickDataStreamActive(Arg.Any<string>()).Returns(true);
+        marketDataApi.GetFuturesContractAsync(ContractId).Returns(new FuturesContractV3ReadModel(
+            ContractId, "VIX Futures", "VX", "VXU6", "FUT", "USD", "CFE", "1000",
+            new DateOnly(2026, 9, 16), true));
+        marketDataApi.GetFuturesContractAsync(otherContract).Returns(new FuturesContractV3ReadModel(
+            otherContract, "VIX Futures", "VX", "VXV6", "FUT", "USD", "CFE", "1000",
+            new DateOnly(2026, 10, 21), true));
+        var context = (IEventActorContext<FuturesEodDataRealtimeActor>)actor.Context;
+        await actor.Start(context);
+        try
+        {
+            await actor.Receive(context, CreateTrade());
+            await blockedStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var updateId = new FuturesEodDataId(ContractId, ValueDate);
+            await actor.Receive(context, new FuturesEodDataUpdatedEvent { EntityId = updateId });
+            await actor.Receive(context, CreateTrade() with
+            {
+                EntityId = new TickDataEntityId(otherContract, ValueDate, AssetTypeId.Futures),
+                TickDataId = new TickDataId(otherContract, ValueDate, 3, DateTime.UtcNow)
+            });
+            await otherCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            releaseBlocked.Task.IsCompleted.Should().BeFalse();
+        }
+        finally
+        {
+            releaseBlocked.TrySetResult(true);
+            await actor.Stop(context);
+        }
     }
 
     [Fact]

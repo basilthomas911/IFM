@@ -7,6 +7,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -24,6 +25,30 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 /// </remarks>
 public static class MarketDataAnalyticsCommandApiExtensions
 {
+    /// <summary>Persists one cumulative VWAP checkpoint from the ordered tick source.</summary>
+    public static ValueTask<ServiceResult<GuidResult>> UpdateFuturesVwapSignalAsync(
+        this IEventActorContext context,
+        FuturesVwapSignalEntityId entityId,
+        FuturesVwapSourceCheckpoint checkpoint,
+        DateTimeOffset sessionStartUtc,
+        DateTimeOffset sessionEndUtc,
+        FuturesVwapConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(checkpoint);
+        UpdateFuturesVwapSignalCommand command = new()
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new(ActorType.Command, UpdateFuturesVwapSignalCommand.Actor,
+                UpdateFuturesVwapSignalCommand.Verb, entityId.Format()),
+            EntityId = entityId,
+            SourceCheckpoint = checkpoint,
+            SessionStartUtc = sessionStartUtc,
+            SessionEndUtc = sessionEndUtc,
+            Configuration = configuration
+        };
+        return RequestAsync<UpdateFuturesVwapSignalCommand, FuturesVwapSignalEntityId>(context, command);
+    }
+
     /// <summary>Sends one live exact-trade observation to the event-sourced VWAP actor.</summary>
     public static ValueTask<ServiceResult<GuidResult>> UpdateFuturesVwapSignalAsync(
         this IEventActorContext context,

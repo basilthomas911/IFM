@@ -12,7 +12,13 @@ public sealed record DatabentoStage3Options
     public TimeSpan OffTradingPollInterval { get; init; } = TimeSpan.FromMinutes(5);
     public TimeSpan OffTradingStallTimeout { get; init; } = TimeSpan.FromMinutes(15);
     public TimeSpan WorkerHandshakeTimeout { get; init; } = TimeSpan.FromSeconds(10);
-    public TimeSpan WorkerStartTimeout { get; init; } = TimeSpan.FromSeconds(30);
+    /// <summary>
+    /// Bounds the complete worker startup acknowledgement, not one provider query.
+    /// Defaults cover three 30-second catalog attempts, 1+2 seconds of backoff,
+    /// a 30-second native feed start, and 27 seconds of process/protocol overhead.
+    /// The overall recovery deadline still caps the complete multi-dataset sequence.
+    /// </summary>
+    public TimeSpan WorkerStartTimeout { get; init; } = TimeSpan.FromSeconds(150);
     public TimeSpan WorkerCommandTimeout { get; init; } = TimeSpan.FromSeconds(10);
     public TimeSpan WorkerGracefulStopTimeout { get; init; } = TimeSpan.FromSeconds(10);
     public TimeSpan WorkerForceKillTimeout { get; init; } = TimeSpan.FromSeconds(5);
@@ -30,7 +36,7 @@ public sealed record DatabentoStage3Options
             || OffTradingPollInterval <= TimeSpan.Zero
             || OffTradingStallTimeout < OffTradingPollInterval * 2
             || WorkerHandshakeTimeout <= TimeSpan.Zero
-            || WorkerStartTimeout <= TimeSpan.Zero
+            || WorkerStartTimeout <= TimeSpan.Zero || WorkerStartTimeout > TimeSpan.FromMinutes(3)
             || WorkerCommandTimeout <= TimeSpan.Zero
             || WorkerGracefulStopTimeout <= TimeSpan.Zero
             || WorkerForceKillTimeout <= TimeSpan.Zero

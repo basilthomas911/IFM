@@ -86,6 +86,118 @@ public sealed class DatasetPublicationIngress(
     IMarketDataOperationsRecorder recorder,
     DatasetWorkerCurrentValues? currentValues = null, Pricing.IOptionTradeEvidenceWriter? optionTrades = null)
 {
+    readonly object holdingGate = new();
+    readonly Dictionary<string, CandidateHoldingState> candidateHolding = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Authorizes only the locally qualified candidate generation to enter a finite holding
+    /// buffer. This does not admit it to the publisher, current-values mirror, or actor routes.
+    /// The previous generation must already have been fenced by the hard-recovery owner.
+    /// </summary>
+    public void StartCandidateHolding(DatasetWorkerAdmission identity,
+        DatabentoRecoveryHoldingBuffer<DatasetPublicationEnvelope> buffer)
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+        if (string.IsNullOrWhiteSpace(identity.Dataset) || identity.ValueDate == default
+            || identity.WorkerInstanceId == Guid.Empty || identity.GenerationId == Guid.Empty
+            || identity.ManifestRevision < 1)
+            throw new ArgumentException("Candidate holding identity is invalid.", nameof(identity));
+        lock (holdingGate)
+        {
+            if (candidateHolding.ContainsKey(identity.Dataset))
+                throw new InvalidOperationException("A candidate generation is already being held for this dataset.");
+            if (candidateHolding.Count >= DatasetDesiredSubscriptionRegistry.MaximumDatasets)
+                throw new InvalidOperationException("Candidate holding dataset capacity is exhausted.");
+            if (admissions.TryGet(identity.Dataset, out _))
+                throw new InvalidOperationException("The previous generation must be fenced before candidate holding.");
+            candidateHolding.Add(identity.Dataset, new CandidateHoldingState(identity, buffer));
+        }
+    }
+
+    /// <summary>Stops accepting candidate records; already held records remain owned by the caller's buffer.</summary>
+    public void StopCandidateHolding(DatasetWorkerAdmission identity)
+    {
+        lock (holdingGate)
+        {
+            if (!candidateHolding.TryGetValue(identity.Dataset, out var holding) || holding.Identity != identity)
+                throw new InvalidOperationException("The active candidate holding identity differs.");
+            if (holding.ProbeInFlight)
+                throw new InvalidOperationException("The candidate probe has not finished publication.");
+            candidateHolding.Remove(identity.Dataset);
+        }
+    }
+
+    /// <summary>Releases all qualified datasets from holding under one ingress lock.</summary>
+    public void PromoteCandidateHoldings(IReadOnlyCollection<DatasetWorkerAdmission> identities)
+    {
+        ArgumentNullException.ThrowIfNull(identities);
+        if (identities.Count == 0 || identities.Count > DatasetDesiredSubscriptionRegistry.MaximumDatasets
+            || identities.Select(identity => identity.Dataset).Distinct(StringComparer.Ordinal).Count() != identities.Count)
+            throw new ArgumentException("Promotion requires a nonempty, unique dataset set.", nameof(identities));
+        lock (holdingGate)
+        {
+            foreach (var identity in identities)
+            {
+                if (!candidateHolding.TryGetValue(identity.Dataset, out var holding)
+                    || holding.Identity != identity || holding.ProbeInFlight
+                    || !admissions.TryGet(identity.Dataset, out var admitted) || admitted != identity)
+                    throw new InvalidOperationException("Every candidate must be admitted and idle before promotion.");
+            }
+            foreach (var identity in identities) candidateHolding.Remove(identity.Dataset);
+        }
+    }
+
+    /// <summary>
+    /// Publishes one held candidate trade or quote solely for the scoped tick-storage proof.
+    /// The caller must arm and later drain the exact actor probe admission; this method does
+    /// not admit normal ingress, current values, market prices, analytics, or option evidence.
+    /// </summary>
+    public async Task<bool> PublishHeldCandidateTickProbeAsync(DatasetWorkerAdmission identity,
+        CancellationToken cancellationToken = default)
+    {
+        DatasetPublicationEnvelope envelope;
+        CandidateHoldingState holding;
+        lock (holdingGate)
+        {
+            if (!candidateHolding.TryGetValue(identity.Dataset, out holding!) || holding.Identity != identity
+                || holding.ProbeInFlight)
+                throw new InvalidOperationException("The candidate probe identity or state differs.");
+            if (!holding.Buffer.TryTakeWhere(static candidate =>
+                    candidate.Kind is DatasetPublicationKind.Trade or DatasetPublicationKind.Quote,
+                    out envelope!))
+                return false;
+            if (envelope.Dataset != identity.Dataset || envelope.ValueDate != identity.ValueDate
+                || envelope.WorkerInstanceId != identity.WorkerInstanceId
+                || envelope.GenerationId != identity.GenerationId
+                || envelope.ManifestRevision != identity.ManifestRevision)
+                throw new InvalidDataException("Held candidate tick identity differs from the probe.");
+            holding.ProbeInFlight = true;
+        }
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (envelope.Kind == DatasetPublicationKind.Trade)
+                await publisher.PublishAsync(
+                    MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(envelope.Payload) with
+                    { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId },
+                    cancellationToken).ConfigureAwait(false);
+            else
+            {
+                var quote = MessagePackSerializer.Deserialize<FuturesTickQuoteDataChangedEvent>(envelope.Payload) with
+                { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId };
+                await publisher.PublishAsync(quote,
+                    new DeserializedQuoteLease(quote.QuoteData.Buffer, quote.QuoteCount),
+                    cancellationToken).ConfigureAwait(false);
+            }
+            Record(MarketDataOperationOutcome.Published, envelope);
+            return true;
+        }
+        finally
+        {
+            lock (holdingGate) holding.ProbeInFlight = false;
+        }
+    }
+
     public async ValueTask<bool> AcceptAsync(DatasetPublicationEnvelope envelope,
         CancellationToken cancellationToken = default)
     {
@@ -93,6 +205,23 @@ public sealed class DatasetPublicationIngress(
         var identity = new DatasetWorkerAdmission(envelope.Dataset, envelope.ValueDate,
             envelope.WorkerInstanceId, envelope.GenerationId, envelope.ManifestRevision);
         Record(MarketDataOperationOutcome.Received, envelope);
+        lock (holdingGate)
+        {
+            if (candidateHolding.TryGetValue(identity.Dataset, out var holding))
+            {
+                if (holding.Identity != identity || envelope.PublicationSequence <= holding.LastSequence
+                    || envelope.PublicationSequence < 1 || envelope.Payload is null
+                    || envelope.Payload.Length is < 1 or > DatasetPublicationFrameCodec.MaximumFrameBytes)
+                {
+                    Record(MarketDataOperationOutcome.Failed, envelope);
+                    return false;
+                }
+                holding.LastSequence = envelope.PublicationSequence;
+                var held = holding.Buffer.TryHold(envelope);
+                Record(held ? MarketDataOperationOutcome.Enqueued : MarketDataOperationOutcome.Failed, envelope);
+                return held;
+            }
+        }
         if (!admissions.TryAccept(identity, envelope.PublicationSequence, out var generationCancellation))
         {
             Record(MarketDataOperationOutcome.Failed, envelope);
@@ -126,28 +255,33 @@ public sealed class DatasetPublicationIngress(
                     break;
                 case DatasetPublicationKind.Trade:
                     await publisher.PublishAsync(
-                        MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(envelope.Payload),
+                        MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(envelope.Payload) with
+                        { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId },
                         generationCancellation).ConfigureAwait(false);
                     break;
                 case DatasetPublicationKind.Quote:
-                    var quote = MessagePackSerializer.Deserialize<FuturesTickQuoteDataChangedEvent>(envelope.Payload);
+                    var quote = MessagePackSerializer.Deserialize<FuturesTickQuoteDataChangedEvent>(envelope.Payload) with
+                    { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId };
                     await publisher.PublishAsync(quote,
                         new DeserializedQuoteLease(quote.QuoteData.Buffer, quote.QuoteCount),
                         generationCancellation).ConfigureAwait(false);
                     break;
                 case DatasetPublicationKind.MarketPrice:
                     await publisher.PublishAsync(
-                        MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(envelope.Payload),
+                        MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(envelope.Payload) with
+                        { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId },
                         generationCancellation).ConfigureAwait(false);
                     break;
                 case DatasetPublicationKind.TradeReplayBatch:
                     await publisher.PublishAsync(
-                        MessagePackSerializer.Deserialize<FuturesTradeReplayBatchRealtimeEvent>(envelope.Payload),
+                        MessagePackSerializer.Deserialize<FuturesTradeReplayBatchRealtimeEvent>(envelope.Payload) with
+                        { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId },
                         generationCancellation).ConfigureAwait(false);
                     break;
                 case DatasetPublicationKind.SessionStatistics:
                     await publisher.PublishAsync(
-                        MessagePackSerializer.Deserialize<FuturesSessionStatisticsUpdatedRealtimeEvent>(envelope.Payload),
+                        MessagePackSerializer.Deserialize<FuturesSessionStatisticsUpdatedRealtimeEvent>(envelope.Payload) with
+                        { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId },
                         generationCancellation).ConfigureAwait(false);
                     break;
                 default:
@@ -189,5 +323,14 @@ public sealed class DatasetPublicationIngress(
             Count = value;
         }
         public void Dispose() { }
+    }
+
+    sealed class CandidateHoldingState(DatasetWorkerAdmission identity,
+        DatabentoRecoveryHoldingBuffer<DatasetPublicationEnvelope> buffer)
+    {
+        public DatasetWorkerAdmission Identity { get; } = identity;
+        public DatabentoRecoveryHoldingBuffer<DatasetPublicationEnvelope> Buffer { get; } = buffer;
+        public long LastSequence;
+        public bool ProbeInFlight;
     }
 }

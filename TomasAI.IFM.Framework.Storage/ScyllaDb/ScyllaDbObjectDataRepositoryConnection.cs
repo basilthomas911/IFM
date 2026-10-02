@@ -35,6 +35,8 @@ internal class ScyllaDbConnection
     public int Port => _stringBuilder!.Port;
     public string[] ContactPoints => _stringBuilder!.ContactPoints;
 
+    internal Task ShutdownAsync() => _cluster.ShutdownAsync(1000);
+
     internal static QueryOptions CreateQueryOptions()
         => new QueryOptions()
             .SetConsistencyLevel(ConsistencyLevel.LocalQuorum)

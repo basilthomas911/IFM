@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Application.Api.Server;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -201,6 +202,54 @@ public sealed class LivePipelineIntegrationTests
         host.Time.Advance(TimeSpan.FromMinutes(10));
         await host.Monitor.CheckOnceAsync(default);
         Assert.Equal(3, host.Probe.Resets);
+    }
+
+    [Theory]
+    [InlineData(DatabentoRecoveryRequestOutcome.DatabentoHealthyDownstreamDegraded, "EpisodeDownstreamDegraded")]
+    [InlineData(DatabentoRecoveryRequestOutcome.Unrecoverable, "EpisodeUnrecoverable")]
+    [InlineData(DatabentoRecoveryRequestOutcome.ApplicationStopping, "EpisodeApplicationStopping")]
+    public async Task Incomplete_episode_is_reported_without_an_independent_hard_reset_retry(
+        DatabentoRecoveryRequestOutcome outcome, string expectedState)
+    {
+        await using var host = await Harness.StartAsync();
+        host.Probe.Failure = "Aggregation";
+        host.Probe.ResetFailure = new DatabentoRecoveryEpisodeStatusException(
+            new DatabentoRecoveryRequestResult(Guid.NewGuid(), outcome, null, "Injected episode result"));
+        await host.Monitor.CheckOnceAsync(default);
+        host.Time.Advance(TimeSpan.FromMinutes(5));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(1, host.Probe.Resets);
+        Assert.Contains(host.Monitor.Current.Checks, check => check.Component == "Aggregation"
+            && check.RecoveryState.StartsWith(expectedState, StringComparison.Ordinal));
+
+        host.Time.Advance(TimeSpan.FromMinutes(15));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(1, host.Probe.Resets);
+        Assert.Equal("Degraded", host.Monitor.Current.Status);
+    }
+
+    [Fact]
+    public async Task Downstream_degraded_episode_remains_visible_after_local_upstream_recovers()
+    {
+        await using var host = await Harness.StartAsync();
+        host.Probe.Failure = "Aggregation";
+        host.Probe.ResetFailure = new DatabentoRecoveryEpisodeStatusException(
+            new DatabentoRecoveryRequestResult(Guid.NewGuid(),
+                DatabentoRecoveryRequestOutcome.DatabentoHealthyDownstreamDegraded,
+                null, "Injected downstream qualification failure"));
+        await host.Monitor.CheckOnceAsync(default);
+        host.Time.Advance(TimeSpan.FromMinutes(5));
+        await host.Monitor.CheckOnceAsync(default);
+
+        host.Probe.Failure = null;
+        host.Probe.AdditionalFailure = ("Bar timer", Date.ToString("yyyy-MM-dd"));
+        host.Time.Advance(TimeSpan.FromMinutes(5));
+        await host.Monitor.CheckOnceAsync(default);
+
+        Assert.Equal(1, host.Probe.Resets);
+        Assert.Contains(host.Monitor.Current.Checks, check => check.Component == "Recovery episode"
+            && check.RecoveryState.StartsWith("EpisodeDownstreamDegraded", StringComparison.Ordinal));
+        Assert.Equal("Degraded", host.Monitor.Current.Status);
     }
 
     [Fact]

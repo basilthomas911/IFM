@@ -82,6 +82,11 @@ public sealed class NatsJetStreamEventListenerIntegrationTests
             await redelivered.Task.WaitAsync(TestTimeout);
 
             attempts.Should().Be(2);
+            await WaitUntilAsync(async () =>
+            {
+                var acknowledged = await GetConsumerAsync(jetStream, listener, resources);
+                return acknowledged.Info.AckFloor.ConsumerSeq >= 2;
+            });
             var consumer = await GetConsumerAsync(jetStream, listener, resources);
             consumer.Info.Delivered.ConsumerSeq.Should().BeGreaterThanOrEqualTo(2);
             consumer.Info.AckFloor.ConsumerSeq.Should().BeGreaterThanOrEqualTo(2);

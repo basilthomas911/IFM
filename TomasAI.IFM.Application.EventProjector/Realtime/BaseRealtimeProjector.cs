@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Frozen;
+using System.Diagnostics;
 using System.Reflection;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
@@ -36,6 +37,9 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
     public abstract string ProjectorName { get; }
     public abstract IReadOnlyCollection<Type> ProjectedEventTypes { get; }
     public abstract IReadOnlyCollection<RealtimeProjectionDescriptor> ProjectionDescriptors { get; }
+
+    /// <summary>Minimum stage duration reported at information level.</summary>
+    protected virtual TimeSpan SlowStageLogThreshold => TimeSpan.MaxValue;
 
     public ILogger Logger { get; } = logger ?? throw new ArgumentNullException(nameof(logger));
 
@@ -91,16 +95,22 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
 
         try
         {
+            var stageStarted = Stopwatch.GetTimestamp();
             await PublishRealtimeEventAsync(context, domainEvent, ActorName, cancellationToken)
                 .ConfigureAwait(false);
+            LogSlowStage(domainEvent, "source_publish", stageStarted);
+            stageStarted = Stopwatch.GetTimestamp();
             await descriptor.ApplyAsync(domainEvent, cancellationToken).ConfigureAwait(false);
+            LogSlowStage(domainEvent, "database_apply", stageStarted);
 
             var completedEvent = descriptor.CompletedEventFactory(domainEvent)
                 ?? throw new InvalidOperationException(
                     $"Realtime projector '{ProjectorName}' returned no complete event for "
                     + $"'{domainEvent.EventName}'.");
+            stageStarted = Stopwatch.GetTimestamp();
             await PublishRealtimeEventAsync(context, completedEvent, ActorName, cancellationToken)
                 .ConfigureAwait(false);
+            LogSlowStage(domainEvent, "completion_publish", stageStarted);
             return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -120,6 +130,16 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
                 domainEvent.Subject.EntityId);
             return false;
         }
+    }
+
+    void LogSlowStage(IEvent domainEvent, string stage, long started)
+    {
+        var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        if (elapsed >= SlowStageLogThreshold.TotalMilliseconds)
+            Logger.LogInformation(
+                "Realtime projection stage: {ProjectorName}; {EventName}; {EntityId}; SourceId={SourceId}; stage={Stage}; elapsed {ElapsedMilliseconds:F3} ms.",
+                ProjectorName, domainEvent.EventName, domainEvent.Subject.EntityId,
+                domainEvent.Id, stage, elapsed);
     }
 
     /// <summary>

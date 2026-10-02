@@ -11,11 +11,15 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 public sealed class ActorThreadPoolV2(
     IActorSupervisor supervisor,
     ILogger logger,
-    ActorInformationLoggingPolicy? informationLoggingPolicy = null) : IActorThreadPool, IAsyncDisposable
+    ActorInformationLoggingPolicy? informationLoggingPolicy = null,
+    IRealtimeSourceAdmission? realtimeSourceAdmission = null,
+    RealtimeActorCompletionEvidence? realtimeCompletionEvidence = null) : IActorThreadPool, IAsyncDisposable
 {
     readonly IActorSupervisor _supervisor = IsArgumentNull.Set(supervisor);
     readonly ILogger _logger = IsArgumentNull.Set(logger);
     readonly ActorInformationLoggingPolicy _informationLoggingPolicy = informationLoggingPolicy ?? ActorInformationLoggingPolicy.Default;
+    readonly IRealtimeSourceAdmission? _realtimeSourceAdmission = realtimeSourceAdmission;
+    readonly RealtimeActorCompletionEvidence? _realtimeCompletionEvidence = realtimeCompletionEvidence;
     readonly ActorReadyQueue _readyQueue = new();
     readonly ActorThreadPoolMetricsState _metricsState = new();
     ActorThreadV2[] _workers = [];
@@ -35,7 +39,8 @@ public sealed class ActorThreadPoolV2(
         var workers = new ActorThreadV2[initialThreadCount];
         for (var index = 0; index < workers.Length; index++)
         {
-            var worker = new ActorThreadV2(_supervisor, _logger, _readyQueue, _metricsState, index + 1, _informationLoggingPolicy);
+            var worker = new ActorThreadV2(_supervisor, _logger, _readyQueue, _metricsState,
+                index + 1, _informationLoggingPolicy, _realtimeSourceAdmission, _realtimeCompletionEvidence);
             _supervisor.RuntimeContext?.RegisterWorker(worker);
             worker.Start();
             workers[index] = worker;

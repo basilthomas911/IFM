@@ -42,6 +42,8 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
     public string CqlConnectionString { get; private set; } = string.Empty;
     public HttpClient HttpClient { get; private set; } = default!;
     public IActorProducer ActorProducer { get; private set; } = default!;
+    public TomasAI.IFM.Application.Api.Server.SupervisorRecoveryCanaryProbe RecoveryCanaryProbe { get; private set; } = default!;
+    public TomasAI.IFM.Domain.Supervisor.Shared.Service.Health.SupervisorOperationStore SupervisorOperations { get; private set; } = default!;
     public ReferenceDbContext ReferenceDb { get; private set; } = default!;
     public EventSourceActorDbContext ActorEventSourceDb { get; private set; } = default!;
     public TomasAI.IFM.Application.Blackboard.IBlackboardService BlackboardService { get; private set; } = default!;
@@ -87,6 +89,8 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
             await WaitForActorReadinessAsync(HttpClient, startupDeadline.Token);
 
             ActorProducer = _host.Services.GetRequiredService<IActorProducer>();
+            RecoveryCanaryProbe = _host.Services.GetRequiredService<TomasAI.IFM.Application.Api.Server.SupervisorRecoveryCanaryProbe>();
+            SupervisorOperations = _host.Services.GetRequiredService<TomasAI.IFM.Domain.Supervisor.Shared.Service.Health.SupervisorOperationStore>();
             await ActorProducer.StartAsync(new ActorMailboxId(ActorType.Query, "ReferenceIntegrationTests"));
             var dbFactory = _host.Services.GetRequiredService<IDbContextFactory>();
             ReferenceDb = (ReferenceDbContext)dbFactory.ReferenceDb;

@@ -1,11 +1,12 @@
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 
 [MessagePackObject(AllowPrivate = true)]
-public sealed record FuturesTickTradeDataChangedEvent : IEvent<TickDataEntityId>
+public sealed record FuturesTickTradeDataChangedEvent : IEvent<TickDataEntityId>, IRealtimeSourceGeneration
 {
 
     /// <summary>Creates an empty event for serialization.</summary>
@@ -66,6 +67,8 @@ public sealed record FuturesTickTradeDataChangedEvent : IEvent<TickDataEntityId>
     [Key(13)] public ushort PublisherId { get; init; }
     [Key(14)] public uint InstrumentId { get; init; }
     [Key(15)] public FuturesTickTradeData TradeData { get; init; }
+    [IgnoreMember] public string SourceDataset { get; init; } = string.Empty;
+    [IgnoreMember] public Guid SourceGenerationId { get; init; }
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesTickTradeDataChangedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
@@ -34,6 +35,7 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
     DateTime? lastHardResetUtc;
     string lastHardResetState = "NotRequired";
     string? lastHardResetError;
+    bool recoveryEpisodeTerminal;
 
     public LivePipelineHealthSnapshot Current
     {
@@ -74,8 +76,6 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
 
             var upstream = next.Checks.Where(IsHardResetTrigger).ToArray();
             UpdateUpstreamWindows(upstream, now);
-
-
             var recoverable = next.Checks
                 .Where(check => DownstreamTarget(check) is not null)
                 .GroupBy(check => DownstreamTarget(check)!, StringComparer.Ordinal)
@@ -86,7 +86,7 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
             Publish(Decorate(next));
 
             var dueUpstream = upstream
-                .Where(check => !IsHealthy(check)
+                .Where(check => !recoveryEpisodeTerminal && !IsHealthy(check)
                     && upstreamRecoveries.TryGetValue(CheckKey(check), out var recovery)
                     && recovery.Attempts < options.MaximumHardResetAttempts
                     && (recovery.Attempts == 0
@@ -98,7 +98,7 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
             var forcedResetDue = options.ForceOneHardResetAfterStartup
                 && !forcedHardResetRequested
                 && now - monitorStartedUtc >= options.HardResetDelay;
-            if (dueUpstream.Length > 0 || forcedResetDue)
+            if (!recoveryEpisodeTerminal && (dueUpstream.Length > 0 || forcedResetDue))
             {
                 forcedHardResetRequested = true;
                 if (forcedResetDue)
@@ -119,6 +119,29 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                         .WaitAsync(resetDeadline.Token).ConfigureAwait(false);
                     lastHardResetState = "HardResetCompletedAwaitingRecovery";
                     AdvanceUpstreamRecovery(now, lastHardResetState, null);
+                }
+                catch (DatabentoRecoveryEpisodeStatusException ex)
+                    when (ex.Result.Outcome == DatabentoRecoveryRequestOutcome.AlreadyInProgress)
+                {
+                    lastHardResetState = "HardResetInProgress";
+                    AdvanceUpstreamRecovery(now, lastHardResetState, null);
+                    logger.LogInformation("Duplicate hard reset request ignored; the authoritative recovery episode remains active. CorrelationId={CorrelationId}", ex.Result.CorrelationId);
+                }
+                catch (DatabentoRecoveryEpisodeStatusException ex)
+                {
+                    recoveryEpisodeTerminal = ex.Result.Outcome is
+                        DatabentoRecoveryRequestOutcome.Unrecoverable or
+                        DatabentoRecoveryRequestOutcome.ApplicationStopping;
+                    lastHardResetState = ex.Result.Outcome switch
+                    {
+                        DatabentoRecoveryRequestOutcome.DatabentoHealthyDownstreamDegraded => "EpisodeDownstreamDegraded",
+                        DatabentoRecoveryRequestOutcome.Unrecoverable => "EpisodeUnrecoverable",
+                        _ => "EpisodeApplicationStopping"
+                    };
+                    lastHardResetError = ex.Result.Detail;
+                    AdvanceUpstreamRecovery(now, lastHardResetState, lastHardResetError);
+                    logger.LogCritical(ex,
+                        "Recovery episode ended without full downstream qualification; no independent hard reset will be retried.");
                 }
                 catch (Exception ex) when (!token.IsCancellationRequested)
                 {
@@ -238,7 +261,8 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                 || recovery.Attempts == 0
                 || recovery.LastAttemptUtc is not { } attempted
                 || now - attempted < options.RecoveryObservationWindow
-                || recovery.State is "HardResetFailed" or "HardResetRecoveryFailed")
+                || recovery.State is "HardResetFailed" or "HardResetRecoveryFailed"
+                    or "EpisodeDownstreamDegraded" or "EpisodeUnrecoverable" or "EpisodeApplicationStopping")
                 continue;
             upstreamRecoveries[key] = recovery with
             {
@@ -262,7 +286,21 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
     }
 
     LivePipelineHealthSnapshot Decorate(LivePipelineHealthSnapshot snapshot)
-        => snapshot with { Checks = snapshot.Checks.Select(Decorate).ToArray() };
+    {
+        var checks = snapshot.Checks.Select(Decorate).ToList();
+        if (lastHardResetState is "EpisodeDownstreamDegraded" or "EpisodeUnrecoverable"
+            or "EpisodeApplicationStopping")
+        {
+            checks.Add(new LivePipelineCheck("Recovery episode", "Databento downstream",
+                "Degraded", lastHardResetError ?? lastHardResetState,
+                snapshot.ObservedUtc)
+            {
+                RecoveryState = lastHardResetState
+            });
+            return snapshot with { Status = "Degraded", Checks = checks };
+        }
+        return snapshot with { Checks = checks };
+    }
 
     LivePipelineCheck Decorate(LivePipelineCheck check)
     {

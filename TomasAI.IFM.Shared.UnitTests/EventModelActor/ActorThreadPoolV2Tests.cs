@@ -19,6 +19,62 @@ namespace TomasAI.IFM.Shared.UnitTests.EventModelActor;
 public sealed class ActorThreadPoolV2Tests
 {
     [Fact]
+    public async Task Realtime_generation_is_checked_when_queued_message_reaches_actor_handler()
+    {
+        var current = Guid.NewGuid();
+        var runtime = CreateRuntime(1, actorType: ActorType.Realtime,
+            realtimeSourceAdmission: new TestRealtimeGuard(current));
+        await using var pool = runtime.Pool;
+        var old = new TestActorMessage(1, actorType: ActorType.Realtime)
+        { Owner = runtime.Actor, SourceDataset = "GLBX.MDP3", SourceGenerationId = Guid.NewGuid() };
+        var accepted = new TestActorMessage(2, actorType: ActorType.Realtime)
+        { Owner = runtime.Actor, SourceDataset = "GLBX.MDP3", SourceGenerationId = current };
+
+        (await runtime.Mailbox.ThreadQueues.WriteAsync(old)).Should().BeTrue();
+        (await runtime.Mailbox.ThreadQueues.WriteAsync(accepted)).Should().BeTrue();
+        await runtime.Actor.Completed.WaitAsync(TimeSpan.FromSeconds(5));
+        (await pool.WaitForIdleAsync(TimeSpan.FromMilliseconds(1), TimeSpan.FromSeconds(5)))
+            .Should().BeTrue();
+
+        runtime.Actor.Sequences.Should().Equal(2);
+        old.DisposeCount.Should().Be(1);
+        accepted.DisposeCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Realtime_completion_evidence_counts_only_successful_expected_generation_and_route()
+    {
+        var current = Guid.NewGuid();
+        var evidence = new RealtimeActorCompletionEvidence();
+        evidence.Arm(new("GLBX.MDP3", current, ActorType.Realtime, "SchedulerTest", "Run"));
+        var runtime = CreateRuntime(2, actorType: ActorType.Realtime,
+            realtimeSourceAdmission: new TestRealtimeGuard(current),
+            realtimeCompletionEvidence: evidence);
+        await using var pool = runtime.Pool;
+        var stale = new TestActorMessage(1, actorType: ActorType.Realtime)
+        { Owner = runtime.Actor, SourceDataset = "GLBX.MDP3", SourceGenerationId = Guid.NewGuid() };
+        var accepted = new TestActorMessage(2, actorType: ActorType.Realtime)
+        { Owner = runtime.Actor, SourceDataset = "GLBX.MDP3", SourceGenerationId = current };
+        var secondAccepted = new TestActorMessage(3, actorType: ActorType.Realtime)
+        { Owner = runtime.Actor, SourceDataset = "GLBX.MDP3", SourceGenerationId = current };
+
+        (await runtime.Mailbox.ThreadQueues.WriteAsync(stale)).Should().BeTrue();
+        (await runtime.Mailbox.ThreadQueues.WriteAsync(accepted)).Should().BeTrue();
+        (await runtime.Mailbox.ThreadQueues.WriteAsync(secondAccepted)).Should().BeTrue();
+        await runtime.Actor.Completed.WaitAsync(TimeSpan.FromSeconds(5));
+        (await pool.WaitForIdleAsync(TimeSpan.FromMilliseconds(1), TimeSpan.FromSeconds(5))).Should().BeTrue();
+
+        evidence.Capture().Completed.Should().Be(2);
+        evidence.Capture().LastCompletedUtc.Should().NotBeNull();
+        evidence.Arm(new("GLBX.MDP3", current, ActorType.Realtime, "SchedulerTest", "Other"));
+        evidence.Capture().Completed.Should().Be(0);
+        evidence.Arm(new("GLBX.MDP3", Guid.NewGuid(), ActorType.Realtime, "SchedulerTest", "Run"));
+        evidence.Capture().Completed.Should().Be(0);
+        evidence.Disarm();
+        evidence.Capture().Target.Should().BeNull();
+    }
+
+    [Fact]
     public async Task InformationPolicy_SuppressesConfiguredSuccessfulRouteOnly()
     {
         var logger = new RecordingLogger();
@@ -577,9 +633,12 @@ public sealed class ActorThreadPoolV2Tests
         int maxRetainedIdleQueues = ActorAdmissionOptions.ExistingRetainedIdleMailboxesPerActor,
         ActorMailboxImplementation mailboxImplementation = ActorMailboxImplementation.Channel,
         ILogger? logger = null,
-        ActorInformationLoggingPolicy? informationLoggingPolicy = null)
+        ActorInformationLoggingPolicy? informationLoggingPolicy = null,
+        ActorType actorType = ActorType.Command,
+        IRealtimeSourceAdmission? realtimeSourceAdmission = null,
+        RealtimeActorCompletionEvidence? realtimeCompletionEvidence = null)
     {
-        var mailboxId = new ActorMailboxId(ActorType.Command, "SchedulerTest");
+        var mailboxId = new ActorMailboxId(actorType, "SchedulerTest");
         var container = new Mock<IContainerInstance>();
         container.Setup(instance => instance.Resolve<IActorThreadQueue>())
             .Returns(() => mailboxImplementation switch
@@ -596,7 +655,9 @@ public sealed class ActorThreadPoolV2Tests
         var pool = new ActorThreadPoolV2(
             supervisor.Object,
             logger ?? NullLogger.Instance,
-            informationLoggingPolicy);
+            informationLoggingPolicy,
+            realtimeSourceAdmission,
+            realtimeCompletionEvidence);
         pool.Initialize(4);
         supervisor.SetupGet(instance => instance.ThreadPool).Returns(pool);
         supervisor.Setup(instance => instance.GetThread(It.IsAny<ActorThreadId>()))
@@ -763,7 +824,8 @@ public sealed class ActorThreadPoolV2Tests
         }
     }
 
-    sealed class TestActorMessage(int sequence, string entityId = "same") : IActorMessage, IActorDeliveryCompletion
+    sealed class TestActorMessage(int sequence, string entityId = "same",
+        ActorType actorType = ActorType.Command) : IActorMessage, IActorDeliveryCompletion
     {
         readonly ConcurrentQueue<bool> _deliveryOutcomes = new();
         int _disposed;
@@ -772,7 +834,9 @@ public sealed class ActorThreadPoolV2Tests
         public int AdmissionSizeBytes => 10;
         public int DisposeCount => Volatile.Read(ref _disposed);
         public RecordingActor? Owner { get; init; }
-        public ActorSubject Subject { get; } = new(ActorType.Command, "SchedulerTest", "Run", entityId);
+        public ActorSubject Subject { get; } = new(actorType, "SchedulerTest", "Run", entityId);
+        public string? SourceDataset { get; init; }
+        public Guid SourceGenerationId { get; init; }
         public ActorSubject ReplySubject { get; set; }
         public TCommand? AsCommand<TCommand>() where TCommand : class, ICommand => default;
         public TEvent? AsEvent<TEvent>() where TEvent : class, IEvent => default;
@@ -790,6 +854,16 @@ public sealed class ActorThreadPoolV2Tests
         {
             _deliveryOutcomes.Enqueue(succeeded);
             return ValueTask.CompletedTask;
+        }
+    }
+
+    sealed class TestRealtimeGuard(Guid acceptedGeneration) : IRealtimeSourceAdmission
+    {
+        public bool TryEnter(ActorSubject sourceSubject, string? dataset,
+            Guid generationId, out IDisposable? processingLease)
+        {
+            processingLease = null;
+            return dataset == "GLBX.MDP3" && generationId == acceptedGeneration;
         }
     }
 

@@ -14,7 +14,9 @@ public static class SignalStartupPlanModel
      IEnumerable<ParameterSignalDemand> existingConsumers)
     {
         var issues = new List<string>();
-        var demands = existingConsumers.Concat(snapshot.Assignments.SelectMany(x => Expand(x, issues)))
+        var demands = existingConsumers.Concat(snapshot.Assignments
+            .Where(x => x.Assignment.Scope.ComponentCode == RegimeDiscoveryParameterModel.ComponentCode)
+            .SelectMany(x => Expand(x, issues)))
          .SelectMany(demand => new[] { demand }.Concat(Dependencies(demand.Key).Select(key => demand with { Key = key }))).ToArray();
         foreach (var demand in demands)
             if (!SupportedIntervals.Contains(demand.Key.Interval) || !Enum.IsDefined(demand.Key.Producer) ||

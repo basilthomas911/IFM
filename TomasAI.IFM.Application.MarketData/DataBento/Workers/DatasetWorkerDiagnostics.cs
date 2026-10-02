@@ -59,6 +59,17 @@ public sealed record DatasetWorkerDiagnostics
         && TerminalStatus == 0 && ProducerAlive && AggregationRunning && TransportReady
         && ReceivedSubscriptions >= ExpectedSubscriptions && RingOverruns == 0;
 
+    /// <summary>
+    /// Databento transport and local drain qualification, independent of aggregation and
+    /// downstream publication. Live-session record progress is checked separately over time.
+    /// </summary>
+    [IgnoreMember]
+    public bool DatabentoLocallyReady => Complete && FeedInstanceId != 0
+        && NativeMajorStatus == 1 && NativeState == FeedState.Running
+        && TerminalStatus == 0 && ProducerAlive && TransportReady
+        && ExpectedSubscriptions > 0 && ReceivedSubscriptions >= ExpectedSubscriptions
+        && RingOverruns == 0 && Drain is not null;
+
     public void Validate()
     {
         if (string.IsNullOrWhiteSpace(Dataset) || Dataset.Length > 64

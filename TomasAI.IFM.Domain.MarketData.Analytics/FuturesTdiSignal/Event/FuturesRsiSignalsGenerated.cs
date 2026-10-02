@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using System.Security.Cryptography;
+using System.Text;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
@@ -10,6 +12,8 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event;
 /// <summary>Bridges a durable intraday RSI window into the Traders Dynamic Index command workflow.</summary>
 public static class FuturesRsiSignalsGenerated
 {
+    static readonly Guid TdiCommandNamespace = new("2d1fa1ea-f02a-4790-bc5b-3ae581dedb41");
+
     /// <summary>
     /// Validates and bounds the RSI window, then sends one deterministic TDI command.
     /// Non-standard RSI configurations and non-intraday periods are intentionally ignored.
@@ -56,7 +60,15 @@ public static class FuturesRsiSignalsGenerated
             signals,
             latest.TimePeriod,
             configuration,
-            e.Id == Guid.Empty ? e.CommandId : e.Id).ConfigureAwait(false);
+            DerivedCommandId(e, signalId)).ConfigureAwait(false);
         return true;
+    }
+
+    static Guid DerivedCommandId(FuturesRsiSignalsGeneratedEvent source, FuturesTdiSignalId signalId)
+    {
+        var sourceId = source.Id == Guid.Empty ? source.CommandId : source.Id;
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"{TdiCommandNamespace:N}:{sourceId:N}:{signalId.Format()}"));
+        return new Guid(hash.AsSpan(0, 16));
     }
 }

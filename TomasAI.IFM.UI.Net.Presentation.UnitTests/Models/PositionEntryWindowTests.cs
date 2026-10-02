@@ -9,7 +9,9 @@ public class PositionEntryWindowTests
     [InlineData(2026, 8, 21, 6, 59, false)] // 02:59 EDT
     [InlineData(2026, 8, 21, 7, 0, true)]   // 03:00 EDT
     [InlineData(2026, 8, 21, 19, 59, true)] // 15:59 EDT
-    [InlineData(2026, 8, 21, 20, 0, false)] // 16:00 EDT
+    [InlineData(2026, 8, 21, 20, 0, true)]  // 16:00 EDT
+    [InlineData(2026, 8, 21, 20, 59, true)] // 16:59 EDT
+    [InlineData(2026, 8, 21, 21, 0, false)] // 17:00 EDT
     [InlineData(2026, 8, 22, 14, 0, false)] // Saturday
     public void IsOpen_UsesWeekdayEasternBoundaries(
         int year,

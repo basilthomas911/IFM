@@ -4,6 +4,9 @@ using TomasAI.IFM.Application.MarketData.Subscriptions.Persistence;
 
 namespace TomasAI.IFM.Application.MarketData.Databento.Workers;
 
+public sealed record HardWorkerContainmentResult(
+    bool Isolated, IReadOnlyList<int> ProcessIds, Exception? Failure);
+
 /// <summary>
 /// Owns every supervised child by exact process handle.  It never decides when recovery is due;
 /// the serialized watchdog is the only caller allowed to request replacement.
@@ -24,6 +27,7 @@ public sealed class DatasetWorkerProcessRecoveryService :
     readonly Dictionary<string, Entry> entries = new(StringComparer.Ordinal);
     readonly SemaphoreSlim shutdown = new(1, 1);
     bool stopping;
+    bool hardContainmentUnverified;
     readonly DatabentoStage3Options options;
     readonly DatasetWorkerAdmissionRegistry admissions;
     readonly Func<DatabentoStage3Options, DatasetWorkerProcessSupervisor> supervisorFactory;
@@ -145,9 +149,19 @@ public sealed class DatasetWorkerProcessRecoveryService :
         return await Task.WhenAll(queries).ConfigureAwait(false);
     }
 
-    public async Task<DatasetWorkerProcessSnapshot> StartOwnedAsync(
+    public Task<DatasetWorkerProcessSnapshot> StartOwnedAsync(
+        DatasetWorkerStartRequest request, CancellationToken cancellationToken = default) =>
+        StartOwnedCoreAsync(request, admit: true, cancellationToken);
+
+    /// <summary>Starts an owned worker without admitting its data to downstream consumers.</summary>
+    public Task<DatasetWorkerProcessSnapshot> StartCandidateAsync(
+        DatasetWorkerStartRequest request, CancellationToken cancellationToken = default) =>
+        StartOwnedCoreAsync(request, admit: false, cancellationToken);
+
+    async Task<DatasetWorkerProcessSnapshot> StartOwnedCoreAsync(
         DatasetWorkerStartRequest request,
-        CancellationToken cancellationToken = default)
+        bool admit,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         var supplied = request.Manifest?.Validate()
@@ -155,13 +169,19 @@ public sealed class DatasetWorkerProcessRecoveryService :
         if (supplied.Dataset != request.Dataset || supplied.ValueDate != request.ValueDate)
             throw new ArgumentException("The requested dataset/value date and manifest differ.", nameof(request));
         if (!DesiredSubscriptions.TryGet(request.Dataset, request.ValueDate, out var desired))
+        {
+            if (!admit) throw new InvalidOperationException("Frozen recovery manifest is no longer current.");
             desired = DesiredSubscriptions.Set(request.Dataset, request.ValueDate, supplied.GetRegistrations());
+        }
+        if (!admit && desired.Fingerprint != supplied.Fingerprint)
+            throw new InvalidOperationException("Candidate cannot replace its frozen recovery manifest.");
         request = WithManifest(request, desired) with
         { PrefixArguments = Array.AsReadOnly(request.PrefixArguments.ToArray()) };
         Entry entry;
         lock (gate)
         {
-            if (stopping) throw new InvalidOperationException("Dataset shutdown is in progress.");
+            if (stopping || hardContainmentUnverified)
+                throw new InvalidOperationException("Dataset containment has not been verified; worker startup is fenced.");
             if (entries.ContainsKey(request.Dataset))
                 throw new InvalidOperationException($"Dataset '{request.Dataset}' already has a supervised owner.");
             entry = new Entry(request, supervisorFactory(options));
@@ -178,7 +198,8 @@ public sealed class DatasetWorkerProcessRecoveryService :
             var started = await entry.Supervisor.StartAsync(request, cancellationToken)
                 .ConfigureAwait(false);
             entry.Request = request with { GenerationId = started.GenerationId };
-            await ConvergeAndAdmitAsync(entry, cancellationToken).ConfigureAwait(false);
+            if (admit)
+                await ConvergeAndAdmitAsync(entry, cancellationToken).ConfigureAwait(false);
             return entry.Supervisor.Current;
         }
         catch
@@ -201,18 +222,70 @@ public sealed class DatasetWorkerProcessRecoveryService :
         finally { if (acquired) entry.Lifecycle.Release(); }
     }
 
+    /// <summary>Admits only the exact frozen, locally qualified candidate generation.</summary>
+    public async Task AdmitCandidateAsync(DatasetSubscriptionManifest frozen,
+        Guid expectedGenerationId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(frozen);
+        Entry entry;
+        lock (gate)
+        {
+            if (!entries.TryGetValue(frozen.Dataset, out entry!))
+                throw new InvalidOperationException("Candidate worker is not owned.");
+            if (hardContainmentUnverified)
+                throw new InvalidOperationException("Dataset containment has not been verified; candidate admission is fenced.");
+        }
+        await entry.Lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsOwned(entry) || entry.Request.GenerationId != expectedGenerationId
+                || entry.Request.ValueDate != frozen.ValueDate
+                || entry.Request.Manifest?.Fingerprint != frozen.Fingerprint)
+                throw new InvalidOperationException("Candidate identity differs from the frozen manifest.");
+            if (!DesiredSubscriptions.TryWithCurrent(frozen, () =>
+            {
+                lock (gate)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (hardContainmentUnverified || !IsOwned(entry))
+                        throw new InvalidOperationException("Dataset containment is unverified; candidate admission is fenced.");
+                    var current = entry.Supervisor.Current;
+                    if (!current.Running || !current.Healthy || current.GenerationId != expectedGenerationId
+                        || current.ManifestRevision != frozen.Revision
+                        || current.ManifestFingerprint != frozen.Fingerprint)
+                        throw new InvalidOperationException("Candidate has not qualified the frozen manifest.");
+                    var admission = ToAdmission(entry.Request);
+                    currentValues?.ActivateDataset(admission, frozen.GetRegistrations());
+                    currentValues?.SetDatasetHealth(admission, true);
+                    admissions.Admit(admission);
+                }
+            }))
+                throw new InvalidOperationException("Frozen manifest is no longer current.");
+        }
+        finally { entry.Lifecycle.Release(); }
+    }
+
     public async Task<DatabentoDatasetResetResult> ReplaceProcessAsync(
         DatabentoDatasetResetRequest request,
         CancellationToken cancellationToken)
     {
         Entry? entry;
-        lock (gate) entries.TryGetValue(request.Dataset, out entry);
+        lock (gate)
+        {
+            if (hardContainmentUnverified)
+                return Failed(request, "Dataset containment has not been verified; worker replacement is fenced.");
+            entries.TryGetValue(request.Dataset, out entry);
+        }
         if (entry is null)
             return Failed(request, "The dataset has no supervised worker owner.");
 
         await entry.Lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            lock (gate)
+                if (hardContainmentUnverified)
+                    return Failed(request, "Dataset containment has not been verified; worker replacement is fenced.");
             if (!IsOwned(entry)) return Failed(request, "The dataset owner has stopped.");
             if (entry.Request.ValueDate != request.ValueDate
                 || entry.Request.GenerationId != request.ExpectedGenerationId)
@@ -267,12 +340,20 @@ public sealed class DatasetWorkerProcessRecoveryService :
         DatabentoDatasetResetRequest request, CancellationToken cancellationToken)
     {
         Entry? entry;
-        lock (gate) entries.TryGetValue(request.Dataset, out entry);
+        lock (gate)
+        {
+            if (hardContainmentUnverified)
+                return Failed(request, "Dataset containment has not been verified; worker reset is fenced.");
+            entries.TryGetValue(request.Dataset, out entry);
+        }
         if (entry is null)
             return Failed(request, "The dataset has no supervised worker owner.");
         await entry.Lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            lock (gate)
+                if (hardContainmentUnverified)
+                    return Failed(request, "Dataset containment has not been verified; worker reset is fenced.");
             if (!IsOwned(entry)) return Failed(request, "The dataset owner has stopped.");
             if (entry.Request.ValueDate != request.ValueDate
                 || entry.Request.GenerationId != request.ExpectedGenerationId)
@@ -345,6 +426,8 @@ public sealed class DatasetWorkerProcessRecoveryService :
             {
                 lock (gate)
                 {
+                    if (hardContainmentUnverified)
+                        throw new InvalidOperationException("Dataset containment is unverified; worker admission is fenced.");
                     if (!IsOwned(entry)) throw new InvalidOperationException("Dataset ownership ended before admission.");
                     var current = entry.Supervisor.Current;
                     if (!current.Running || !current.Healthy
@@ -403,6 +486,52 @@ public sealed class DatasetWorkerProcessRecoveryService :
         {
             lock (gate) stopping = false;
             shutdown.Release();
+        }
+    }
+
+    /// <summary>
+    /// Fences every current generation before bounded hard-recovery containment. A timeout is
+    /// unsafe: the caller must not start a replacement while an owned worker may still exist.
+    /// </summary>
+    public async Task<HardWorkerContainmentResult> ContainForHardRecoveryAsync(
+        TimeSpan deadline, CancellationToken cancellationToken)
+    {
+        if (deadline <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(deadline));
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        DatasetWorkerProcessSnapshot[] before;
+        lock (gate)
+        {
+            // A timed-out StopAllAsync keeps running in the background. Do not permit a
+            // candidate to start merely because that task eventually releases `stopping`.
+            hardContainmentUnverified = true;
+            before = entries.Values.Select(entry => entry.Supervisor.Current).ToArray();
+            foreach (var worker in before)
+                CloseAdmission(worker.Dataset, worker.GenerationId);
+        }
+        try
+        {
+            var stopping = StopAllAsync(cancellationToken);
+            try { await stopping.WaitAsync(deadline, cancellationToken).ConfigureAwait(false); }
+            catch
+            {
+                _ = stopping.ContinueWith(task => _ = task.Exception, CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+                throw;
+            }
+            var remaining = deadline - elapsed.Elapsed;
+            await Task.WhenAll(before.Select(worker => admissions.WaitForProcessingDrainAsync(
+                worker.Dataset, worker.GenerationId, remaining, cancellationToken))).ConfigureAwait(false);
+            var isolated = Current.Count == 0;
+            if (isolated)
+            {
+                lock (gate) hardContainmentUnverified = false;
+            }
+            return new(isolated, before.Select(worker => worker.ProcessId).ToArray(),
+                isolated ? null : new InvalidOperationException("Owned worker remains after containment."));
+        }
+        catch (Exception exception)
+        {
+            return new(false, before.Select(worker => worker.ProcessId).ToArray(), exception);
         }
     }
 

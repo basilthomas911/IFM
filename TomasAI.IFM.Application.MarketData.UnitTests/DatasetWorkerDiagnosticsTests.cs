@@ -118,6 +118,17 @@ public sealed class DatasetWorkerDiagnosticsTests
     }
 
     [Fact]
+    public void Local_Databento_readiness_does_not_require_aggregation_health()
+    {
+        var diagnostics = Capture() with { AggregationRunning = false };
+
+        diagnostics.Operational.Should().BeFalse();
+        diagnostics.DatabentoLocallyReady.Should().BeTrue();
+        (diagnostics with { RingOverruns = 1 }).DatabentoLocallyReady.Should().BeFalse();
+        (diagnostics with { ReceivedSubscriptions = 0 }).DatabentoLocallyReady.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Diagnostics_from_wrong_generation_are_rejected_by_control_boundary()
     {
         using var stream = new MemoryStream();

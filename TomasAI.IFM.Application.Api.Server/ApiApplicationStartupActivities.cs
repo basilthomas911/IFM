@@ -7,11 +7,13 @@ using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.MarketData.Historical;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesRsiSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Processing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
@@ -51,7 +53,9 @@ public sealed class ApiApplicationStartupActivities(
     IParameterRuntimeSnapshot? parameterRuntime = null,
     TomasAI.IFM.Application.Api.Server.ParameterSets.IRsiHistoricalPilotStartup? rsiPilot = null,
     IMarketSessionCalendar? marketSessionCalendar = null,
-    IActorService? actorService = null) : IApplicationStartupActivities
+    IActorService? actorService = null,
+    ConfigurationSchemaDb? configurationSchema = null,
+    FourHourDatabentoSeedReplay? liveSeedReplay = null) : IApplicationStartupActivities
 {
     readonly ConcurrentDictionary<DateOnly, FuturesContractV3ReadModel[]> contractsByValueDate = new();
 
@@ -59,6 +63,8 @@ public sealed class ApiApplicationStartupActivities(
     {
         if (parameterSetsApi is null) throw new InvalidOperationException("Parameter Sets API is unavailable.");
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken); deadline.CancelAfter(options.ParticipantTimeout);
+        if (configurationSchema is not null)
+            await configurationSchema.CreateAsync(["parameter_registry"], deadline.Token).ConfigureAwait(false);
         await ParameterSets.FuturesItiSignalDefaultParameterSet.EnsureAsync(parameterSetsApi, deadline.Token);
         await ParameterSets.OptionVolatilityDefaultParameterSets.EnsureAsync(parameterSetsApi, deadline.Token);
         await ParameterSets.OptionSpreadStrategyDefaultParameterSets.EnsureAsync(parameterSetsApi, deadline.Token);
@@ -72,65 +78,6 @@ public sealed class ApiApplicationStartupActivities(
         logger.LogInformation("Parameter generation applied. RunId={RunId}; Fingerprint={Fingerprint}; Assignments={Assignments}", run.RunId, run.Plan.Fingerprint, run.Scopes.Length);
         return ApplicationStartupActivityOutcome.Started;
     }
-
-    public async ValueTask<ApplicationStartupActivityOutcome> PrepareParameterSignalsAsync(ApplicationStartupContext context, CancellationToken cancellationToken)
-    {
-        if (parameterRuntime is not { Enabled: true, Plan: { } plan }) return ApplicationStartupActivityOutcome.AlreadySatisfied;
-        if (parameterSetsApi is null) throw new InvalidOperationException("Parameter Sets API is unavailable.");
-        foreach (var issue in plan.Issues ?? []) logger.LogWarning("Parameter startup plan issue. RunId={RunId}; Issue={Issue}", plan.StartupRunId, issue);
-        var closed = marketSessionAuthority.Current.ActiveValueDate is null;
-        var outcomes = new List<ParameterSignalPreparationOutcome>();
-        var contractId = string.Empty; string? contractError = null;
-        if (!closed)
-        {
-            try { contractId = RequiredEsContract(context.ValueDate).ContractId; }
-            catch (Exception error) { contractError = error.Message; }
-        }
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken); deadline.CancelAfter(options.ParticipantTimeout);
-        foreach (var step in plan.Steps)
-        {
-            var key = step.Key;
-            if (!step.Prepare) { Record(ParameterSignalPreparationStatus.NotRequested, "Preparation was not requested."); continue; }
-            if (closed) { Record(ParameterSignalPreparationStatus.MarketClosed, "No active trading session."); continue; }
-            if (cancellationToken.IsCancellationRequested) { Record(ParameterSignalPreparationStatus.Cancelled, "Startup was cancelled before this producer completed."); continue; }
-            if (deadline.IsCancellationRequested) { Record(ParameterSignalPreparationStatus.TimedOut, "Preparation deadline elapsed; no new command was submitted."); continue; }
-            if (contractError is not null) { Record(ParameterSignalPreparationStatus.Failed, contractError); continue; }
-            if (step.Consumers.Any(x => x.Consumer == "existing-intraday-activation") || key.Producer is ParameterSignalProducer.ClosedBars or ParameterSignalProducer.Ema or ParameterSignalProducer.Bollinger or ParameterSignalProducer.Structure or ParameterSignalProducer.Tdi or ParameterSignalProducer.VxTermStructure)
-            { Record(ParameterSignalPreparationStatus.ExistingRoute, "Owned by the existing startup/feed route; attachment and readiness are not confirmed by this report."); continue; }
-            try
-            {
-                var operation = key.Producer switch
-                {
-                    ParameterSignalProducer.Rsi => rsiPilot is null ? analyticsCommandApi.StartFuturesRsiSignalAsync(FuturesRsiSignalEntityId.Create(contractId, context.ValueDate, key.Interval, key.Period)) : rsiPilot.StartAsync(FuturesRsiSignalEntityId.Create(contractId, context.ValueDate, key.Interval, key.Period), deadline.Token),
-                    ParameterSignalProducer.Atr => analyticsCommandApi.StartFuturesAtrSignalAsync(FuturesAtrSignalEntityId.Create(contractId, context.ValueDate, key.Interval, key.Period)),
-                    ParameterSignalProducer.Adx => analyticsCommandApi.StartFuturesAdxSignalAsync(FuturesAdxSignalEntityId.Create(contractId, context.ValueDate, key.Interval, key.Period)),
-                    ParameterSignalProducer.Macd => analyticsCommandApi.StartFuturesMacdSignalAsync(FuturesMacdSignalEntityId.Create(contractId, context.ValueDate, key.Interval)),
-                    _ => throw new InvalidOperationException("Unsupported parameter producer: " + key)
-                };
-                await RequireAcceptedAsync(operation, key.ToString()).WaitAsync(deadline.Token);
-                Record(ParameterSignalPreparationStatus.Accepted, "Start command accepted; readiness must be checked independently.");
-            }
-            catch (Exception error)
-            {
-                var status = cancellationToken.IsCancellationRequested ? ParameterSignalPreparationStatus.Cancelled :
-                    deadline.IsCancellationRequested ? ParameterSignalPreparationStatus.TimedOut : ParameterSignalPreparationStatus.Failed;
-                Record(status, error.Message);
-                logger.LogWarning(error, "Parameter producer preparation degraded. RunId={RunId}; Producer={Producer}", plan.StartupRunId, key);
-            }
-            void Record(ParameterSignalPreparationStatus status, string detail) => outcomes.Add(new(key, status, detail.Length <= 2000 ? detail : detail[..2000]));
-        }
-        // Persist terminal evidence with its own bounded deadline, including when preparation was cancelled.
-        using var evidenceDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var report = new ParameterSignalStartupReport(plan.StartupRunId, plan.Fingerprint, context.ValueDate, contractId, timeProvider.GetUtcNow().UtcDateTime, outcomes.ToArray());
-        var saved = await parameterSetsApi.RecordStartupReportAsync(new() { CommandId = Guid.NewGuid(), RunId = plan.StartupRunId, Report = report }, evidenceDeadline.Token);
-        if (!saved.Success) throw new InvalidOperationException("Parameter startup evidence could not be saved: " + saved.ErrorMessage);
-        cancellationToken.ThrowIfCancellationRequested();
-        if (closed) return ApplicationStartupActivityOutcome.ScheduledStopped;
-        return (plan.Issues?.Length > 0) || outcomes.Any(x => x.Status is ParameterSignalPreparationStatus.Failed or ParameterSignalPreparationStatus.TimedOut or ParameterSignalPreparationStatus.Cancelled)
-            ? ApplicationStartupActivityOutcome.Degraded : ApplicationStartupActivityOutcome.Started;
-    }
-
-
 
     public ValueTask<ApplicationStartupActivityOutcome> ResolveAuthorityAsync(
         ApplicationStartupContext context,
@@ -336,35 +283,114 @@ public sealed class ApiApplicationStartupActivities(
             es.ContractId,
             context.ValueDate);
         cancellationToken.ThrowIfCancellationRequested();
+        FuturesTradeSessionBarReadModel[] liveSeedBars = [];
+        if (liveSeedReplay is not null)
+        {
+            try
+            {
+                liveSeedBars = await liveSeedReplay.ReadAsync(es.ContractId, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception,
+                    "Four-hour Databento Live seed failed for {ContractId}; indicators will use retained or live observations.",
+                    es.ContractId);
+            }
+        }
         await Task.WhenAll(activations.SelectMany(activation => new[]
         {
             RequireAcceptedAsync(
-                analyticsCommandApi.StartFuturesRsiSignalAsync(activation.Rsi),
+                activation.TimeFrame == TimeFrameType.FiveMinutes && liveSeedBars.Length == 48
+                    ? StartSeededFiveMinuteRsiAsync(activation.Rsi, liveSeedBars, cancellationToken)
+                    : analyticsCommandApi.StartFuturesRsiSignalAsync(activation.Rsi),
                 $"RSI {activation.TimeFrame}"),
             RequireAcceptedAsync(
-                analyticsCommandApi.StartFuturesAtrSignalAsync(activation.Atr),
+                activation.TimeFrame == TimeFrameType.FiveMinutes && liveSeedBars.Length == 48
+                    ? StartSeededFiveMinuteAtrAsync(activation.Atr, liveSeedBars, cancellationToken)
+                    : analyticsCommandApi.StartFuturesAtrSignalAsync(activation.Atr),
                 $"ATR {activation.TimeFrame}"),
             RequireAcceptedAsync(
-                analyticsCommandApi.StartFuturesAdxSignalAsync(activation.Adx),
+                activation.TimeFrame == TimeFrameType.FiveMinutes && liveSeedBars.Length == 48
+                    ? StartSeededFiveMinuteAdxAsync(activation.Adx, liveSeedBars, cancellationToken)
+                    : analyticsCommandApi.StartFuturesAdxSignalAsync(activation.Adx),
                 $"ADX {activation.TimeFrame}"),
             RequireAcceptedAsync(
-                analyticsCommandApi.StartFuturesMacdSignalAsync(activation.Macd),
+                activation.TimeFrame == TimeFrameType.FiveMinutes && liveSeedBars.Length == 48
+                    ? StartSeededFiveMinuteMacdAsync(activation.Macd, liveSeedBars, cancellationToken)
+                    : analyticsCommandApi.StartFuturesMacdSignalAsync(activation.Macd),
                 $"MACD {activation.TimeFrame}")
         })).WaitAsync(options.ParticipantTimeout, cancellationToken).ConfigureAwait(false);
 
         await WaitForRealtimeAnalyticsAttachmentsAsync(activations, cancellationToken)
             .ConfigureAwait(false);
-        await SeedMarketOutlookIndicatorsAsync(
-                es.ContractId,
-                context.ValueDate,
-                cancellationToken)
-            .ConfigureAwait(false);
+        if (liveSeedBars.Length != 48)
+            await SeedMarketOutlookIndicatorsAsync(
+                    es.ContractId,
+                    context.ValueDate,
+                    liveSeedBars,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        else
+            logger.LogInformation(
+                "Submitted five-minute RSI and TDI window plus ADX, ATR, and MACD initialization from {BarCount} Databento replay bars for {ContractId}.",
+                liveSeedBars.Length, es.ContractId);
         return ApplicationStartupActivityOutcome.Started;
+    }
+
+    async Task<ServiceResult<Guid>> StartSeededFiveMinuteAdxAsync(
+        FuturesAdxSignalEntityId entityId, FuturesTradeSessionBarReadModel[] bars,
+        CancellationToken cancellationToken)
+    {
+        var command = new StartFuturesAdxSignalCommand(entityId)
+        {
+            CommandId = Guid.CreateVersion7(), PostEvents = true,
+            Subject = new ActorSubject(ActorType.Command,
+                StartFuturesAdxSignalCommand.Actor, StartFuturesAdxSignalCommand.Verb, entityId.Format()),
+            HistoricalSeed = bars
+        };
+        return await actorService!.RequestAsync<StartFuturesAdxSignalCommand,
+            FuturesAdxSignalEntityId>(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    async Task<ServiceResult<Guid>> StartSeededFiveMinuteAtrAsync(
+        FuturesAtrSignalEntityId entityId, FuturesTradeSessionBarReadModel[] bars,
+        CancellationToken cancellationToken)
+    {
+        var command = new StartFuturesAtrSignalCommand(entityId)
+        {
+            CommandId = Guid.CreateVersion7(), PostEvents = true,
+            Subject = new ActorSubject(ActorType.Command,
+                StartFuturesAtrSignalCommand.Actor, StartFuturesAtrSignalCommand.Verb, entityId.Format()),
+            HistoricalSeed = bars
+        };
+        return await actorService!.RequestAsync<StartFuturesAtrSignalCommand,
+            FuturesAtrSignalEntityId>(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    async Task<ServiceResult<Guid>> StartSeededFiveMinuteMacdAsync(
+        FuturesMacdSignalEntityId entityId, FuturesTradeSessionBarReadModel[] bars,
+        CancellationToken cancellationToken)
+    {
+        var command = new StartFuturesMacdSignalCommand(entityId)
+        {
+            CommandId = Guid.CreateVersion7(), PostEvents = true,
+            Subject = new ActorSubject(ActorType.Command,
+                StartFuturesMacdSignalCommand.Actor, StartFuturesMacdSignalCommand.Verb, entityId.Format()),
+            HistoricalSeed = bars
+        };
+        return await actorService!.RequestAsync<StartFuturesMacdSignalCommand,
+            FuturesMacdSignalEntityId>(command, cancellationToken).ConfigureAwait(false);
     }
 
     async Task SeedMarketOutlookIndicatorsAsync(
         string contractId,
         DateOnly valueDate,
+        FuturesTradeSessionBarReadModel[] liveSeedBars,
         CancellationToken cancellationToken)
     {
         if (marketSessionCalendar is null || actorService is null)
@@ -377,10 +403,12 @@ public sealed class ApiApplicationStartupActivities(
         const int requestedBars = FuturesMacdConfiguration.ConventionalSlowEmaPeriod
             + FuturesMacdConfiguration.ConventionalSignalEmaPeriod;
         var cutoff = timeProvider.GetUtcNow();
-        FuturesTradeSessionBarReadModel[] bars;
+        FuturesTradeSessionBarReadModel[] bars = liveSeedBars.Length == 48
+            ? liveSeedBars.TakeLast(requestedBars).ToArray() : [];
         try
         {
-            bars = await ReadFiveMinuteSeedBarsAsync(
+            if (bars.Length == 0)
+                bars = await ReadFiveMinuteSeedBarsAsync(
                     contractId,
                     requestedBars,
                     cutoff,
@@ -455,9 +483,30 @@ public sealed class ApiApplicationStartupActivities(
         }
 
         logger.LogInformation(
-            "Market Outlook five-minute historical seed submitted {BarCount} bars for ADX, ATR, and MACD on {ContractId}.",
+            "Market Outlook five-minute seed submitted {BarCount} bars for ADX, ATR, and MACD on {ContractId}; liveReplay={LiveReplay}.",
             bars.Length,
-            contractId);
+            contractId,
+            liveSeedBars.Length == 48);
+    }
+
+    async Task<TomasAI.IFM.Shared.EventSourcing.ServiceResult<Guid>> StartSeededFiveMinuteRsiAsync(
+        FuturesRsiSignalEntityId entityId,
+        FuturesTradeSessionBarReadModel[] bars,
+        CancellationToken cancellationToken)
+    {
+        var command = new StartFuturesRsiSignalCommand(entityId)
+        {
+            CommandId = Guid.CreateVersion7(),
+            PostEvents = true,
+            Subject = new ActorSubject(ActorType.Command,
+                StartFuturesRsiSignalCommand.Actor,
+                StartFuturesRsiSignalCommand.Verb, entityId.Format()),
+            HistoricalSeed = new FuturesRsiHistoricalSeed(
+                bars.Length, bars[^1].CalculatedAtUtc, bars, "RSI.DATABENTO_FOUR_HOUR_REPLAY"),
+            ForceHistoricalInitialization = true
+        };
+        return await actorService!.RequestAsync<StartFuturesRsiSignalCommand,
+            FuturesRsiSignalEntityId>(command, cancellationToken).ConfigureAwait(false);
     }
 
     async Task<FuturesTradeSessionBarReadModel[]> ReadFiveMinuteSeedBarsAsync(

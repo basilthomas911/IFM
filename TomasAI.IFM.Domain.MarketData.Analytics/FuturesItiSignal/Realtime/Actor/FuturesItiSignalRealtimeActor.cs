@@ -46,11 +46,11 @@ public class FuturesItiSignalRealtimeActor(
     }
 
     /// <inheritdoc />
-    protected override async ValueTask OnShutdown(IEventActorContext<FuturesItiSignalRealtimeActor> context)
+    protected override ValueTask OnShutdown(IEventActorContext<FuturesItiSignalRealtimeActor> context)
     {
         context.RemoveRealtimeRouter(MarketPriceRoute, Id);
-        await TypedContext.GenerationGate.WaitForIdleAsync().ConfigureAwait(false);
         TypedContext.Telemetry.RecordRouteDetached();
+        return ValueTask.CompletedTask;
     }
 
     /// <inheritdoc />

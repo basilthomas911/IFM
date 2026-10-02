@@ -1,5 +1,5 @@
 using System.Text.Json;
-using TomasAI.IFM.Domain.Supervisor.Shared.ReadModels;
+using TomasAI.IFM.Domain.Supervisor.Shared.Health.ReadModels;
 using TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Application.Api.Server;

@@ -203,7 +203,7 @@ public sealed class TickAggregationServiceTests
         var publisher = new CapturingPublisher();
         await using var service = new TickAggregationService(
             feed,
-            new MappingProvider(instrument),
+            new MappingProvider(instrument, CreateDetails(valueDate, instrument)),
             publisher,
             new TickQuoteBufferPool(),
             new FixedValueDateProvider(valueDate),
@@ -222,13 +222,11 @@ public sealed class TickAggregationServiceTests
         feed.Publish(ReplayTrade(instrument, 2, 5_005_000_000, 12));
         feed.Publish(TradeReplayComplete(instrument));
         await publisher.SessionStatisticsFirst.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.Single(publisher.TradeReplayBatches);
-        var replay = publisher.TradeReplayBatches[0];
-        Assert.True(replay.IsFirstBatch);
-        Assert.True(replay.IsFinalBatch);
-        Assert.Single(replay.Trades);
-        Assert.NotEqual(Guid.Empty, replay.RecoveryGenerationId);
-        Assert.NotEqual(Guid.Empty, replay.LiveStreamEpochId);
+        Assert.Empty(publisher.TradeReplayBatches);
+        Assert.True(SpinWait.SpinUntil(() => publisher.VwapCheckpoints.Count >= 1,
+            TimeSpan.FromSeconds(2)));
+        Assert.Equal(0, publisher.VwapCheckpoints[0].VwapCheckpoint!.LastTradeOrdinal);
+        Assert.Equal(12, publisher.VwapCheckpoints[0].VwapCheckpoint!.CumulativeVolume);
         feed.Publish(NormalizedTrade(instrument, 3, 5_010_000_000, 0, (byte)'T', (byte)'B', 0));
         Assert.True(SpinWait.SpinUntil(
             () => publisher.MarketPrices.Count == 2,
@@ -236,8 +234,18 @@ public sealed class TickAggregationServiceTests
 
         var afterReplay = publisher.MarketPrices[1].Price.Trade!.Value;
         Assert.NotEqual(firstEpoch, afterReplay.StreamEpochId);
-        Assert.Equal(replay.LiveStreamEpochId, afterReplay.StreamEpochId);
+        Assert.NotEqual(Guid.Empty, afterReplay.StreamEpochId);
         Assert.Equal(1, afterReplay.TradeOrdinal);
+        Assert.True(SpinWait.SpinUntil(() => publisher.VwapCheckpoints.Count >= 2,
+            TimeSpan.FromSeconds(2)), $"VWAP checkpoint count: {publisher.VwapCheckpoints.Count}");
+        var checkpoint = publisher.VwapCheckpoints[^1].VwapCheckpoint!;
+        Assert.Equal(afterReplay.StreamEpochId, checkpoint.StreamEpochId);
+        Assert.Equal(1, checkpoint.LastTradeOrdinal);
+        Assert.True(checkpoint.CumulativeVolume == 12 + afterReplay.LastSize,
+            checkpoint.ToString());
+        Assert.Equal(5.005m * 12 + 5.01m * 12,
+            checkpoint.CumulativePriceVolume);
+        Assert.True(checkpoint.IsValid);
 
         await service.StopAsync();
     }
@@ -1206,7 +1214,7 @@ public sealed class TickAggregationServiceTests
                 sequence),
             price,
             size,
-            1,
+            (byte)'T',
             2,
             0));
 
@@ -1345,6 +1353,7 @@ public sealed class TickAggregationServiceTests
         public List<string> Order { get; } = [];
         public List<long> Sequences { get; } = [];
         public List<FuturesMarketPriceUpdatedRealtimeEvent> MarketPrices { get; } = [];
+        public List<FuturesMarketPriceUpdatedRealtimeEvent> VwapCheckpoints { get; } = [];
         public List<FuturesTickTradeDataChangedEvent> Trades { get; } = [];
         public List<FuturesTradeReplayBatchRealtimeEvent> TradeReplayBatches { get; } = [];
         public List<FuturesSessionStatisticsUpdatedRealtimeEvent> SessionStatistics { get; } = [];
@@ -1360,6 +1369,11 @@ public sealed class TickAggregationServiceTests
         public ValueTask StartAsync() { IsRunning = true; return ValueTask.CompletedTask; }
         public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent e)
         {
+            if (e.VwapCheckpoint is not null)
+            {
+                VwapCheckpoints.Add(e);
+                return ValueTask.CompletedTask;
+            }
             MarketPrices.Add(e);
             MarketPrice.TrySetResult(e);
             return ValueTask.CompletedTask;

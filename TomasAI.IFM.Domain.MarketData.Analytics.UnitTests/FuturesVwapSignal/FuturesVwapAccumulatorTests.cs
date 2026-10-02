@@ -1,6 +1,12 @@
+using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal;
+using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesVwapSignal;
 
@@ -33,6 +39,102 @@ public sealed class FuturesVwapAccumulatorTests
         Assert.Equal(110m - 310m / 3m, second.Signal.PriceMinusVwap);
         Assert.True(second.Signal.IsTickExact);
     }
+
+    [Fact]
+    public void LaterCumulativeCheckpointHealsAnIntermediateTransportDrop()
+    {
+        var first = SourceCheckpoint(1, 200m, 2);
+        var latest = SourceCheckpoint(3, 530m, 5);
+        var initial = FuturesVwapAccumulator.ApplySourceCheckpoint(EntityId, null,
+            first, Configuration, SessionStart, SessionEnd);
+        var healed = FuturesVwapAccumulator.ApplySourceCheckpoint(EntityId, initial.Checkpoint,
+            latest, Configuration, SessionStart, SessionEnd);
+        var duplicate = FuturesVwapAccumulator.ApplySourceCheckpoint(EntityId, healed.Checkpoint,
+            first, Configuration, SessionStart, SessionEnd);
+
+        Assert.True(healed.Changed);
+        Assert.Equal(530m / 5m, healed.Signal.Vwap);
+        Assert.Equal(3, healed.Checkpoint.LastTradeOrdinal);
+        Assert.True(healed.Signal.IsTickExact);
+        Assert.False(duplicate.Changed);
+    }
+
+    [Fact]
+    public void InvalidSourceCheckpointDoesNotClaimTickExactValue()
+    {
+        var result = FuturesVwapAccumulator.ApplySourceCheckpoint(EntityId, null,
+            SourceCheckpoint(1, 200m, 2) with { IsValid = false },
+            Configuration, SessionStart, SessionEnd);
+
+        Assert.False(result.Signal.IsValid);
+        Assert.False(result.Signal.IsTickExact);
+    }
+
+    [Fact]
+    public void SourceCheckpointSurvivesWorkerMessagePackBoundary()
+    {
+        var source = SourceCheckpoint(3, 530m, 5);
+        var copy = MessagePackSerializer.Deserialize<FuturesVwapSourceCheckpoint>(
+            MessagePackSerializer.Serialize(source));
+
+        Assert.Equal(source, copy);
+    }
+
+    [Fact]
+    public void CheckpointCommandSurvivesMessagePackRequestBoundary()
+    {
+        var command = new UpdateFuturesVwapSignalCommand
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new(ActorType.Command, UpdateFuturesVwapSignalCommand.Actor,
+                UpdateFuturesVwapSignalCommand.Verb, EntityId.Format()),
+            EntityId = EntityId,
+            Configuration = Configuration,
+            SourceCheckpoint = SourceCheckpoint(3, 530m, 5),
+            SessionStartUtc = SessionStart,
+            SessionEndUtc = SessionEnd
+        };
+        var copy = MessagePackSerializer.Deserialize<UpdateFuturesVwapSignalCommand>(
+            MessagePackSerializer.Serialize(command));
+
+        Assert.Equal(command.SourceCheckpoint, copy.SourceCheckpoint);
+        Assert.Equal(SessionStart, copy.SessionStartUtc);
+        Assert.Equal(SessionEnd, copy.SessionEndUtc);
+    }
+
+    [Fact]
+    public void CheckpointEventSurvivesWorkerPublicationBoundary()
+    {
+        var entity = new TickDataEntityId(EntityId.ContractId, ValueDate, AssetTypeId.Futures);
+        var original = new FuturesMarketPriceUpdatedRealtimeEvent
+        {
+            Subject = new(ActorType.Realtime, FuturesVwapSourceCheckpoint.Actor,
+                FuturesMarketPriceUpdatedRealtimeEvent.Verb, entity.Format()),
+            EntityId = entity,
+            VwapCheckpoint = SourceCheckpoint(3, 530m, 5)
+        };
+        var copy = MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(
+            MessagePackSerializer.Serialize(original));
+
+        Assert.Equal(original.Subject, copy.Subject);
+        Assert.Equal(original.VwapCheckpoint, copy.VwapCheckpoint);
+    }
+
+    static FuturesVwapSourceCheckpoint SourceCheckpoint(long ordinal, decimal priceVolume,
+        long volume) => new()
+    {
+        StreamEpochId = Epoch,
+        RecoveryGenerationId = Guid.NewGuid(),
+        LastTradeOrdinal = ordinal,
+        LastTradeSourceSequence = ordinal,
+        AsOfUtc = SessionStart.AddSeconds(ordinal),
+        CumulativePriceVolume = priceVolume,
+        CumulativeVolume = volume,
+        EligibleTradeCount = ordinal,
+        LastPrice = 110m,
+        IsValid = true,
+        IsReplayComplete = true
+    };
 
     [Fact]
     public void DuplicateOrOlderOrdinalDoesNotAdvanceState()

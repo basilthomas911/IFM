@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Supervisor.Lifecycle;
+using TomasAI.IFM.Domain.Supervisor.Shared.Service.Lifecycle;
 using TomasAI.IFM.Domain.Supervisor.Shared.Enums;
 
 namespace TomasAI.IFM.Domain.Supervisor.UnitTests;

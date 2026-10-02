@@ -174,7 +174,16 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
                     }
                 case DatasetPublicationKind.MarketPrice:
                     {
-                        var price = MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(envelope.Payload).Price;
+                        var marketPriceEvent = MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(envelope.Payload);
+                        var price = marketPriceEvent.Price;
+                        if (marketPriceEvent.VwapCheckpoint is not null)
+                        {
+                            if (!Matches(state, marketPriceEvent.EntityId.ContractId,
+                                    marketPriceEvent.EntityId.ValueDate)
+                                || marketPriceEvent.EntityId.AssetTypeId != AssetTypeId.Futures)
+                                return false;
+                            break;
+                        }
                         if (!Matches(state, price.ContractId, price.ValueDate) || price.AssetTypeId != AssetTypeId.Futures)
                             return false;
                         prices[price.ContractId] = price;

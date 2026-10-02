@@ -7,6 +7,7 @@ using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
@@ -78,42 +79,10 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
         ((IFuturesEodDataRealtimeContext)actorContext).StatusConsoleWriter,
         actorContext.Logger);
 
-    static readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesEodDataRealtimeContext,
-        FuturesEodDataEventParameters, ValueTask>> _receiveMap =
-        new Dictionary<Type, Func<IEvent, IFuturesEodDataRealtimeContext,
-            FuturesEodDataEventParameters, ValueTask>>
-        {
-            [typeof(FuturesTickTradeDataInsertedEvent)] = static async (@event, context, parameters) =>
-            {
-                _ = await ((FuturesTickTradeDataInsertedEvent)@event).ExecuteAsync(
-                    context, context.MarketDataApi, context.BlackboardService,
-                    context.StatusConsoleWriter, context.Projector, context.Logger).ConfigureAwait(false);
-            },
-            [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = static (@event, context, parameters) =>
-                ((FuturesMarketPriceUpdatedRealtimeEvent)@event).ExecuteAsync(context),
-            [typeof(FuturesSessionStatisticsUpdatedRealtimeEvent)] = static async (@event, context, parameters) =>
-            {
-                _ = await ((FuturesSessionStatisticsUpdatedRealtimeEvent)@event).ExecuteAsync(
-                    context, context.Projector, context.Logger).ConfigureAwait(false);
-            },
-            [typeof(FuturesEodDataInsertedEvent)] = static (@event, context, parameters) =>
-                ((FuturesEodDataInsertedEvent)@event).ExecuteAsync(context),
-            [typeof(FuturesEodDataInsertedCompleteEvent)] = static (@event, context, parameters) =>
-                ((FuturesEodDataInsertedCompleteEvent)@event).ExecuteAsync(context, parameters),
-            [typeof(VixFuturesEodDataInsertedCompleteEvent)] = static (@event, context, parameters) =>
-                ((VixFuturesEodDataInsertedCompleteEvent)@event).ExecuteAsync(context, parameters),
-            [typeof(FuturesEodDataInsertedFailEvent)] = static (@event, context, parameters) =>
-                ((FuturesEodDataInsertedFailEvent)@event).ExecuteAsync(context),
-            [typeof(VixFuturesEodDataInsertedFailEvent)] = static (@event, context, parameters) =>
-                ((VixFuturesEodDataInsertedFailEvent)@event).ExecuteAsync(context),
-            [typeof(VixFuturesEodDataInsertedEvent)] = static (@event, context, parameters) =>
-                ((VixFuturesEodDataInsertedEvent)@event).ExecuteAsync(context),
-            [typeof(FuturesEodSessionStatisticsUpdatedEvent)] = static (@event, context, parameters) =>
-                ((FuturesEodSessionStatisticsUpdatedEvent)@event).ExecuteAsync(context)
-        };
     protected override async ValueTask OnStartup(IEventActorContext<FuturesEodDataRealtimeActor> context)
     {
         await ((IFuturesEodDataRealtimeContext)actorContext).Projector.StartAsync(context).ConfigureAwait(false);
+        RealtimeContext.StartTradeWorkers();
         context.AddRealtimeRouter(TickTradeRoute, Id);
         context.AddRealtimeRouter(MarketPriceRoute, Id);
         context.AddRealtimeRouter(SessionStatisticsRoute, Id);
@@ -124,22 +93,35 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
         context.RemoveRealtimeRouter(TickTradeRoute, Id);
         context.RemoveRealtimeRouter(MarketPriceRoute, Id);
         context.RemoveRealtimeRouter(SessionStatisticsRoute, Id);
-        await ((IFuturesEodDataRealtimeContext)actorContext).Projector.StopAsync().ConfigureAwait(false);
+        try
+        {
+            await RealtimeContext.StopTradeWorkersAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            await ((IFuturesEodDataRealtimeContext)actorContext).Projector.StopAsync().ConfigureAwait(false);
+        }
     }
 
     protected override IEvent ParseMessage(
         IEventActorContext<FuturesEodDataRealtimeActor> context,
         IActorMessage message)
-        => ParseMappedRealtimeEvent(context, message, _parseMap);
-
-    protected override async ValueTask ReceiveAsync(
-        IEventActorContext<FuturesEodDataRealtimeActor> context,
-        IEvent domainEvent)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        var handler = ResolveMappedEventHandler(domainEvent, _receiveMap);
-        await handler(domainEvent, RealtimeContext, _parameters).ConfigureAwait(false);
+        // Both EOD notifications and routed market prices use "Updated". The
+        // destination subject identifies this mailbox; the source identifies
+        // the payload contract to deserialize.
+        if (message.Subject.ActorType == ActorType.Realtime
+            && string.Equals(message.Subject.Name, ActorName, StringComparison.Ordinal)
+            && string.Equals(message.Subject.Verb, FuturesEodDataUpdatedEvent.Verb, StringComparison.Ordinal)
+            && string.Equals(message.SourceSubject.Name, FuturesEodDataUpdatedEvent.Actor, StringComparison.Ordinal))
+            return message.AsEvent<FuturesEodDataUpdatedEvent>()!;
+        return ParseMappedRealtimeEvent(context, message, _parseMap);
     }
+
+    protected override ValueTask ReceiveAsync(
+        IEventActorContext<FuturesEodDataRealtimeActor> context,
+        IEvent domainEvent) =>
+        RealtimeContext.ReceiveAsync(context, domainEvent, _parameters);
 
     static void LogProjectionFailure(IErrorEvent failed, ILogger logger) => logger.LogErrorEvent(
         ActorName,

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Supervisor.Health.Evaluation;
+using TomasAI.IFM.Domain.Supervisor.Shared.Service.Health.Evaluation;
 using TomasAI.IFM.Domain.Supervisor.Shared.Enums;
 using TomasAI.IFM.Shared.EventModelActor;
 

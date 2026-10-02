@@ -65,6 +65,8 @@ public sealed class NatsActorMessage : IActorMessage
     public ActorSubject Subject
         => _subject ?? ToSubject(NatsMessage.Subject);
 
+    public ActorSubject SourceSubject => ToSubject(NatsMessage.Subject);
+
     public ActorSubject ReplySubject { get; set; } = default!;
 
     public NatsMsg<byte[]> GetMessage()

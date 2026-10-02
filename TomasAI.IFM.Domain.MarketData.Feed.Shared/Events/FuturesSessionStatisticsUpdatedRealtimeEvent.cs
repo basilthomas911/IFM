@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 /// Non-durable provider-neutral input carrying the latest complete session statistics.
 /// </summary>
 [MessagePackObject(AllowPrivate = true)]
-public sealed record FuturesSessionStatisticsUpdatedRealtimeEvent : IEvent<FuturesEodDataId>
+public sealed record FuturesSessionStatisticsUpdatedRealtimeEvent : IEvent<FuturesEodDataId>, IRealtimeSourceGeneration
 {
 
     /// <summary>Creates an empty event for serialization.</summary>
@@ -43,6 +43,8 @@ public sealed record FuturesSessionStatisticsUpdatedRealtimeEvent : IEvent<Futur
     }
     public const string Actor = FuturesTickTradeDataInsertedEvent.Actor;
     public const string Verb = "SessionStatisticsObserved";
+    [IgnoreMember] public string SourceDataset { get; init; } = string.Empty;
+    [IgnoreMember] public Guid SourceGenerationId { get; init; }
 
     [Key(0)] public ActorSubject Subject { get; init; }
     [Key(1)] public Guid Id { get; init; }

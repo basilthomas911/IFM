@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using TomasAI.IFM.UI.Net.Models.Operations;
 
 namespace TomasAI.IFM.UI.Net.Services.Operations;
@@ -18,7 +19,14 @@ public sealed class ActorHealthQueryService(
     bool ownsHttpClient = false) : IActorHealthQueryService, IDisposable
 {
     const int MaximumResponseBytes = 8 * 1024 * 1024;
-    static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { MaxDepth = 20 };
+    static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
+
+    static JsonSerializerOptions CreateJsonOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web) { MaxDepth = 20 };
+        options.Converters.Add(new JsonStringEnumConverter());
+        return options;
+    }
 
     public async Task<UiOperationResult<ActorHealthSnapshot>> GetAsync(
         DateTime fromUtc,

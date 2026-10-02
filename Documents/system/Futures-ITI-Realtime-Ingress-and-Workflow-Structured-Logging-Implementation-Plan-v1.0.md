@@ -184,7 +184,7 @@ Health and logging must distinguish the following outcomes:
 | Outcome | Meaning | Expected next event | Health |
 | --- | --- | --- | --- |
 | `Filtered` | Market-price event was not an eligible current ES trade | None | Healthy |
-| `BusySkipped` | A Generate operation is active, so this tick is ignored | None | Healthy |
+| Sequential generation | An eligible trade awaits its Generate command within the actor message; later messages remain queued on that actor thread | Command reply before the next message | Healthy unless the command fails |
 | `InputUnavailable` | Required current VX price is unavailable | None | Degraded until a later valid attempt |
 | `CommandAcceptedNoChange` | Durable state was loaded and no material ITI change was found | None | Healthy |
 | `EventCommitted` | A material ITI change produced a durable source event | Projector completion or failure | Pending completion |

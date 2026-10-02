@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 
@@ -15,6 +16,30 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
 public sealed class DatasetWorkerCurrentValuesTests
 {
+    [Fact]
+    public void ReplayVwapCheckpointWithoutPricePassesGenerationMirror()
+    {
+        using var values = new DatasetWorkerCurrentValues();
+        var identity = Admission("GLBX.MDP3");
+        values.ActivateDataset(identity, [Registration(Es, identity.Dataset)]);
+        Assert.True(values.AcceptPublication(Price(identity, Es, 6500m)));
+        var entity = new TickDataEntityId(Es, ValueDate, AssetTypeId.Futures);
+        var checkpoint = new FuturesMarketPriceUpdatedRealtimeEvent
+        {
+            EntityId = entity,
+            VwapCheckpoint = new FuturesVwapSourceCheckpoint
+            {
+                StreamEpochId = Guid.NewGuid(),
+                IsReplayComplete = true
+            }
+        };
+
+        Assert.True(values.AcceptPublication(Envelope(identity,
+            DatasetPublicationKind.MarketPrice, 2, checkpoint)));
+        Assert.True(values.TryGetLastTickPrice(Es, out var price));
+        Assert.Equal(6500m, price.Trade!.Value.LastPrice);
+    }
+
     static readonly DateOnly ValueDate = new(2026, 9, 4);
     static readonly DateTimeOffset Now = new(2026, 9, 4, 15, 0, 0, TimeSpan.Zero);
     const string Es = "ES20260918";
@@ -228,6 +253,7 @@ public sealed class DatasetWorkerCurrentValuesTests
         Assert.True(api.TryGetLastTickPrice(Es, out _));
         Assert.True(api.TryGetFuturesSessionStatistics(Es, out _));
         Assert.True(api.IsTickDataStreamActive(Es));
+        Assert.True(api.CoreFuturesRoutesAreRuntimeOwned);
         Assert.Same(api.GetFuturesLastPriceReader(Es), api.GetFuturesLastPriceReader(Es));
         Assert.True(api.GetRuntimeStatus().IsRunning);
         Assert.Equal(ValueDate, api.ActiveValueDate);
@@ -264,6 +290,7 @@ public sealed class DatasetWorkerCurrentValuesTests
         });
         Assert.Throws<NotSupportedException>(() => api.TryGetLastOptionTickPrice(MarketDataApiTestContext.CallId, out _));
         Assert.True(api.IsTickDataStreamActive(MarketDataApiTestContext.FutureId));
+        Assert.True(api.CoreFuturesRoutesAreRuntimeOwned);
         Assert.Equal(0, context.EpochFactory.CreateCount);
     }
 

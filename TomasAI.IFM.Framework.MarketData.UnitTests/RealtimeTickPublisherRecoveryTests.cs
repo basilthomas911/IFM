@@ -42,7 +42,7 @@ public sealed class RealtimeTickPublisherRecoveryTests
     }
 
     [Fact]
-    public async Task Noncooperative_send_requires_reset_after_no_progress_boundary_and_can_restart_after_retirement()
+    public async Task Noncooperative_send_remains_terminal_after_late_transport_completion()
     {
         var (supervisor, producer) = Setup();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -68,10 +68,12 @@ public sealed class RealtimeTickPublisherRecoveryTests
         Assert.NotEmpty(stalled.InFlightSubject);
 
         release.TrySetException(new IOException("eventual transport failure"));
-        await Until(() => publisher.GetSnapshot().CanRecover);
+        await Until(() => !publisher.GetSnapshot().UncontainedSend);
         Assert.Equal(typeof(IOException).FullName, publisher.GetSnapshot().LastExceptionType);
-        await publisher.StartAsync();
-        Assert.True(publisher.IsRunning);
+        Assert.False(publisher.GetSnapshot().CanRecover);
+        await Assert.ThrowsAsync<RealtimeTickPublisherUnavailableException>(
+            async () => await publisher.StartAsync());
+        Assert.False(publisher.IsRunning);
     }
 
     static (IActorSupervisor Supervisor, IActorProducer Producer) Setup()

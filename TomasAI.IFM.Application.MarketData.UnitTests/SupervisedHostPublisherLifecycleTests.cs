@@ -118,6 +118,43 @@ public sealed class SupervisedHostPublisherLifecycleTests
         fixture.ReleaseDelivery.TrySetResult();
     }
 
+    [Fact]
+    public async Task Recovery_handoff_sets_active_session_and_owns_publisher_shutdown_without_startup_reconciliation()
+    {
+        await using var fixture = new Fixture();
+        var worker = await fixture.StartDetachedWorkerAsync();
+        var snapshot = fixture.Workers.DesiredSubscriptions.CaptureCurrentRecoverySnapshot(ValueDate, TimeProvider.System);
+        Assert.Null(fixture.Runtime.ActiveValueDate);
+
+        fixture.Runtime.AdoptRecoveredSession(snapshot,
+            new Dictionary<string, Guid> { [worker.Dataset] = worker.GenerationId }, fixture.Admissions);
+
+        Assert.Equal(ValueDate, fixture.Runtime.ActiveValueDate);
+        var health = await fixture.Runtime.GetWatchdogSnapshotAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+        Assert.True(health.Complete, health.FailureDetail);
+        Assert.Single(health.Feeds);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Runtime.StartAsync(ValueDate, CancellationToken.None));
+        await fixture.Runtime.StopAsync(CancellationToken.None);
+        Assert.Null(fixture.Runtime.ActiveValueDate);
+        Assert.False(fixture.Publisher.IsRunning);
+        Assert.Empty(fixture.Workers.Current);
+        Assert.False(fixture.Admissions.TryGet(worker.Dataset, out _));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Recovery_handoff_rejects_wrong_or_fenced_generation_without_setting_active_session(bool fence)
+    {
+        await using var fixture = new Fixture();
+        var worker = await fixture.StartDetachedWorkerAsync();
+        var snapshot = fixture.Workers.DesiredSubscriptions.CaptureCurrentRecoverySnapshot(ValueDate, TimeProvider.System);
+        if (fence) fixture.Admissions.Close(worker.Dataset, worker.GenerationId);
+        Assert.Throws<InvalidOperationException>(() => fixture.Runtime.AdoptRecoveredSession(snapshot,
+            new Dictionary<string, Guid> { [worker.Dataset] = fence ? worker.GenerationId : Guid.NewGuid() }, fixture.Admissions));
+        Assert.Null(fixture.Runtime.ActiveValueDate);
+    }
+
     sealed class Fixture : IAsyncDisposable
     {
         public IActorProducer Producer { get; } = Substitute.For<IActorProducer>();
@@ -132,6 +169,19 @@ public sealed class SupervisedHostPublisherLifecycleTests
         public DatasetWorkerProcessRecoveryService Workers { get; }
         public SupervisedDatabentoLifecycleRuntime Runtime { get; }
         public DatabentoMarketDataApi Api { get; }
+        public DatabentoSupervisedWorkerOptions WorkerOptions { get; }
+
+        public async Task<DatasetWorkerProcessSnapshot> StartDetachedWorkerAsync()
+        {
+            await Publisher.StartAsync();
+            var manifest = Workers.DesiredSubscriptions.Set("GLBX.MDP3", ValueDate,
+                [new DatabentoContractRegistration
+                {
+                    DomainContractId = ContractId, ProviderContractName = "ESZ6", AssetTypeId = AssetTypeId.Futures,
+                    Dataset = "GLBX.MDP3", RootSymbol = "ES", OnTheRun = true, Rollover = true
+                }]);
+            return await Workers.StartOwnedAsync(WorkerOptions.CreateStartRequest(manifest), CancellationToken.None);
+        }
 
         public Fixture(bool failWorkerLaunch = false, bool blockActorSend = false)
         {
@@ -175,14 +225,15 @@ public sealed class SupervisedHostPublisherLifecycleTests
                 }]
             };
             var registry = new DatabentoContractRegistrationRegistry(options.Contracts, options);
+            WorkerOptions = new DatabentoSupervisedWorkerOptions
+            {
+                DotNetHostPath = DotNetHost(),
+                WorkerAssemblyPath = typeof(DatasetWorkerAssemblyMarker).Assembly.Location,
+                HostPublisherStopTimeout = TimeSpan.FromMilliseconds(300),
+                Synthetic = new SyntheticFeedOptions { RecordCount = 1_000_000, RecordsPerSecond = 50 }
+            };
             Runtime = new SupervisedDatabentoLifecycleRuntime(Substitute.For<IDatabentoContractAuthority>(),
-                registry, Workers, new DatabentoSupervisedWorkerOptions
-                {
-                    DotNetHostPath = DotNetHost(),
-                    WorkerAssemblyPath = typeof(DatasetWorkerAssemblyMarker).Assembly.Location,
-                    HostPublisherStopTimeout = TimeSpan.FromMilliseconds(300),
-                    Synthetic = new SyntheticFeedOptions { RecordCount = 1_000_000, RecordsPerSecond = 50 }
-                }, TimeProvider.System, Publisher);
+                registry, Workers, WorkerOptions, TimeProvider.System, Publisher);
             Api = new DatabentoMarketDataApi(EpochFactory, new DatabentoMarketDataApiOptions(), currentValues: Values);
         }
 

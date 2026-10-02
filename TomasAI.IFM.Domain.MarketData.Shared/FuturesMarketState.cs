@@ -9,13 +9,13 @@ public enum FuturesMarketState
 }
 
 /// <summary>
-/// Separates the 18:00-17:00 value-date session from the weekday 03:00-16:00
+/// Separates the 18:00-17:00 value-date session from the weekday 03:00-17:00
 /// live-trading window without relying on a client-local clock.
 /// </summary>
 public static class FuturesMarketSessionPolicy
 {
     public static readonly TimeOnly LiveTradingOpensAt = new(3, 0);
-    public static readonly TimeOnly LiveTradingClosesAt = new(16, 0);
+    public static readonly TimeOnly LiveTradingClosesAt = new(17, 0);
 
     public static FuturesMarketState GetState(DateTimeOffset instant)
     {
@@ -31,7 +31,7 @@ public static class FuturesMarketSessionPolicy
                 : FuturesMarketState.OffTrading;
     }
 
-    /// <summary>Returns the next 03:00, 16:00, 17:00 or 18:00 state/value-date transition.</summary>
+    /// <summary>Returns the next 03:00, 17:00 or 18:00 state/value-date transition.</summary>
     public static DateTimeOffset GetNextTransitionUtc(DateTimeOffset instant)
     {
         var eastern = TimeZoneInfo.ConvertTime(instant, FuturesTradingValueDate.MarketTimeZone);
@@ -46,7 +46,6 @@ public static class FuturesMarketSessionPolicy
                      {
                          LiveTradingOpensAt,
                          LiveTradingClosesAt,
-                         new TimeOnly(17, 0),
                          new TimeOnly(18, 0)
                      })
             {

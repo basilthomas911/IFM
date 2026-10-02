@@ -1,6 +1,7 @@
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
@@ -20,12 +21,14 @@ public readonly record struct FuturesTradeReplayObservation(
 /// are separate from live market-price updates so they cannot start live signal or workflow paths.
 /// </summary>
 [MessagePackObject]
-public sealed record FuturesTradeReplayBatchRealtimeEvent : IEvent<TickDataEntityId>
+public sealed record FuturesTradeReplayBatchRealtimeEvent : IEvent<TickDataEntityId>, IRealtimeSourceGeneration
 {
     /// <summary>The primary market-price mailbox that owns replay routing.</summary>
     public const string Actor = FuturesMarketPriceUpdatedRealtimeEvent.Actor;
     /// <summary>The private replay-batch verb.</summary>
     public const string Verb = "TradeReplayBatch";
+    [IgnoreMember] public string SourceDataset { get; init; } = string.Empty;
+    [IgnoreMember] public Guid SourceGenerationId { get; init; }
 
     [Key(0)] public ActorSubject Subject { get; init; }
     [Key(1)] public Guid Id { get; init; }

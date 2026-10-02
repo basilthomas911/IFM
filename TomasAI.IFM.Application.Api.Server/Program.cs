@@ -14,7 +14,13 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development;
 using Microsoft.AspNetCore.OutputCaching;
 using TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Supervisor.Shared.Service.Health;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
+using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 
+IApiFatalRecoveryShutdown? fatalRecoveryShutdown = null;
 try
 {
     var bootstrapTradeStrategyFamiliesOnly = args.Contains(
@@ -24,6 +30,7 @@ try
     var initializeSchemaOnly = args.Contains("--initialize-schema-only", StringComparer.OrdinalIgnoreCase);
     var refreshInstrumentDefinitionsOnly = args.Contains("--refresh-instrument-definitions-only", StringComparer.OrdinalIgnoreCase);
     var verifyStartupOnly = args.Contains("--verify-startup-only", StringComparer.OrdinalIgnoreCase);
+    var qualifyRecoveryInfrastructureOnly = args.Contains("--qualify-recovery-infrastructure-only", StringComparer.OrdinalIgnoreCase);
     var builder = WebApplication.CreateBuilder(args);
     if (args.Contains("--publish-oct1-option-pricing-reference-only", StringComparer.OrdinalIgnoreCase) && !verifyStartupOnly)
     {
@@ -46,8 +53,9 @@ try
     }
     builder.ConfigureApiServer(out var logger);
     EventLogQualification.Configure(builder, args);
-    builder.Services.RegisterServices(builder.Configuration, logger);
+    builder.Services.RegisterServices(builder.Configuration, logger, builder.Environment);
     var app = builder.Build();
+    fatalRecoveryShutdown = app.Services.GetService<IApiFatalRecoveryShutdown>();
     var deploymentIdentity = app.Services.GetRequiredService<DeploymentIdentityMonitor>()
         .EnsureStartupValid();
     Log.Information("Deployment identity verified: {BuildId}", deploymentIdentity.BuildId);
@@ -59,6 +67,8 @@ try
         (IActorSupervisor supervisor, ISupervisorActorMetricsState metrics,
             ISupervisorIncidentStore incidents, ISupervisorOperationStore operations,
             ISupervisorHistoryStore history, ISupervisorActorMetricsPollingService poller,
+            ISupervisorHealthManager healthManager, SupervisorHealthActionOptions actionOptions,
+            IConfiguration configuration,
             DateTime? fromUtc, DateTime? toUtc) =>
         {
             if (fromUtc > toUtc) return Results.BadRequest(new { Error = "fromUtc must be before toUtc." });
@@ -81,18 +91,37 @@ try
                 Polling = poller.CaptureStatus(),
                 Incidents = incidents.ActiveIncidents,
                 Operations = operations.RecentOperations,
-                History = history.Read(from, to)
+                History = history.Read(from, to),
+                SupervisorAuthorityState = healthManager.AuthorityState,
+                ManualMutationEnabled = configuration.GetSection("Supervisor:AllowedOperators").Get<string[]>() is { Length: > 0 },
+                actionOptions.AutomaticMutationEnabled
             });
         })
         .CacheOutput(ApiOutputCachePolicies.OperationalSnapshot);
     app.MapLivePipelineHealth();
     if (verifyStartupOnly)
     {
+        if (app.Configuration.GetValue<bool>("MarketDataRecovery:HardRecovery:Pipeline:Enabled"))
+            _ = app.Services.GetRequiredService<IDatabentoRecoveryRequester>();
         Console.WriteLine("IFM startup verification completed; no schemas, actors, feeds or HTTP listeners started.");
         // Run the real composition root/container checks, then exit before any schema,
         // seed, HTTP listener, hosted service, actor or feed startup. This takes precedence
         // over bootstrap mode so a verification request cannot accidentally write data.
         Log.Information("IFM startup verification completed; no schemas, actors, feeds or HTTP listeners started.");
+        await app.DisposeAsync();
+    }
+    else if (qualifyRecoveryInfrastructureOnly)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        await app.Services.GetRequiredService<MarketDataSchemaDb>()
+            .CreateAsync(["ifm_recovery_probe"], deadline.Token);
+        var result = await app.Services.GetRequiredService<DatabentoSoftRecoveryGate>()
+            .QualifyAsync(deadline.Token);
+        foreach (var probe in result.Probes)
+            Console.WriteLine($"{probe.Kind}/{probe.Name}: {(probe.Qualified ? "Healthy" : "Failed")} - {probe.Detail}");
+        if (!result.Qualified)
+            throw new InvalidOperationException("Recovery infrastructure qualification failed.");
+        Console.WriteLine($"Recovery infrastructure qualified in {result.Rounds} round(s); no actors, feeds or HTTP listeners started.");
         await app.DisposeAsync();
     }
     else if (initializeSchemaOnly)
@@ -164,6 +193,14 @@ try
         // duplicate API host owns the port), no actor can consume messages from
         // a service provider that is immediately torn down.
         await app.StartAsync();
+        await new NatsJetStreamStartupPurge(
+                app.Services.GetRequiredService<INatsJetStreamConsumerOptions>().Url,
+                app.Services.GetRequiredService<NatsConnectionManager>(),
+                app.Services.GetRequiredService<ILogger<NatsJetStreamStartupPurge>>())
+            .PurgeAsync(
+                static name => name == "EventStream"
+                    || FinancialJetStreamPolicy.ShouldPurgeProjectorStream(name),
+                app.Lifetime.ApplicationStopping);
         var managedActorLifecycle = app.Services.GetRequiredService<
             TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi.ISupervisorManagedActorLifecycle>();
         var supervisorBootstrap = app.Services.GetRequiredService<
@@ -200,26 +237,40 @@ try
         }
         finally
         {
+            var shutdownComplete = true;
             if (actorsStarted)
             {
                 var shutdown = await managedActorLifecycle.ShutdownActorsAsync(CancellationToken.None);
                 if (!shutdown.Succeeded)
+                {
+                    shutdownComplete = false;
                     logger.LogError(
                         "Supervisor actor shutdown {OperationId} ended with {Outcome} at {Stage}: {FailureReason}",
                         shutdown.OperationId, shutdown.Outcome, shutdown.Stage, shutdown.FailureReason);
+                }
                 var supervisorShutdown = await supervisorBootstrap.StopSupervisorAsync(CancellationToken.None);
                 if (!supervisorShutdown.Succeeded)
+                {
+                    shutdownComplete = false;
                     logger.LogError(
                         "Supervisor bootstrap shutdown {OperationId} ended with {Outcome} at {Stage}: {FailureReason}",
                         supervisorShutdown.OperationId, supervisorShutdown.Outcome,
                         supervisorShutdown.Stage, supervisorShutdown.FailureReason);
+                }
+            }
+            if (fatalRecoveryShutdown?.IsRequested == true)
+            {
+                if (shutdownComplete) fatalRecoveryShutdown.MarkGracefulShutdownComplete();
+                else fatalRecoveryShutdown.FailAndExit(
+                    new InvalidOperationException("Supervisor actor shutdown did not complete after fatal recovery."));
             }
         }
     }
 }
 catch (Exception ex)
 {
-    Environment.ExitCode = 1;
+    if (fatalRecoveryShutdown?.IsRequested == true) fatalRecoveryShutdown.FailAndExit(ex);
+    else Environment.ExitCode = 1;
     if (args.Contains("--publish-option-pricing-reference-only", StringComparer.OrdinalIgnoreCase)
         || args.Contains("--publish-oct1-option-pricing-reference-only", StringComparer.OrdinalIgnoreCase))
     {

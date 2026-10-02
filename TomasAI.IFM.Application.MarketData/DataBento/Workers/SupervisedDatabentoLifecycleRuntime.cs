@@ -26,6 +26,30 @@ public sealed record DatabentoSupervisedWorkerOptions
             throw new InvalidOperationException("The Stage 3 worker assembly path must be an existing absolute file.");
         return this;
     }
+
+    /// <summary>Creates one exact worker request from an already resolved in-memory manifest.</summary>
+    public DatasetWorkerStartRequest CreateStartRequest(DatasetSubscriptionManifest manifest)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        var launch = Validate();
+        return new DatasetWorkerStartRequest
+        {
+            ExecutablePath = launch.DotNetHostPath,
+            PrefixArguments = [launch.WorkerAssemblyPath,
+                "--deployment-profile", launch.DeploymentProfile.ToString(),
+                "--data-source", launch.DataSource.ToString(),
+                "--option-pricing-refresh", System.Text.Json.JsonSerializer.Serialize(launch.OptionPricingRefresh),
+                "--synthetic-record-count", launch.Synthetic.RecordCount.ToString(),
+                "--synthetic-records-per-second", launch.Synthetic.RecordsPerSecond.ToString(),
+                "--synthetic-start-sequence", launch.Synthetic.StartSequence.ToString()],
+            Dataset = manifest.Dataset,
+            ValueDate = manifest.ValueDate,
+            WorkerInstanceId = Guid.NewGuid(),
+            GenerationId = Guid.NewGuid(),
+            ManifestRevision = manifest.Revision,
+            Manifest = manifest
+        };
+    }
 }
 
 /// <summary>
@@ -42,17 +66,52 @@ public sealed class SupervisedDatabentoLifecycleRuntime(
     TimeProvider timeProvider,
     ITickAggregationEventPublisher publisher) : IDatabentoLifecycleRuntime
 {
-    DateOnly? activeValueDate;
+    int activeValueDateDayNumber;
     bool ownsPublisher;
     bool publisherStopFailed;
-    public DateOnly? ActiveValueDate => activeValueDate;
+    public DateOnly? ActiveValueDate => Volatile.Read(ref activeValueDateDayNumber) is var day && day != 0
+        ? DateOnly.FromDayNumber(day) : null;
+
+    /// <summary>
+    /// Takes lifecycle ownership of the exact admitted recovery workers and their running publisher.
+    /// This in-memory handoff prevents scheduled startup from treating a recovered session as absent.
+    /// </summary>
+    /// <param name="snapshot">The frozen manifests used by the successful recovery.</param>
+    /// <param name="generations">The exact replacement generation for each required dataset.</param>
+    /// <param name="admissions">The authority proving those generations have completed downstream admission.</param>
+    public void AdoptRecoveredSession(DatasetRecoveryManifestSnapshot snapshot,
+        IReadOnlyDictionary<string, Guid> generations, DatasetWorkerAdmissionRegistry admissions)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(generations);
+        ArgumentNullException.ThrowIfNull(admissions);
+        if (publisherStopFailed || !publisher.IsRunning)
+            throw new InvalidOperationException("Recovered session ownership requires a running, safely owned publisher.");
+        var current = workers.Current;
+        if (current.Count != snapshot.Manifests.Count || generations.Count != current.Count)
+            throw new InvalidOperationException("Recovered session ownership requires every frozen dataset worker.");
+        foreach (var manifest in snapshot.Manifests)
+        {
+            var worker = current.SingleOrDefault(item => item.Dataset == manifest.Dataset);
+            if (worker is null || !worker.Running || !worker.Healthy
+                || !generations.TryGetValue(manifest.Dataset, out var generation) || worker.GenerationId != generation
+                || worker.ManifestRevision != manifest.Revision || worker.ManifestFingerprint != manifest.Fingerprint
+                || !workers.DesiredSubscriptions.IsCurrent(manifest)
+                || !admissions.TryGet(manifest.Dataset, out var admitted)
+                || admitted.GenerationId != generation || admitted.ValueDate != snapshot.ValueDate
+                || admitted.WorkerInstanceId != worker.WorkerInstanceId || admitted.ManifestRevision != manifest.Revision)
+                throw new InvalidOperationException($"Recovered session ownership is not proven for {manifest.Dataset}.");
+        }
+        ownsPublisher = true;
+        Volatile.Write(ref activeValueDateDayNumber, snapshot.ValueDate.DayNumber);
+    }
 
     public async Task PrepareContractsAsync(DateOnly valueDate, CancellationToken cancellationToken)
     {
         _ = await contractAuthority.ReconcileAsync(valueDate,
             nameof(SupervisedDatabentoLifecycleRuntime), cancellationToken).ConfigureAwait(false);
         var manifests = RefreshDesired(valueDate);
-        if (activeValueDate == valueDate)
+        if (ActiveValueDate == valueDate)
             foreach (var manifest in manifests)
                 await workers.ApplyDesiredManifestAsync(manifest.Dataset, cancellationToken).ConfigureAwait(false);
     }
@@ -66,7 +125,7 @@ public sealed class SupervisedDatabentoLifecycleRuntime(
     {
         if (publisherStopFailed)
             throw new InvalidOperationException("The host publisher failed bounded shutdown; restart the host before starting another supervised session.");
-        if (activeValueDate is not null || ownsPublisher)
+        if (ActiveValueDate is not null || ownsPublisher)
             throw new InvalidOperationException("Supervised market data is already active.");
         var launch = workerOptions.Validate();
         var manifests = RefreshDesired(valueDate);
@@ -98,7 +157,7 @@ public sealed class SupervisedDatabentoLifecycleRuntime(
                     Manifest = manifest
                 }, cancellationToken).ConfigureAwait(false);
             }
-            activeValueDate = valueDate;
+            Volatile.Write(ref activeValueDateDayNumber, valueDate.DayNumber);
         }
         catch (Exception startupFailure)
         {
@@ -149,7 +208,7 @@ public sealed class SupervisedDatabentoLifecycleRuntime(
         }
         if (failures is not null)
             throw new AggregateException("Supervised worker/publisher cleanup did not complete cleanly.", failures);
-        activeValueDate = null;
+        Volatile.Write(ref activeValueDateDayNumber, 0);
     }
 
     public async Task<DatabentoDatasetResetResult> ResetDatasetAsync(
@@ -167,11 +226,15 @@ public sealed class SupervisedDatabentoLifecycleRuntime(
         TimeSpan timeout, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var contractSnapshot = registrations.Snapshot();
+        // Health must describe the manifests actually running, including sessions started by hard recovery.
+        var valueDate = ActiveValueDate;
+        var contractSnapshot = workers.DesiredSubscriptions.Snapshot()
+            .Where(manifest => manifest.ValueDate == valueDate)
+            .SelectMany(manifest => manifest.GetRegistrations()).ToArray();
         var snapshots = await workers.GetHealthAsync(timeout, cancellationToken).ConfigureAwait(false);
         var observedOnUtc = timeProvider.GetUtcNow().UtcDateTime;
         var expectedDatasets = contractSnapshot.Select(value => value.Dataset).Distinct(StringComparer.Ordinal).ToArray();
-        var complete = activeValueDate is not null && snapshots.Count != 0
+        var complete = valueDate is not null && snapshots.Count != 0
             && expectedDatasets.Length == snapshots.Count
             && expectedDatasets.All(dataset => snapshots.Any(worker => worker.Dataset == dataset));
         var feeds = snapshots.Select(worker =>

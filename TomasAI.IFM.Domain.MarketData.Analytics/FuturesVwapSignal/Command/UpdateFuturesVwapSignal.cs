@@ -6,16 +6,19 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command;
 
-/// <summary>Handles a live futures trade for the VWAP signal.</summary>
+/// <summary>Handles a live trade or a complete tick-source checkpoint for VWAP.</summary>
 public static class UpdateFuturesVwapSignal
 {
-    /// <summary>Applies one live trade and appends an event only if the accumulator advanced.</summary>
+    /// <summary>Appends an event only when the incoming VWAP state advances.</summary>
     public static ServiceResult<GuidResult> Execute(
         this UpdateFuturesVwapSignalCommand command,
         FuturesVwapSignalCommandState state)
     {
-        var result = FuturesVwapAccumulator.ApplyLive(command.EntityId, state.Checkpoint,
-            command.Observation, command.Configuration);
+        var result = command.SourceCheckpoint is { } source
+            ? FuturesVwapAccumulator.ApplySourceCheckpoint(command.EntityId, state.Checkpoint,
+                source, command.Configuration, command.SessionStartUtc, command.SessionEndUtc)
+            : FuturesVwapAccumulator.ApplyLive(command.EntityId, state.Checkpoint,
+                command.Observation, command.Configuration);
         return FuturesVwapSignalTransition.Append(command, command.EntityId, result, state);
     }
 }

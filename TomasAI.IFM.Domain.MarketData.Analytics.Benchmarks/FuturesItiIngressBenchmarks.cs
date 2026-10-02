@@ -16,10 +16,6 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Benchmarks;
 public class FuturesItiIngressBenchmarks
 {
     readonly FuturesItiSignalRuntimeTelemetry telemetry = new(TimeProvider.System);
-    readonly FuturesItiSignalGenerationGate busyGate = new();
-    readonly Action noStartedAction = static () => { };
-    readonly Func<ValueTask> completedGeneration = static () => ValueTask.CompletedTask;
-    TaskCompletionSource busyGeneration = null!;
     FuturesMarketPriceUpdatedRealtimeEvent eligible = null!;
     FuturesMarketPriceUpdatedRealtimeEvent filtered = null!;
 
@@ -50,13 +46,7 @@ public class FuturesItiIngressBenchmarks
                     NormalizedTradeConditionFlags.None, Guid.Empty, 77))
         };
         filtered = eligible with { UpdateSource = FuturesMarketPriceUpdateSource.Quote };
-        busyGeneration = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        _ = busyGate.TryStart(noStartedAction, () => new ValueTask(busyGeneration.Task));
     }
-
-    /// <summary>Releases the deliberately busy generation gate after all benchmarks complete.</summary>
-    [GlobalCleanup]
-    public void Cleanup() => busyGeneration.TrySetResult();
 
     /// <summary>Measures the allocation-free local eligibility predicate over the configured event count.</summary>
     /// <returns>The number of accepted trade events.</returns>
@@ -87,20 +77,6 @@ public class FuturesItiIngressBenchmarks
             telemetry.RecordCommandAccepted();
         }
         return telemetry.GetSnapshot();
-    }
-
-    /// <summary>Measures immediate rejection of ticks while one generation operation is active.</summary>
-    /// <returns>The number of ticks rejected by the busy gate.</returns>
-    [Benchmark]
-    public int BusyGateSkips()
-    {
-        var skipped = 0;
-        for (var index = 0; index < EventCount; index++)
-        {
-            if (!busyGate.TryStart(noStartedAction, completedGeneration))
-                skipped++;
-        }
-        return skipped;
     }
 
     /// <summary>Measures disabled source-generated Trace logging over the configured event count.</summary>

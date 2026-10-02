@@ -181,7 +181,7 @@ public class MarketDataFeedCommandApiTests(TomasAI.IFM.IntegrationTesting.Kestre
     }
 
     [Fact]
-    public async Task ResetMarketDataFeed_Ok()
+    public async Task ResetMarketDataFeed_without_recovery_pipeline_publishes_failure()
     {
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
@@ -192,7 +192,7 @@ public class MarketDataFeedCommandApiTests(TomasAI.IFM.IntegrationTesting.Kestre
         var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
-            $"{nameof(ResetMarketDataFeed_Ok)}-{Guid.NewGuid():N}",
+            $"{nameof(ResetMarketDataFeed_without_recovery_pipeline_publishes_failure)}-{Guid.NewGuid():N}",
             new()
             {
                 [new ActorMailboxId(ActorType.Event, MarketDataFeedResetEvent.Actor)] =
@@ -217,12 +217,13 @@ public class MarketDataFeedCommandApiTests(TomasAI.IFM.IntegrationTesting.Kestre
 
         // assert...
         marketDataFeedResetEvent.Should().NotBeNull();
-        marketDataFeedResetCompleteEvent.Should().NotBeNull();
-        marketDataFeedResetFailEvent.Should().BeNull();
-
-        //marketDataFeedResetEvent.ValueDate.Should().Be(valueDate);
-        //marketDataFeedResetEvent.FuturesContracts.Should().NotBeNullOrEmpty();
-        //marketDataFeedResetEvent.FuturesContracts!.Length.Should().Be(futuresContracts.Length);
+        // The shared host deliberately disables hard recovery. It must never fall back to a legacy reset.
+        marketDataFeedResetCompleteEvent.Should().BeNull();
+        marketDataFeedResetFailEvent.Should().NotBeNull();
+        marketDataFeedResetFailEvent.ErrorMessage.Should().Contain("Hard reset recovery pipeline is not configured");
+        marketDataFeedResetFailEvent.CommandId.Should().Be(response.Value);
+        marketDataFeedResetEvent.ValueDate.Should().Be(valueDate);
+        marketDataFeedResetEvent.FuturesContracts.Should().HaveCount(futuresContracts.Length);
 
         await eventListener.StopAsync();
 

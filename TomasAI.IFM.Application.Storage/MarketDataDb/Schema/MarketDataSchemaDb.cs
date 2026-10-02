@@ -10,6 +10,7 @@ public sealed class MarketDataSchemaDb(IDbConnectionSettings connectionSettings,
 {
     static readonly SchemaObjectDefinition[] Objects =
     [
+        new("ifm_recovery_probe", MarketDataSchemaCql.CreateRecoveryProbeTable, "DROP TABLE IF EXISTS ifm_recovery_probe;"),
         new("option_iv_observation_history", OptionVolatilitySchemaCql.CreateObservationHistory, "DROP TABLE IF EXISTS option_iv_observation_history;"),
         new("option_iv_observation_by_id", OptionVolatilitySchemaCql.CreateObservationById, "DROP TABLE IF EXISTS option_iv_observation_by_id;"),
         new("option_iv_metric_history", OptionVolatilitySchemaCql.CreateMetricHistory, "DROP TABLE IF EXISTS option_iv_metric_history;"),

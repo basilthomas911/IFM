@@ -30,7 +30,11 @@ internal static class FuturesEodDataRealtimeQueryExtensions
         var result = await context.RequestAsync<
             FuturesEodDataV2ReadModel,
             GetFuturesEodDataQuery>(query).ConfigureAwait(false);
-        return result?.Success == true ? result.Value : null;
+        if (result is null || !result.Success)
+            throw new InvalidOperationException(
+                $"Futures EOD current-row query failed for {contractId}:{valueDate:yyyy-MM-dd}: "
+                + (result?.ErrorMessage ?? "No response"));
+        return result.Value;
     }
 
     internal static async ValueTask<FuturesEodDataV2ReadModel?> GetLastFuturesEodDataAsync(
@@ -52,7 +56,11 @@ internal static class FuturesEodDataRealtimeQueryExtensions
         var result = await context.RequestAsync<
             FuturesEodDataV2ReadModel,
             GetLastFuturesEodDataQuery>(query).ConfigureAwait(false);
-        return result?.Success == true ? result.Value : null;
+        if (result is null || !result.Success)
+            throw new InvalidOperationException(
+                $"Futures EOD last-row query failed for {contractId}:{valueDate:yyyy-MM-dd}: "
+                + (result?.ErrorMessage ?? "No response"));
+        return result.Value;
     }
 
     internal static async ValueTask<VixFuturesEodDataReadModel[]> GetVixFuturesEodDataAsync(

@@ -15,7 +15,6 @@ public sealed class ApplicationStartupScenarios
                 ApplicationStartupActivity.ReconcileCurrentContracts,
                 ApplicationStartupActivity.WarmHistoricalAnalytics,
                 ApplicationStartupActivity.StartRealtimeAnalytics,
-                ApplicationStartupActivity.PrepareParameterSignals,
                 ApplicationStartupActivity.StartMarketData,
                 ApplicationStartupActivity.QualifyOperationalState
             ],
@@ -26,12 +25,6 @@ public sealed class ApplicationStartupScenarios
         Assert.Contains(
             ApplicationStartupActivity.StartRealtimeAnalytics,
             Definition(ApplicationStartupActivity.StartMarketData).Dependencies);
-        Assert.Contains(
-            ApplicationStartupActivity.ApplyParameterSets,
-            Definition(ApplicationStartupActivity.PrepareParameterSignals).Dependencies);
-        Assert.Contains(
-            ApplicationStartupActivity.StartRealtimeAnalytics,
-            Definition(ApplicationStartupActivity.PrepareParameterSignals).Dependencies);
         Assert.Contains(
             ApplicationStartupActivity.StartMarketData,
             Definition(ApplicationStartupActivity.QualifyOperationalState).Dependencies);

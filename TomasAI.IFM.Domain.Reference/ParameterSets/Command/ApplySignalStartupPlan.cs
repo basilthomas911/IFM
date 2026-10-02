@@ -15,7 +15,10 @@ public static class ApplySignalStartupPlan
         context.AccessPolicy.Demand(ParameterCapability.Assign);
         if (state.ActiveRuns.ContainsKey(command.RunId)) return new ServiceOk<GuidResult>(new(command.CommandId));
         var snapshot = await ParameterStartupReader.ReadUnderLeaseAsync(command.RunId, context.Assignments, context.ParameterSets, CancellationToken.None);
-        var plan = SignalStartupPlanModel.Create(snapshot, SignalStartupPlanModel.ExistingIntradayConsumers());
+        // Generic parameter activation freezes exact assignments only. Domain consumers such as
+        // Regime Discovery derive their own startup requirements when their actor workflow starts.
+        var plan = new ParameterSignalStartupPlan(command.RunId, snapshot.Fingerprint,
+            snapshot.Fingerprint, [], null);
         if (command.ExpectedFingerprint.Length != 0 && command.ExpectedFingerprint != plan.Fingerprint) throw new InvalidOperationException("PARAM.STARTUP_PLAN_CHANGED");
         var run = new ParameterStartupRun(command.RunId, snapshot.Scopes.ToArray(), snapshot.Assignments.Select(x => x.Version).DistinctBy(x => x.Reference).ToArray(), plan, DateTime.UtcNow, command.OriginatedBy);
         var fact = new ParameterStartupChangedEvent { Subject = new ActorSubject(ActorType.Event, ParameterStartupChangedEvent.Actor, ParameterStartupChangedEvent.Verb, command.EntityId.Format()), EntityId = command.EntityId, RunId = command.RunId, Revision = state.Revision + 1, RunJson = JsonSerializer.Serialize(run) };

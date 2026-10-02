@@ -26,8 +26,8 @@ namespace TomasAI.IFM.Framework.Messaging.Nats;
 /// letters, digits, hyphens, and underscores with underscores.
 /// </para>
 /// <para>
-/// A process message is acknowledged after its handler completes. A typed deferred result requests
-/// redelivery without treating expected flow control as a failure. If the handler fails, an envelope
+/// A process message is acknowledged after its handler completes. A typed deferred result makes a
+/// durable handoff to the replay stream without treating expected flow control as a failure. If the handler fails, an envelope
 /// containing the original event and failure details is first published to the replay stream and the
 /// process message is then acknowledged. A failed replay publication or process acknowledgement requests
 /// process redelivery without stopping the worker. Stable JetStream message identifiers suppress duplicate
@@ -481,7 +481,8 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
                     var result = await handler(domainEvent).ConfigureAwait(false);
                     if (result.IsDeferred)
                     {
-                        await RequestRedeliveryAsync(message, state.ReplayInterval, idleCancellation.Token)
+                        await MoveDeferredToReplayOrRequestRedeliveryAsync(
+                                eventProjectorName, state, message, idleCancellation.Token)
                             .ConfigureAwait(false);
                         ResetIdleTimeout(idleCancellation);
                         continue;
@@ -511,6 +512,37 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         catch (OperationCanceledException) when (idleCancellation.IsCancellationRequested)
         {
         }
+    }
+
+    async Task MoveDeferredToReplayOrRequestRedeliveryAsync(
+        string eventProjectorName,
+        ProjectorQueueState state,
+        INatsJSDurableMessage message,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            // A delayed NAK still occupies a process consumer acknowledgement slot. Enough
+            // blocked events can therefore prevent unrelated streams from being delivered.
+            await _transport.PublishReplayAsync(
+                    eventProjectorName,
+                    message.Data,
+                    CreateReplayMessageId(eventProjectorName, message.Data),
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            await RequestRedeliveryAsync(message, state.ReplayInterval, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        await AcknowledgeOrRequestRedeliveryAsync(message, state.ReplayInterval, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     async Task MoveToReplayOrRequestRedeliveryAsync(

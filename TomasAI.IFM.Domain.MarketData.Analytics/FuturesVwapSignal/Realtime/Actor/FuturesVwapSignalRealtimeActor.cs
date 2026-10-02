@@ -2,6 +2,7 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -10,7 +11,7 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime.Actor;
 
-/// <summary>Statelessly routes current-contract trades to durable VWAP processing.</summary>
+/// <summary>Forwards cumulative current-contract VWAP checkpoints to projection.</summary>
 public sealed class FuturesVwapSignalRealtimeActor(
     IRealtimeActorContext<FuturesVwapSignalRealtimeActor> actorContext)
     : BaseEventActor<FuturesVwapSignalRealtimeActor>(actorContext,
@@ -18,17 +19,11 @@ public sealed class FuturesVwapSignalRealtimeActor(
 {
     /// <summary>Identifies the VWAP Realtime mailbox.</summary>
     public const string ActorName = "FuturesVwapSignal";
-    static readonly ActorTypeId PriceRoute = new(ActorType.Realtime,
-        FuturesMarketPriceUpdatedRealtimeEvent.Actor, FuturesMarketPriceUpdatedRealtimeEvent.Verb);
-    static readonly ActorTypeId ReplayRoute = new(ActorType.Realtime,
-        FuturesTradeReplayBatchRealtimeEvent.Actor, FuturesTradeReplayBatchRealtimeEvent.Verb);
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
             [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
-                message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!,
-            [FuturesTradeReplayBatchRealtimeEvent.Verb] =
-                message => message.AsEvent<FuturesTradeReplayBatchRealtimeEvent>()!
+                message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!
         };
     IFuturesVwapSignalRealtimeContext TypedContext { get; } = IsArgumentNull.Set(
         actorContext as IFuturesVwapSignalRealtimeContext, nameof(actorContext))!;
@@ -39,29 +34,16 @@ public sealed class FuturesVwapSignalRealtimeActor(
         {
             [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = async (@event, context, contract, eventLogger) =>
                 await ((FuturesMarketPriceUpdatedRealtimeEvent)@event)
-                    .ExecuteAsync(context, contract, eventLogger).ConfigureAwait(false),
-            [typeof(FuturesTradeReplayBatchRealtimeEvent)] = async (@event, context, contract, eventLogger) =>
-                await ((FuturesTradeReplayBatchRealtimeEvent)@event)
                     .ExecuteAsync(context, contract, eventLogger).ConfigureAwait(false)
         };
 
     /// <inheritdoc />
     protected override ValueTask OnStartup(IEventActorContext<FuturesVwapSignalRealtimeActor> context)
-    {
-        context.AddRealtimeRouter(PriceRoute, Id);
-        context.AddRealtimeRouter(ReplayRoute, Id);
-        // Stage 4 owns the futures stream. This actor consumes its routed trade
-        // events; the legacy transient ticker lease API is deliberately unsupported.
-        return ValueTask.CompletedTask;
-    }
+        => ValueTask.CompletedTask;
 
     /// <inheritdoc />
     protected override ValueTask OnShutdown(IEventActorContext<FuturesVwapSignalRealtimeActor> context)
-    {
-        context.RemoveRealtimeRouter(ReplayRoute, Id);
-        context.RemoveRealtimeRouter(PriceRoute, Id);
-        return ValueTask.CompletedTask;
-    }
+        => ValueTask.CompletedTask;
 
     /// <inheritdoc />
     protected override IEvent ParseMessage(IEventActorContext<FuturesVwapSignalRealtimeActor> context,

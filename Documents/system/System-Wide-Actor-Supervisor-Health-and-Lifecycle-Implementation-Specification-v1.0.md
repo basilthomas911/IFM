@@ -34,7 +34,9 @@ Verification completed on 2026-09-28:
 - complete Reference integration project: 17 passed;
 - full sequential solution matrix: every discovered runnable test passed;
 - 30-minute accelerated synthetic soak, runtime counters/trace, and BenchmarkDotNet qualification: passed and retained in `Supervisor-Stage-9-Qualification-2026-09-28.md`;
-- automatic lifecycle mutation: disabled by default pending the full trading-session observe-only production gate.
+- automatic lifecycle mutation was qualified in the live Development environment on 2026-09-29. Development enables
+  the explicit release gate and authorized `IFM.UI.Development` operator; Production remains disabled by default and
+  requires its own explicit configuration approval.
 
 ## 1. Purpose
 
@@ -922,7 +924,17 @@ The view displays:
 
 Automatic UI refresh defaults to 60 seconds. Manual refresh reads the latest stored value and never starts a poll.
 
-Mutable controls remain hidden until authorization/audit and operation-specific safety gates pass.
+The endpoint reports Supervisor authority plus manual- and automatic-mutation availability. The UI derives its mode
+from that response rather than a hard-coded label. When the UI's local control gate and the API's manual-mutation gate
+are both enabled, an operator may select an entity mailbox or incident and submit a supported lifecycle operation over
+the NATS Supervisor command boundary. Every submission requires a bounded requester, a non-empty reason, an explicit
+confirmation, the observed target generation, and a bounded timeout. The result displays the immutable operation ID
+and terminal stage; the next refresh shows the Supervisor operation audit record. Controls remain disabled when the
+authority requires host recovery, configuration is incomplete, or no exact mailbox/incident target is selected.
+
+Development additionally enables automatic restart for a mailbox that remains at its configured critical limit for
+15 minutes. Production remains deny-by-default for both operator identity and automatic mutation until separately
+approved. HTTP remains a read-only operational snapshot path; it never performs an actor mutation.
 
 ## 18. Privacy, security, and authorization
 

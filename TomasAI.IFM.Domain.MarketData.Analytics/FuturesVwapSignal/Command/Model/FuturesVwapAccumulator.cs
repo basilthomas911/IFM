@@ -1,10 +1,58 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
+using TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.Model;
 
 /// <summary>Advances exact, replayable futures-session price-volume state.</summary>
 public static class FuturesVwapAccumulator
 {
+    /// <summary>Accepts a complete cumulative checkpoint from the ordered tick source.</summary>
+    public static FuturesVwapAccumulatorResult ApplySourceCheckpoint(
+        FuturesVwapSignalEntityId entityId,
+        FuturesVwapCheckpoint? checkpoint,
+        FuturesVwapSourceCheckpoint source,
+        FuturesVwapConfiguration configuration,
+        DateTimeOffset sessionStartUtc,
+        DateTimeOffset sessionEndUtc)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (source.Version != 1 || source.StreamEpochId == Guid.Empty
+            || source.LastTradeOrdinal < 0 || source.CumulativeVolume < 0
+            || source.EligibleTradeCount < 0 || source.RejectedTradeCount < 0
+            || source.AsOfUtc.Offset != TimeSpan.Zero
+            || source.AsOfUtc < sessionStartUtc || source.AsOfUtc > sessionEndUtc
+            || source.CumulativePriceVolume < 0)
+            throw new ArgumentException("VWAP source checkpoint is invalid.", nameof(source));
+        if (checkpoint is not null
+            && (checkpoint.StreamEpochId == source.StreamEpochId
+                && source.LastTradeOrdinal <= checkpoint.LastTradeOrdinal
+                || checkpoint.StreamEpochId != source.StreamEpochId
+                && source.AsOfUtc <= checkpoint.AsOfUtc))
+            return new(checkpoint, BuildSignal(entityId, checkpoint, configuration), false);
+        var next = new FuturesVwapCheckpoint
+        {
+            SessionStartUtc = sessionStartUtc,
+            SessionEndUtc = sessionEndUtc,
+            CumulativePriceVolume = source.CumulativePriceVolume,
+            CumulativeVolume = source.CumulativeVolume,
+            EligibleTradeCount = source.EligibleTradeCount,
+            RejectedTradeCount = source.RejectedTradeCount,
+            LastPrice = source.LastPrice,
+            LastTradeSourceSequence = source.LastTradeSourceSequence,
+            StreamEpochId = source.StreamEpochId,
+            LastTradeOrdinal = source.LastTradeOrdinal,
+            IsValid = source.IsValid && source.IsReplayComplete,
+            InvalidReason = source.IsValid && source.IsReplayComplete
+                ? FuturesVwapInvalidReason.None
+                : source.InvalidReason == FuturesVwapSourceInvalidReason.None
+                    ? FuturesVwapInvalidReason.InvalidTrade
+                    : (FuturesVwapInvalidReason)source.InvalidReason,
+            RecoveryGenerationId = source.RecoveryGenerationId,
+            AsOfUtc = source.AsOfUtc
+        };
+        return new(next, BuildSignal(entityId, next, configuration), true);
+    }
+
     /// <summary>Applies one live trade while enforcing epoch and ordinal continuity.</summary>
     public static FuturesVwapAccumulatorResult ApplyLive(
         FuturesVwapSignalEntityId entityId,

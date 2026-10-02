@@ -32,6 +32,7 @@ using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
 using TomasAI.IFM.UI.Net.Views.Presentation;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
 using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 using TomasAI.IFM.UI.Net.Services.SystemAdmin;
@@ -133,6 +134,8 @@ namespace TomasAI.IFM.UI.Net
                 _container.GetInstance<INatsProducerOptions>(),
                 _container.GetInstance<Microsoft.Extensions.Logging.ILogger>(),
                 _container.GetInstance<NatsConnectionManager>()));
+            _container.RegisterSingleton<ISupervisorCommandApi>(() => new SupervisorCommandApi(
+                _container.GetInstance<IActorProducer>()));
             _container!.Register<IActorEventListener>(() => new NatsActorEventListener(
                 _container.GetInstance<INatsEventListenerOptions>(),
                 _container.GetInstance<Microsoft.Extensions.Logging.ILogger>(),
@@ -317,6 +320,8 @@ namespace TomasAI.IFM.UI.Net
 
         static void RegisterPresentationServices()
         {
+            _container!.RegisterInstance(_config!.GetSection("SupervisorControl").Get<SupervisorControlOptions>()
+                ?? new SupervisorControlOptions());
             _container!.RegisterSingleton<CommandResponseEventService>();
             _container.RegisterSingleton<ApplicationEventService>();
             _container.RegisterSingleton<ApplicationQueryService>();

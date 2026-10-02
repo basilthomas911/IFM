@@ -19,9 +19,6 @@ public interface IFuturesItiSignalRealtimeContext : IRealtimeActorContext<Future
     /// <summary>Gets fixed-cardinality Futures ITI telemetry.</summary>
     FuturesItiSignalRuntimeTelemetry Telemetry { get; }
 
-    /// <summary>Gets the single-operation generation gate. The gate never retains skipped ticks.</summary>
-    FuturesItiSignalGenerationGate GenerationGate { get; }
-
     /// <summary>Gets the actor logger.</summary>
     ILogger<FuturesItiSignalRealtimeActor> Logger { get; }
 }
@@ -42,7 +39,6 @@ public sealed class FuturesItiSignalRealtimeContext : EventActorContext,
         MarketDataApi = IsArgumentNull.Set(marketDataApi);
         HealthEvidence = IsArgumentNull.Set(healthEvidence);
         Telemetry = IsArgumentNull.Set(telemetry);
-        GenerationGate = new FuturesItiSignalGenerationGate();
         Logger = IsArgumentNull.Set(logger);
     }
 
@@ -54,9 +50,6 @@ public sealed class FuturesItiSignalRealtimeContext : EventActorContext,
 
     /// <inheritdoc />
     public FuturesItiSignalRuntimeTelemetry Telemetry { get; }
-
-    /// <inheritdoc />
-    public FuturesItiSignalGenerationGate GenerationGate { get; }
 
     /// <inheritdoc />
     public ILogger<FuturesItiSignalRealtimeActor> Logger { get; }

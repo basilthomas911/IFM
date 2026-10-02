@@ -187,6 +187,48 @@ public sealed class DatasetWorkerManifestIntegrationTests
     }
 
     [Fact]
+    public async Task Recovery_candidate_stays_fenced_until_exact_frozen_manifest_is_admitted()
+    {
+        var desired = new DatasetDesiredSubscriptionRegistry();
+        var admissions = new DatasetWorkerAdmissionRegistry();
+        await using var recovery = new DatasetWorkerProcessRecoveryService(Options(), admissions,
+            desiredSubscriptions: desired);
+        var manifest = desired.Set("GLBX.MDP3", Date,
+            [Registration("ES20261218", "GLBX.MDP3")]);
+        var frozen = desired.CaptureRecoverySet(Date, [manifest.Dataset]).Single();
+
+        var candidate = await recovery.StartCandidateAsync(Request(frozen));
+        Assert.False(admissions.TryGet(frozen.Dataset, out _));
+        Assert.True(candidate.Running);
+        await recovery.AdmitCandidateAsync(frozen, candidate.GenerationId, CancellationToken.None);
+        Assert.True(admissions.TryGet(frozen.Dataset, out var admitted));
+        Assert.Equal(candidate.GenerationId, admitted.GenerationId);
+        var containment = await recovery.ContainForHardRecoveryAsync(
+            TimeSpan.FromSeconds(20), CancellationToken.None);
+        Assert.True(containment.Isolated, containment.Failure?.ToString());
+        Assert.False(admissions.TryGet(frozen.Dataset, out _));
+        Assert.Empty(recovery.Current);
+    }
+
+    [Fact]
+    public async Task Recovery_candidate_rejects_a_manifest_changed_after_freeze()
+    {
+        var desired = new DatasetDesiredSubscriptionRegistry();
+        var admissions = new DatasetWorkerAdmissionRegistry();
+        await using var recovery = new DatasetWorkerProcessRecoveryService(Options(), admissions,
+            desiredSubscriptions: desired);
+        var frozen = desired.Set("GLBX.MDP3", Date,
+            [Registration("ES20261218", "GLBX.MDP3")]);
+        desired.Set("GLBX.MDP3", Date,
+            [Registration("ES20270319", "GLBX.MDP3")]);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => recovery.StartCandidateAsync(Request(frozen)));
+        Assert.Empty(recovery.Current);
+        Assert.False(admissions.TryGet(frozen.Dataset, out _));
+    }
+
+    [Fact]
     public async Task Unexpected_child_exit_clears_host_values_and_retained_readers()
     {
         var desired = new DatasetDesiredSubscriptionRegistry();

@@ -543,7 +543,7 @@ public class NatsJetStreamActorConsumer(
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogErrorEvent(_serviceId, ex, "NATS JetStream {ActorType} consumer failed to process message. ", _actorType);
+                    _logger.LogErrorEvent(_serviceId, ex, "NATS JetStream consumer failed to process message for {Subject}.", msg.Subject);
                 }
             }
             if (_logger.IsEnabled(LogLevel.Debug))

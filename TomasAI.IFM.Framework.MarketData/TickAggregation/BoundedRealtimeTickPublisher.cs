@@ -43,7 +43,7 @@ internal sealed class BoundedRealtimeTickPublisher(
                 ? time.GetUtcNow().UtcDateTime - (lastPublishedUtc > since ? lastPublishedUtc.Value : since)
                 : TimeSpan.Zero;
             return new(true, current?.Accepting == true, faulted,
-                faulted && !uncontained && current?.Worker?.IsCompleted != false,
+                faulted && !nonCooperativeLatch && !uncontained && current?.Worker?.IsCompleted != false,
                 uncontained, policy.Capacity, current?.Queue.Count ?? 0, current?.InFlight is null ? 0 : 1,
                 current?.Queue.TryPeek(out var oldest) == true ? time.GetElapsedTime(oldest.EnqueuedAt) : TimeSpan.Zero,
                 current?.InFlight is { } active ? time.GetElapsedTime(active.EnqueuedAt) : TimeSpan.Zero,
@@ -77,9 +77,9 @@ internal sealed class BoundedRealtimeTickPublisher(
             Session? old;
             lock (gate)
             {
-                if (nonCooperativeLatch && uncontained)
-                    throw new RealtimeTickPublisherUnavailableException("a non-cooperative send requires host recovery");
-                if (nonCooperativeLatch) nonCooperativeLatch = false;
+                if (nonCooperativeLatch)
+                    throw new RealtimeTickPublisherUnavailableException(
+                        "a non-cooperative send cannot prove downstream generation isolation; restart the host");
                 if (session?.Accepting == true) return;
                 old = session;
             }
@@ -90,9 +90,9 @@ internal sealed class BoundedRealtimeTickPublisher(
             var producer = supervisor.GetProducer(new ActorMailboxId(ActorType.Realtime, FuturesTickTradeDataChangedEvent.Actor));
             lock (gate)
             {
-                if (nonCooperativeLatch && uncontained)
-                    throw new RealtimeTickPublisherUnavailableException("a non-cooperative send requires host recovery");
-                if (nonCooperativeLatch) nonCooperativeLatch = false;
+                if (nonCooperativeLatch)
+                    throw new RealtimeTickPublisherUnavailableException(
+                        "a non-cooperative send cannot prove downstream generation isolation; restart the host");
                 old?.DisposeSignals();
                 var replacement = new Session(producer);
                 session = replacement;

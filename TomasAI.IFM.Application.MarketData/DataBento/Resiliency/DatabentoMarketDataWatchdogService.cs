@@ -18,7 +18,8 @@ public sealed class DatabentoMarketDataWatchdogService(
     ILogger<DatabentoMarketDataWatchdogService> logger,
     DatabentoStage3Options? stage3Options = null,
     IDatabentoDatasetProcessRecovery? processRecovery = null,
-    TomasAI.IFM.Application.MarketData.OperationsHealth.MarketDataOperationsHealthService? operationsHealth = null)
+    TomasAI.IFM.Application.MarketData.OperationsHealth.MarketDataOperationsHealthService? operationsHealth = null,
+    IDatabentoRecoveryRequester? recoveryRequester = null)
     : BackgroundService, IMarketDataLifecycleRequests
 {
     const int MaximumRecoveryAttempts = 3;
@@ -30,6 +31,7 @@ public sealed class DatabentoMarketDataWatchdogService(
     readonly IDatabentoDatasetProcessRecovery _processRecovery = processRecovery
         ?? new UnavailableDatabentoDatasetProcessRecovery();
     readonly TomasAI.IFM.Application.MarketData.OperationsHealth.MarketDataOperationsHealthService? _operationsHealth = operationsHealth;
+    readonly IDatabentoRecoveryRequester? _recoveryRequester = recoveryRequester;
     readonly Dictionary<string, DatasetIncidentStateMachine> _incidents = new(StringComparer.Ordinal);
     int _incidentsHydrated;
     long _replacementRetryTimestamp = long.MaxValue;
@@ -74,7 +76,7 @@ public sealed class DatabentoMarketDataWatchdogService(
         {
             logger.LogWarning(exception, "Initial Databento startup qualification failed; entering bounded recovery.");
             if (options.Enabled)
-                await RecoverAsync(valueDate, correlationId, DatabentoOperationReason.InitialStartup, token).ConfigureAwait(false);
+                await RecoverConfiguredAsync(valueDate, correlationId, DatabentoOperationReason.InitialStartup, token).ConfigureAwait(false);
             else
                 Transition(DatabentoLifecycleState.Failed, valueDate, correlationId, 0,
                     $"Recovery disabled: {Bound(exception.Message)}");
@@ -101,7 +103,7 @@ public sealed class DatabentoMarketDataWatchdogService(
     public Task ResetAsync(DateOnly valueDate, Guid correlationId, CancellationToken cancellationToken = default)
         => SerializedAsync(async token =>
         {
-            await RecoverAsync(valueDate,
+            await RecoverConfiguredAsync(valueDate,
             correlationId == Guid.Empty ? Guid.CreateVersion7(timeProvider.GetUtcNow()) : correlationId,
             DatabentoOperationReason.ManualReset, token).ConfigureAwait(false);
             if (Current.State == DatabentoLifecycleState.Failed)
@@ -145,7 +147,7 @@ public sealed class DatabentoMarketDataWatchdogService(
                 await runtime.StopAsync(token).ConfigureAwait(false);
                 await CloseIncidentsAsync(token).ConfigureAwait(false);
             }
-            await RecoverAsync(valueDate, Guid.CreateVersion7(timeProvider.GetUtcNow()),
+            await RecoverConfiguredAsync(valueDate, Guid.CreateVersion7(timeProvider.GetUtcNow()),
                 DatabentoOperationReason.ValueDateRollover, token).ConfigureAwait(false);
             return;
         }
@@ -170,7 +172,7 @@ public sealed class DatabentoMarketDataWatchdogService(
                         $"Recovery disabled: {Bound(exception.Message)}");
                     return;
                 }
-                await RecoverAsync(valueDate, correlationId,
+                await RecoverConfiguredAsync(valueDate, correlationId,
                     DatabentoOperationReason.AutomaticRecovery, token).ConfigureAwait(false);
                 return;
             }
@@ -278,25 +280,11 @@ public sealed class DatabentoMarketDataWatchdogService(
                 $"Recovery disabled: {evaluation.Reason}", native.NativeGeneration);
             return;
         }
-        await RecoverAsync(valueDate, Guid.CreateVersion7(timeProvider.GetUtcNow()),
+        await RecoverConfiguredAsync(valueDate, Guid.CreateVersion7(timeProvider.GetUtcNow()),
             DatabentoOperationReason.AutomaticRecovery, token).ConfigureAwait(false);
     }, cancellationToken);
 
 
-    /// <summary>
-    /// Unconditionally stops, disposes, recreates, starts, and qualifies the complete
-    /// Databento runtime. This bypasses native-health gates because the caller has
-    /// already observed a continuously unhealthy end-to-end pipeline.
-    /// </summary>
-    public Task HardResetAsync(DateOnly valueDate, Guid correlationId,
-        CancellationToken cancellationToken = default) => SerializedAsync(async token =>
-    {
-        if (runtime.ActiveValueDate is { } activeValueDate && activeValueDate != valueDate)
-            throw new InvalidOperationException(
-                $"Cannot hard reset {valueDate:yyyy-MM-dd}; the active runtime value date is {runtime.ActiveValueDate:yyyy-MM-dd}.");
-        await RecoverAsync(valueDate, correlationId,
-            DatabentoOperationReason.AutomaticRecovery, token).ConfigureAwait(false);
-    }, cancellationToken);
     public Task ResetActiveDatasetsAsync(DateOnly valueDate, Guid correlationId,
         CancellationToken cancellationToken = default) => SerializedAsync(async token =>
     {
@@ -424,22 +412,11 @@ public sealed class DatabentoMarketDataWatchdogService(
                     continue;
             }
 
-            try
-            {
-                result = await _processRecovery.ReplaceProcessAsync(request, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException
-                                               || !cancellationToken.IsCancellationRequested)
-            {
-                result = new(feed.Dataset, feed.GenerationId, Guid.Empty, false,
-                    Bound(exception.Message));
-            }
-            await RecordIncidentAsync(incident.RecordProcessReplacement(
-                result.Succeeded, result.GenerationId), correlationId, cancellationToken)
+            // Terminal dataset escalation uses the same authoritative full-generation episode.
+            await TryRecoverNewAsync(valueDate, correlationId,
+                DatabentoOperationReason.AutomaticRecovery, cancellationToken)
                 .ConfigureAwait(false);
-            if (result.Succeeded)
-                _datasetEvaluator.Forget(feed.Dataset);
+            return;
         }
 
         var qualified = EvaluateDatasets(await SafeProbeAsync(cancellationToken).ConfigureAwait(false));
@@ -541,49 +518,47 @@ public sealed class DatabentoMarketDataWatchdogService(
         }
     }
 
-    async Task RecoverAsync(DateOnly valueDate, Guid correlationId, DatabentoOperationReason reason,
-        CancellationToken cancellationToken)
+    async Task RecoverConfiguredAsync(DateOnly valueDate, Guid correlationId,
+        DatabentoOperationReason reason, CancellationToken cancellationToken)
     {
-        for (var attempt = 1; attempt <= MaximumRecoveryAttempts; attempt++)
-        {
-            if (attempt == 2)
-                await Task.Delay(options.AttemptTwoDelay, timeProvider, cancellationToken).ConfigureAwait(false);
-            else if (attempt == 3)
-                await Task.Delay(options.AttemptThreeDelay, timeProvider, cancellationToken).ConfigureAwait(false);
+        await TryRecoverNewAsync(valueDate, correlationId, reason, cancellationToken).ConfigureAwait(false);
+    }
 
-            Transition(DatabentoLifecycleState.Resetting, valueDate, correlationId, attempt,
-                $"Recovery attempt {attempt} of {MaximumRecoveryAttempts}.", attemptStarted: UtcNow());
-            await RecordAsync(reason, DatabentoMajorStatus.Resetting, DatabentoDisplayHealth.Orange,
-                false, attempt, await SafeProbeAsync(cancellationToken).ConfigureAwait(false), correlationId,
-                cancellationToken).ConfigureAwait(false);
-            try
-            {
-                await runtime.StopAsync(cancellationToken).ConfigureAwait(false);
-                await StartAndQualifyAsync(valueDate, correlationId, reason, attempt, cancellationToken)
-                    .ConfigureAwait(false);
-                return;
+    async Task<bool> TryRecoverNewAsync(DateOnly valueDate, Guid correlationId,
+        DatabentoOperationReason reason, CancellationToken cancellationToken)
+    {
+        logger.LogWarning("Requesting hard reset recovery from Databento watchdog. CorrelationId={CorrelationId}; ValueDate={ValueDate}; Reason={Reason}", correlationId, valueDate, reason);
+        var episode = await (_recoveryRequester ?? throw new InvalidOperationException("Hard reset recovery pipeline is not configured."))
+            .HardResetRecoveryAsync(new DatabentoHardRecoveryRequest(correlationId, valueDate,
+                Current.NativeGeneration, nameof(DatabentoMarketDataWatchdogService),
+                reason.ToString()), cancellationToken).ConfigureAwait(false);
+        var hard = episode.HardResult;
+        var attempts = hard?.Attempts ?? 0;
+        switch (episode.Outcome)
+        {
+            case DatabentoRecoveryRequestOutcome.AlreadyInProgress:
+                return true;
+            case DatabentoRecoveryRequestOutcome.FullyHealthy:
+                Transition(DatabentoLifecycleState.Healthy, valueDate, correlationId,
+                    attempts, "Supervisor-qualified Databento recovery completed.",
+                    hard?.GenerationId ?? Guid.Empty, attemptCompleted: UtcNow());
+                return true;
+            case DatabentoRecoveryRequestOutcome.DatabentoHealthyDownstreamDegraded:
+                Transition(DatabentoLifecycleState.Degraded, valueDate, correlationId,
+                    attempts, Bound(episode.Detail), hard?.GenerationId ?? Guid.Empty,
+                    attemptCompleted: UtcNow());
+                logger.LogWarning("Databento is locally healthy but downstream recovery remains fenced. CorrelationId={CorrelationId}; Detail={Detail}",
+                    correlationId, Bound(episode.Detail));
+                return true;
+            case DatabentoRecoveryRequestOutcome.Unrecoverable:
+            case DatabentoRecoveryRequestOutcome.ApplicationStopping:
+                Transition(DatabentoLifecycleState.Failed, valueDate, correlationId,
+                    attempts, Bound(episode.Detail), attemptCompleted: UtcNow());
+                logger.LogCritical("Databento recovery episode is terminal. CorrelationId={CorrelationId}; Outcome={Outcome}; Detail={Detail}",
+                    correlationId, episode.Outcome, Bound(episode.Detail));
+                return true;
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-            catch (Exception exception)
-            {
-                Measure(MarketDataOperationStage.DatabentoLifecycle, MarketDataOperationOutcome.Failed, correlationId);
-                logger.LogWarning(exception,
-                    "Databento recovery attempt {Attempt} of {MaximumAttempts} failed. CorrelationId={CorrelationId}",
-                    attempt, MaximumRecoveryAttempts, correlationId);
-                Transition(DatabentoLifecycleState.Resetting, valueDate, correlationId, attempt,
-                    Bound(exception.Message), attemptCompleted: UtcNow());
-                await RecordAsync(reason, DatabentoMajorStatus.Resetting, DatabentoDisplayHealth.Orange,
-                    false, attempt, await SafeProbeAsync(cancellationToken).ConfigureAwait(false), correlationId,
-                    cancellationToken, "Lifecycle", Bound(exception.Message)).ConfigureAwait(false);
-            }
-        }
-        try { await runtime.StopAsync(cancellationToken).ConfigureAwait(false); }
-        catch (Exception exception) { logger.LogWarning(exception, "Final Databento teardown failed."); }
-        Transition(DatabentoLifecycleState.Failed, valueDate, correlationId, MaximumRecoveryAttempts,
-            "Core recovery exhausted after exactly three attempts.", attemptCompleted: UtcNow());
-        await RecordAsync(reason, DatabentoMajorStatus.Down, DatabentoDisplayHealth.Red, false,
-            MaximumRecoveryAttempts, await SafeProbeAsync(cancellationToken).ConfigureAwait(false), correlationId,
-            cancellationToken, "Recovery", Current.Reason).ConfigureAwait(false);
+        throw new InvalidOperationException("Unknown Databento recovery episode outcome.");
     }
 
     async Task StartAndQualifyAsync(DateOnly valueDate, Guid correlationId, DatabentoOperationReason reason,

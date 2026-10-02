@@ -9,7 +9,8 @@ public sealed class MarketDataFeedMonitoringWindowTests
     [InlineData("2026-08-21T06:59:59Z", FuturesMarketState.OffTrading, false)]
     [InlineData("2026-08-21T07:00:00Z", FuturesMarketState.LiveTrading, true)]
     [InlineData("2026-08-21T19:59:59Z", FuturesMarketState.LiveTrading, true)]
-    [InlineData("2026-08-21T20:00:00Z", FuturesMarketState.OffTrading, false)]
+    [InlineData("2026-08-21T20:00:00Z", FuturesMarketState.LiveTrading, true)]
+    [InlineData("2026-08-21T20:59:59Z", FuturesMarketState.LiveTrading, true)]
     [InlineData("2026-08-21T21:00:00Z", FuturesMarketState.Closed, false)]
     [InlineData("2026-08-22T14:00:00Z", FuturesMarketState.Closed, false)]
     [InlineData("2026-08-23T21:59:59Z", FuturesMarketState.Closed, false)]
@@ -43,6 +44,7 @@ public sealed class MarketDataFeedMonitoringWindowTests
     [Theory]
     [InlineData("2026-08-21T06:00:00Z", "2026-08-21T07:00:00Z")]
     [InlineData("2026-08-21T20:00:00Z", "2026-08-24T07:00:00Z")]
+    [InlineData("2026-08-21T21:00:00Z", "2026-08-24T07:00:00Z")]
     [InlineData("2026-08-22T16:00:00Z", "2026-08-24T07:00:00Z")]
     [InlineData("2026-01-09T21:00:00Z", "2026-01-12T08:00:00Z")]
     public void NextStartUsesNextWeekdayThreeAmEastern(

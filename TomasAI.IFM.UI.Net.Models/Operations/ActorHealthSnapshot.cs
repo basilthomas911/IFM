@@ -1,9 +1,11 @@
+using TomasAI.IFM.Shared.EventModelActor;
+
 namespace TomasAI.IFM.UI.Net.Models.Operations;
 
 public sealed record ActorHealthSnapshot
 {
     public DateTime ObservedUtc { get; init; }
-    public int OverallStatus { get; init; } = 2;
+    public SupervisorActorHealthStatus OverallStatus { get; init; } = SupervisorActorHealthStatus.Red;
     public int ActorCount { get; init; }
     public int RunningActorCount { get; init; }
     public int ProcessingMailboxCount { get; init; }
@@ -17,6 +19,9 @@ public sealed record ActorHealthSnapshot
     public IReadOnlyList<ActorHealthIncident> Incidents { get; init; } = [];
     public IReadOnlyList<ActorHealthOperation> Operations { get; init; } = [];
     public IReadOnlyList<ActorHealthHistoryPoint> History { get; init; } = [];
+    public string SupervisorAuthorityState { get; init; } = string.Empty;
+    public bool ManualMutationEnabled { get; init; }
+    public bool AutomaticMutationEnabled { get; init; }
 }
 
 public record ActorHealthCollectionSnapshot
@@ -47,7 +52,7 @@ public record ActorHealthCollectionSnapshot
 
 public sealed record ActorHealthPollingStatus
 {
-    public int State { get; init; }
+    public string State { get; init; } = string.Empty;
     public string ThreadName { get; init; } = string.Empty;
     public bool IsAlive { get; init; }
     public long CompletedCycles { get; init; }
@@ -59,7 +64,7 @@ public sealed record ActorHealthPollingStatus
 public sealed record ActorHealthIncident
 {
     public ActorHealthThreadId ThreadId { get; init; } = new();
-    public int Health { get; init; }
+    public string Health { get; init; } = string.Empty;
     public DateTime FirstObservedUtc { get; init; }
     public DateTime LastObservedUtc { get; init; }
     public long Generation { get; init; }
@@ -77,7 +82,7 @@ public sealed record ActorHealthOperation
     public long ExpectedGeneration { get; init; }
     public DateTime StartedUtc { get; init; }
     public DateTime? CompletedUtc { get; init; }
-    public int? Outcome { get; init; }
+    public string? Outcome { get; init; }
     public string Reason { get; init; } = string.Empty;
 }
 
@@ -86,7 +91,7 @@ public sealed record ActorHealthHistoryPoint : ActorHealthCollectionSnapshot;
 public sealed record ActorHealthWorkerSnapshot
 {
     public int WorkerId { get; init; }
-    public int State { get; init; }
+    public ActorThreadState State { get; init; }
     public bool IsStarted { get; init; }
     public bool IsRunning { get; init; }
     public bool IsFaulted { get; init; }
@@ -125,13 +130,13 @@ public sealed record ActorHealthFailureRecord
     public ActorHealthActorId ActorId { get; init; } = new();
     public ActorHealthThreadId ThreadId { get; init; } = new();
     public string Verb { get; init; } = string.Empty;
-    public int Stage { get; init; }
+    public ActorFailureStage Stage { get; init; }
     public string ExceptionType { get; init; } = string.Empty;
     public string Error { get; init; } = string.Empty;
     public Guid? PrimaryFailureId { get; init; }
-    public int Severity { get; init; }
-    public int Outcome { get; init; }
-    public int DeliveryOutcome { get; init; }
+    public ActorFailureSeverity Severity { get; init; }
+    public ActorMessageOutcomeType Outcome { get; init; }
+    public ActorDeliveryOutcomeType DeliveryOutcome { get; init; }
     public int HResult { get; init; }
     public string ExceptionDetail { get; init; } = string.Empty;
     public string TraceId { get; init; } = string.Empty;
@@ -144,9 +149,9 @@ public sealed record ActorHealthActorSnapshot
     public string Domain { get; init; } = string.Empty;
     public string Implementation { get; init; } = string.Empty;
     public bool IsRunning { get; init; }
-    public int LifecycleState { get; init; }
+    public SupervisorActorLifecycleState LifecycleState { get; init; }
     public long Generation { get; init; }
-    public int Status { get; init; } = 2;
+    public SupervisorActorHealthStatus Status { get; init; } = SupervisorActorHealthStatus.Red;
     public int QueueDepth { get; init; }
     public long Accepted { get; init; }
     public long Dequeued { get; init; }
@@ -160,7 +165,7 @@ public sealed record ActorHealthActorSnapshot
 
 public sealed record ActorHealthActorId
 {
-    public int ActorType { get; init; }
+    public ActorType ActorType { get; init; }
     public string Name { get; init; } = string.Empty;
 }
 
@@ -176,7 +181,7 @@ public sealed record ActorHealthMailboxSnapshot
     public long Cancelled { get; init; }
     public long Rejected { get; init; }
     public bool IsAdmissionOpen { get; init; }
-    public int LifecycleState { get; init; }
+    public ActorMailboxLifecycleState LifecycleState { get; init; }
     public long Generation { get; init; }
     public bool IsProcessing { get; init; }
     public string CurrentVerb { get; init; } = string.Empty;
@@ -191,7 +196,7 @@ public sealed record ActorHealthMailboxSnapshot
 
 public sealed record ActorHealthThreadId
 {
-    public int ActorType { get; init; }
+    public ActorType ActorType { get; init; }
     public string Name { get; init; } = string.Empty;
     public string EntityId { get; init; } = string.Empty;
 }

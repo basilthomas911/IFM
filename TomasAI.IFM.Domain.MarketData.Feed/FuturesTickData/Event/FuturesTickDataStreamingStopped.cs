@@ -31,6 +31,14 @@ public static class FuturesTickDataStreamingStopped
         var source = $"FuturesTickDataStreamingStoppedEvent for EntityId: {e.EntityId}";
         try
         {
+            if (p.MarketDataApi.CoreFuturesRoutesAreRuntimeOwned)
+            {
+                await eventApi.FuturesTickDataStreamingStoppedCompleteAsync(e);
+                logger.LogInformationEvent(ServiceId,
+                    "{Source}: futures tick route {ContractId} remains owned by the supervised dataset worker",
+                    source, e.ContractId);
+                return true;
+            }
             var owner = FuturesTickDataStreamingStarted.CreateOwner(e.EntityId, e.ContractId);
             _ = await p.MarketDataApi.StopStreamingFuturesTickDataAsync(
                 e.ContractId,

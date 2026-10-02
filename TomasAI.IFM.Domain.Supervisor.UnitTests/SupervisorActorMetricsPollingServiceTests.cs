@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using TomasAI.IFM.Domain.Supervisor.Health;
-using TomasAI.IFM.Domain.Supervisor.Health.Collection;
-using TomasAI.IFM.Domain.Supervisor.Metrics;
+using TomasAI.IFM.Domain.Supervisor.Shared.Service.Health;
+using TomasAI.IFM.Domain.Supervisor.Shared.Service;
+using TomasAI.IFM.Domain.Supervisor.Shared.Service.Metrics;
 using TomasAI.IFM.Domain.Supervisor.Shared.Enums;
-using TomasAI.IFM.Domain.Supervisor.Shared.ReadModels;
+using TomasAI.IFM.Domain.Supervisor.Shared.Health.ReadModels;
 using TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventModelActor;
 

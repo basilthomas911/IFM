@@ -3,9 +3,12 @@ using TomasAI.IFM.UI.Net.Views.Presentation;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
-/// <summary>Development-only visual preview of the iron-condor Broker Order/Fills tab.</summary>
-public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
+/// <summary>Shared development-only visual preview of iron-condor broker trade and fill evidence.</summary>
+public class BrokerOrderFillsPreviewControl : DarkTradingView
 {
+    private const int FieldRowHeight = 24;
+    private const int FieldSeparatorHeight = 2;
+    private const string BrokerFieldRowName = "Broker Trade field row";
     private static readonly Color Surface = Color.FromArgb(25, 27, 31);
     private static readonly Color Short = Color.FromArgb(110, 24, 30);
     private static readonly Color Long = Color.FromArgb(20, 54, 105);
@@ -14,6 +17,7 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
     private static readonly Color Red = Color.FromArgb(237, 104, 104);
     private readonly TreeView _orderTree;
     private readonly Label _detail;
+    private readonly SplitContainer _vertical;
 
     /// <summary>Creates sample content for the selected canonical trade without submitting broker commands.</summary>
     public BrokerOrderFillsPreviewControl(
@@ -52,7 +56,7 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
         identity.Padding = new Padding(9, 5, 5, 0);
         shell.Controls.Add(identity, 0, 0);
 
-        var vertical = new SplitContainer
+        _vertical = new SplitContainer
         {
             Name = "brokerOrderFillsVerticalSplit",
             Dock = DockStyle.Fill,
@@ -63,19 +67,21 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
             Panel1MinSize = 140,
             Panel2MinSize = 105
         };
-        vertical.HandleCreated += (_, _) =>
+        _vertical.HandleCreated += (_, _) =>
         {
-            var available = vertical.Height - vertical.SplitterWidth;
-            if (available >= vertical.Panel1MinSize + vertical.Panel2MinSize)
-                vertical.SplitterDistance = Math.Clamp(
-                    (int)(available * 0.68), vertical.Panel1MinSize,
-                    available - vertical.Panel2MinSize);
+            if (_vertical.Panel1Collapsed || _vertical.Panel2Collapsed)
+                return;
+            var available = _vertical.Height - _vertical.SplitterWidth;
+            if (available >= _vertical.Panel1MinSize + _vertical.Panel2MinSize)
+                _vertical.SplitterDistance = Math.Clamp(
+                    (int)(available * 0.68), _vertical.Panel1MinSize,
+                    available - _vertical.Panel2MinSize);
         };
-        shell.Controls.Add(vertical, 0, 1);
+        shell.Controls.Add(_vertical, 0, 1);
         Controls.Add(shell);
 
-        var orderPanel = new Panel { Name = "brokerPreviewOrderPane", Dock = DockStyle.Fill, AutoScroll = true, BackColor = Color.Black };
-        vertical.Panel1.Controls.Add(orderPanel);
+        var orderPanel = new Panel { Name = "brokerPreviewOrderPane", Dock = DockStyle.Fill, AutoScroll = false, BackColor = Color.Black };
+        _vertical.Panel1.Controls.Add(orderPanel);
         var orderContent = new TableLayoutPanel
         {
             Name = "brokerPreviewOrderContent",
@@ -89,16 +95,16 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
         orderPanel.Controls.Add(orderContent);
         Add(orderContent, Section("BROKER ORDER — OPEN  ·  Iron Condor  ·  16 Delta / 50-point wings  ·  01 Oct 2026"), 30);
         Add(orderContent, Legs(), 142);
-        Add(orderContent, Row("brokerPreviewOrderFields",
+        Add(orderContent, FieldRow("brokerPreviewOrderFields",
             Field("Contracts", "1", 86),
             ChoiceField("Order type", 105, ["Limit", "Market"], out _),
             ChoiceField("Time in force", 115, ["Day", "GTC"], out _),
             ChoiceField("Action", 95, ["Open", "Close"], out _),
-            Field("Directed venue", "CME", 100)), 48);
-        Add(orderContent, Row("brokerPreviewPriceFields",
+            Field("Directed venue", "CME", 100)), 56);
+        Add(orderContent, FieldRow("brokerPreviewPriceFields",
             Field("Net bid", "15.25", 90), Field("Net mid", "16.25", 90),
             Field("Net ask", "17.25", 90), LimitField(),
-            Field("Combo tick", "0.25", 100)), 48);
+            Field("Combo tick", "0.25", 100)), 56);
         var algorithmField = ChoiceField("IFM algorithm", 125,
             ["None", "IFM Atomic Combo"], out var algorithm);
         var paceField = ChoiceField("Pace", 125,
@@ -107,33 +113,35 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
         pace.Enabled = false;
         algorithm.SelectedIndexChanged += (_, _) =>
             pace.Enabled = algorithm.SelectedItem?.ToString() != "None";
-        Add(orderContent, Row("brokerPreviewExecutionFields",
+        Add(orderContent, FieldRow("brokerPreviewExecutionFields",
             algorithmField, paceField,
             Field("Broker route", "Atomic combo / BAG", 190),
-            Field("SMART", "No", 75), Field("Worst approved limit", "14.00", 150)), 48);
+            Field("SMART", "No", 75), Field("Worst approved limit", "14.00", 150)), 56);
         Add(orderContent, Section("FUND ECONOMICS AND LIMITS  ·  sample estimates, not Risk Manager approval"), 27);
-        Add(orderContent, Row("brokerPreviewEconomics",
+        Add(orderContent, FieldRow("brokerPreviewEconomics",
             Field("Est. credit", "$800", 105), Field("Max profit", "$800", 110),
             Field("Max loss", "$1,700", 105), Field("Buying power", "$1,700", 120),
-            Field("Est. fees", "$24", 95), Field("Fund capacity", "$25,000", 120)), 39);
-        Add(orderContent, Row("brokerPreviewRiskFields",
+            Field("Est. fees", "$24", 95), Field("Fund capacity", "$25,000", 120)), 56);
+        Add(orderContent, FieldRow("brokerPreviewRiskFields",
             Field("Put width", "50", 90), Field("Call width", "50", 90),
             Field("Net delta", "0.00", 95), Field("Net vega", "−0.12", 95),
-            Field("Fund risk limit", "$2,000", 130), Field("Validation", "PREVIEW ONLY", 150)), 39);
-        Add(orderContent, Row("brokerPreviewFundLimits",
+            Field("Fund risk limit", "$2,000", 130), Field("Validation", "PREVIEW ONLY", 150)), 56);
+        Add(orderContent, FieldRow("brokerPreviewFundLimits",
             Field("Available funds", "$25,000", 120), Field("Reserved capital", "$1,700", 120),
             Field("Risk margin", "$1,700", 115), Field("Max return", "47.1%", 105),
             Field("Minimum profit", "$200", 120), Field("Put spread", "$362.50", 105),
-            Field("Call spread", "$400.00", 105)), 39);
-        Add(orderContent, Row("brokerPreviewAuthority",
+            Field("Call spread", "$400.00", 105)), 56);
+        Add(orderContent, FieldRow("brokerPreviewAuthority",
             Field("Value source", "Sample / not authoritative", 210),
             Field("As of", "Illustrative only", 135),
             Field("Route check", "Preview / unqualified", 175),
-            Field("Risk approval", "Not requested", 145)), 39);
+            Field("Risk approval", "Not requested", 145)), 56);
         var actions = Row("brokerPreviewActions",
             PreviewButton("Preview Order"), PreviewButton("Place Order"),
             PreviewButton("Update Limit"), PreviewButton("Cancel Unfilled"));
         Add(orderContent, actions, 43);
+        NormalizeBrokerTradeFieldRows(orderContent);
+        orderContent.HandleCreated += (_, _) => NormalizeBrokerTradeFieldRows(orderContent);
 
         var fills = new SplitContainer
         {
@@ -154,7 +162,7 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
                     (int)(available * 0.40), fills.Panel1MinSize,
                     available - fills.Panel2MinSize);
         };
-        vertical.Panel2.Controls.Add(fills);
+        _vertical.Panel2.Controls.Add(fills);
         var treePanel = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, BackColor = Color.Black };
         treePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         treePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -189,6 +197,22 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
         SeedTree(portfolioId, fund.FundId, order.OrderId, trade.TradeId);
     }
 
+    /// <summary>Displays only the broker trade proposal pane and gives it the complete tab workspace.</summary>
+    protected void ShowBrokerTradePane()
+    {
+        Name = "brokerTradePreview";
+        AccessibleName = "Broker Trade development preview";
+        _vertical.Panel2Collapsed = true;
+    }
+
+    /// <summary>Displays only order and fill evidence and gives it the complete tab workspace.</summary>
+    protected void ShowOrderFillsPane()
+    {
+        Name = "orderFillsPreview";
+        AccessibleName = "Order Fills development preview";
+        _vertical.Panel1Collapsed = true;
+    }
+
     private static void Add(TableLayoutPanel layout, Control control, int height)
     {
         var row = layout.RowCount++;
@@ -205,6 +229,7 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
         BackColor = Color.Black,
         Dock = DockStyle.Fill,
         AutoEllipsis = true,
+        Margin = new Padding(0),
         TextAlign = ContentAlignment.MiddleLeft
     };
 
@@ -223,101 +248,171 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
             Name = name,
             Dock = DockStyle.Fill,
             WrapContents = false,
-            AutoScroll = true,
+            AutoScroll = false,
             BackColor = Surface,
             Padding = new Padding(3, 3, 3, 0)
         };
         row.Controls.AddRange(controls);
         foreach (Control control in controls)
-            control.Tag = control.Width;
+            control.MinimumSize = new Size(control.Width, control.MinimumSize.Height);
         row.Resize += (_, _) =>
         {
-            var baseline = controls.Sum(control => (int)control.Tag! + control.Margin.Horizontal);
+            var baseline = controls.Sum(control => control.MinimumSize.Width + control.Margin.Horizontal);
             var extra = Math.Max(0, row.ClientSize.Width - row.Padding.Horizontal - baseline)
                 / Math.Max(1, controls.Length);
             foreach (Control control in controls)
-                control.Width = (int)control.Tag! + extra;
+                control.Width = control.MinimumSize.Width + extra;
         };
         return row;
     }
 
-    private static Control Field(string caption, string value, int width)
+    private static Panel FieldRow(string name, params BrokerField[] fields)
     {
-        var panel = new TableLayoutPanel
+        var row = new Panel
         {
-            Name = "brokerPreview" + caption.Replace(" ", ""),
-            Width = width,
-            Height = 32,
-            RowCount = 2,
-            Margin = new Padding(4, 0, 4, 0),
-            BackColor = Surface
+            Name = name,
+            AccessibleName = BrokerFieldRowName,
+            Dock = DockStyle.Fill,
+            Height = (FieldRowHeight * 2) + FieldSeparatorHeight + 6,
+            BackColor = Surface,
+            Padding = new Padding(3)
         };
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 14));
-        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        panel.Controls.Add(Label("", caption, Color.Silver), 0, 0);
-        panel.Controls.Add(Label("", value, Color.White), 0, 1);
-        return panel;
+        foreach (var field in fields)
+        {
+            field.Caption.MinimumSize = new Size(field.Width, 0);
+            field.Editor.MinimumSize = new Size(field.Width, 0);
+            row.Controls.Add(field.Caption);
+        }
+        foreach (var field in fields)
+            row.Controls.Add(field.Editor);
+        row.Resize += (_, _) => LayoutFieldRow(row);
+        LayoutFieldRow(row);
+        return row;
     }
 
-    private static Control ChoiceField(string caption, int width, string[] options,
+    private static BrokerField Field(string caption, string value, int width)
+    {
+        var fieldName = "brokerPreview" + caption.Replace(" ", "");
+        return new BrokerField(width,
+            Label(fieldName + "Label", caption, Color.Silver),
+            Label(fieldName + "Value", value, Color.White));
+    }
+
+    private static BrokerField ChoiceField(string caption, int width, string[] options,
         out ComboBox selector)
     {
-        var panel = new TableLayoutPanel
-        {
-            Name = "brokerPreview" + caption.Replace(" ", ""),
-            Width = width,
-            Height = 42,
-            RowCount = 2,
-            Margin = new Padding(4, 0, 4, 0),
-            BackColor = Surface
-        };
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 14));
-        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        panel.Controls.Add(Label("", caption, Color.Silver), 0, 0);
+        var fieldName = "brokerPreview" + caption.Replace(" ", "");
+        var label = Label(fieldName + "Label", caption, Color.Silver);
         selector = new ComboBox
         {
-            Name = panel.Name + "Selector",
-            Dock = DockStyle.Fill,
+            Name = fieldName + "Selector",
             DropDownStyle = ComboBoxStyle.DropDownList,
+            DrawMode = DrawMode.OwnerDrawFixed,
             FlatStyle = FlatStyle.Flat,
             BackColor = Color.Black,
             ForeColor = Color.White,
-            Font = panel.Font
+            Font = new Font(label.Font.FontFamily, 10F),
+            Margin = new Padding(0)
         };
         selector.Items.AddRange(options);
         selector.SelectedIndex = 0;
-        panel.Controls.Add(selector, 0, 1);
-        return panel;
+        selector.DrawItem += DrawChoiceItem;
+        return new BrokerField(width, label, selector);
     }
 
-    private static Control LimitField()
+    private static BrokerField LimitField()
     {
-        var panel = new TableLayoutPanel
-        {
-            Name = "brokerPreviewNetLimit",
-            Width = 126,
-            Height = 42,
-            RowCount = 2,
-            Margin = new Padding(4, 0, 4, 0),
-            BackColor = Surface
-        };
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 14));
-        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        panel.Controls.Add(Label("", "Net limit", Color.Silver), 0, 0);
-        panel.Controls.Add(new NumericUpDown
+        const string fieldName = "brokerPreviewNetLimit";
+        var label = Label(fieldName + "Label", "Net limit", Color.Silver);
+        var editor = new TextBox
         {
             Name = "brokerPreviewNetLimitTicks",
-            Dock = DockStyle.Fill,
-            DecimalPlaces = 2,
-            Increment = 0.25m,
-            Minimum = -1000,
-            Maximum = 1000,
-            Value = 16m,
+            Text = "16.00",
+            ReadOnly = true,
+            Multiline = true,
             BackColor = Color.Black,
             ForeColor = Color.White,
-            BorderStyle = BorderStyle.None
-        }, 0, 1);
-        return panel;
+            BorderStyle = BorderStyle.FixedSingle,
+            TextAlign = HorizontalAlignment.Right,
+            Font = new Font(label.Font.FontFamily, 10F),
+            Margin = new Padding(0)
+        };
+        return new BrokerField(126, label, editor);
+    }
+
+    private static void NormalizeBrokerTradeFieldRows(TableLayoutPanel content)
+    {
+        var rows = content.Controls.Cast<Control>()
+            .OfType<Panel>()
+            .Where(row => row.AccessibleName == BrokerFieldRowName)
+            .ToArray();
+        if (rows.Length == 0)
+            return;
+        foreach (var row in rows)
+        {
+            LayoutFieldRow(row);
+            var position = content.GetPositionFromControl(row);
+            if (position.Row >= 0)
+            {
+                content.RowStyles[position.Row].SizeType = SizeType.Absolute;
+                content.RowStyles[position.Row].Height = row.Height;
+            }
+        }
+    }
+
+    private static void LayoutFieldRow(Panel row)
+    {
+        var captions = row.Controls.Cast<Control>()
+            .Where(control => control.Name.EndsWith("Label", StringComparison.Ordinal))
+            .ToArray();
+        if (captions.Length == 0)
+            return;
+        var editors = row.Controls.Cast<Control>()
+            .Where(control => !control.Name.EndsWith("Label", StringComparison.Ordinal))
+            .ToArray();
+        var scale = row.DeviceDpi / 96F;
+        var separatorHeight = (int)Math.Ceiling(FieldSeparatorHeight * scale);
+        var rowHeight = (int)Math.Ceiling(FieldRowHeight * scale);
+        var availableWidth = Math.Max(0, row.ClientSize.Width - row.Padding.Horizontal);
+        var gap = (int)Math.Ceiling(8 * scale);
+        var widthBudget = Math.Max(0, availableWidth - (gap * (captions.Length - 1)));
+        var requestedWidth = captions.Sum(caption => caption.MinimumSize.Width);
+        var x = row.Padding.Left;
+        for (var index = 0; index < captions.Length; index++)
+        {
+            var width = index == captions.Length - 1
+                ? Math.Max(1, row.ClientSize.Width - row.Padding.Right - x)
+                : Math.Max(1, requestedWidth == 0
+                    ? widthBudget / captions.Length
+                    : (int)Math.Round(widthBudget * (captions[index].MinimumSize.Width / (double)requestedWidth)));
+            var caption = captions[index];
+            var editor = editors[index];
+            caption.Dock = DockStyle.None;
+            editor.Dock = DockStyle.None;
+            caption.SetBounds(x, row.Padding.Top, width, rowHeight);
+            if (editor is ComboBox comboBox)
+                comboBox.ItemHeight = Math.Max(1, rowHeight - 6);
+            editor.SetBounds(x, row.Padding.Top + rowHeight + separatorHeight, width, rowHeight);
+            x += width + gap;
+        }
+        row.Height = row.Padding.Vertical + (rowHeight * 2) + separatorHeight;
+    }
+
+    private sealed record BrokerField(int Width, Label Caption, Control Editor);
+
+    private static void DrawChoiceItem(object? sender, DrawItemEventArgs args)
+    {
+        if (sender is not ComboBox selector)
+            return;
+        args.DrawBackground();
+        if (args.Index >= 0)
+        {
+            var text = selector.GetItemText(selector.Items[args.Index]);
+            TextRenderer.DrawText(args.Graphics, text, selector.Font, args.Bounds,
+                selector.Enabled ? selector.ForeColor : Color.Gray,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+        }
+        args.DrawFocusRectangle();
     }
 
     private static Button PreviewButton(string text) => new()
@@ -439,4 +534,22 @@ public sealed class BrokerOrderFillsPreviewControl : DarkTradingView
         using var dot = new SolidBrush(color);
         args.Graphics.FillEllipse(dot, bounds.X + size.Width + 3, bounds.Y + (bounds.Height - 10) / 2, 10, 10);
     }
+}
+
+/// <summary>Development-only view of the proposed iron-condor broker trade.</summary>
+public sealed class BrokerTradePreviewControl : BrokerOrderFillsPreviewControl
+{
+    /// <summary>Creates a view-only broker trade preview for the selected canonical trade.</summary>
+    public BrokerTradePreviewControl(int portfolioId, PortfolioFundEditorModel fund,
+        PortfolioFundOrderEditorModel order, PortfolioFundOrderTradeEditorModel trade)
+        : base(portfolioId, fund, order, trade) => ShowBrokerTradePane();
+}
+
+/// <summary>Development-only view of broker order and fill evidence.</summary>
+public sealed class OrderFillsPreviewControl : BrokerOrderFillsPreviewControl
+{
+    /// <summary>Creates a view-only order and fill preview for the selected canonical trade.</summary>
+    public OrderFillsPreviewControl(int portfolioId, PortfolioFundEditorModel fund,
+        PortfolioFundOrderEditorModel order, PortfolioFundOrderTradeEditorModel trade)
+        : base(portfolioId, fund, order, trade) => ShowOrderFillsPane();
 }

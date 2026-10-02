@@ -114,9 +114,31 @@ public sealed class DatasetPublicationGenerationFenceTests
         await publisher.Received(1).PublishAsync(
             Arg.Is<FuturesTradeReplayBatchRealtimeEvent>(value =>
                 value.EntityId.ContractId == "ES20260918"
+                && value.SourceDataset == identity.Dataset
+                && value.SourceGenerationId == identity.GenerationId
                 && value.IsFirstBatch
                 && value.IsFinalBatch
                 && value.Trades.Length == 1),
+            Arg.Any<CancellationToken>());
+        admissions.Close(identity.Dataset, identity.GenerationId);
+    }
+
+    [Fact]
+    public async Task Price_publication_carries_authenticated_worker_generation_to_NATS_producer()
+    {
+        var admissions = new DatasetWorkerAdmissionRegistry();
+        var identity = Admission("GLBX.MDP3");
+        admissions.Admit(identity);
+        var publisher = Substitute.For<ITickAggregationEventPublisher>();
+        var ingress = new DatasetPublicationIngress(admissions, publisher,
+            Substitute.For<IMarketDataOperationsRecorder>());
+
+        Assert.True(await ingress.AcceptAsync(Price(identity, "ES20260918")));
+
+        await publisher.Received(1).PublishAsync(
+            Arg.Is<FuturesMarketPriceUpdatedRealtimeEvent>(value =>
+                value.SourceDataset == identity.Dataset
+                && value.SourceGenerationId == identity.GenerationId),
             Arg.Any<CancellationToken>());
         admissions.Close(identity.Dataset, identity.GenerationId);
     }

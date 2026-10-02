@@ -216,7 +216,6 @@ public static class ApplicationStartup
         ResolveActivity(IApplicationStartupActivities activities, ApplicationStartupActivity activity) => activity switch
         {
             ApplicationStartupActivity.ApplyParameterSets => activities.ApplyParameterSetsAsync,
-            ApplicationStartupActivity.PrepareParameterSignals => activities.PrepareParameterSignalsAsync,
             ApplicationStartupActivity.ResolveAuthority => activities.ResolveAuthorityAsync,
             ApplicationStartupActivity.ReconcileReferenceData => activities.ReconcileReferenceDataAsync,
             ApplicationStartupActivity.ReconcileCurrentContracts => activities.ReconcileCurrentContractsAsync,

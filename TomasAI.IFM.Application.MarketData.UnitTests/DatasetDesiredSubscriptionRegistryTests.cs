@@ -11,6 +11,76 @@ public sealed class DatasetDesiredSubscriptionRegistryTests
     static readonly DateOnly ValueDate = new(2026, 9, 4);
 
     [Fact]
+    public void Recovery_capture_is_complete_stable_and_requires_the_requested_value_date()
+    {
+        var registry = new DatasetDesiredSubscriptionRegistry();
+        var glbx = registry.Set("GLBX.MDP3", ValueDate, [Registration()]);
+        registry.Set("XCBF.PITCH", ValueDate,
+            [Registration("VX20260916", "VXU6", "XCBF.PITCH", "VX")]);
+
+        var frozen = registry.CaptureRecoverySet(ValueDate, ["XCBF.PITCH", "GLBX.MDP3"]);
+        frozen.Select(item => item.Dataset).Should().Equal("GLBX.MDP3", "XCBF.PITCH");
+        registry.Set("GLBX.MDP3", ValueDate,
+            [Registration("ES20261218", "ESZ6")]);
+        frozen[0].Should().BeSameAs(glbx);
+        var missing = () => registry.CaptureRecoverySet(ValueDate.AddDays(1), ["GLBX.MDP3"]);
+        missing.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Recovery_snapshot_freezes_required_datasets_revisions_and_capture_time()
+    {
+        var registry = new DatasetDesiredSubscriptionRegistry();
+        var original = registry.Set("GLBX.MDP3", ValueDate, [Registration()]);
+        var clock = new FixedTimeProvider(new DateTimeOffset(2026, 9, 4, 12, 0, 0, TimeSpan.Zero));
+
+        var snapshot = registry.CaptureRecoverySnapshot(ValueDate, ["GLBX.MDP3"], clock);
+        registry.Set("GLBX.MDP3", ValueDate, [Registration("ES20261218", "ESZ6")]);
+
+        snapshot.ValueDate.Should().Be(ValueDate);
+        snapshot.CapturedAtUtc.Should().Be(clock.GetUtcNow());
+        snapshot.RequiredDatasets.Should().Equal("GLBX.MDP3");
+        snapshot.Manifests.Should().ContainSingle().Which.Should().BeSameAs(original);
+        registry.IsCurrent(snapshot.Manifests[0]).Should().BeFalse();
+        var mutate = () => ((IList<string>)snapshot.RequiredDatasets)[0] = "XCBF.PITCH";
+        mutate.Should().Throw<NotSupportedException>();
+    }
+
+    [Fact]
+    public void Recovery_snapshot_rejects_missing_required_dataset_and_mixed_value_dates()
+    {
+        var registry = new DatasetDesiredSubscriptionRegistry();
+        registry.Set("GLBX.MDP3", ValueDate, [Registration()]);
+
+        var missing = () => registry.CaptureRecoverySnapshot(ValueDate,
+            ["GLBX.MDP3", "XCBF.PITCH"], TimeProvider.System);
+        var wrongDate = () => registry.CaptureRecoverySnapshot(ValueDate.AddDays(1),
+            ["GLBX.MDP3"], TimeProvider.System);
+
+        missing.Should().Throw<InvalidOperationException>();
+        wrongDate.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Current_recovery_snapshot_freezes_every_dataset_for_one_value_date()
+    {
+        var registry = new DatasetDesiredSubscriptionRegistry();
+        var glbx = registry.Set("GLBX.MDP3", ValueDate, [Registration()]);
+        var xcbf = registry.Set("XCBF.PITCH", ValueDate,
+            [Registration("VX20260916", "VXU6", "XCBF.PITCH", "VX")]);
+        registry.Set("OLD.DATA", ValueDate.AddDays(-1),
+            [Registration("ES20260918", "ESU6", "OLD.DATA")]);
+        var clock = new FixedTimeProvider(new DateTimeOffset(2026, 9, 4, 12, 0, 0, TimeSpan.Zero));
+
+        var snapshot = registry.CaptureCurrentRecoverySnapshot(ValueDate, clock);
+        snapshot.RequiredDatasets.Should().Equal("GLBX.MDP3", "XCBF.PITCH");
+        snapshot.Manifests.Should().ContainInOrder(glbx, xcbf);
+        snapshot.CapturedAtUtc.Should().Be(clock.GetUtcNow());
+        var empty = () => registry.CaptureCurrentRecoverySnapshot(ValueDate.AddDays(2), clock);
+        empty.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
     public void Identical_canonical_contents_are_idempotent_despite_input_order()
     {
         var registry = new DatasetDesiredSubscriptionRegistry();
@@ -298,4 +368,9 @@ public sealed class DatasetDesiredSubscriptionRegistryTests
             OnTheRun = true,
             Rollover = true
         };
+
+    sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
+    }
 }

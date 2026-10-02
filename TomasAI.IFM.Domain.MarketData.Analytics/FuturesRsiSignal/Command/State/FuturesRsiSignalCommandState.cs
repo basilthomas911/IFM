@@ -46,7 +46,14 @@ public class FuturesRsiSignalCommandState
 
         bool OnStarted(FuturesRsiSignalStartedEvent e)
         {
+            if (e.ResetForHistoricalSeed)
+            {
+                AccumulatorCheckpoint = null;
+                _futuresRsiSignals.Clear();
+            }
             AccumulatorCheckpoint = e.RestoredCheckpoint ?? AccumulatorCheckpoint;
+            if (_futuresRsiSignals.Count == 0 && e.HistoricalWarmSignals is { Length: > 0 })
+                _futuresRsiSignals.AddRange(e.HistoricalWarmSignals.TakeLast(MaxSignalHistory));
             if (e.RestoredSignal is { } signal && _futuresRsiSignals.Count == 0)
                 _futuresRsiSignals.Add(signal);
             return true;

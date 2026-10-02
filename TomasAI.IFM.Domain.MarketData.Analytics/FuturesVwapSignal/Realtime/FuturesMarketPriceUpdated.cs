@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
@@ -8,10 +8,9 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime;
 
-/// <summary>Translates individual current-contract trades into durable VWAP commands.</summary>
+/// <summary>Forwards a complete tick-source VWAP checkpoint to the existing projection path.</summary>
 public static class FuturesMarketPriceUpdated
 {
-    /// <summary>Forwards one trade-originated update without retaining calculation state.</summary>
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesMarketPriceUpdatedRealtimeEvent @event,
         IFuturesVwapSignalRealtimeContext context,
@@ -22,57 +21,22 @@ public static class FuturesMarketPriceUpdated
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(currentContract);
         ArgumentNullException.ThrowIfNull(logger);
-        if (@event.UpdateSource != FuturesMarketPriceUpdateSource.Trade
-            || @event.Price.Trade is not { } trade
-            || !StringComparer.Ordinal.Equals(@event.Price.ContractId, currentContract.ContractId))
+        var checkpoint = @event.VwapCheckpoint;
+        if (checkpoint is null || !checkpoint.IsReplayComplete
+            || !StringComparer.Ordinal.Equals(@event.EntityId.ContractId, currentContract.ContractId))
             return true;
         var configuration = FuturesVwapConfiguration.Standard;
         var entityId = new FuturesVwapSignalEntityId(
-            @event.Price.ContractId, @event.Price.ValueDate, configuration.ConfigurationId);
-        var session = context.SessionCalendar.GetSession(@event.Price.ValueDate);
-        var observation = new FuturesVwapTradeObservation
+            @event.EntityId.ContractId, @event.EntityId.ValueDate, configuration.ConfigurationId);
+        var session = context.SessionCalendar.GetSession(@event.EntityId.ValueDate);
+        var result = await context.UpdateFuturesVwapSignalAsync(entityId,
+            checkpoint, session.StartUtc, session.EndUtc, configuration).ConfigureAwait(false);
+        if (result is ServiceFailed<GuidResult> failed)
         {
-            ContractId = @event.Price.ContractId,
-            ValueDate = @event.Price.ValueDate,
-            Price = trade.LastPrice,
-            Size = trade.LastSize,
-            SourceSequence = trade.SourceSequence,
-            EventTimestampUtc = trade.EventTimestamp.ToUniversalTime(),
-            Action = MapAction(trade.NormalizedTradeAction),
-            Conditions = MapConditions(trade.NormalizedTradeConditionFlags),
-            StreamEpochId = trade.StreamEpochId,
-            TradeOrdinal = trade.TradeOrdinal,
-            SessionStartUtc = session.StartUtc,
-            SessionEndUtc = session.EndUtc
-        };
-        var result = await context.UpdateFuturesVwapSignalAsync(
-            entityId, observation, configuration).ConfigureAwait(false);
-        if (result is ServiceFailed<GuidResult>)
-            logger.LogError("VWAP command rejected contract {ContractId} trade ordinal {TradeOrdinal}.",
-                observation.ContractId, observation.TradeOrdinal);
-        return result is not ServiceFailed<GuidResult>;
-    }
-
-    static FuturesVwapTradeAction MapAction(NormalizedTradeAction action) => action switch
-    {
-        NormalizedTradeAction.New => FuturesVwapTradeAction.New,
-        NormalizedTradeAction.Change => FuturesVwapTradeAction.Change,
-        NormalizedTradeAction.Cancel => FuturesVwapTradeAction.Cancel,
-        NormalizedTradeAction.Correct => FuturesVwapTradeAction.Correct,
-        NormalizedTradeAction.Clear => FuturesVwapTradeAction.Clear,
-        NormalizedTradeAction.None => FuturesVwapTradeAction.None,
-        _ => FuturesVwapTradeAction.Unknown
-    };
-
-    static FuturesVwapTradeConditionFlags MapConditions(NormalizedTradeConditionFlags conditions)
-    {
-        var result = FuturesVwapTradeConditionFlags.None;
-        if (conditions.HasFlag(NormalizedTradeConditionFlags.Snapshot))
-            result |= FuturesVwapTradeConditionFlags.Snapshot;
-        if (conditions.HasFlag(NormalizedTradeConditionFlags.UndefinedPrice))
-            result |= FuturesVwapTradeConditionFlags.UndefinedPrice;
-        if (conditions.HasFlag(NormalizedTradeConditionFlags.Replay))
-            result |= FuturesVwapTradeConditionFlags.Replay;
-        return result;
+            logger.LogError("VWAP checkpoint rejected for {ContractId} ordinal {TradeOrdinal}: {Error}",
+                entityId.ContractId, checkpoint.LastTradeOrdinal, failed.ErrorMessage);
+            return false;
+        }
+        return true;
     }
 }

@@ -32,6 +32,32 @@ namespace TomasAI.IFM.LivePipeline.IntegrationTests;
 
 public sealed class LivePipelineProbeIntegrationTests
 {
+    [Theory]
+    [InlineData(DatabentoRecoveryRequestOutcome.FullyHealthy)]
+    [InlineData(DatabentoRecoveryRequestOutcome.DatabentoHealthyDownstreamDegraded)]
+    public async Task Hard_reset_caller_inspects_full_episode_outcome(
+        DatabentoRecoveryRequestOutcome outcome)
+    {
+        var requester = Substitute.For<IDatabentoRecoveryRequester>();
+        requester.HardResetRecoveryAsync(Arg.Any<DatabentoHardRecoveryRequest>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult<DatabentoRecoveryRequestResult>(
+                new(((DatabentoHardRecoveryRequest)call[0]).CorrelationId, outcome, null, "Injected result")));
+        await using var fixture = await Fixture.Create(requester);
+        var snapshot = new LivePipelineHealthSnapshot(DateTime.UtcNow, fixture.Date, "Degraded", []);
+
+        if (outcome == DatabentoRecoveryRequestOutcome.FullyHealthy)
+            await fixture.Probe.HardResetAsync(snapshot, default);
+        else
+        {
+            var exception = await Assert.ThrowsAsync<DatabentoRecoveryEpisodeStatusException>(
+                () => fixture.Probe.HardResetAsync(snapshot, default));
+            Assert.Equal(outcome, exception.Result.Outcome);
+        }
+        await requester.Received(1).HardResetRecoveryAsync(
+            Arg.Is<DatabentoHardRecoveryRequest>(request => request.ValueDate == fixture.Date
+                && request.Source == nameof(LivePipelineProbe)), Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task Shared_messaging_probe_requires_a_real_connection_and_round_trip()
     {
@@ -260,7 +286,7 @@ public sealed class LivePipelineProbeIntegrationTests
         DatabentoMarketDataApi market = null!;
         public DatabentoMarketDataApi Market => market;
         public IFuturesMarketSessionAuthority Sessions = null!;
-        public static async Task<Fixture> Create()
+        public static async Task<Fixture> Create(IDatabentoRecoveryRequester? recoveryRequester = null)
         {
             var f = new Fixture(); var now = DateTimeOffset.UtcNow;
             var session = Substitute.For<IFuturesMarketSessionAuthority>();
@@ -323,7 +349,7 @@ public sealed class LivePipelineProbeIntegrationTests
                 f.Storage, operations, f.Evidence,
                 f.ItiTelemetry,
                 new DeploymentIdentityMonitor(new(), AppContext.BaseDirectory, false), watchdog, TimeProvider.System,
-                actors, null);
+                actors, null, recoveryRequester);
             return f;
         }
         public async ValueTask DisposeAsync() { await Timer.StopAllAsync(); await market.DisposeAsync(); }

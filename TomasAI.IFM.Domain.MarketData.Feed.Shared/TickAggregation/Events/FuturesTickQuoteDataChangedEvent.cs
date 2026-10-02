@@ -1,11 +1,12 @@
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 
 [MessagePackObject(AllowPrivate = true)]
-public sealed record FuturesTickQuoteDataChangedEvent : IEvent<TickDataEntityId>
+public sealed record FuturesTickQuoteDataChangedEvent : IEvent<TickDataEntityId>, IRealtimeSourceGeneration
 {
 
     /// <summary>Creates an empty event for serialization.</summary>
@@ -54,6 +55,8 @@ public sealed record FuturesTickQuoteDataChangedEvent : IEvent<TickDataEntityId>
     }
     public const string Actor = "TickAggregationRealtime";
     public const string Verb = "FuturesTickQuoteDataChanged";
+    [IgnoreMember] public string SourceDataset { get; init; } = string.Empty;
+    [IgnoreMember] public Guid SourceGenerationId { get; init; }
     [Key(0)] public ActorSubject Subject { get; init; }
     [Key(1)] public Guid Id { get; init; }
     [Key(2)] public TickDataEntityId EntityId { get; init; }

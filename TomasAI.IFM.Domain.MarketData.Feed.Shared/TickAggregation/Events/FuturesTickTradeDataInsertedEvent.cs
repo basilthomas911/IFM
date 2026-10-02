@@ -68,6 +68,8 @@ public sealed record FuturesTickTradeDataInsertedEvent : IEvent<TickDataEntityId
     [Key(13)] public ushort PublisherId { get; init; }
     [Key(14)] public uint InstrumentId { get; init; }
     [Key(15)] public FuturesTickTradeData TradeData { get; init; }
+    [IgnoreMember] public string SourceDataset { get; init; } = string.Empty;
+    [IgnoreMember] public Guid SourceGenerationId { get; init; }
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesTickTradeDataInsertedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;

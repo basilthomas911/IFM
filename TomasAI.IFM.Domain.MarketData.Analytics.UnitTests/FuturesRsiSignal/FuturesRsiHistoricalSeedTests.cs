@@ -65,6 +65,51 @@ public sealed class FuturesRsiHistoricalSeedTests
         Assert.Equal("RSI.SEED_CHECKPOINT_PRESERVED", Assert.Single(restored.Events.OfType<FuturesRsiSignalStartedEvent>()).HistoricalSeedReason);
     }
     [Fact]
+    public void Four_hour_five_minute_seed_preserves_the_Tdi_window_for_the_next_live_bar()
+    {
+        var command = Command(TimeFrameType.FiveMinutes, 48, 13);
+        var state = new FuturesRsiSignalCommandState();
+        Assert.True(command.Execute(state, Calendar).Success);
+        var started = Assert.Single(state.Events.OfType<FuturesRsiSignalStartedEvent>());
+        Assert.Equal(48, started.HistoricalSeedCount);
+        Assert.Equal(33, started.HistoricalWarmSignals.Length);
+        Assert.Equal(34, state.FuturesRsiSignals.Count(signal => signal.IsWarm));
+        var roundTrip = MessagePackSerializer.Deserialize<FuturesRsiSignalStartedEvent>(
+            MessagePackSerializer.Serialize(started));
+        Assert.Equal(33, roundTrip.HistoricalWarmSignals.Length);
+        var restored = new FuturesRsiSignalCommandState();
+        foreach (var fact in state.Events) restored.Apply(fact, false);
+        Assert.Equal(34, restored.FuturesRsiSignals.Count(signal => signal.IsWarm));
+        Assert.Equal(state.AccumulatorCheckpoint, restored.AccumulatorCheckpoint);
+    }
+
+    [Fact]
+    public void Explicit_four_hour_initialization_replaces_a_checkpoint_and_publishes_the_Tdi_window()
+    {
+        var state = new FuturesRsiSignalCommandState();
+        Assert.True(Command(TimeFrameType.FiveMinutes, 16, 13).Execute(state, Calendar).Success);
+        var command = Command(TimeFrameType.FiveMinutes, 48, 13) with
+        {
+            ForceHistoricalInitialization = true
+        };
+        command = MessagePackSerializer.Deserialize<StartFuturesRsiSignalCommand>(
+            MessagePackSerializer.Serialize(command));
+        Assert.True(command.Execute(state, Calendar).Success);
+        var started = state.Events.OfType<FuturesRsiSignalStartedEvent>().Last();
+        Assert.True(started.ResetForHistoricalSeed);
+        Assert.Equal(48, started.HistoricalSeedCount);
+        Assert.True(MessagePackSerializer.Deserialize<FuturesRsiSignalStartedEvent>(
+            MessagePackSerializer.Serialize(started)).ResetForHistoricalSeed);
+        Assert.Equal(34, state.FuturesRsiSignals.Count(signal => signal.IsWarm));
+        Assert.Equal(34, Assert.Single(state.Events.OfType<FuturesRsiSignalsGeneratedEvent>()).FuturesRsiSignals.Length);
+
+        var restored = new FuturesRsiSignalCommandState();
+        foreach (var fact in state.Events) restored.Apply(fact, false);
+        Assert.Equal(34, restored.FuturesRsiSignals.Count(signal => signal.IsWarm));
+        Assert.Equal(state.AccumulatorCheckpoint, restored.AccumulatorCheckpoint);
+    }
+
+    [Fact]
     public void Empty_or_gapped_history_applies_zero_accumulator_iterations()
     {
         var original = Command(TimeFrameType.OneHour);
@@ -84,10 +129,10 @@ public sealed class FuturesRsiHistoricalSeedTests
         var daily = RsiHistoricalSeedWindowModel.Create(TimeFrameType.Daily, 16, open, Calendar);
         Assert.All(daily, x => Assert.True(Calendar.IsTradingDate(x.ValueDate))); Assert.True(daily[^1].ValueDate < monday);
     }
-    static StartFuturesRsiSignalCommand Command(TimeFrameType frame)
+    static StartFuturesRsiSignalCommand Command(TimeFrameType frame, int count = 16, int period = 14)
     {
-        var entity = FuturesRsiSignalEntityId.Create("ES-SEED", new DateOnly(2026, 8, 25), frame, 14); var series = MarketSeriesIdentity.ForContract(entity.ContractId);
-        var bars = RsiHistoricalSeedWindowModel.Create(frame, 16, Cutoff, Calendar).Select((x, i) => new FuturesTradeSessionBarReadModel
+        var entity = FuturesRsiSignalEntityId.Create("ES-SEED", new DateOnly(2026, 8, 25), frame, period); var series = MarketSeriesIdentity.ForContract(entity.ContractId);
+        var bars = RsiHistoricalSeedWindowModel.Create(frame, count, Cutoff, Calendar).Select((x, i) => new FuturesTradeSessionBarReadModel
         {
             ContractId = entity.ContractId,
             MarketSeriesIdentity = series,
@@ -108,6 +153,6 @@ public sealed class FuturesRsiHistoricalSeedTests
             IsValid = true,
             CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate
         }).ToArray();
-        return MessagePackSerializer.Deserialize<StartFuturesRsiSignalCommand>(MessagePackSerializer.Serialize(new StartFuturesRsiSignalCommand(entity) { CommandId = Guid.NewGuid(), HistoricalSeed = new(16, Cutoff, bars, "test") }));
+        return MessagePackSerializer.Deserialize<StartFuturesRsiSignalCommand>(MessagePackSerializer.Serialize(new StartFuturesRsiSignalCommand(entity) { CommandId = Guid.NewGuid(), HistoricalSeed = new(count, Cutoff, bars, "test") }));
     }
 }

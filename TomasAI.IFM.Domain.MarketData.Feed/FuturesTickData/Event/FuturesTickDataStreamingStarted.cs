@@ -41,6 +41,17 @@ public static class FuturesTickDataStreamingStarted
             if (!runtime.IsRunning || runtime.ActiveValueDate != e.ValueDate)
                 throw new InvalidOperationException(
                     "The Databento watchdog must start and qualify the value-date runtime before a futures route is attached.");
+            if (p.MarketDataApi.CoreFuturesRoutesAreRuntimeOwned)
+            {
+                if (!p.MarketDataApi.IsTickDataStreamActive(e.Contract.ContractId))
+                    throw new InvalidOperationException(
+                        $"The supervised dataset worker has not admitted the futures tick route for {e.Contract.ContractId}.");
+                await eventApi.FuturesTickDataStreamingStartedCompleteAsync(e);
+                logger.LogInformationEvent(ServiceId,
+                    "{Source}: futures {ContractId} streaming is owned by the supervised dataset worker",
+                    source, e.Contract.ContractId);
+                return true;
+            }
             var owner = CreateOwner(e.EntityId, e.Contract.ContractId);
             _ = await p.MarketDataApi.StartStreamingFuturesTickDataAsync(
                 e.Contract.ContractId,

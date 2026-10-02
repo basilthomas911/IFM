@@ -15,7 +15,7 @@ public static class DisableParameterAssignment
     {
         ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
         context.AccessPolicy.Demand(ParameterCapability.Assign);
-        if (command.Scope is null || command.Reference is null || command.EntityId.AssignmentId != WorkflowParameterScopeModel.AssignmentId(command.Scope)) throw new ArgumentException("PARAM.IDENTITY_INVALID");
+        if (command.Scope is null || command.Reference is null || command.EntityId.AssignmentId != ParameterAssignmentPolicyModel.AssignmentId(command.Scope)) throw new ArgumentException("PARAM.IDENTITY_INVALID");
         var hash = ParameterCanonicalPayloadModel.Hash(JsonSerializer.Serialize(new { command.CommandName, command.EntityId, command.ExpectedRevision, command.Scope, command.Reference }));
         if (state.Operations.TryGetValue(command.CommandId, out var prior))
         { if (prior != hash) throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH"); return new ServiceOk<GuidResult>(new(command.CommandId)); }

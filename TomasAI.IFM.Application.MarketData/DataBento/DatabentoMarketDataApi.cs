@@ -189,6 +189,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         return Volatile.Read(ref _epoch)?.IsTickDataStreamActive(contractId) == true;
     }
 
+    public bool CoreFuturesRoutesAreRuntimeOwned => _currentValues is not null;
+
     private readonly IDatabentoMarketDataEpochFactory _epochFactory;
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _maximumLastPriceAge;

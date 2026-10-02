@@ -1,12 +1,14 @@
 using System.Collections.Immutable;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
+using MessagePack;
 using NATS.Client.Core;
 using NATS.Net;
 using NSubstitute;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Framework.Messaging.NatsJetStream.IntegratedTests;
 
@@ -29,10 +31,11 @@ public sealed class NatsRealtimeRoutingIntegrationTests
         var routedMailbox = new ActorMailboxId(
             ActorType.Realtime,
             $"FuturesItiSignalRealtime{suffix}");
+        var generation = Guid.NewGuid();
         var primaryReceived =
-            new TaskCompletionSource<ActorSubject>(TaskCreationOptions.RunContinuationsAsynchronously);
+            new TaskCompletionSource<ReceivedRealtime>(TaskCreationOptions.RunContinuationsAsynchronously);
         var routedReceived =
-            new TaskCompletionSource<ActorSubject>(TaskCreationOptions.RunContinuationsAsynchronously);
+            new TaskCompletionSource<ReceivedRealtime>(TaskCreationOptions.RunContinuationsAsynchronously);
         var primaryQueues = CreateAcceptingQueues(primaryReceived);
         var routedQueues = CreateAcceptingQueues(routedReceived);
         var primaryActor = CreateActor(source.ActorId, primaryQueues);
@@ -67,24 +70,34 @@ public sealed class NatsRealtimeRoutingIntegrationTests
                 ActorType.Realtime,
                 $"realtime-routing-{suffix}");
             await Task.Delay(250);
-            await using var client = new NatsClient(_url);
-            await client.ConnectAsync();
-
-            await client.PublishAsync(
-                source.ToString(),
-                new byte[128],
-                serializer: NatsDefaultSerializer<byte[]>.Default);
+            var producer = new NatsActorProducer(new NatsProducerOptions { Url = _url },
+                Substitute.For<ILogger>());
+            await producer.StartAsync(source.ActorId);
+            try
+            {
+                await producer.SendAsync<TaggedRealtimeEvent, ActorEntityId>(source,
+                    new TaggedRealtimeEvent
+                    {
+                        Subject = source,
+                        Id = Guid.NewGuid(),
+                        SourceDataset = "GLBX.MDP3",
+                        SourceGenerationId = generation
+                    });
+            }
+            finally { await producer.StopAsync(); }
 
             var received = await Task.WhenAll(
                     primaryReceived.Task,
                     routedReceived.Task)
                 .WaitAsync(TestTimeout);
 
-            received.Should().ContainSingle(subject => subject == source);
-            received.Should().ContainSingle(subject =>
-                subject.ActorId == routedMailbox
-                && subject.Verb == source.Verb
-                && subject.EntityId == source.EntityId);
+            received.Should().ContainSingle(item => item.Destination == source);
+            received.Should().ContainSingle(item =>
+                item.Destination.ActorId == routedMailbox
+                && item.Destination.Verb == source.Verb
+                && item.Destination.EntityId == source.EntityId);
+            received.Should().OnlyContain(item => item.Source == source
+                && item.Dataset == "GLBX.MDP3" && item.Generation == generation);
             await primaryQueues.Received(1).TryAdmitAsync(
                 Arg.Any<IActorMessage>(),
                 source,
@@ -101,7 +114,7 @@ public sealed class NatsRealtimeRoutingIntegrationTests
     }
 
     static IActorThreadQueues CreateAcceptingQueues(
-        TaskCompletionSource<ActorSubject> received)
+        TaskCompletionSource<ReceivedRealtime> received)
     {
         var queues = Substitute.For<IActorThreadQueues>();
         queues.TryAdmitAsync(
@@ -112,16 +125,38 @@ public sealed class NatsRealtimeRoutingIntegrationTests
             {
                 var message = callInfo.Arg<IActorMessage>();
                 var subject = callInfo.Arg<ActorSubject>();
-                message.Dispose();
                 if (message is NatsOwnedEventMessage)
-                    received.TrySetResult(subject);
+                    received.TrySetResult(new(subject, message.SourceSubject,
+                        message.SourceDataset, message.SourceGenerationId));
                 else
                     received.TrySetException(new InvalidOperationException(
                         $"Expected owned realtime payload, received {message.GetType().Name}."));
+                message.Dispose();
                 return ValueTask.FromResult(ActorAdmissionResult.AcceptedResult);
             });
         return queues;
     }
+
+    [MessagePackObject]
+    public sealed record TaggedRealtimeEvent : IEvent<ActorEntityId>, IRealtimeSourceGeneration
+    {
+        [Key(0)] public ActorSubject Subject { get; init; }
+        [Key(1)] public Guid Id { get; init; }
+        [Key(2)] public ActorEntityId EntityId { get; init; } = ActorEntityId.Default;
+        [Key(3)] public long EventId { get; init; }
+        [Key(4)] public Guid CommandId { get; init; }
+        [Key(5)] public string AggregateId { get; init; } = string.Empty;
+        [Key(6)] public string EventSource { get; init; } = string.Empty;
+        [Key(7)] public DateTime ReceivedOn { get; init; }
+        [IgnoreMember] public string SourceDataset { get; init; } = string.Empty;
+        [IgnoreMember] public Guid SourceGenerationId { get; init; }
+        [IgnoreMember] public string UserName => string.Empty;
+        [IgnoreMember] public string EventName => nameof(TaggedRealtimeEvent);
+        [IgnoreMember] public EventType EventType => EventType.DomainEvent;
+    }
+
+    private sealed record ReceivedRealtime(ActorSubject Destination, ActorSubject Source,
+        string? Dataset, Guid Generation);
 
     static IActor CreateActor(
         ActorMailboxId mailboxId,

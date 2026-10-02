@@ -67,7 +67,8 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
         ILogger<ActorSupervisor> logger,
         ActorAdmissionOptions admissionOptions,
         ActorAdmissionController admissionController,
-        ActorInformationLoggingPolicy? informationLoggingPolicy = null)
+        ActorInformationLoggingPolicy? informationLoggingPolicy = null,
+        IRealtimeSourceAdmission? realtimeSourceAdmission = null)
     {
         _container = IsArgumentNull.Set(container);
         _logger = logger ?? NullLogger<ActorSupervisor>.Instance;
@@ -87,7 +88,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
 
         // Initialize thread pool with one thread per logical processor.
         //var pool = new ActorThreadPool(this, _logger);
-        var pool = new ActorThreadPoolV2(this, _logger, informationLoggingPolicy);
+        var pool = new ActorThreadPoolV2(this, _logger, informationLoggingPolicy, realtimeSourceAdmission);
         pool.Initialize(Environment.ProcessorCount * 2);
         _threadPool = pool;
     }

@@ -42,6 +42,12 @@ public sealed record EventProjectorReliabilityOptions
     /// <summary>Gets the bounded capacity of each projector's process-local non-durable queue.</summary>
     public int NonDurableQueueCapacity { get; init; } = 8_192;
 
+    /// <summary>
+    /// When set, only these projectors may use durable JetStream replay. An empty list
+    /// makes every projector transient. Null preserves descriptor defaults.
+    /// </summary>
+    public string[]? DurableProjectorAllowlist { get; init; }
+
     public EventProjectorReliabilityOptions Validate()
     {
         ValidateRange(RecoveryBatchSize, 1, 2_048, nameof(RecoveryBatchSize));
@@ -50,6 +56,10 @@ public sealed record EventProjectorReliabilityOptions
         ValidateRange(OutboxBatchSize, 1, 2_048, nameof(OutboxBatchSize));
         ValidateRange(MaximumOutboxAttempts, 1, 100, nameof(MaximumOutboxAttempts));
         ValidateRange(NonDurableQueueCapacity, 1, 1_048_576, nameof(NonDurableQueueCapacity));
+        if (DurableProjectorAllowlist is { } names
+            && (names.Any(string.IsNullOrWhiteSpace)
+                || names.Length != names.Distinct(StringComparer.Ordinal).Count()))
+            throw new InvalidOperationException("Durable projector names must be non-empty and unique.");
         if (TransactionalOutboxEnabled && !FencedExecutionEnabled)
             throw new InvalidOperationException("Transactional outbox dispatch requires fenced execution.");
         if (InitialReplayDelay <= TimeSpan.Zero)

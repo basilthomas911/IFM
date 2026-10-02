@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Diagnostics.HealthChecks;
 using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
@@ -14,7 +15,8 @@ public sealed class MarketDataRuntimeHealthCheck(
     DatabentoMarketDataApi marketDataApi,
     IFuturesMarketSessionAuthority marketSessionAuthority,
     IFuturesExchangeBusinessCalendar businessCalendar,
-    TimeProvider timeProvider) : IHealthCheck
+    TimeProvider timeProvider,
+    DatasetWorkerCurrentValues? supervisedValues = null) : IHealthCheck
 {
     public Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
@@ -193,10 +195,11 @@ public sealed class MarketDataRuntimeHealthCheck(
                 : string.Empty;
             data[$"{key}RolloverSet"] = string.Join(",", set);
         }
-        var infrastructureReady = databentoFeedUp
-            && health.Running
-            && epoch is { Running: true, AggregationRunning: true, LastPriceStoreActive: true }
-            && epoch.Value.ConfiguredContracts > 0;
+        var infrastructureReady = databentoFeedUp && health.Running
+            && (supervisedValues is not null
+                ? supervisedValues.GetStatus() is { IsRunning: true, IsFeedUp: true }
+                : epoch is { Running: true, AggregationRunning: true, LastPriceStoreActive: true }
+                  && epoch.Value.ConfiguredContracts > 0);
 
         var currentContractsLive = AddRoute("ES") & AddRoute("VX");
         data["currentContractsLive"] = currentContractsLive;
@@ -284,6 +287,9 @@ public sealed class MarketDataRuntimeHealthCheck(
 
             // Only explicitly owned routes are monitored. Live yellow/red degrade
             // market-data readiness; off-hours degradation leaves ownership intact.
+            if (supervisedValues is not null)
+                return maturityEligible && routeActive
+                    && supervisedValues.GetFuturesMarketHealth(contract.ContractId) is { Running: true, Healthy: true };
             return maturityEligible
                 && (!routeActive
                     || status is { ContractConfigured: true, ContractRunning: true }

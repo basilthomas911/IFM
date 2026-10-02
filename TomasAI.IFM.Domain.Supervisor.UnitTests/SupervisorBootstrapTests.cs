@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using TomasAI.IFM.Domain.Supervisor.Lifecycle;
-using TomasAI.IFM.Domain.Supervisor.Query.Actor;
+using TomasAI.IFM.Domain.Supervisor.Shared.Service.Lifecycle;
+using TomasAI.IFM.Domain.Supervisor.Health.Query.Actor;
 using TomasAI.IFM.Domain.Supervisor.Shared.Enums;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;

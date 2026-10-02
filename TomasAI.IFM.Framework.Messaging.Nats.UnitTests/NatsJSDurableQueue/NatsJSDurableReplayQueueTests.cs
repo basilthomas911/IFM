@@ -150,7 +150,7 @@ public sealed class NatsJSDurableReplayQueueTests
     }
 
     [Fact]
-    public async Task Typed_deferral_naks_process_without_consuming_replay_attempts_or_throwing()
+    public async Task Typed_deferral_moves_to_replay_and_releases_process_admission()
     {
         var transport = new FakeNatsJSDurableQueueTransport();
         await using var queue = CreateQueue(transport);
@@ -167,9 +167,11 @@ public sealed class NatsJSDurableReplayQueueTests
 
         await EventuallyAsync(() => calls == 3);
         var state = transport.Queues["projector"];
-        state.ReplayPublishCount.Should().Be(0);
-        state.LastProcessMessage!.NakCount.Should().Be(2);
+        state.ReplayPublishCount.Should().Be(1);
+        state.LastProcessMessage!.NakCount.Should().Be(0);
         state.LastProcessMessage.AckCount.Should().Be(1);
+        state.LastReplayMessage!.NakCount.Should().Be(1);
+        state.LastReplayMessage.AckCount.Should().Be(1);
     }
 
     [Fact]

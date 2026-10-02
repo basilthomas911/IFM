@@ -77,6 +77,13 @@ try
         switch (command.Kind)
         {
             case DatasetWorkerMessageKind.StartManifest:
+                // Protocol-only fault fixture: exercise the parent's startup deadline without provider I/O.
+                if (values.TryGetValue("--startup-delay-ms", out var delayText))
+                {
+                    var delay = int.Parse(delayText);
+                    if (delay is < 0 or > 60000) throw new ArgumentOutOfRangeException(nameof(delay));
+                    await Task.Delay(delay);
+                }
                 current = command.Manifest!;
                 generation = Guid.NewGuid();
                 var launch = new ProcessStartInfo(Environment.ProcessPath!)

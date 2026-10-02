@@ -6,7 +6,6 @@ public interface IParameterRuntimeSnapshot
 {
     bool Enabled { get; }
     Guid? RunId { get; }
-    ParameterSignalStartupPlan? Plan { get; }
     void Apply(ParameterStartupRun run);
     void Clear();
     ParameterRuntimeResolution Resolve(string workflowDefinitionId, TimeFrameType horizon);

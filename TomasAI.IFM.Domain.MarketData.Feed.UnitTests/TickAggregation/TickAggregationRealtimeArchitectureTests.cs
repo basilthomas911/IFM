@@ -1,4 +1,5 @@
 using FluentAssertions;
+using MessagePack;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
@@ -14,6 +15,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime.Projector;
+using TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
@@ -21,6 +23,67 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.TickAggregation;
 
 public sealed class TickAggregationRealtimeArchitectureTests
 {
+    [Fact]
+    public void Source_generation_is_restored_from_transport_headers_after_tick_payload_round_trip()
+    {
+        var generation = Guid.NewGuid();
+        var changed = new FuturesTickTradeDataChangedEvent
+        {
+            EntityId = new TickDataEntityId("ES20260918", new DateOnly(2026, 9, 10), AssetTypeId.Futures),
+            Dataset = "GLBX.MDP3",
+            SourceDataset = "GLBX.MDP3", SourceGenerationId = generation
+        };
+        var headers = RealtimeSourceGenerationHeaders.Add(null, changed);
+        var decoded = MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(
+            MessagePackSerializer.Serialize(changed));
+        decoded.SourceGenerationId.Should().BeEmpty();
+        RealtimeSourceGenerationHeaders.TryRead(headers, out var dataset, out var restoredGeneration)
+            .Should().BeTrue();
+
+        var inserted = decoded.RestoreSource(dataset, restoredGeneration).ToInsertedEvent();
+        inserted.SourceDataset.Should().Be("GLBX.MDP3");
+        inserted.Dataset.Should().Be(inserted.SourceDataset);
+        inserted.SourceGenerationId.Should().Be(generation);
+        MessagePackSerializer.Deserialize<FuturesTickTradeDataInsertedEvent>(
+            MessagePackSerializer.Serialize(inserted)).SourceGenerationId.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Projector_evidence_is_recorded_only_after_expected_generation_database_write()
+    {
+        var generation = Guid.NewGuid();
+        var marketDataDb = Substitute.For<IMarketDataDbContext>();
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        dbFactory.MarketDataDb.Returns(marketDataDb);
+        var progress = new TickStorageGenerationEvidence();
+        progress.Arm(new("GLBX.MDP3", generation));
+        var projector = new TickAggregationRealtimeProjector(dbFactory,
+            Substitute.For<ILogger<TickAggregationRealtimeProjector>>(),
+            new LivePipelineEvidence(TimeProvider.System), progress);
+        var descriptor = projector.ProjectionDescriptors.Single(x =>
+            x.SourceEventType == typeof(FuturesTickTradeDataInsertedEvent));
+        var matching = new FuturesTickTradeDataInsertedEvent
+        { Dataset = "GLBX.MDP3", SourceDataset = "GLBX.MDP3", SourceGenerationId = generation };
+        var stale = matching with { SourceGenerationId = Guid.NewGuid() };
+        var mismatchedDataset = matching with { Dataset = "OTHER" };
+
+        await descriptor.ApplyAsync(stale, CancellationToken.None);
+        progress.Capture().CompletedWrites.Should().Be(0);
+        await descriptor.ApplyAsync(mismatchedDataset, CancellationToken.None);
+        progress.Capture().CompletedWrites.Should().Be(0);
+        await descriptor.ApplyAsync(matching, CancellationToken.None);
+        progress.Capture().CompletedWrites.Should().Be(1);
+        progress.Capture().LastCompletedUtc.Should().NotBeNull();
+
+        marketDataDb.InsertTickTradeDataAsync(matching)
+            .Returns(Task.FromException(new InvalidOperationException("storage unavailable")));
+        var failed = async () => await descriptor.ApplyAsync(matching, CancellationToken.None);
+        await failed.Should().ThrowAsync<InvalidOperationException>();
+        progress.Capture().CompletedWrites.Should().Be(1);
+        progress.Disarm();
+        progress.Capture().CompletedWrites.Should().Be(0);
+    }
+
     [Fact]
     public void Realtime_projector_has_one_storage_descriptor_per_normalized_tick_kind()
     {

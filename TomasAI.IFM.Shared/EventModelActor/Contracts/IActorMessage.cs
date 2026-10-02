@@ -12,6 +12,14 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 /// which identifies  the actor or entity associated with the message.</remarks>
 public interface IActorMessage : IDisposable
 {
+    /// <summary>Original NATS subject before realtime fanout changes the mailbox destination.</summary>
+    ActorSubject SourceSubject => Subject;
+
+    /// <summary>Supervised worker dataset carried outside the business-event payload.</summary>
+    string? SourceDataset => null;
+
+    /// <summary>Supervised worker generation carried outside the business-event payload.</summary>
+    Guid SourceGenerationId => Guid.Empty;
     /// <summary>
     /// Gets whether the transport supplied a reply subject that remains valid
     /// after the request payload is released.

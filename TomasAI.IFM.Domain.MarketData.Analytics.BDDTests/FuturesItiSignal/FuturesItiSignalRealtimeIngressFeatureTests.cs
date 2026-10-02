@@ -32,7 +32,6 @@ public sealed class FuturesItiSignalRealtimeIngressFeatureTests
             .Returns(new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid())));
 
         var handled = await Event().ExecuteAsync(context);
-        await context.GenerationGate.WaitForIdleAsync();
 
         handled.Should().BeTrue();
         requested.Should().NotBeNull();
@@ -68,7 +67,6 @@ public sealed class FuturesItiSignalRealtimeIngressFeatureTests
         telemetry = new(TimeProvider.System);
         context.MarketDataApi.Returns(market);
         context.Telemetry.Returns(telemetry);
-        context.GenerationGate.Returns(new FuturesItiSignalGenerationGate());
         context.HealthEvidence.Returns(new LivePipelineEvidence(TimeProvider.System));
         context.Logger.Returns(Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>());
         market.TryGetOnTheRunFuturesContract("ES", out Arg.Any<FuturesContractV3ReadModel>()!)

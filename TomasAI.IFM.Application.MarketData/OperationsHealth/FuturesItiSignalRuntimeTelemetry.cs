@@ -16,15 +16,13 @@ public enum FuturesItiRuntimeOutcome : byte
     CompletionHandled = 10,
     WorkflowRequested = 11,
     Failed = 12,
-    RouteDetached = 13,
-    BusySkipped = 14
+    RouteDetached = 13
 }
 
 /// <summary>Immutable bounded snapshot of the live Futures ITI execution path.</summary>
 public readonly record struct FuturesItiRuntimeSnapshot(
     long MarketPriceEvents,
     long FilteredEvents,
-    long BusySkippedEvents,
     long EligibleEsTradeEvents,
     long CommandRequests,
     long AcceptedCommands,
@@ -52,7 +50,6 @@ public sealed class FuturesItiSignalRuntimeTelemetry(TimeProvider timeProvider)
 {
     long marketPriceEvents;
     long filteredEvents;
-    long busySkippedEvents;
     long eligibleEsTradeEvents;
     long commandRequests;
     long acceptedCommands;
@@ -91,13 +88,6 @@ public sealed class FuturesItiSignalRuntimeTelemetry(TimeProvider timeProvider)
     public void RecordFiltered(string reason)
     {
         Interlocked.Increment(ref filteredEvents);
-    }
-
-    /// <summary>Records a realtime tick ignored because one Generate operation is already active.</summary>
-    public void RecordBusySkipped()
-    {
-        Interlocked.Increment(ref busySkippedEvents);
-        SetOutcome(FuturesItiRuntimeOutcome.BusySkipped, "Generate operation already active.");
     }
 
     /// <summary>Records an eligible current ES trade that requires Daily ITI evaluation.</summary>
@@ -189,7 +179,6 @@ public sealed class FuturesItiSignalRuntimeTelemetry(TimeProvider timeProvider)
     public FuturesItiRuntimeSnapshot GetSnapshot() => new(
         Volatile.Read(ref marketPriceEvents),
         Volatile.Read(ref filteredEvents),
-        Volatile.Read(ref busySkippedEvents),
         Volatile.Read(ref eligibleEsTradeEvents),
         Volatile.Read(ref commandRequests),
         Volatile.Read(ref acceptedCommands),

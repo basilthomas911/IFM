@@ -1,13 +1,8 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Actor;
-using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 
@@ -24,40 +19,32 @@ public static class MarketDataFeedResetComplete
     static string ServiceId { get; } = default!;
 
     /// <summary>
-    /// 
+    /// Announces a completed hard recovery. The recovery pipeline has already restored and
+    /// qualified worker subscriptions, actors, and durable publication; this handler must not
+    /// start another legacy in-process stream or lifecycle operation.
     /// </summary>
-    /// <param name="e"></param>
-    /// <param name="p"></param>
-    /// <returns></returns>
+    /// <param name="e">The correlated event emitted only after hard recovery succeeds.</param>
+    /// <param name="context">The receiving actor context.</param>
+    /// <param name="eventApi">The context used to publish the final reset notification.</param>
+    /// <param name="p">The actor's operational notification dependencies.</param>
+    /// <param name="logger">The actor logger used for notification failures.</param>
+    /// <returns>Whether the final reset notification was published.</returns>
     public static async ValueTask<bool> ExecuteAsync(
         this MarketDataFeedResetCompleteEvent e,
         IEventActorContext context,
-        IEventActorContext commandApi,
         IEventActorContext eventApi,
         MarketDataFeedEventParameters p, ILogger<MarketDataFeedEventActor> logger)
     {
         var source = $"MarketDataFeedResetCompleteEvent for EntityId: {e.EntityId}";
         try
         {
-            foreach (var futuresContract in e.FuturesContracts)
-            {
-                await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, $"Reset streaming of Futures {futuresContract.ContractId}...");
-                logger.LogInformationEvent(ServiceId, "{Source}: reset streaming of Futures {ContractId}...", source, futuresContract.ContractId);
-                await Task.Delay(TimeSpan.FromSeconds(2));
-                var entityId = new FuturesDataId(futuresContract.ContractId, e.ValueDate);
-                await commandApi.StartFuturesTickDataStreamingAsync(e, futuresContract, entityId);
-                await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, $"Reset streaming of Futures {futuresContract.ContractId} started");
-                logger.LogInformationEvent(ServiceId, "{Source}: reset streaming of Futures {ContractId} started", source, futuresContract.ContractId);
-            }
-            var streamingEntityId = new FuturesBarDataStreamingId(e.ValueDate);
-            await commandApi.StartFuturesBarDataStreamingAsync(e, streamingEntityId);
-            await Task.Delay(TimeSpan.FromSeconds(1));
+            // Recovery owns restoration; completion only notifies its consumers.
             await eventApi.SendResetStreamingEventAsync(e);
             return true;
         }
         catch (Exception ex)
         {
-            logger.LogErrorEvent(ServiceId, ex, "{Source}: data feed reset complete failed");
+            logger.LogErrorEvent(ServiceId, ex, "{Source}: data feed reset notification failed", source);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, -1, ex.GetErrorMessage());
         }
         return false;

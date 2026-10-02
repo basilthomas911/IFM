@@ -409,9 +409,9 @@ public class NatsActorConsumer(
                 if (msg.Data.Memory.IsEmpty)
                     continue;
 
-                payload = new NatsSharedEventPayload(msg.Data, ActorTrace.Extract(msg.Headers));
-                ownerTransferred = true;
                 var source = msg.Subject.ToSubject();
+                payload = new NatsSharedEventPayload(msg.Data, ActorTrace.Extract(msg.Headers), source, msg.Headers);
+                ownerTransferred = true;
                 var destinations = BuildPubSubDestinations(_supervisor, _actorType, source);
                 if (destinations.Count == 0)
                 {
@@ -513,11 +513,11 @@ public class NatsActorConsumer(
                 }
                 catch (OperationCanceledException ex)
                 {
-                    _logger.LogErrorEvent(_serviceId, ex, "NATS {ActorType} consumer cancellation requested, stopping message loop.", _actorType);
+                    _logger.LogErrorEvent(_serviceId, ex, "NATS consumer cancellation requested while processing {Subject}; stopping message loop.", msg.Subject);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogErrorEvent(_serviceId, ex, "NATS {ActorType} consumer failed to process message. ", _actorType);
+                    _logger.LogErrorEvent(_serviceId, ex, "NATS consumer failed to process message for {Subject}.", msg.Subject);
                 }
             }
             if (_logger.IsEnabled(LogLevel.Debug))
@@ -631,7 +631,7 @@ public class NatsActorConsumer(
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogErrorEvent(_serviceId, ex, "NATS {ActorType} consumer failed to process message. ", _actorType);
+                    _logger.LogErrorEvent(_serviceId, ex, "NATS consumer failed to process message for {Subject}.", msg.Subject);
                 }
             }
             if (_logger.IsEnabled(LogLevel.Debug))

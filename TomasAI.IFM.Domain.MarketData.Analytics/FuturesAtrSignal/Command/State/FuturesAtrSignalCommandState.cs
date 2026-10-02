@@ -32,12 +32,22 @@ public class FuturesAtrSignalCommandState
     {
         return domainEvent switch
         {
-            FuturesAtrSignalStartedEvent => true,
+            FuturesAtrSignalStartedEvent e => Reset(e.ResetForHistoricalSeed),
             FuturesAtrSignalStoppedEvent => true,
             FuturesAtrSignalGeneratedEvent e => On(e.CalculationState, e.FuturesAtrSignal),
             FuturesAtrDailySignalGeneratedEvent e => On(e.CalculationState, e.FuturesAtrSignal),
             _ => false
         };
+
+        bool Reset(bool reset)
+        {
+            if (reset)
+            {
+                _calculationState = null;
+                _atrSignal = null;
+            }
+            return true;
+        }
 
         bool On(FuturesAtrAccumulatorCheckpoint? calculationState, FuturesAtrSignalReadModel? signal)
         {

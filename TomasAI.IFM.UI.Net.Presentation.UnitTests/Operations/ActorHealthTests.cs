@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.UI.Net.Services.Operations;
 
@@ -23,7 +25,7 @@ public sealed class ActorHealthTests
             now, SupervisorActorHealthStatus.Yellow, 1, 1, 1, 3, [actor], [], []);
         using var client = new HttpClient(new Reply(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = JsonContent.Create(backend)
+            Content = JsonContent.Create(backend, options: new JsonSerializerOptions(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } })
         }));
         using var service = new ActorHealthQueryService(client, new Uri("http://localhost/api/actor-health"));
 
@@ -31,6 +33,9 @@ public sealed class ActorHealthTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(3, result.Value!.QueuedMessageCount);
+        Assert.Equal(SupervisorActorHealthStatus.Yellow, result.Value.OverallStatus);
+        Assert.Equal(SupervisorActorLifecycleState.Running, result.Value.Actors[0].LifecycleState);
+        Assert.Equal(ActorType.Event, result.Value.Actors[0].ActorId.ActorType);
         Assert.Equal("OrderProjector", Assert.Single(result.Value.Actors).ActorId.Name);
         Assert.Equal("fund-1", Assert.Single(result.Value.Actors[0].Mailboxes).ThreadId.EntityId);
         Assert.Equal("projection failed", result.Value.Actors[0].Mailboxes[0].LastError);

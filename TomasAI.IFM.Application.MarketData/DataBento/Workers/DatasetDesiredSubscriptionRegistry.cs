@@ -155,6 +155,31 @@ public sealed class DatasetSubscriptionManifest
     }
 }
 
+/// <summary>A coherent, time-stamped local input to one recovery episode.</summary>
+public sealed record DatasetRecoveryManifestSnapshot
+{
+    public DateOnly ValueDate { get; }
+    public DateTimeOffset CapturedAtUtc { get; }
+    public IReadOnlyList<string> RequiredDatasets { get; }
+    public IReadOnlyList<DatasetSubscriptionManifest> Manifests { get; }
+
+    public DatasetRecoveryManifestSnapshot(DateOnly valueDate, DateTimeOffset capturedAtUtc,
+        IReadOnlyList<DatasetSubscriptionManifest> manifests)
+    {
+        ArgumentNullException.ThrowIfNull(manifests);
+        if (valueDate == default || capturedAtUtc == default
+            || manifests.Count is < 1 or > DatasetDesiredSubscriptionRegistry.MaximumDatasets
+            || manifests.Any(item => item is null || item.ValueDate != valueDate)
+            || manifests.Select(item => item.Dataset).Distinct(StringComparer.Ordinal).Count() != manifests.Count)
+            throw new ArgumentException("Recovery requires a coherent, bounded manifest snapshot.", nameof(manifests));
+        ValueDate = valueDate;
+        CapturedAtUtc = capturedAtUtc;
+        var ordered = manifests.OrderBy(item => item.Dataset, StringComparer.Ordinal).ToArray();
+        Manifests = Array.AsReadOnly(ordered);
+        RequiredDatasets = Array.AsReadOnly(ordered.Select(item => item.Dataset).ToArray());
+    }
+}
+
 /// <summary>
 /// Host-owned desired subscriptions. Only the current value date is retained for each dataset,
 /// so a long-running host cannot accumulate historical manifests. Revisions remain monotonic
@@ -167,6 +192,52 @@ public sealed class DatasetDesiredSubscriptionRegistry
     readonly Dictionary<string, DatasetSubscriptionManifest> manifests = new(StringComparer.Ordinal);
     readonly Dictionary<string, DatasetSubscriptionContract[]> core = new(StringComparer.Ordinal);
     readonly Dictionary<string, DatasetSubscriptionContract[]> durable = new(StringComparer.Ordinal);
+
+    /// <summary>Atomically captures required datasets, revisions, mappings and capture time without external I/O.</summary>
+    public DatasetRecoveryManifestSnapshot CaptureRecoverySnapshot(DateOnly valueDate,
+        IReadOnlyCollection<string> requiredDatasets, TimeProvider timeProvider)
+    {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(requiredDatasets);
+        if (valueDate == default || requiredDatasets.Count is < 1 or > MaximumDatasets)
+            throw new ArgumentException("Recovery requires a value date and bounded required dataset set.");
+        lock (gate)
+        {
+            var unique = new HashSet<string>(requiredDatasets, StringComparer.Ordinal);
+            if (unique.Count != requiredDatasets.Count)
+                throw new ArgumentException("Required datasets must be unique.", nameof(requiredDatasets));
+            var result = new DatasetSubscriptionManifest[unique.Count];
+            var index = 0;
+            foreach (var dataset in unique.Order(StringComparer.Ordinal))
+            {
+                DatasetSubscriptionManifest.ValidateText(dataset, 64, nameof(requiredDatasets));
+                if (!manifests.TryGetValue(dataset, out var manifest) || manifest.ValueDate != valueDate)
+                    throw new InvalidOperationException($"No current recovery manifest for {dataset} on {valueDate}.");
+                result[index++] = manifest;
+            }
+            return new DatasetRecoveryManifestSnapshot(valueDate, timeProvider.GetUtcNow(), result);
+        }
+    }
+
+    /// <summary>Captures every current dataset for the active value date under one registry lock.</summary>
+    public DatasetRecoveryManifestSnapshot CaptureCurrentRecoverySnapshot(DateOnly valueDate,
+        TimeProvider timeProvider)
+    {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        if (valueDate == default) throw new ArgumentOutOfRangeException(nameof(valueDate));
+        lock (gate)
+        {
+            var current = manifests.Values.Where(item => item.ValueDate == valueDate).ToArray();
+            return new DatasetRecoveryManifestSnapshot(valueDate, timeProvider.GetUtcNow(), current);
+        }
+    }
+
+    /// <summary>Captures a complete value-date-matched local recovery set without external I/O.</summary>
+    public IReadOnlyList<DatasetSubscriptionManifest> CaptureRecoverySet(
+        DateOnly valueDate, IReadOnlyCollection<string> requiredDatasets)
+    {
+        return CaptureRecoverySnapshot(valueDate, requiredDatasets, TimeProvider.System).Manifests;
+    }
 
     public DatasetSubscriptionManifest Set(
         string dataset,

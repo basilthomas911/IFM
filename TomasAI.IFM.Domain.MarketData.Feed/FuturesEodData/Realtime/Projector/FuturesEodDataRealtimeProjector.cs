@@ -43,6 +43,7 @@ public sealed class FuturesEodDataRealtimeProjector(
 
     public override string ActorName => FuturesEodDataRealtimeActor.ActorName;
     public override string ProjectorName => nameof(FuturesEodDataRealtimeProjector);
+    protected override TimeSpan SlowStageLogThreshold => TimeSpan.FromMilliseconds(250);
     public override IReadOnlyCollection<RealtimeProjectionDescriptor> ProjectionDescriptors =>
         _descriptors;
     public override IReadOnlyCollection<Type> ProjectedEventTypes =>

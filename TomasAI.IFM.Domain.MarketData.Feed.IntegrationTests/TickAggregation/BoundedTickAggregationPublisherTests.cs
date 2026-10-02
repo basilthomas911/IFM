@@ -170,8 +170,8 @@ public sealed class BoundedTickAggregationPublisherTests
         }
         finally { release.TrySetResult(); }
         await Until(() => !publisher.GetSnapshot().UncontainedSend);
-        await publisher.StartAsync();
-        Assert.True(publisher.IsRunning);
+        await Assert.ThrowsAsync<RealtimeTickPublisherUnavailableException>(() => publisher.StartAsync().AsTask());
+        Assert.False(publisher.IsRunning);
         await producer.Received(1).SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(
             Arg.Any<ActorSubject>(), Arg.Any<FuturesMarketPriceUpdatedRealtimeEvent>(), Arg.Any<CancellationToken>());
     }

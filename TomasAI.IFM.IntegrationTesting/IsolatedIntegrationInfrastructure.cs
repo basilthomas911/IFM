@@ -15,6 +15,10 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
     const string RedisImage = "redis:latest";
     const string NatsImage = "nats:2.12.0-alpine";
     const string CqlImage = "cassandra:5.0";
+    const string ScyllaImage = "scylladb/scylla:6.2.2";
+
+    readonly bool useScylla = string.Equals(Environment.GetEnvironmentVariable("IFM_TEST_CQL_ENGINE"),
+        "Scylla", StringComparison.OrdinalIgnoreCase);
 
     readonly string scope;
     readonly string runId = Guid.NewGuid().ToString("N")[..12];
@@ -94,9 +98,14 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
             if (scope == "domainactors")
                 await DockerAsync(["run", "--detach", "--name", AuxiliaryNatsContainer, "--label", $"ifm.integration.run={runId}",
                     "--publish", "127.0.0.1::4222", NatsImage, "--jetstream"]);
-            await DockerAsync(["run", "--detach", "--name", CqlContainer, "--label", $"ifm.integration.run={runId}",
-                "--publish", "127.0.0.1::9042", "--memory", "2g", "--env", "MAX_HEAP_SIZE=512M",
-                "--env", "HEAP_NEWSIZE=100M", CqlImage]);
+            if (useScylla)
+                await DockerAsync(["run", "--detach", "--name", CqlContainer, "--label", $"ifm.integration.run={runId}",
+                    "--publish", "127.0.0.1::9042", "--memory", "3g", ScyllaImage,
+                    "--smp", "1", "--memory", "1G", "--overprovisioned", "1", "--developer-mode", "1"]);
+            else
+                await DockerAsync(["run", "--detach", "--name", CqlContainer, "--label", $"ifm.integration.run={runId}",
+                    "--publish", "127.0.0.1::9042", "--memory", "2g", "--env", "MAX_HEAP_SIZE=512M",
+                    "--env", "HEAP_NEWSIZE=100M", CqlImage]);
 
             PostgresPort = await MappedPortAsync(PostgresContainer, "5432/tcp");
             var redisPort = await MappedPortAsync(RedisContainer, "6379/tcp");
@@ -196,6 +205,7 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
     async Task WaitForCqlAsync()
     {
         var deadline = DateTimeOffset.UtcNow.AddMinutes(2);
+        Exception? lastFailure = null;
         while (DateTimeOffset.UtcNow < deadline)
         {
             try
@@ -203,13 +213,14 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
                 await CqlAsync("SELECT now() FROM system.local;");
                 return;
             }
-            catch (InvalidOperationException)
+            catch (InvalidOperationException error)
             {
+                lastFailure = error;
                 await Task.Delay(500);
             }
         }
 
-        throw new TimeoutException("The disposable CQL node did not become ready.");
+        throw new TimeoutException("The disposable CQL node did not become ready.", lastFailure);
     }
 
     async Task CqlAsync(string cql)

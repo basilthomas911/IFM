@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts;
@@ -25,6 +26,10 @@ public interface IFuturesEodDataRealtimeContext : IRealtimeActorContext<FuturesE
     IBlackboardService BlackboardService { get; }
     /// <summary>Gets the StatusConsoleWriter service.</summary>
     IStatusConsoleWriter StatusConsoleWriter { get; }
+    /// <summary>Enables the bounded, process-local trade handoff for basic latency testing.</summary>
+    bool EnableAsyncTradeWorker { get; }
+    /// <summary>Gets the per-contract worker and trade-cache state.</summary>
+    FuturesEodTradeDispatchState TradeDispatch { get; }
 }
 
 /// <summary>Provides the typed runtime context used by <see cref="FuturesEodDataRealtimeActor"/>.</summary>
@@ -37,7 +42,8 @@ public sealed class FuturesEodDataRealtimeContext : EventActorContext, IRealtime
         IRealtimeProjector<FuturesEodDataRealtimeActor> projector,
         IMarketDataApi marketDataApi,
         IBlackboardService blackboardService,
-        IStatusConsoleWriter statusConsoleWriter)
+        IStatusConsoleWriter statusConsoleWriter,
+        IConfiguration? configuration = null)
         : base(supervisor, new ActorMailboxId(ActorType.Realtime, FuturesEodDataRealtimeActor.ActorName))
     {
         Supervisor = IsArgumentNull.Set(supervisor);
@@ -46,6 +52,8 @@ public sealed class FuturesEodDataRealtimeContext : EventActorContext, IRealtime
         MarketDataApi = IsArgumentNull.Set(marketDataApi);
         BlackboardService = IsArgumentNull.Set(blackboardService);
         StatusConsoleWriter = IsArgumentNull.Set(statusConsoleWriter);
+        EnableAsyncTradeWorker = bool.TryParse(
+            configuration?["MarketData:FuturesEodAsyncTradeWorker"], out var enabled) && enabled;
     }
     /// <inheritdoc/>
     public IActorSupervisor Supervisor { get; }
@@ -59,5 +67,9 @@ public sealed class FuturesEodDataRealtimeContext : EventActorContext, IRealtime
     public IBlackboardService BlackboardService { get; }
     /// <inheritdoc/>
     public IStatusConsoleWriter StatusConsoleWriter { get; }
+    /// <inheritdoc/>
+    public bool EnableAsyncTradeWorker { get; }
+    /// <inheritdoc/>
+    public FuturesEodTradeDispatchState TradeDispatch { get; } = new();
 }
 

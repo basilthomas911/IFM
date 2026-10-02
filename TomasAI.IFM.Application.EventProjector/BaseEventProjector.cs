@@ -1048,6 +1048,13 @@ public abstract class BaseEventProjector<TActor>(
                 throw new InvalidOperationException(
                     $"Projector '{ProjectorName}' event types do not match its immutable descriptors.");
 
+            if (_reliabilityOptions.DurableProjectorAllowlist is { } durableNames
+                && !durableNames.Contains(ProjectorName, StringComparer.Ordinal))
+                descriptors = descriptors.Select(static descriptor => descriptor with
+                {
+                    UseDurableReplay = false
+                }).ToArray();
+
             current = descriptors.ToFrozenDictionary(descriptor => descriptor.SourceEventType);
             Volatile.Write(ref _descriptorMap, current);
             return current;

@@ -199,7 +199,7 @@ public static class FuturesItiSignalGeneratedComplete
                 "The ITI Generate completion identity does not match its signal snapshot.");
         }
 
-        var triggerId = completed.Id == Guid.Empty
+        var triggerId = completed.CommandId == Guid.Empty
             ? completed.CommandId
             : completed.Id;
         if (triggerId == Guid.Empty)

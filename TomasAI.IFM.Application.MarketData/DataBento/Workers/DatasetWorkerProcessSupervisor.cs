@@ -332,7 +332,8 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
     {
         manifest?.Validate();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(timeout ?? options.WorkerCommandTimeout);
+        var commandTimeout = timeout ?? options.WorkerCommandTimeout;
+        deadline.CancelAfter(commandTimeout);
         var acquired = false;
         try
         {
@@ -358,6 +359,14 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
             lastFrame = response;
             responsive = true;
             return response;
+        }
+        catch (OperationCanceledException error) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
+        {
+            responsive = false;
+            throw new TimeoutException(
+                $"Dataset worker command {request} did not receive {expected} within {commandTimeout.TotalSeconds:F3}s; "
+                + $"dataset={identity?.Dataset}; PID={process?.Id}; worker={identity?.WorkerInstanceId}; "
+                + $"manifestRevision={manifest?.Revision ?? identity?.ManifestRevision}.", error);
         }
         catch
         {

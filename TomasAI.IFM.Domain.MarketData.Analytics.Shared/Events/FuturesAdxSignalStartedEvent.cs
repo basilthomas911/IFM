@@ -23,6 +23,7 @@ public record FuturesAdxSignalStartedEvent : IEvent<FuturesAdxSignalEntityId>
     [Key(9)] public string StartedBy { get; init; } = string.Empty;
     /// <summary>Gets the latest event-sourced signal restored before this lifecycle event.</summary>
     [Key(10)] public FuturesAdxSignalReadModel? RestoredSignal { get; init; }
+    [Key(11)] public bool ResetForHistoricalSeed { get; init; }
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;

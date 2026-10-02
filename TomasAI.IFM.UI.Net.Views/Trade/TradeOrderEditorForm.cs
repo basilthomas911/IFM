@@ -29,8 +29,8 @@ public partial class TradeOrderEditorForm
     const int CommandButtonHeight = 32;
     const int CommandButtonGap = 8;
     const int ListCommandButtonGap = 4;
-    const int DefaultClientHeight = 980;
-    const int MinimumClientHeight = 650;
+    const int DefaultClientHeight = 1100;
+    const int MinimumClientHeight = 1000;
     const int EmptyTradeBlotterHeight = 280;
     const int HostedControlBottomPadding = 8;
     const int TradeBlotterBottomPadding = 4;

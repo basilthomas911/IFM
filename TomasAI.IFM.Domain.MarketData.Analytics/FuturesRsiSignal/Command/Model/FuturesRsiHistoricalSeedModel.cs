@@ -11,7 +11,8 @@ public static class FuturesRsiHistoricalSeedModel
 {
     public static FuturesRsiSeedDecision Decide(StartFuturesRsiSignalCommand command, FuturesRsiAccumulatorCheckpoint? restored, IMarketSessionCalendar? calendar, DateTimeOffset now)
     {
-        if (restored is not null) return new([], "RSI.SEED_CHECKPOINT_PRESERVED");
+        if (restored is not null && !command.ForceHistoricalInitialization)
+            return new([], "RSI.SEED_CHECKPOINT_PRESERVED");
         if (command.HistoricalSeed is not { } seed) return new([], "RSI.SEED_NOT_REQUESTED");
         if (seed.RequestedPeriods < command.EntityId.PeriodLength + 2 || seed.RequestedPeriods > 512 || seed.Observations is null || seed.Observations.Length > 512 ||
          seed.AsOfUtc == default || seed.AsOfUtc.Offset != TimeSpan.Zero || seed.AsOfUtc > now || calendar is null) return new([], "RSI.SEED_INVALID_EMPTY");

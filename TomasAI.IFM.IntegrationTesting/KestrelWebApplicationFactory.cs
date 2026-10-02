@@ -134,7 +134,8 @@ public class KestrelWebApplicationFactory<TEntryPoint> : WebApplicationFactory<T
             .UseSetting("AppSettings:IntrinsicTimeStrategyWorkflow:ProvisionDevelopmentMarketConditionAssessmentDefaults", "false")
             .UseSetting("AppSettings:IntrinsicTimeStrategyWorkflow:DevelopmentPortfolio:Enabled", "false")
             .UseSetting("ApplicationStartup:AutoStartAfterBootstrap", "false")
-            .UseSetting("MarketDataRecovery:Enabled", "false");
+            .UseSetting("MarketDataRecovery:Enabled", "false")
+            .UseSetting("MarketDataRecovery:HardRecovery:Pipeline:Enabled", "false");
         if (useOwnHost && configureWebHost is null && configureSharedServices is not null)
             builder.ConfigureServices(configureSharedServices);
         configureWebHost?.Invoke(builder);

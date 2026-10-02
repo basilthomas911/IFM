@@ -76,10 +76,10 @@ using TomasAI.IFM.Service.TradePosition.HostedService;
 using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.Application.Event;
-using TomasAI.IFM.Domain.Supervisor.Health;
-using TomasAI.IFM.Domain.Supervisor.Health.Collection;
-using TomasAI.IFM.Domain.Supervisor.Logging;
-using TomasAI.IFM.Domain.Supervisor.Metrics;
+using TomasAI.IFM.Domain.Supervisor.Shared.Service.Health;
+using TomasAI.IFM.Domain.Supervisor.Shared.Service;
+using TomasAI.IFM.Domain.Supervisor.Shared.Service.Logging;
+using TomasAI.IFM.Domain.Supervisor.Shared.Service.Metrics;
 using TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
 using DomainApplicationActorAssembly = TomasAI.IFM.Domain.Application.Actor.ApplicationActorAssembly;
 using TomasAI.IFM.Shared.Caching;
@@ -316,21 +316,21 @@ public static class Startup
             services.AddSingleton<IActorSupervisor, ActorSupervisor>();
             services.AddSingleton<IActorService, ActorService>();
             services.AddSingleton<ISupervisorActorMetricsState, SupervisorActorMetricsState>();
-            services.AddSingleton<TomasAI.IFM.Domain.Supervisor.Health.Evaluation.SupervisorActorThreadHealthEvaluator>();
+            services.AddSingleton<TomasAI.IFM.Domain.Supervisor.Shared.Service.Health.Evaluation.SupervisorActorThreadHealthEvaluator>();
             services.AddSingleton<ISupervisorManagedActorMetricsSource>(provider =>
                 new SupervisorManagedActorMetricsSource(
                     provider.GetRequiredService<IActorSupervisor>().RuntimeContext,
-                    provider.GetRequiredService<TomasAI.IFM.Domain.Supervisor.Health.Evaluation.SupervisorActorThreadHealthEvaluator>(),
+                    provider.GetRequiredService<TomasAI.IFM.Domain.Supervisor.Shared.Service.Health.Evaluation.SupervisorActorThreadHealthEvaluator>(),
                     provider.GetRequiredService<ILogger<SupervisorManagedActorMetricsSource>>()));
             services.AddSingleton<ISupervisorExceptionLog, SupervisorExceptionLog>();
             services.AddSingleton<ISupervisorHealthLlmAdvisorySink, NoOpSupervisorHealthLlmAdvisorySink>();
             services.AddSingleton<ISupervisorActorMetricsPollingService, SupervisorActorMetricsPollingService>();
             services.AddSingleton<ISupervisorBootstrap,
-                TomasAI.IFM.Domain.Supervisor.Lifecycle.SupervisorBootstrap>();
+                TomasAI.IFM.Domain.Supervisor.Shared.Service.Lifecycle.SupervisorBootstrap>();
             services.AddSingleton<ISupervisorManagedActorLifecycle,
-                TomasAI.IFM.Domain.Supervisor.Lifecycle.SupervisorManagedActorLifecycle>();
+                TomasAI.IFM.Domain.Supervisor.Shared.Service.Lifecycle.SupervisorManagedActorLifecycle>();
             services.AddSingleton<ISupervisorOperatorAuthorizer>(_ =>
-                new TomasAI.IFM.Domain.Supervisor.Lifecycle.SupervisorOperatorAuthorizer(["integration-test"]));
+                new TomasAI.IFM.Domain.Supervisor.Shared.Service.Lifecycle.SupervisorOperatorAuthorizer(["integration-test"]));
             services.AddSingleton<SupervisorOperationStore>();
             services.AddSingleton<ISupervisorOperationStore>(provider => provider.GetRequiredService<SupervisorOperationStore>());
             services.AddSingleton<ISupervisorHealthManager, SupervisorHealthManager>();
@@ -765,7 +765,6 @@ public static class Startup
         siContainer.Register(typeof(IValidationRules<>), assemblies, Lifestyle.Singleton);
         // Test assemblies can contain derived actor probes, not runtime actors.
         siContainer.Register(typeof(IActor<>), domainAssemblies, Lifestyle.Singleton);
-        siContainer.RegisterSingleton<TomasAI.IFM.Domain.Supervisor.Context.SupervisorActorContext>();
         siContainer.Register(typeof(ICommandActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IFunctionActorContext<>), domainAssemblies, Lifestyle.Singleton);
         if (domainAssemblies.Contains(TomasAI.IFM.Domain.Portfolio.PortfolioActorAssembly.Current))

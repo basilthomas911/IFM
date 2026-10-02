@@ -78,7 +78,6 @@ public sealed class FuturesItiSignalRealtimeActorTests
         var @event = Event();
 
         var handled = await @event.ExecuteAsync(context);
-        await context.GenerationGate.WaitForIdleAsync();
 
         handled.Should().BeTrue();
         sent.Should().NotBeNull();
@@ -118,7 +117,6 @@ public sealed class FuturesItiSignalRealtimeActorTests
             .Returns(call => { call[1] = Price(VxContractId, 22.75m); return true; });
 
         var handled = await Event().ExecuteAsync(context);
-        await context.GenerationGate.WaitForIdleAsync();
 
         handled.Should().BeTrue();
         telemetry.GetSnapshot().LastOutcome.Should().Be(FuturesItiRuntimeOutcome.CommandAccepted);
@@ -195,7 +193,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
     }
 
     [Fact]
-    public async Task RejectedDailyCommandRecordsFailureAfterIngressReturns()
+    public async Task RejectedDailyCommandRecordsFailureBeforeIngressReturns()
     {
         var context = Context(out _, out var telemetry);
         context.RequestAsync<GenerateFuturesItiSignalCommand, FuturesItiSignalEntityId>(
@@ -203,7 +201,6 @@ public sealed class FuturesItiSignalRealtimeActorTests
             .Returns(new ServiceFailed<GuidResult>(GenerateFuturesItiSignalCommand.ErrorId, "rejected"));
 
         var handled = await Event().ExecuteAsync(context);
-        await context.GenerationGate.WaitForIdleAsync();
 
         handled.Should().BeTrue();
         telemetry.GetSnapshot().Failures.Should().Be(1);
@@ -211,7 +208,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
     }
 
     [Fact]
-    public async Task TicksReceivedWhileGenerationIsBusyAreIgnoredWithoutQueueingAnotherCommand()
+    public async Task EligibleEventWaitsForGenerateCommandToComplete()
     {
         var context = Context(out _, out var telemetry);
         var completion = new TaskCompletionSource<ServiceResult<GuidResult>>(
@@ -220,21 +217,19 @@ public sealed class FuturesItiSignalRealtimeActorTests
                 Arg.Any<GenerateFuturesItiSignalCommand>())
             .Returns(_ => new ValueTask<ServiceResult<GuidResult>>(completion.Task));
 
-        (await Event().ExecuteAsync(context)).Should().BeTrue();
-        for (var index = 0; index < 1_000; index++)
-            (await (Event() with { Id = Guid.NewGuid() }).ExecuteAsync(context)).Should().BeTrue();
-
+        var processing = Event().ExecuteAsync(context).AsTask();
+        processing.IsCompleted.Should().BeFalse();
         await context.Received(1).RequestAsync<GenerateFuturesItiSignalCommand, FuturesItiSignalEntityId>(
             Arg.Any<GenerateFuturesItiSignalCommand>());
-        telemetry.GetSnapshot().BusySkippedEvents.Should().Be(1_000);
+        telemetry.GetSnapshot().CommandRequests.Should().Be(1);
 
         completion.SetResult(new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid())));
-        await context.GenerationGate.WaitForIdleAsync();
-        context.GenerationGate.IsBusy.Should().BeFalse();
+        (await processing).Should().BeTrue();
+        telemetry.GetSnapshot().AcceptedCommands.Should().Be(1);
     }
 
     [Fact]
-    public async Task GenerationFailureReleasesGateForTheNextTick()
+    public async Task GenerationFailureIsRecordedBeforeHandlerReturns()
     {
         var context = Context(out _, out var telemetry);
         context.RequestAsync<GenerateFuturesItiSignalCommand, FuturesItiSignalEntityId>(
@@ -243,9 +238,6 @@ public sealed class FuturesItiSignalRealtimeActorTests
                 new InvalidOperationException("request failed")));
 
         (await Event().ExecuteAsync(context)).Should().BeTrue();
-        await context.GenerationGate.WaitForIdleAsync();
-
-        context.GenerationGate.IsBusy.Should().BeFalse();
         telemetry.GetSnapshot().Failures.Should().Be(1);
         telemetry.GetSnapshot().LastReason.Should().Be("request failed");
     }
@@ -313,7 +305,6 @@ public sealed class FuturesItiSignalRealtimeActorTests
         telemetry = new FuturesItiSignalRuntimeTelemetry(TimeProvider.System);
         context.MarketDataApi.Returns(marketData);
         context.Telemetry.Returns(telemetry);
-        context.GenerationGate.Returns(new FuturesItiSignalGenerationGate());
         context.HealthEvidence.Returns(new LivePipelineEvidence(TimeProvider.System));
         var logger = Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>();
         logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);

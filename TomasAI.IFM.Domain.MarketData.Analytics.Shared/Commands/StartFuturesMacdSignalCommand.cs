@@ -1,6 +1,7 @@
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 
@@ -16,7 +17,7 @@ public record StartFuturesMacdSignalCommand : ICommand<FuturesMacdSignalEntityId
     /// <param name="errorCode">The ErrorCode field.</param>
     /// <param name="routeTo">The RouteTo field.</param>
     [SerializationConstructor]
-    public StartFuturesMacdSignalCommand(Guid commandId, ActorSubject subject, bool postEvents, FuturesMacdSignalEntityId entityId, int errorCode, BoundedContextName routeTo)
+    public StartFuturesMacdSignalCommand(Guid commandId, ActorSubject subject, bool postEvents, FuturesMacdSignalEntityId entityId, int errorCode, BoundedContextName routeTo, FuturesTradeSessionBarReadModel[]? historicalSeed = null)
     {
         CommandId = commandId;
         Subject = subject;
@@ -24,6 +25,7 @@ public record StartFuturesMacdSignalCommand : ICommand<FuturesMacdSignalEntityId
         EntityId = entityId;
         ErrorCode = errorCode;
         RouteTo = routeTo;
+        HistoricalSeed = historicalSeed;
     }
     public const string Actor = "FuturesMacdSignalCommand";
     public const string Verb = "Start";
@@ -35,6 +37,7 @@ public record StartFuturesMacdSignalCommand : ICommand<FuturesMacdSignalEntityId
     [Key(3)] public FuturesMacdSignalEntityId EntityId { get; init; } = default!;
     [Key(4)] public int ErrorCode { get; init; }
     [Key(5)] public BoundedContextName RouteTo { get; init; }
+    [Key(6)] public FuturesTradeSessionBarReadModel[]? HistoricalSeed { get; init; }
     [IgnoreMember] public string CommandName => GetType().Name;
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => $"{Actor}Actor";

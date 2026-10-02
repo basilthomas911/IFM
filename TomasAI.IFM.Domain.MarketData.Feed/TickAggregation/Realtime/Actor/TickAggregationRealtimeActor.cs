@@ -28,9 +28,11 @@ public sealed class TickAggregationRealtimeActor(IRealtimeActorContext<TickAggre
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
             [FuturesTickTradeDataChangedEvent.Verb] =
-            message => message.AsEvent<FuturesTickTradeDataChangedEvent>()!,
+            message => message.AsEvent<FuturesTickTradeDataChangedEvent>()!
+                .RestoreSource(message.SourceDataset, message.SourceGenerationId),
             [FuturesTickQuoteDataChangedEvent.Verb] =
-            message => message.AsEvent<FuturesTickQuoteDataChangedEvent>()!,
+            message => message.AsEvent<FuturesTickQuoteDataChangedEvent>()!
+                .RestoreSource(message.SourceDataset, message.SourceGenerationId),
             [FuturesTickTradeDataInsertedEvent.Verb] =
             message => message.AsEvent<FuturesTickTradeDataInsertedEvent>()!,
             [FuturesTickQuoteDataInsertedEvent.Verb] =

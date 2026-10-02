@@ -380,7 +380,7 @@ public class NatsActorProducer(
             await _nc!.PublishAsync(
                 subject,
                 message,
-                headers: ActorTrace.Headers(),
+                headers: RealtimeSourceGenerationHeaders.Add(ActorTrace.Headers(), message!),
                 serializer: NatsMessagePackSerializer<T>.Default,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
             NatsMessagingMetrics.Published.Add(1);

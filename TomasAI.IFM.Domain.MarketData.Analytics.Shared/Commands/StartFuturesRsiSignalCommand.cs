@@ -29,6 +29,7 @@ public record StartFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityId>
     [Key(5)] public BoundedContextName RouteTo { get; init; }
 
     [Key(6)] public FuturesRsiHistoricalSeed? HistoricalSeed { get; init; }
+    [Key(7)] public bool ForceHistoricalInitialization { get; init; }
 
     // Ignored / derived members
     [IgnoreMember] public string CommandName => GetType().Name;
@@ -62,7 +63,8 @@ public record StartFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityId>
         FuturesRsiSignalEntityId entityId,// Key(3)
         int errorCode,                    // Key(4)
         BoundedContextName routeTo,
-        FuturesRsiHistoricalSeed? historicalSeed = null)
+        FuturesRsiHistoricalSeed? historicalSeed = null,
+        bool forceHistoricalInitialization = false)
     {
         CommandId = commandId;
         Subject = subject;
@@ -71,5 +73,6 @@ public record StartFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityId>
         ErrorCode = errorCode;
         RouteTo = routeTo;
         HistoricalSeed = historicalSeed;
+        ForceHistoricalInitialization = forceHistoricalInitialization;
     }
 }

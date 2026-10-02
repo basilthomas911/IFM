@@ -1,5 +1,6 @@
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
+using TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -23,7 +24,7 @@ public sealed record UpdateFuturesVwapSignalCommand : ICommand<FuturesVwapSignal
     /// <param name="observation">The Observation field.</param>
     /// <param name="configuration">The Configuration field.</param>
     [SerializationConstructor]
-    public UpdateFuturesVwapSignalCommand(Guid commandId, ActorSubject subject, bool postEvents, FuturesVwapSignalEntityId entityId, int errorCode, BoundedContextName routeTo, FuturesVwapTradeObservation observation, FuturesVwapConfiguration configuration)
+    public UpdateFuturesVwapSignalCommand(Guid commandId, ActorSubject subject, bool postEvents, FuturesVwapSignalEntityId entityId, int errorCode, BoundedContextName routeTo, FuturesVwapTradeObservation observation, FuturesVwapConfiguration configuration, FuturesVwapSourceCheckpoint? sourceCheckpoint, DateTimeOffset sessionStartUtc, DateTimeOffset sessionEndUtc)
     {
         CommandId = commandId;
         Subject = subject;
@@ -33,6 +34,9 @@ public sealed record UpdateFuturesVwapSignalCommand : ICommand<FuturesVwapSignal
         RouteTo = routeTo;
         Observation = observation;
         Configuration = configuration;
+        SourceCheckpoint = sourceCheckpoint;
+        SessionStartUtc = sessionStartUtc;
+        SessionEndUtc = sessionEndUtc;
     }
     public const string Actor = "FuturesVwapSignalCommand";
     public const string Verb = "Update";
@@ -45,6 +49,9 @@ public sealed record UpdateFuturesVwapSignalCommand : ICommand<FuturesVwapSignal
     [Key(5)] public BoundedContextName RouteTo { get; init; } = BoundedContextName.FuturesVwapSignalBoundedContext;
     [Key(6)] public FuturesVwapTradeObservation Observation { get; init; } = new();
     [Key(7)] public FuturesVwapConfiguration Configuration { get; init; } = FuturesVwapConfiguration.Standard;
+    [Key(8)] public FuturesVwapSourceCheckpoint? SourceCheckpoint { get; init; }
+    [Key(9)] public DateTimeOffset SessionStartUtc { get; init; }
+    [Key(10)] public DateTimeOffset SessionEndUtc { get; init; }
     [IgnoreMember] public string CommandName => nameof(UpdateFuturesVwapSignalCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Actor;

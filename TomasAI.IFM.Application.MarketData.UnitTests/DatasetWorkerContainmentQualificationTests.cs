@@ -20,6 +20,85 @@ public sealed class DatasetContainmentQualificationCollection;
 public sealed class DatasetWorkerContainmentQualificationTests(ITestOutputHelper output)
 {
     static readonly DateOnly ValueDate = TomasAI.IFM.Domain.MarketData.Shared.FuturesTradingValueDate.GetOperational(DateTimeOffset.UtcNow);
+
+    [Fact]
+    public void Default_worker_start_deadline_contains_catalog_retries_feed_start_and_protocol_margin()
+    {
+        var runtime = new DatabentoMarketDataRuntimeOptions
+        {
+            FeedOptions = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3"),
+            Contracts = []
+        };
+        var backoff = Enumerable.Range(1, runtime.CatalogQueryAttempts - 1)
+            .Sum(attempt => runtime.CatalogQueryRetryDelay.Ticks * attempt);
+        var required = runtime.ProviderQueryTimeout * runtime.CatalogQueryAttempts
+            + TimeSpan.FromTicks(backoff) + runtime.FeedStartTimeout + TimeSpan.FromSeconds(10);
+        Assert.True(new DatabentoStage3Options().WorkerStartTimeout > required,
+            $"Worker startup must outlive its bounded inner phases ({required}).");
+        Assert.Throws<InvalidOperationException>(() =>
+            (new DatabentoStage3Options { WorkerStartTimeout = TimeSpan.FromMinutes(4) }).Validate());
+    }
+
+    [Fact]
+    public async Task Worker_start_acknowledgement_after_old_30_second_limit_succeeds_and_process_tree_is_cleaned()
+    {
+        var request = Request(helper: true);
+        request = request with { PrefixArguments = [.. request.PrefixArguments, "--startup-delay-ms", "31000"] };
+        await using var owner = new DatasetWorkerProcessSupervisor(Options() with
+        { WorkerStartTimeout = new DatabentoStage3Options().WorkerStartTimeout });
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(55));
+        var elapsed = Stopwatch.StartNew();
+        var started = await owner.StartAsync(request, deadline.Token);
+        using var worker = Process.GetProcessById(started.ProcessId);
+        using var descendant = Process.GetProcessById(int.Parse(started.Detail));
+        try
+        {
+            Assert.True(started.Healthy);
+            Assert.True(elapsed.Elapsed > TimeSpan.FromSeconds(30));
+            await owner.StopAsync(deadline.Token);
+            // Full owner disposal closes the Windows job, containing descendants after graceful leader exit.
+            await owner.DisposeAsync();
+            await worker.WaitForExitAsync(deadline.Token);
+            await descendant.WaitForExitAsync(deadline.Token);
+            Assert.True(worker.HasExited);
+            Assert.True(descendant.HasExited);
+        }
+        finally
+        {
+            await TerminateOwnedAsync(descendant);
+            await TerminateOwnedAsync(worker);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Expired_worker_start_or_caller_cancellation_is_distinguished_and_child_is_terminated(bool cancelCaller)
+    {
+        var request = Request(helper: true);
+        request = request with { PrefixArguments = [.. request.PrefixArguments, "--startup-delay-ms", "3000"] };
+        await using var owner = new DatasetWorkerProcessSupervisor(Options() with
+        { WorkerStartTimeout = cancelCaller ? TimeSpan.FromSeconds(2) : TimeSpan.FromMilliseconds(100) });
+        using var caller = new CancellationTokenSource();
+        if (cancelCaller) caller.CancelAfter(TimeSpan.FromMilliseconds(500));
+        if (cancelCaller)
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => owner.StartAsync(request, caller.Token));
+        }
+        else
+        {
+            var error = await Assert.ThrowsAsync<TimeoutException>(() => owner.StartAsync(request, caller.Token));
+            Assert.Contains("StartManifest", error.Message);
+            Assert.Contains("StartAccepted", error.Message);
+            Assert.Contains("GLBX.MDP3", error.Message);
+            Assert.Contains($"PID={owner.Current.ProcessId}", error.Message);
+            Assert.Contains("manifestRevision=1", error.Message);
+            Assert.IsAssignableFrom<OperationCanceledException>(error.InnerException);
+        }
+        Assert.False(owner.Current.Running);
+        Assert.True(owner.Current.ForcedTermination);
+    }
+
     [Fact]
     public async Task Forced_stop_terminates_exact_worker_and_descendant_processes()
         => await StopTreeAsync(hang: true);
@@ -136,6 +215,40 @@ public sealed class DatasetWorkerContainmentQualificationTests(ITestOutputHelper
         await recovery.StopAllAsync();
         Assert.Empty(recovery.Current);
         Assert.False(admissions.TryGet(current.Dataset, out _));
+    }
+
+    [Fact]
+    public async Task Timed_out_hard_containment_keeps_worker_startup_fenced_after_late_cleanup()
+    {
+        var options = Options() with
+        {
+            WorkerStartTimeout = TimeSpan.FromSeconds(2),
+            WorkerGracefulStopTimeout = TimeSpan.FromMilliseconds(100)
+        };
+        var admissions = new DatasetWorkerAdmissionRegistry();
+        DatasetWorkerProcessSupervisor? supervisor = null;
+        await using var recovery = new DatasetWorkerProcessRecoveryService(options, admissions,
+            supervisorFactory: configured => supervisor = new DatasetWorkerProcessSupervisor(configured));
+        var request = Request();
+        var started = await recovery.StartOwnedAsync(request);
+        await supervisor!.HangAsync();
+        var resetting = recovery.ResetOwnedAsync(Reset(started), CancellationToken.None);
+        using var waiting = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while (admissions.TryGet(started.Dataset, out _))
+            await Task.Delay(10, waiting.Token);
+
+        var contained = await recovery.ContainForHardRecoveryAsync(
+            TimeSpan.FromMilliseconds(100), CancellationToken.None);
+
+        Assert.False(contained.Isolated);
+        Assert.IsType<TimeoutException>(contained.Failure);
+        Assert.Contains(started.ProcessId, contained.ProcessIds);
+        await resetting;
+        using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        while (recovery.Current.Count != 0)
+            await Task.Delay(10, cleanup.Token);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => recovery.StartCandidateAsync(Request()));
+        output.WriteLine("Late worker cleanup completed, but the unverified hard-containment episode stayed fenced.");
     }
 
     [Fact]

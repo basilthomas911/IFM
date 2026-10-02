@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using TomasAI.IFM.Domain.Supervisor.Lifecycle;
-using TomasAI.IFM.Domain.Supervisor.Query.Actor;
+using TomasAI.IFM.Domain.Supervisor.Shared.Service.Lifecycle;
+using TomasAI.IFM.Domain.Supervisor.Health.Query.Actor;
 using TomasAI.IFM.Domain.Supervisor.Shared.Enums;
 using TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -11,6 +11,45 @@ namespace TomasAI.IFM.Domain.Supervisor.UnitTests;
 
 public sealed class SupervisorManagedActorLifecycleTests
 {
+    [Fact]
+    public async Task Recovery_rejects_an_unbounded_deadline_without_touching_actors()
+    {
+        var fixture = new Fixture();
+
+        var result = await fixture.Lifecycle.ReconcileAsync(TimeSpan.FromMinutes(3), CancellationToken.None);
+
+        Assert.False(result.Qualified);
+        Assert.Empty(result.Components);
+        Assert.DoesNotContain(fixture.Events, value => value.StartsWith("start:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Recovery_requires_started_supervisor_and_open_consumer_intake()
+    {
+        var fixture = new Fixture();
+
+        var result = await fixture.Lifecycle.ReconcileAsync(TimeSpan.FromSeconds(1), CancellationToken.None);
+
+        Assert.False(result.Qualified);
+        Assert.Equal(1, result.Critical);
+        Assert.Equal("ConsumerIntake", Assert.Single(result.Components).Component);
+        Assert.DoesNotContain(fixture.Events, value => value.StartsWith("start:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Recovery_does_not_claim_success_when_an_owned_actor_has_no_health_evidence()
+    {
+        var fixture = new Fixture();
+        Assert.True((await fixture.Lifecycle.StartupActorsAsync(CancellationToken.None)).Succeeded);
+
+        var result = await fixture.Lifecycle.ReconcileAsync(TimeSpan.FromSeconds(1), CancellationToken.None);
+
+        Assert.False(result.Qualified);
+        Assert.Equal(1, result.Unknown);
+        Assert.Equal("Inspect", Assert.Single(result.Components).Action);
+        Assert.Equal(1, fixture.Events.Count(value => value == "start:ManagedQuery"));
+    }
+
     [Fact]
     public async Task Starts_only_managed_actors_then_opens_intake_and_starts_poller()
     {
@@ -242,7 +281,7 @@ public sealed class SupervisorManagedActorLifecycleTests
         fixture.ActorSupervisor.RestartAsync(target, 7, TimeSpan.FromSeconds(10), Arg.Any<CancellationToken>())
             .Returns(true);
 
-        var result = await fixture.Lifecycle.ExecuteAsync(new(
+        var result = await fixture.Lifecycle.RestartAsync(new(
             Guid.NewGuid(), target, 7, SupervisorActorOperationKind.Restart,
             "operator", "Manual recovery", TimeSpan.FromSeconds(10)), CancellationToken.None);
 
@@ -255,7 +294,7 @@ public sealed class SupervisorManagedActorLifecycleTests
     public async Task Unsafe_or_unbounded_operation_request_is_rejected_without_runtime_mutation()
     {
         var fixture = new Fixture();
-        var result = await fixture.Lifecycle.ExecuteAsync(new(
+        var result = await fixture.Lifecycle.RestartAsync(new(
             Guid.NewGuid(), new(ActorType.Query, "ManagedQuery", "entity-1"), 1,
             SupervisorActorOperationKind.Restart, new string('x', 129), "reason",
             TimeSpan.FromMinutes(11)), CancellationToken.None);
@@ -263,6 +302,37 @@ public sealed class SupervisorManagedActorLifecycleTests
         Assert.Equal(SupervisorOperationOutcome.Rejected, result.Outcome);
         await fixture.ActorSupervisor.DidNotReceiveWithAnyArgs()
             .RestartAsync(default, default, default, default);
+    }
+
+    [Fact]
+    public async Task Named_lifecycle_method_rejects_a_mismatched_operation_without_mutation()
+    {
+        var fixture = new Fixture();
+        var target = new ActorThreadId(ActorType.Query, "ManagedQuery", "entity-1");
+
+        var result = await fixture.Lifecycle.PauseAsync(new(
+            Guid.NewGuid(), target, 7, SupervisorActorOperationKind.Restart,
+            "operator", "qualification", TimeSpan.FromSeconds(10)), CancellationToken.None);
+
+        Assert.Equal(SupervisorOperationOutcome.Rejected, result.Outcome);
+        await fixture.ActorSupervisor.DidNotReceiveWithAnyArgs()
+            .PauseAsync(default, default, default);
+    }
+
+    [Fact]
+    public async Task Stop_remains_explicitly_unsupported_without_stopping_a_managed_actor()
+    {
+        var fixture = new Fixture();
+        var target = new ActorThreadId(ActorType.Query, "ManagedQuery", "entity-1");
+
+        var result = await fixture.Lifecycle.StopAsync(new(
+            Guid.NewGuid(), target, 7, SupervisorActorOperationKind.Stop,
+            "operator", "qualification", TimeSpan.FromSeconds(10)), CancellationToken.None);
+
+        Assert.Equal(SupervisorOperationOutcome.Rejected, result.Outcome);
+        Assert.Equal("Unsupported", result.Stage);
+        await fixture.ActorSupervisor.DidNotReceiveWithAnyArgs()
+            .StopAsync(default, default);
     }
 
     sealed class Fixture
@@ -305,6 +375,8 @@ public sealed class SupervisorManagedActorLifecycleTests
 
             var actorSupervisor = ActorSupervisor = Substitute.For<IActorSupervisor>();
             actorSupervisor.Container.Returns(container);
+            actorSupervisor.RuntimeContext.Returns(new SupervisorRuntimeContext());
+            actorSupervisor.IsReady.Returns(_ => _ready);
             actorSupervisor.When(value => value.SetReadiness(Arg.Any<bool>()))
                 .Do(call => _ready = call.Arg<bool>());
             actorSupervisor.When(value => value.AddActor(Arg.Any<IActor>()))

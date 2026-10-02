@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.Supervisor.Shared.Enums;
-using TomasAI.IFM.Domain.Supervisor.Shared.ReadModels;
+using TomasAI.IFM.Domain.Supervisor.Shared.Health.ReadModels;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
 
@@ -53,15 +54,46 @@ public sealed record SupervisorActorOperationResult(
     public bool Succeeded => Outcome == SupervisorOperationOutcome.Succeeded;
 }
 
+/// <summary>Sends authorized Supervisor lifecycle commands through the actor messaging transport.</summary>
+public interface ISupervisorCommandApi
+{
+    /// <summary>Executes one audited, generation-fenced operation for an actor entity mailbox.</summary>
+    ValueTask<ServiceResult<GuidResult>> ExecuteActorOperationAsync(
+        ActorThreadId target,
+        long expectedGeneration,
+        SupervisorActorOperationKind operation,
+        string requester,
+        string reason,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default);
+}
+
 /// <summary>Owns construction, startup, shutdown, and controlled mutation of non-Supervisor actors.</summary>
 public interface ISupervisorManagedActorLifecycle
 {
     ValueTask<SupervisorActorsStartupResult> StartupActorsAsync(CancellationToken cancellationToken);
     ValueTask<SupervisorActorsShutdownResult> ShutdownActorsAsync(CancellationToken cancellationToken);
-    ValueTask<SupervisorActorOperationResult> ExecuteAsync(
-        SupervisorActorOperationRequest request,
-        CancellationToken cancellationToken);
+    ValueTask<SupervisorActorOperationResult> PauseAsync(SupervisorActorOperationRequest request, CancellationToken cancellationToken);
+    ValueTask<SupervisorActorOperationResult> DrainAsync(SupervisorActorOperationRequest request, CancellationToken cancellationToken);
+    ValueTask<SupervisorActorOperationResult> ResumeAsync(SupervisorActorOperationRequest request, CancellationToken cancellationToken);
+    ValueTask<SupervisorActorOperationResult> StopAsync(SupervisorActorOperationRequest request, CancellationToken cancellationToken);
+    ValueTask<SupervisorActorOperationResult> RestartAsync(SupervisorActorOperationRequest request, CancellationToken cancellationToken);
+    ValueTask<SupervisorActorOperationResult> QuarantineAsync(SupervisorActorOperationRequest request, CancellationToken cancellationToken);
+    ValueTask<SupervisorActorOperationResult> RetireAsync(SupervisorActorOperationRequest request, CancellationToken cancellationToken);
+    ValueTask<SupervisorActorOperationResult> RecycleAsync(SupervisorActorOperationRequest request, CancellationToken cancellationToken);
+
+    /// <summary>Inspects and repairs only Supervisor-owned actors and their projectors before soft admission.</summary>
+    ValueTask<SupervisorRecoveryResult> ReconcileAsync(TimeSpan timeout, CancellationToken cancellationToken);
 }
+
+/// <summary>One bounded Supervisor recovery inspection or owned-component repair outcome.</summary>
+public sealed record SupervisorRecoveryComponentResult(
+    string Component, SupervisorActorHealth Health, string Action, string Detail);
+
+/// <summary>Aggregate privileged actor/projector reconciliation evidence.</summary>
+public sealed record SupervisorRecoveryResult(
+    Guid OperationId, bool Qualified, int Healthy, int Degraded, int Critical, int Unknown,
+    IReadOnlyList<SupervisorRecoveryComponentResult> Components, string Detail);
 
 /// <summary>
 /// Minimal host-only boundary that starts Supervisor actors before the managed population and stops them after it.
@@ -125,10 +157,15 @@ public interface ISupervisorHealthManager
 }
 
 /// <summary>Provides immutable incident reads retained by the Supervisor.</summary>
-public interface ISupervisorIncidentStore
+public interface ISupervisorIncidentReadStore
 {
     int ActiveIncidentCount { get; }
     IReadOnlyList<SupervisorActorIncident> ActiveIncidents { get; }
+}
+
+/// <summary>Projects incident acknowledgements into the operational incident read model.</summary>
+public interface ISupervisorIncidentStore : ISupervisorIncidentReadStore
+{
     bool Acknowledge(ActorThreadId threadId, string requester, string reason);
 }
 
@@ -164,18 +201,4 @@ public interface ISupervisorHistoryPersistence
     ValueTask AppendAsync(SupervisorHealthHistoryPoint point, CancellationToken cancellationToken);
     ValueTask<IReadOnlyList<SupervisorHealthHistoryPoint>> ReadAsync(
         DateTime fromUtc, DateTime toUtc, int maximumCount, CancellationToken cancellationToken);
-}
-
-/// <summary>
-/// Privileged capability context available only to Supervisor actors. It exposes named operations and immutable
-/// reads, never runtime dictionaries, actors, mailboxes, workers, transports, or the dependency-injection container.
-/// </summary>
-public interface ISupervisorActorContext
-{
-    ISupervisorManagedActorLifecycle ManagedActors { get; }
-    ISupervisorActorMetricsState ActorMetrics { get; }
-    ISupervisorHealthManager Health { get; }
-    ISupervisorIncidentStore Incidents { get; }
-    ISupervisorOperationStore Operations { get; }
-    ISupervisorHistoryStore History { get; }
 }

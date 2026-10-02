@@ -74,6 +74,8 @@ public sealed record FuturesTickQuoteDataInsertedEvent : IEvent<TickDataEntityId
     [Key(15)] public QuoteEmissionReason EmissionReason { get; init; }
     [Key(16)] public ushort QuoteCount { get; init; }
     [Key(17)] public FuturesTickQuoteDataSegment QuoteData { get; init; }
+    [IgnoreMember] public string SourceDataset { get; init; } = string.Empty;
+    [IgnoreMember] public Guid SourceGenerationId { get; init; }
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesTickQuoteDataInsertedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;

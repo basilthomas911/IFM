@@ -2,10 +2,12 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Fun
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Actor;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
-using TomasAI.IFM.Domain.Supervisor.Health;
-using TomasAI.IFM.Domain.Supervisor.Health.Collection;
-using TomasAI.IFM.Domain.Supervisor.Logging;
-using TomasAI.IFM.Domain.Supervisor.Metrics;
+using TomasAI.IFM.Domain.Supervisor.Shared.Service.Health;
+using TomasAI.IFM.Domain.Supervisor.Shared.Service;
+using TomasAI.IFM.Domain.Supervisor.Shared.Service.Logging;
+using TomasAI.IFM.Domain.Supervisor.Shared.Service.Metrics;
+using TomasAI.IFM.Domain.Supervisor.Recovery;
+using TomasAI.IFM.Domain.Supervisor.Recovery.Event.Projection;
 using TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
 using Hazelcast;
 using Hazelcast.Caching;
@@ -229,8 +231,9 @@ public static class Startup
     /// <param name="services">The <see cref="IServiceCollection"/> to which the services will be added.</param>
     /// <param name="config">The <see cref="ConfigurationManager"/> used to retrieve configuration settings for service registration.</param>
     /// <param name="logger">The <see cref="Microsoft.Extensions.Logging.ILogger"/> used to log information during the registration process.</param>
+    /// <param name="hostEnvironment">The hosting environment used to enforce Development-only recovery activation.</param>
     /// <returns>The updated <see cref="IServiceCollection"/> with the registered services.</returns>
-    public static IServiceCollection RegisterServices(this IServiceCollection services, ConfigurationManager config, Microsoft.Extensions.Logging.ILogger logger)
+    public static IServiceCollection RegisterServices(this IServiceCollection services, ConfigurationManager config, Microsoft.Extensions.Logging.ILogger logger, IHostEnvironment? hostEnvironment = null)
     {
         var siContainer = services.GetSimpleInjectorContainer();
         if (EventLogQualification.Active is { } qualification)
@@ -360,6 +363,55 @@ public static class Startup
             services.AddHttpClient();
             var redisUri = config["IFM_TEST_REDIS_URL"] ?? config.GetValue<string>("AppSettings:RedisUri")!;
             services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisUri));
+            services.AddSingleton<IRecoveryInfrastructureProbe, RedisRecoveryInfrastructureProbe>();
+            services.AddSingleton<IRecoveryInfrastructureProbe, NatsRecoveryInfrastructureProbe>();
+            foreach (var database in new (string Name, string Object, bool Procedure)[]
+            {
+                ("EventSourceActorDbConnection", "public.event_log", false),
+                ("MarketDataServiceDbConnection", "market_data_service.watchdog_status_log", false),
+                ("ConfigurationDbConnection", "reference_configuration.lookup_definition", false),
+                ("SequenceIdDbConnection", "public.fn_get_next_sequence_id(text)", true)
+            })
+            {
+                services.AddSingleton<IRecoveryInfrastructureProbe>(_ => new PostgreSqlRecoveryInfrastructureProbe(
+                    database.Name, config.GetConnectionString(database.Name)
+                        ?? throw new InvalidOperationException(database.Name + " is required for recovery qualification."),
+                    database.Object, database.Procedure));
+            }
+            services.AddSingleton<IRecoveryInfrastructureProbe>(_ => new ScyllaRecoveryInfrastructureProbe(
+                "MarketDataDbConnection", config.GetConnectionString("MarketDataDbConnection")
+                    ?? throw new InvalidOperationException("MarketDataDbConnection is required for recovery qualification.")));
+            // Validate the inert recovery policies during composition, before any actor/feed starts.
+            // Runtime caller migration is a separate gate; registration does not enable hard reset.
+            services.AddSingleton((config.GetSection("MarketDataRecovery:HardRecovery:Episode")
+                .Get<DatabentoRecoveryEpisodePolicy>() ?? new DatabentoRecoveryEpisodePolicy()).Validate());
+            services.AddSingleton((config.GetSection("MarketDataRecovery:HardRecovery:Attempts")
+                .Get<DatabentoHardRecoveryPolicy>() ?? new DatabentoHardRecoveryPolicy()).Validate());
+            services.AddSingleton((config.GetSection("MarketDataRecovery:HardRecovery:SoftGate")
+                .Get<DatabentoSoftGatePolicy>() ?? new DatabentoSoftGatePolicy()).Validate());
+            services.AddSingleton((config.GetSection("MarketDataRecovery:HardRecovery:FatalShutdown")
+                .Get<FatalRecoveryShutdownOptions>() ?? new FatalRecoveryShutdownOptions()).Validate());
+            // Explicit Development opt-in requires the scoped tick-storage proof/admission adapter.
+            // Production remains prohibited until supervised live qualification is recorded.
+            ApiDatabentoRecoveryHostActivation.Validate(
+                config.GetValue<bool>("MarketDataRecovery:HardRecovery:Pipeline:Enabled"),
+                hostEnvironment?.IsDevelopment() == true,
+                config.GetValue<bool>("MarketDataRecovery:Stage3:Enabled"),
+                downstreamProofAvailable: true);
+            services.AddSingleton((config.GetSection("MarketDataRecovery:HardRecovery:Pipeline")
+                .Get<ApiDatabentoRecoveryPipelinePolicy>() ?? new ApiDatabentoRecoveryPipelinePolicy()).Validate());
+            services.AddSingleton((config.GetSection("MarketDataRecovery:HardRecovery:Runtime")
+                .Get<ApiDatabentoHardRuntimePolicy>() ?? new ApiDatabentoHardRuntimePolicy()).Validate());
+            services.AddSingleton((config.GetSection("MarketDataRecovery:HardRecovery:CandidateProof")
+                .Get<DatabentoCandidateTickStorageProofPolicy>() ?? new DatabentoCandidateTickStorageProofPolicy()).Validate());
+            var recoveryPipelineEnabled = config.GetValue<bool>("MarketDataRecovery:HardRecovery:Pipeline:Enabled");
+            if (recoveryPipelineEnabled)
+            {
+                services.AddSingleton<IRecoveryFatalTelemetry, RecoveryFatalOpenTelemetry>();
+                services.AddSingleton<IApiFatalRecoveryShutdown, ApiFatalRecoveryShutdown>();
+                services.AddSingleton<IDatabentoRecoveryRequester>(ApiDatabentoRecoveryComposition.Create);
+            }
+            services.AddSingleton<DatabentoSoftRecoveryGate>();
             services.AddSingleton<IRedisCache, RedisCache>();
             services.AddSingleton<IBlackboardService, BlackboardService>();
             services.AddSingleton<IDataCacheService, LocalDataCacheService>();
@@ -434,23 +486,25 @@ public static class Startup
             services.AddSingleton<IActorSupervisor, ActorSupervisor>();
             services.AddSingleton<IActorService, ActorService>();
             services.AddSingleton<ISupervisorActorMetricsState, SupervisorActorMetricsState>();
-            services.AddSingleton<TomasAI.IFM.Domain.Supervisor.Health.Evaluation.SupervisorActorThreadHealthEvaluator>();
+            services.AddSingleton<TomasAI.IFM.Domain.Supervisor.Shared.Service.Health.Evaluation.SupervisorActorThreadHealthEvaluator>();
             services.AddSingleton<ISupervisorManagedActorMetricsSource>(provider =>
                 new SupervisorManagedActorMetricsSource(
                     provider.GetRequiredService<IActorSupervisor>().RuntimeContext,
-                    provider.GetRequiredService<TomasAI.IFM.Domain.Supervisor.Health.Evaluation.SupervisorActorThreadHealthEvaluator>(),
+                    provider.GetRequiredService<TomasAI.IFM.Domain.Supervisor.Shared.Service.Health.Evaluation.SupervisorActorThreadHealthEvaluator>(),
                     provider.GetRequiredService<ILogger<SupervisorManagedActorMetricsSource>>()));
             services.AddSingleton<ISupervisorExceptionLog, SupervisorExceptionLog>();
             services.AddSingleton<ISupervisorHealthLlmAdvisorySink, NoOpSupervisorHealthLlmAdvisorySink>();
             services.AddSingleton<ISupervisorActorMetricsPollingService, SupervisorActorMetricsPollingService>();
             services.AddSingleton<ISupervisorBootstrap,
-                TomasAI.IFM.Domain.Supervisor.Lifecycle.SupervisorBootstrap>();
+                TomasAI.IFM.Domain.Supervisor.Shared.Service.Lifecycle.SupervisorBootstrap>();
             services.AddSingleton<ISupervisorManagedActorLifecycle,
-                TomasAI.IFM.Domain.Supervisor.Lifecycle.SupervisorManagedActorLifecycle>();
+                TomasAI.IFM.Domain.Supervisor.Shared.Service.Lifecycle.SupervisorManagedActorLifecycle>();
             services.AddSingleton<ISupervisorOperatorAuthorizer>(_ =>
-                new TomasAI.IFM.Domain.Supervisor.Lifecycle.SupervisorOperatorAuthorizer(
+                new TomasAI.IFM.Domain.Supervisor.Shared.Service.Lifecycle.SupervisorOperatorAuthorizer(
                     config.GetSection("Supervisor:AllowedOperators").Get<string[]>() ?? []));
             services.AddSingleton<SupervisorOperationStore>();
+            services.AddSingleton<RecoveryCanaryProjectionStore>();
+            services.AddSingleton<SupervisorRecoveryCanaryProbe>();
             services.AddSingleton<ISupervisorOperationStore>(provider => provider.GetRequiredService<SupervisorOperationStore>());
             services.AddSingleton<ISupervisorHealthManager, SupervisorHealthManager>();
             services.AddSingleton<IActorRuntimeMetricsSourceProvider>(provider =>
@@ -877,6 +931,7 @@ public static class Startup
             services.AddSingleton<ITickAggregationEventPublisher,
                 TickAggregationEventPublisher>();
             services.AddApplicationMarketDataApi(runtimeOptions);
+            services.AddSingleton<FourHourDatabentoSeedReplay>();
             services.AddSingleton(new DatabentoWatchdogOptions
             {
                 Enabled = config.GetValue("MarketDataRecovery:Enabled", true),
@@ -929,10 +984,11 @@ public static class Startup
                 DotNetHostPath = stage3Options.Enabled
                     ? ResolveDotNetHostPath() : Environment.ProcessPath!,
                 WorkerAssemblyPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-                    deploymentProfile == FeedDeploymentProfile.Development
+                    config.GetValue<string>("MarketDataRecovery:Stage3:WorkerAssemblyPath")
+                    ?? (deploymentProfile == FeedDeploymentProfile.Development
                         ? config.GetValue<string>("MarketDataRecovery:Stage3:DevelopmentWorkerAssemblyPath")
-                            ?? typeof(DatasetWorkerAssemblyMarker).Assembly.Location
-                        : typeof(DatasetWorkerAssemblyMarker).Assembly.Location)),
+                        : null)
+                    ?? typeof(DatasetWorkerAssemblyMarker).Assembly.Location)),
                 DeploymentProfile = deploymentProfile,
                 DataSource = feedOptions.DataSource,
                 OptionPricingRefresh = runtimeOptions.OptionPricingRefresh,
@@ -963,7 +1019,6 @@ public static class Startup
                 UseSyntheticProvider = feedOptions.DataSource == FeedDataSourceMode.Synthetic
             });
             services.AddApplicationMarketDataHistoricalApi(historicalOptions);
-            services.AddSingleton<IHistoricalReplayPublisher, FuturesVwapHistoricalReplayPublisher>();
             services.AddSingleton<IHistoricalDailyReplayPublisher, FuturesEmaBbHistoricalDailyReplayPublisher>();
             services.AddSingleton(_ =>
             {
@@ -989,6 +1044,8 @@ public static class Startup
             services.AddSingleton<MarketOutlookProcessorMetrics>();
             services.AddSingleton<DatabentoWatchdogMetrics>();
             services.AddSingleton<DatasetWorkerAdmissionRegistry>();
+            services.AddSingleton<IRealtimeSourceAdmission>(provider =>
+                provider.GetRequiredService<DatasetWorkerAdmissionRegistry>());
             services.AddSingleton<DatasetPublicationIngress>();
             services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.IOptionTradeEvidenceWriter>(provider =>
                 provider.GetRequiredService<IMarketDataDbContext>());
@@ -1095,7 +1152,10 @@ public static class Startup
         var projectorReliabilityOptions = config
             .GetSection(EventProjectorReliabilityOptions.SectionName)
             .Get<EventProjectorReliabilityOptions>() ?? new EventProjectorReliabilityOptions();
-        siContainer.RegisterInstance(projectorReliabilityOptions.Validate());
+        siContainer.RegisterInstance((projectorReliabilityOptions with
+        {
+            DurableProjectorAllowlist = FinancialJetStreamPolicy.DurableProjectors
+        }).Validate());
         var eventLogPersistenceOptions = config
             .GetSection(TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions.SectionName)
             .Get<TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions>()
@@ -1164,7 +1224,6 @@ public static class Startup
         siContainer.AddRegistration<ISystemAdminDbContext>(systemAdminRegistration);
         siContainer.AddRegistration<IObjectRepository<SystemAdminDbContext>>(systemAdminRegistration);
         siContainer.Register(typeof(IActor<>), actorAssemblies, Lifestyle.Singleton);
-        siContainer.RegisterSingleton<TomasAI.IFM.Domain.Supervisor.Context.SupervisorActorContext>();
         siContainer.Register(typeof(ICommandActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IFunctionActorContext<>), domainAssemblies, Lifestyle.Singleton);
         // Both context contracts share the same singleton registration.

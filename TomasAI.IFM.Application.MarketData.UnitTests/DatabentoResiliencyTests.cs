@@ -45,7 +45,7 @@ public sealed class DatabentoResiliencyTests
     }
 
     [Fact]
-    public async Task Stage3_live_policy_retries_once_per_minute_then_replaces_only_the_dataset_process()
+    public async Task Stage3_live_policy_retries_once_per_minute_then_requests_authoritative_hard_recovery()
     {
         var time = new ManualTimeProvider();
         var runtime = new TestRuntime
@@ -56,26 +56,28 @@ public sealed class DatabentoResiliencyTests
             },
             FailDatasetResets = true
         };
+        var requester = new TestRecoveryRequester { OnRecovery = _ => runtime.Snapshot = Up() };
         var recovery = new TestProcessRecovery(runtime);
         var service = Create(runtime, new InMemoryMarketDataServiceStore(),
             stage3: new DatabentoStage3Options { Enabled = true },
-            processRecovery: recovery, timeProvider: time);
+            recoveryRequester: requester, processRecovery: recovery, timeProvider: time);
 
         for (var attempt = 0; attempt < 5; attempt++)
         {
             await service.ProbeAsync();
-            recovery.Count.Should().Be(attempt == 4 ? 1 : 0);
+            requester.Requests.Count.Should().Be(attempt == 4 ? 1 : 0);
             time.Advance(TimeSpan.FromMinutes(1));
         }
         await service.ProbeAsync();
 
         runtime.ResetDatasets.Should().HaveCount(5);
-        recovery.Count.Should().Be(1);
+        requester.Requests.Count.Should().Be(1);
         service.Current.State.Should().Be(DatabentoLifecycleState.Healthy);
+        recovery.Count.Should().Be(0, "legacy process replacement must not be used");
     }
 
     [Fact]
-    public async Task Stage3_off_hours_waits_fifteen_minutes_then_failed_reset_replaces_process()
+    public async Task Stage3_off_hours_waits_fifteen_minutes_then_failed_reset_requests_authoritative_hard_recovery()
     {
         var time = new ManualTimeProvider();
         var runtime = new TestRuntime
@@ -86,19 +88,21 @@ public sealed class DatabentoResiliencyTests
             },
             FailDatasetResets = true
         };
+        var requester = new TestRecoveryRequester { OnRecovery = _ => runtime.Snapshot = Up() };
         var recovery = new TestProcessRecovery(runtime);
         var service = Create(runtime, new InMemoryMarketDataServiceStore(),
             FuturesMarketState.OffTrading,
             stage3: new DatabentoStage3Options { Enabled = true },
-            processRecovery: recovery, timeProvider: time);
+            recoveryRequester: requester, processRecovery: recovery, timeProvider: time);
 
         await service.ProbeAsync();
         time.Advance(TimeSpan.FromMinutes(15));
         await service.ProbeAsync();
 
         runtime.ResetDatasets.Should().ContainSingle();
-        recovery.Count.Should().Be(1);
+        requester.Requests.Count.Should().Be(1);
         service.Current.State.Should().Be(DatabentoLifecycleState.Healthy);
+        recovery.Count.Should().Be(0, "legacy process replacement must not be used");
     }
 
     [Fact]
@@ -110,12 +114,14 @@ public sealed class DatabentoResiliencyTests
             { Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false)] },
             FailDatasetResets = true
         };
+        var requester = new TestRecoveryRequester { OnRecovery = _ => runtime.Snapshot = Up() };
         var recovery = new TestProcessRecovery(runtime);
         var service = Create(runtime, new InMemoryMarketDataServiceStore(), FuturesMarketState.OffTrading,
-            stage3: new() { Enabled = true }, processRecovery: recovery);
+            stage3: new() { Enabled = true }, recoveryRequester: requester, processRecovery: recovery);
         await service.ProbeAsync();
         runtime.ResetDatasets.Should().ContainSingle();
-        recovery.Count.Should().Be(1);
+        requester.Requests.Count.Should().Be(1);
+        recovery.Count.Should().Be(0, "legacy process replacement must not be used");
     }
 
     [Fact]
@@ -126,12 +132,14 @@ public sealed class DatabentoResiliencyTests
             Snapshot = Up() with
             { Feeds = [Feed(Guid.NewGuid(), DatabentoFeedCriticality.Core, false)] }
         };
+        var requester = new TestRecoveryRequester { OnRecovery = _ => runtime.Snapshot = Up() };
         var recovery = new TestProcessRecovery(runtime) { Exited = true };
         var service = Create(runtime, new InMemoryMarketDataServiceStore(),
-            stage3: new() { Enabled = true }, processRecovery: recovery);
+            stage3: new() { Enabled = true }, recoveryRequester: requester, processRecovery: recovery);
         await service.ProbeAsync();
         runtime.ResetDatasets.Should().BeEmpty();
-        recovery.Count.Should().Be(1);
+        requester.Requests.Count.Should().Be(1);
+        recovery.Count.Should().Be(0, "legacy process replacement must not be used");
     }
 
     [Fact]
@@ -152,21 +160,18 @@ public sealed class DatabentoResiliencyTests
     }
 
     [Fact]
-    public async Task Exhausted_core_failure_runs_exactly_three_serial_recovery_attempts_and_latches_red()
+    public async Task Terminal_pipeline_failure_marks_watchdog_failed_without_legacy_retries()
     {
         var runtime = new TestRuntime { Snapshot = Down(), FailStarts = true };
-        var store = new InMemoryMarketDataServiceStore();
-        var service = Create(runtime, store);
-
+        var requester = new TestRecoveryRequester { Outcome = DatabentoRecoveryRequestOutcome.Unrecoverable };
+        var service = Create(runtime, new InMemoryMarketDataServiceStore(), recoveryRequester: requester);
         await service.ProbeAsync();
-
-        runtime.StartCount.Should().Be(3);
-        runtime.MaximumConcurrentMutations.Should().Be(1);
+        requester.Requests.Should().ContainSingle();
+        runtime.StartCount.Should().Be(0);
+        runtime.StopCount.Should().Be(0);
         service.Current.State.Should().Be(DatabentoLifecycleState.Failed);
-        service.Current.RecoveryAttempt.Should().Be(3);
-        service.Current.LastObservation!.DisplayHealth.Should().Be(DatabentoDisplayHealth.Red);
-        (await store.ListObservationsAsync()).Where(x => x.MajorStatus == DatabentoMajorStatus.Resetting)
-            .Select(x => x.RecoveryAttempt).Distinct().Order().Should().Equal(1, 2, 3);
+        service.Current.RecoveryAttempt.Should().Be(1);
+        service.Current.Reason.Should().Contain("Injected terminal action failure");
     }
 
     [Fact]
@@ -206,7 +211,8 @@ public sealed class DatabentoResiliencyTests
     public async Task Manual_and_automatic_operations_share_one_serial_executor()
     {
         var runtime = new TestRuntime { Snapshot = Up(), MutationDelay = TimeSpan.FromMilliseconds(10) };
-        var service = Create(runtime, new InMemoryMarketDataServiceStore());
+        var requester = new TestRecoveryRequester();
+        var service = Create(runtime, new InMemoryMarketDataServiceStore(), recoveryRequester: requester);
 
         await Task.WhenAll(
             service.StartAsync(ValueDate),
@@ -251,19 +257,19 @@ public sealed class DatabentoResiliencyTests
     }
 
     [Fact]
-    public async Task Value_date_rollover_is_fenced_through_the_same_serial_recovery_owner()
+    public async Task Value_date_rollover_is_delegated_to_the_authoritative_pipeline()
     {
         var runtime = new TestRuntime { Snapshot = Up() };
         runtime.SetActive(ValueDate.AddDays(-1));
-        var store = new InMemoryMarketDataServiceStore();
-        var service = Create(runtime, store);
-
+        var requester = new TestRecoveryRequester { OnRecovery = request => runtime.SetActive(request.ValueDate) };
+        var service = Create(runtime, new InMemoryMarketDataServiceStore(), recoveryRequester: requester);
         await service.ProbeAsync();
-
+        var request = requester.Requests.Should().ContainSingle().Subject;
+        request.ValueDate.Should().Be(ValueDate);
+        request.Reason.Should().Be(nameof(DatabentoOperationReason.ValueDateRollover));
         runtime.ActiveValueDate.Should().Be(ValueDate);
-        runtime.StartCount.Should().Be(1);
-        (await store.ListObservationsAsync()).Should().Contain(x =>
-            x.OperationReason == DatabentoOperationReason.ValueDateRollover);
+        runtime.StartCount.Should().Be(0);
+        runtime.StopCount.Should().Be(0);
     }
 
     [Fact]
@@ -447,8 +453,11 @@ public sealed class DatabentoResiliencyTests
     public async Task Stage_two_metrics_expose_native_interop_aggregation_lifecycle_and_refresh_activity()
     {
         var metrics = new DatabentoWatchdogMetrics();
-        var service = Create(new TestRuntime { Snapshot = Up() }, new InMemoryMarketDataServiceStore(), metrics: metrics);
+        var requester = new TestRecoveryRequester();
+        var service = Create(new TestRuntime { Snapshot = Up() }, new InMemoryMarketDataServiceStore(),
+            metrics: metrics, recoveryRequester: requester);
 
+        await service.StartAsync(ValueDate);
         await service.RefreshAsync(Guid.NewGuid());
         await service.ResetAsync(ValueDate, Guid.NewGuid());
 
@@ -465,7 +474,7 @@ public sealed class DatabentoResiliencyTests
     [Theory]
     [InlineData("connection-loss")]
     [InlineData("heartbeat-timeout")]
-    public async Task Epoch_level_faults_enter_the_same_three_attempt_policy(string fault)
+    public async Task Epoch_level_faults_request_the_authoritative_pipeline_once(string fault)
     {
         var snapshot = fault switch
         {
@@ -483,10 +492,12 @@ public sealed class DatabentoResiliencyTests
         };
         var runtime = new TestRuntime { Snapshot = snapshot, FailStarts = true };
 
-        await Create(runtime, new InMemoryMarketDataServiceStore()).ProbeAsync();
+        var requester = new TestRecoveryRequester { Outcome = DatabentoRecoveryRequestOutcome.Unrecoverable };
+        await Create(runtime, new InMemoryMarketDataServiceStore(), recoveryRequester: requester).ProbeAsync();
 
-        runtime.StartCount.Should().Be(3);
-        runtime.MaximumConcurrentMutations.Should().Be(1);
+        requester.Requests.Should().ContainSingle();
+        runtime.StartCount.Should().Be(0);
+        runtime.StopCount.Should().Be(0);
     }
 
     [Theory]
@@ -520,9 +531,11 @@ public sealed class DatabentoResiliencyTests
         };
         var runtime = new TestRuntime { Snapshot = incomplete, FailStarts = true };
 
-        await Create(runtime, new InMemoryMarketDataServiceStore()).ProbeAsync();
+        var requester = new TestRecoveryRequester { Outcome = DatabentoRecoveryRequestOutcome.Unrecoverable };
+        await Create(runtime, new InMemoryMarketDataServiceStore(), recoveryRequester: requester).ProbeAsync();
 
-        runtime.StartCount.Should().Be(3);
+        requester.Requests.Should().ContainSingle();
+        runtime.StartCount.Should().Be(0);
     }
 
 
@@ -550,7 +563,8 @@ public sealed class DatabentoResiliencyTests
         const int simulatedMinutes = 24 * 60;
         var store = new InMemoryMarketDataServiceStore();
         var runtime = new TestRuntime { Snapshot = Up() };
-        var service = Create(runtime, store);
+        var requester = new TestRecoveryRequester();
+        var service = Create(runtime, store, recoveryRequester: requester);
         var process = Process.GetCurrentProcess();
         process.Refresh();
         var handlesBefore = process.HandleCount;
@@ -572,8 +586,9 @@ public sealed class DatabentoResiliencyTests
             $"Stage2 managed soak: minutes={simulatedMinutes}; restarts=50; elapsedMs={stopwatch.Elapsed.TotalMilliseconds:F3}; allocatedBytes={allocated}; privateMemoryGrowthBytes={memoryGrowth}; handleGrowth={handleGrowth}");
         (await store.ListObservationsAsync(pageSize: 1000)).Should().HaveCount(1000,
             "history queries are bounded while the store retains the complete append history");
-        runtime.MaximumConcurrentMutations.Should().Be(1);
-        runtime.StartCount.Should().Be(50);
+        runtime.MaximumConcurrentMutations.Should().Be(0);
+        requester.Requests.Should().HaveCount(50);
+        runtime.StartCount.Should().Be(0);
         stopwatch.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(10));
         allocated.Should().BeLessThan(128L * 1024 * 1024);
         memoryGrowth.Should().BeLessThan(64L * 1024 * 1024);
@@ -707,7 +722,7 @@ public sealed class DatabentoResiliencyTests
         DatabentoTerminalFaultSignal? signal = null,
         DatabentoStage3Options? stage3 = null,
         IDatabentoDatasetProcessRecovery? processRecovery = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null, IDatabentoRecoveryRequester? recoveryRequester = null)
     {
         var authority = Substitute.For<IFuturesMarketSessionAuthority>();
         authority.Current.Returns(new MarketSessionReadModel
@@ -734,7 +749,7 @@ public sealed class DatabentoResiliencyTests
                 PersistenceRetryDelay = TimeSpan.Zero
             }, signal ?? new DatabentoTerminalFaultSignal(), clock,
             NullLogger<DatabentoMarketDataWatchdogService>.Instance,
-            stage3, processRecovery, new MarketDataOperationsHealthService(admissions));
+            stage3, processRecovery, new MarketDataOperationsHealthService(admissions), recoveryRequester);
     }
 
     static DatabentoBulkWatchdogSnapshot Down() => new()
@@ -849,6 +864,25 @@ public sealed class DatabentoResiliencyTests
         public ValueTask PublishAsync(DatabentoWatchdogObservation observation, CancellationToken cancellationToken)
             => ValueTask.FromException(new InvalidOperationException("Injected publication failure."));
     }
+
+    sealed class TestRecoveryRequester : IDatabentoRecoveryRequester
+    {
+        public List<DatabentoHardRecoveryRequest> Requests { get; } = [];
+        public DatabentoRecoveryRequestOutcome Outcome { get; init; } = DatabentoRecoveryRequestOutcome.FullyHealthy;
+        public Action<DatabentoHardRecoveryRequest>? OnRecovery { get; init; }
+        public Task<DatabentoRecoveryRequestResult> HardResetRecoveryAsync(
+            DatabentoHardRecoveryRequest request, CancellationToken cancellationToken = default)
+        {
+            Requests.Add(request);
+            OnRecovery?.Invoke(request);
+            var failure = Outcome == DatabentoRecoveryRequestOutcome.Unrecoverable;
+            var result = new DatabentoHardRecoveryResult(request.CorrelationId, Guid.NewGuid(), 1,
+                failure ? DatabentoHardRecoveryOutcome.Unrecoverable : DatabentoHardRecoveryOutcome.DatabentoHealthy,
+                failure ? "InjectedAction" : "", failure ? "Injected terminal action failure" : "Qualified");
+            return Task.FromResult(new DatabentoRecoveryRequestResult(request.CorrelationId, Outcome, result, result.Detail));
+        }
+    }
+
 
     sealed class TestRuntime : IDatabentoLifecycleRuntime
     {

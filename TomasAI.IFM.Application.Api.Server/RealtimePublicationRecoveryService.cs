@@ -16,12 +16,16 @@ public sealed class RealtimePublicationRecoveryService(
     IFuturesMarketSessionAuthority sessions,
     DatabentoMarketDataWatchdogService watchdog,
     TimeProvider time,
-    ILogger<RealtimePublicationRecoveryService> logger) : BackgroundService
+    ILogger<RealtimePublicationRecoveryService> logger,
+    IDatabentoRecoveryRequester? recoveryRequester = null) : BackgroundService
 {
     static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(250);
     static readonly TimeSpan FailedResetRetryDelay = TimeSpan.FromSeconds(5);
     DateTime? lastAttemptUtc;
     DateTime? attemptedFailureUtc;
+    DateTime? episodeFailureUtc;
+    bool episodeSubmittedForFailure;
+    bool terminalEpisode;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -46,6 +50,7 @@ public sealed class RealtimePublicationRecoveryService(
 
     async Task ObserveAsync(CancellationToken stoppingToken)
     {
+        if (terminalEpisode) return;
         if (publisher is not ITickAggregationPublisherDiagnostics diagnostics)
             return;
         var session = sessions.Current;
@@ -53,10 +58,18 @@ public sealed class RealtimePublicationRecoveryService(
         {
             attemptedFailureUtc = null;
             lastAttemptUtc = null;
+            episodeFailureUtc = null;
+            episodeSubmittedForFailure = false;
             return;
         }
         var snapshot = diagnostics.GetSnapshot();
         if (!snapshot.PolicyEnabled || !snapshot.ResetRequired)
+        {
+            episodeFailureUtc = null;
+            episodeSubmittedForFailure = false;
+            return;
+        }
+        if (episodeSubmittedForFailure && episodeFailureUtc == snapshot.FirstFailureUtc)
             return;
         var now = time.GetUtcNow().UtcDateTime;
         if (attemptedFailureUtc == snapshot.FirstFailureUtc
@@ -77,10 +90,24 @@ public sealed class RealtimePublicationRecoveryService(
         {
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
             deadline.CancelAfter(TimeSpan.FromMinutes(1));
-            await watchdog.HardResetAsync(valueDate, correlationId, deadline.Token).ConfigureAwait(false);
-            logger.LogWarning(
-                "Complete Databento dataset reset finished after the downstream publication stall. CorrelationId={CorrelationId}; ValueDate={ValueDate}",
-                correlationId, valueDate);
+            episodeFailureUtc = snapshot.FirstFailureUtc;
+            episodeSubmittedForFailure = true;
+            logger.LogWarning("Requesting hard reset recovery after publication stall. CorrelationId={CorrelationId}; ValueDate={ValueDate}", correlationId, valueDate);
+            var episode = await (recoveryRequester ?? throw new InvalidOperationException("Hard reset recovery pipeline is not configured."))
+                .HardResetRecoveryAsync(new DatabentoHardRecoveryRequest(correlationId, valueDate,
+                    watchdog.Current.NativeGeneration, nameof(RealtimePublicationRecoveryService),
+                    $"Downstream publication stalled: {snapshot.Failure}"), deadline.Token)
+                .ConfigureAwait(false);
+            terminalEpisode = episode.Outcome is DatabentoRecoveryRequestOutcome.Unrecoverable
+                or DatabentoRecoveryRequestOutcome.ApplicationStopping;
+            if (episode.Outcome == DatabentoRecoveryRequestOutcome.AlreadyInProgress)
+                return;
+            if (episode.Outcome == DatabentoRecoveryRequestOutcome.FullyHealthy)
+                logger.LogWarning("Databento recovery episode fully qualified after publication stall. CorrelationId={CorrelationId}; ValueDate={ValueDate}",
+                    episode.CorrelationId, valueDate);
+            else
+                logger.LogCritical("Databento recovery episode did not restore the complete pipeline. CorrelationId={CorrelationId}; ValueDate={ValueDate}; Outcome={Outcome}; Detail={Detail}",
+                    episode.CorrelationId, valueDate, episode.Outcome, episode.Detail);
         }
         catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
         {

@@ -5,6 +5,20 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime;
 
 internal static class TickAggregationRealtimeEvents
 {
+    internal static FuturesTickTradeDataChangedEvent RestoreSource(
+        this FuturesTickTradeDataChangedEvent value, string? dataset, Guid generationId) => value with
+    {
+        SourceDataset = dataset ?? string.Empty,
+        SourceGenerationId = generationId
+    };
+
+    internal static FuturesTickQuoteDataChangedEvent RestoreSource(
+        this FuturesTickQuoteDataChangedEvent value, string? dataset, Guid generationId) => value with
+    {
+        SourceDataset = dataset ?? string.Empty,
+        SourceGenerationId = generationId
+    };
+
     internal static FuturesTickTradeDataInsertedEvent ToInsertedEvent(
         this FuturesTickTradeDataChangedEvent source) => new()
         {
@@ -27,7 +41,9 @@ internal static class TickAggregationRealtimeEvents
             DefinitionDate = source.DefinitionDate,
             PublisherId = source.PublisherId,
             InstrumentId = source.InstrumentId,
-            TradeData = source.TradeData
+            TradeData = source.TradeData,
+            SourceDataset = source.SourceDataset,
+            SourceGenerationId = source.SourceGenerationId
         };
 
     internal static FuturesTickQuoteDataInsertedEvent ToInsertedEvent(
@@ -54,6 +70,8 @@ internal static class TickAggregationRealtimeEvents
             InstrumentId = source.InstrumentId,
             EmissionReason = source.EmissionReason,
             QuoteCount = source.QuoteCount,
-            QuoteData = source.QuoteData
+            QuoteData = source.QuoteData,
+            SourceDataset = source.SourceDataset,
+            SourceGenerationId = source.SourceGenerationId
         };
 }

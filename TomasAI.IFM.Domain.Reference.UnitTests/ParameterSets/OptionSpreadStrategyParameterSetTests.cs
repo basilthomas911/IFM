@@ -58,5 +58,11 @@ public sealed class OptionSpreadStrategyParameterSetTests
         var startup = new ParameterStartupSnapshotModel(Guid.NewGuid(), [assignment],
             new Dictionary<ParameterVersionRef, ParameterSetVersion> { [version.Reference] = version });
         startup.Resolve(scope, startup.StartupRunId)!.Version.Should().Be(version);
+        var run = new ParameterStartupRun(startup.StartupRunId, [assignment], [version],
+            new(startup.StartupRunId, startup.Fingerprint, startup.Fingerprint, []),
+            DateTime.UtcNow, "test");
+        var runtime = new ParameterRuntimeSnapshotModel(true);
+        runtime.Apply(run);
+        runtime.Resolve(scope).Applied!.Version.Should().Be(version);
     }
 }

@@ -12,8 +12,7 @@ public enum ApplicationStartupActivity
     WarmHistoricalAnalytics = 5,
     StartRealtimeAnalytics = 6,
     QualifyOperationalState = 7,
-    ApplyParameterSets = 8,
-    PrepareParameterSignals = 9
+    ApplyParameterSets = 8
 }
 
 /// <summary>Describes the terminal result of one startup activity.</summary>
@@ -86,8 +85,6 @@ public interface IApplicationStartupActivities
 {
     ValueTask<ApplicationStartupActivityOutcome> ApplyParameterSetsAsync(ApplicationStartupContext context, CancellationToken cancellationToken)
         => ValueTask.FromResult(ApplicationStartupActivityOutcome.AlreadySatisfied);
-    ValueTask<ApplicationStartupActivityOutcome> PrepareParameterSignalsAsync(ApplicationStartupContext context, CancellationToken cancellationToken)
-        => ValueTask.FromResult(ApplicationStartupActivityOutcome.AlreadySatisfied);
     ValueTask<ApplicationStartupActivityOutcome> ResolveAuthorityAsync(
         ApplicationStartupContext context,
         CancellationToken cancellationToken);
@@ -138,7 +135,6 @@ public static class ApplicationStartupPlan
         new(ApplicationStartupActivity.ReconcileCurrentContracts, true, [ApplicationStartupActivity.ResolveAuthority]),
         new(ApplicationStartupActivity.WarmHistoricalAnalytics, false, [ApplicationStartupActivity.ReconcileCurrentContracts]),
         new(ApplicationStartupActivity.StartRealtimeAnalytics, true, [ApplicationStartupActivity.ReconcileCurrentContracts]),
-        new(ApplicationStartupActivity.PrepareParameterSignals, false, [ApplicationStartupActivity.ApplyParameterSets,ApplicationStartupActivity.StartRealtimeAnalytics]),
         new(ApplicationStartupActivity.StartMarketData, true,
         [
             ApplicationStartupActivity.ReconcileCurrentContracts,

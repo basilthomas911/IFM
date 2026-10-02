@@ -19,6 +19,70 @@ namespace TomasAI.IFM.Domain.Reference.IntegrationTests.ParameterSets;
 [Collection(ReferenceIntegrationInfrastructureCollection.Name)]
 public sealed class ParameterSetActorRuntimeTests(ReferenceIntegrationInfrastructureFixture infrastructure)
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Real_actor_routes_assign_and_disable_option_spread_defaults(bool ironCondor)
+    {
+        var api = new ParameterSetsApi(infrastructure.ActorProducer);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        var token = deadline.Token;
+        var setId = Guid.NewGuid();
+        IParameterComponentDescriptor descriptor = ironCondor
+            ? new IronCondorMarketSelectionParameterModel()
+            : new VerticalSpreadMarketSelectionParameterModel();
+        var scope = ironCondor
+            ? OptionSpreadStrategyParameterScopeModel.IronCondor()
+            : OptionSpreadStrategyParameterScopeModel.VerticalSpread();
+        var identity = new ParameterAssignmentEntityId(ParameterAssignmentPolicyModel.AssignmentId(scope));
+
+        var created = await api.CreateAsync(new()
+        {
+            CommandId = Guid.NewGuid(),
+            EntityId = new(setId),
+            ComponentCode = descriptor.Summary.ComponentCode,
+            Name = descriptor.Summary.Name,
+            SchemaVersion = descriptor.Summary.SchemaVersions.Single(),
+            PayloadJson = descriptor.CreateDraftPayload(setId)
+        }, token);
+        Assert.True(created.Success, created.ErrorMessage);
+        var versionDraft = (await api.StateAsync(setId, token)).Value!.Versions.Single();
+        var published = await api.PublishAsync(new()
+        {
+            CommandId = Guid.NewGuid(), EntityId = new(setId), Version = 1, ExpectedRevision = 1,
+            ComponentCode = versionDraft.Reference.ComponentCode, Name = versionDraft.Name,
+            Description = versionDraft.Description, SchemaVersion = versionDraft.SchemaVersion,
+            PayloadJson = versionDraft.PayloadJson
+        }, token);
+        Assert.True(published.Success, published.ErrorMessage);
+        var version = (await api.StateAsync(setId, token)).Value!.Versions.Single();
+
+        var assigned = await api.AssignAsync(new()
+        {
+            CommandId = Guid.NewGuid(), EntityId = identity, Scope = scope,
+            Reference = version.Reference, ExpectedRevision = 0
+        }, token);
+        Assert.True(assigned.Success, assigned.ErrorMessage);
+        var runId = Guid.NewGuid();
+        var applied = await api.ApplyStartupAsync(new()
+        {
+            CommandId = runId, RunId = runId
+        }, token);
+        Assert.True(applied.Success, applied.ErrorMessage);
+        var run = await api.StartupRunAsync(runId, token);
+        Assert.True(run.Success, run.ErrorMessage);
+        Assert.Contains(run.Value!.Scopes, candidate =>
+            candidate.AssignmentId == identity.AssignmentId && candidate.Enabled);
+        Assert.Contains(run.Value.Versions, candidate => candidate.Reference == version.Reference);
+        Assert.Empty(run.Value.Plan.Steps);
+        var disabled = await api.DisableAssignmentAsync(new()
+        {
+            CommandId = Guid.NewGuid(), EntityId = identity, Scope = scope,
+            Reference = version.Reference, ExpectedRevision = 1
+        }, token);
+        Assert.True(disabled.Success, disabled.ErrorMessage);
+    }
+
     [Fact]
     public async Task Real_actor_routes_complete_parameter_lifecycle_and_keep_frozen_startup_versions()
     {

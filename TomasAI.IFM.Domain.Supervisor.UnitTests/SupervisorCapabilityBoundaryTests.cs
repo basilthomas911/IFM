@@ -1,9 +1,9 @@
-using TomasAI.IFM.Domain.Supervisor.Context;
-using TomasAI.IFM.Domain.Supervisor.Health;
-using TomasAI.IFM.Domain.Supervisor.Lifecycle;
-using TomasAI.IFM.Domain.Supervisor.Metrics;
+using TomasAI.IFM.Domain.Supervisor.Operations.Command.Actor;
+using TomasAI.IFM.Domain.Supervisor.Shared;
+using TomasAI.IFM.Domain.Supervisor.Shared.Service.Lifecycle;
+using TomasAI.IFM.Domain.Supervisor.Shared.Service;
+using TomasAI.IFM.Domain.Supervisor.Health.Query.Actor;
 using TomasAI.IFM.Domain.Supervisor.Shared.Enums;
-using TomasAI.IFM.Domain.Supervisor.Shared.ReadModels;
 using TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.Supervisor.UnitTests;
@@ -11,14 +11,26 @@ namespace TomasAI.IFM.Domain.Supervisor.UnitTests;
 public sealed class SupervisorCapabilityBoundaryTests
 {
     [Fact]
-    public void Privileged_context_exposes_only_named_capabilities()
+    public void Command_context_exposes_only_lifecycle_incident_authorization_and_logging_capabilities()
     {
-        var properties = typeof(ISupervisorActorContext).GetProperties();
+        var names = typeof(ISupervisorCommandActorContext).GetProperties()
+            .Select(property => property.Name).OrderBy(name => name).ToArray();
 
-        Assert.Equal(6, properties.Length);
-        Assert.DoesNotContain(properties, property => property.Name.Contains("Container", StringComparison.Ordinal));
-        Assert.DoesNotContain(properties, property => property.Name.Contains("Runtime", StringComparison.Ordinal));
-        Assert.DoesNotContain(properties, property => property.Name.Contains("Mailbox", StringComparison.Ordinal));
+        Assert.Equal(["Authorizer", "EventProjector", "Incidents", "Logger",
+            "ManagedActors", "StateRepository"], names);
+    }
+
+    [Fact]
+    public void Command_incident_capability_is_read_only_and_poller_is_shared()
+    {
+        Assert.Equal(typeof(ISupervisorIncidentReadStore),
+            typeof(ISupervisorCommandActorContext).GetProperty("Incidents")!.PropertyType);
+        Assert.DoesNotContain(typeof(ISupervisorIncidentReadStore).GetMethods(),
+            method => method.Name == "Acknowledge");
+        Assert.Equal(typeof(ISupervisorIncidentReadStore).Assembly,
+            typeof(SupervisorActorMetricsPollingService).Assembly);
+        Assert.Equal(SupervisorSharedAssembly.ActorAssemblyName,
+            typeof(SupervisorCommandActor).Assembly.GetName().Name);
     }
 
     [Fact]
@@ -36,17 +48,11 @@ public sealed class SupervisorCapabilityBoundaryTests
     }
 
     [Fact]
-    public void Context_can_be_constructed_without_runtime_root_access()
+    public void Query_context_exposes_only_metrics_and_logging_capabilities()
     {
-        var context = new SupervisorActorContext(
-            new ObserveOnlySupervisorManagedActorLifecycle(),
-            new SupervisorActorMetricsState(),
-            new ObserveOnlySupervisorHealthManager(),
-            new EmptySupervisorIncidentStore(),
-            new EmptySupervisorOperationStore(),
-            new EmptySupervisorHistoryStore());
+        var names = typeof(ISupervisorQueryActorContext).GetProperties()
+            .Select(property => property.Name).OrderBy(name => name).ToArray();
 
-        Assert.Equal(SupervisorAuthorityState.Available, context.Health.AuthorityState);
-        Assert.Same(SupervisorActorMetricsSnapshot.Empty, context.ActorMetrics.Current);
+        Assert.Equal(["ActorMetrics", "Logger"], names);
     }
 }

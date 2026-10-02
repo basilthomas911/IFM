@@ -48,7 +48,39 @@ public sealed class FuturesRsiSignalsGeneratedTests
                     && command.FuturesTdiSignalId.ConfigurationId == FuturesTdiConfiguration.StandardConfigurationId
                     && command.FuturesRsiSignals.Length == 34
                     && command.Configuration.ConfigurationId == FuturesTdiConfiguration.StandardConfigurationId
-                    && command.CommandId == eventId));
+                    && command.CommandId != eventId
+                    && command.CommandId != @event.CommandId
+                    && command.CommandId != Guid.Empty));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_EmptyEventId_DerivesAStableCommandIdDistinctFromRsiStart()
+    {
+        var context = Substitute.For<IEventActorContext<FuturesTdiSignalEventActor>>();
+        context.RequestAsync<GenerateFuturesTdiSignalCommand, FuturesTdiSignalEntityId>(
+                Arg.Any<GenerateFuturesTdiSignalCommand>())
+            .Returns(new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid())));
+        var rsiCommandId = Guid.NewGuid();
+        var @event = new FuturesRsiSignalsGeneratedEvent
+        {
+            CommandId = rsiCommandId,
+            EntityId = new FuturesRsiSignalEntityId(
+                SampleData.ContractId, SampleData.ValueDate, TimeFrameType.FiveMinutes, 13),
+            PeriodLength = 13,
+            FuturesRsiSignals = SampleData.TdiRsiSignals
+                .Select(signal => signal with { TimePeriod = TimeFrameType.FiveMinutes }).ToArray()
+        };
+        var logger = Substitute.For<ILogger<FuturesTdiSignalEventActor>>();
+
+        Assert.True(await @event.ExecuteAsync(context, logger));
+        Assert.True(await @event.ExecuteAsync(context, logger));
+        var sent = context.ReceivedCalls()
+            .Select(call => call.GetArguments().OfType<GenerateFuturesTdiSignalCommand>().FirstOrDefault())
+            .Where(command => command is not null).ToArray();
+        Assert.Equal(2, sent.Length);
+        Assert.NotEqual(rsiCommandId, sent[0]!.CommandId);
+        Assert.NotEqual(Guid.Empty, sent[0].CommandId);
+        Assert.Equal(sent[0].CommandId, sent[1]!.CommandId);
     }
 
     [Fact]

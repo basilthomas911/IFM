@@ -19,7 +19,9 @@ sealed class ActorThreadV2(
     ActorReadyQueue readyQueue,
     ActorThreadPoolMetricsState metricsState,
     int workerId,
-    ActorInformationLoggingPolicy informationLoggingPolicy) : IActorThread, IAsyncDisposable, ISupervisorWorkerMetricsSource
+    ActorInformationLoggingPolicy informationLoggingPolicy,
+    IRealtimeSourceAdmission? realtimeSourceAdmission,
+    RealtimeActorCompletionEvidence? realtimeCompletionEvidence) : IActorThread, IAsyncDisposable, ISupervisorWorkerMetricsSource
 {
     const int MaxBatchSize = 64;
     readonly ILogger _logger = IsArgumentNull.Set(logger);
@@ -27,6 +29,8 @@ sealed class ActorThreadV2(
     readonly ActorReadyQueue _readyQueue = IsArgumentNull.Set(readyQueue);
     readonly ActorThreadPoolMetricsState _metricsState = IsArgumentNull.Set(metricsState);
     readonly ActorInformationLoggingPolicy _informationLoggingPolicy = IsArgumentNull.Set(informationLoggingPolicy);
+    readonly IRealtimeSourceAdmission? _realtimeSourceAdmission = realtimeSourceAdmission;
+    readonly RealtimeActorCompletionEvidence? _realtimeCompletionEvidence = realtimeCompletionEvidence;
     readonly CancellationTokenSource _cts = new();
     volatile ActorThreadState _state = ActorThreadState.Ready;
     Task? _processingTask;
@@ -219,9 +223,26 @@ sealed class ActorThreadV2(
                     {
                         _state = ActorThreadState.ProcessingMessage;
                         using var trace = ActorTrace.Start(message!);
-                        await actor.HandleMessageAsync(message!, threadId, cancellationToken).ConfigureAwait(false);
-                        ActorRuntimeMetrics.RecordProcessed(threadId.ActorType);
-                        deliverySucceeded = mailboxMetrics?.RecordSucceeded() ?? true;
+                        IDisposable? generationLease = null;
+                        var admitted = threadId.ActorType != ActorType.Realtime
+                            || _realtimeSourceAdmission?.TryEnter(message!.SourceSubject,
+                                message.SourceDataset, message.SourceGenerationId,
+                                out generationLease) != false;
+                        using (generationLease)
+                        {
+                            if (admitted)
+                            {
+                                await actor.HandleMessageAsync(message!, threadId, cancellationToken).ConfigureAwait(false);
+                                ActorRuntimeMetrics.RecordProcessed(threadId.ActorType);
+                                deliverySucceeded = mailboxMetrics?.RecordSucceeded() ?? true;
+                            }
+                            else
+                            {
+                                outcome = "Fenced";
+                                deliverySucceeded = true;
+                                mailboxMetrics?.RecordCancelled();
+                            }
+                        }
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                     {
@@ -296,6 +317,10 @@ sealed class ActorThreadV2(
                             _logger.LogErrorEvent(threadId.ToString(), disposalFailure,
                                 "Actor message disposal failed after processing completed.");
                         }
+                        // Observe only after handler, delivery acknowledgement, and cleanup have succeeded.
+                        if (outcome == "Succeeded" && threadId.ActorType == ActorType.Realtime)
+                            _realtimeCompletionEvidence?.Record(message?.SourceDataset,
+                                message?.SourceGenerationId ?? Guid.Empty, message!.Subject);
                         _metricsState.RecordMessageCompleted();
                         ActorRuntimeMetrics.RecordHandler(handlerStarted, threadId.ActorType);
                         if (!suppressRoutineInformation || outcome != "Succeeded")

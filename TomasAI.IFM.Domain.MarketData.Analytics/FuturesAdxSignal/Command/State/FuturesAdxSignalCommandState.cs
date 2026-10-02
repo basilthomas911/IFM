@@ -31,15 +31,21 @@ public class FuturesAdxSignalCommandState
     {
         return domainEvent switch
         {
-            FuturesAdxSignalStartedEvent e => OnStarted(e.RestoredSignal),
+            FuturesAdxSignalStartedEvent e => OnStarted(e.RestoredSignal, e.ResetForHistoricalSeed),
             FuturesAdxSignalStoppedEvent => true,
             FuturesAdxSignalGeneratedEvent e => On(e.FuturesAdxSignal),
             FuturesAdxDailySignalGeneratedEvent e => On(e.FuturesAdxSignal),
             _ => false
         };
 
-        bool OnStarted(FuturesAdxSignalReadModel? restored)
+        bool OnStarted(FuturesAdxSignalReadModel? restored, bool reset)
         {
+            if (reset)
+            {
+                _adxSignals.Clear();
+                _adxSignal = null;
+                return true;
+            }
             if (restored is not null && _adxSignals.Count == 0)
             {
                 _adxSignals.Add(restored);

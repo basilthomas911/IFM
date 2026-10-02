@@ -56,10 +56,10 @@ public class MarketDataFeedEventActor(IEventActorContext<MarketDataFeedEventActo
             var e = (evt as MarketDataFeedResetEvent)!;
             return await e.ExecuteAsync(ctx, eventApi, eventParams, logger);
         },
-        [typeof(MarketDataFeedResetCompleteEvent)] = async (evt, ctx, commandApi, eventApi, eventParams, logger) =>
+        [typeof(MarketDataFeedResetCompleteEvent)] = async (evt, ctx, _, eventApi, eventParams, logger) =>
         {
             var e = (evt as MarketDataFeedResetCompleteEvent)!;
-            return await e.ExecuteAsync(ctx, commandApi, eventApi, eventParams, logger);
+            return await e.ExecuteAsync(ctx, eventApi, eventParams, logger);
         }
     };
 

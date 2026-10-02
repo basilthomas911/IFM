@@ -31,6 +31,18 @@ public sealed class ParameterSetProjectionIntegrationTests(ReferenceIntegrationI
          x.ComponentCode == FuturesItiSignalParameterModel.ComponentCode &&
          x.Name == "Future ITI Signal" &&
          x.SchemaVersions.SequenceEqual(new[] { 1 }));
+        components.Should().Contain(x =>
+            x.AreaCode == "option-spread-strategy" &&
+            x.AreaName == "Option Spread Strategy Defaults" &&
+            x.ComponentCode == IronCondorMarketSelectionParameterModel.ComponentCode &&
+            x.Name == "Iron Condor" &&
+            x.SchemaVersions.SequenceEqual(new[] { 1 }));
+        components.Should().Contain(x =>
+            x.AreaCode == "option-spread-strategy" &&
+            x.AreaName == "Option Spread Strategy Defaults" &&
+            x.ComponentCode == VerticalSpreadMarketSelectionParameterModel.ComponentCode &&
+            x.Name == "Vertical Spreads" &&
+            x.SchemaVersions.SequenceEqual(new[] { 1 }));
         var schema = await store.GetParameterSchemaAsync(RegimeDiscoveryParameterModel.ComponentCode, 3);
         schema.Should().NotBeNull(); schema!.SchemaSha256.Should().Be(ParameterSchemaRegistry.Default.Get(RegimeDiscoveryParameterModel.ComponentCode, 3).SchemaSha256);
         var id = Guid.NewGuid(); var json = new RegimeDiscoveryParameterModel().CreateDraftPayload(id);

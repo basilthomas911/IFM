@@ -124,7 +124,6 @@ public sealed class ApplicationStartupWorkflowTests
 
     [Theory]
     [InlineData(ApplicationStartupActivity.ApplyParameterSets)]
-    [InlineData(ApplicationStartupActivity.PrepareParameterSignals)]
     public async Task Parameter_failure_is_visible_but_does_not_stop_the_feed(ApplicationStartupActivity failure)
     {
         var activities = new RecordingActivities { Failure = failure }; var context = new TestContext(activities);
@@ -221,7 +220,6 @@ public sealed class ApplicationStartupWorkflowTests
         }
 
         public ValueTask<ApplicationStartupActivityOutcome> ApplyParameterSetsAsync(ApplicationStartupContext context, CancellationToken cancellationToken) => Execute(ApplicationStartupActivity.ApplyParameterSets, cancellationToken);
-        public ValueTask<ApplicationStartupActivityOutcome> PrepareParameterSignalsAsync(ApplicationStartupContext context, CancellationToken cancellationToken) => Execute(ApplicationStartupActivity.PrepareParameterSignals, cancellationToken);
         public ValueTask<ApplicationStartupActivityOutcome> ResolveAuthorityAsync(ApplicationStartupContext context, CancellationToken cancellationToken) => Execute(ApplicationStartupActivity.ResolveAuthority, cancellationToken);
         public ValueTask<ApplicationStartupActivityOutcome> ReconcileReferenceDataAsync(ApplicationStartupContext context, CancellationToken cancellationToken) => Execute(ApplicationStartupActivity.ReconcileReferenceData, cancellationToken);
         public ValueTask<ApplicationStartupActivityOutcome> ReconcileCurrentContractsAsync(ApplicationStartupContext context, CancellationToken cancellationToken) => Execute(ApplicationStartupActivity.ReconcileCurrentContracts, cancellationToken);

@@ -20,7 +20,7 @@ public static class FuturesMarketPriceUpdated
     /// <param name="event">The routed normalized futures market-price event.</param>
     /// <param name="context">The typed realtime actor context.</param>
     /// <returns><see langword="true"/> when the event was handled or intentionally ignored.</returns>
-    public static ValueTask<bool> ExecuteAsync(
+    public static async ValueTask<bool> ExecuteAsync(
         this FuturesMarketPriceUpdatedRealtimeEvent @event,
         IFuturesItiSignalRealtimeContext context)
     {
@@ -32,26 +32,19 @@ public static class FuturesMarketPriceUpdated
         var eventTime = trade?.EventTimestamp.UtcDateTime ?? @event.ReceivedOn;
         telemetry.RecordMarketPriceReceived(eventTime);
 
-        if (context.GenerationGate.IsBusy)
-        {
-            telemetry.RecordBusySkipped();
-            return ValueTask.FromResult(true);
-        }
-
         try
         {
             if (!IsUsableTradeEvent(@event, out var esTrade, out var filterReason))
-                return ValueTask.FromResult(Filter(filterReason));
+                return Filter(filterReason);
             if (!StringComparer.Ordinal.Equals(@event.EntityId.ContractId, @event.Price.ContractId)
                 || @event.EntityId.ValueDate != @event.Price.ValueDate
                 || @event.EntityId.AssetTypeId != @event.Price.AssetTypeId)
             {
-                return ValueTask.FromResult(
-                    Reject("The market-price event entity and price snapshot identities do not match."));
+                return Reject("The market-price event entity and price snapshot identities do not match.");
             }
             if (!context.MarketDataApi.TryGetOnTheRunFuturesContract("ES", out var esContract)
                 || !StringComparer.Ordinal.Equals(esContract.ContractId, @event.Price.ContractId))
-                return ValueTask.FromResult(Filter("Trade is not for the current on-the-run ES contract."));
+                return Filter("Trade is not for the current on-the-run ES contract.");
 
             telemetry.RecordEligibleEsTrade(esTrade.EventTimestamp.UtcDateTime);
 
@@ -59,7 +52,7 @@ public static class FuturesMarketPriceUpdated
             {
                 _ = telemetry.RecordInputUnavailable(unavailableReason);
                 context.HealthEvidence.Record("ITI", Scope, "Degraded", unavailableReason, eventTime);
-                return ValueTask.FromResult(true);
+                return true;
             }
 
             var commandId = CreateCommandId(@event, esTrade);
@@ -68,32 +61,12 @@ public static class FuturesMarketPriceUpdated
             var valueDate = @event.Price.ValueDate;
             var futuresPrice = Convert.ToDouble(esTrade.LastPrice);
             var tradeTimestamp = esTrade.EventTimestamp.UtcDateTime;
-            if (!context.GenerationGate.TryStart(
-                    () =>
-                    {
-                        telemetry.RecordCommandRequested();
-                        FuturesItiSignalRealtimeLogging.CommandGenerated(
-                            context.Logger,
-                            sourceEventId,
-                            commandId,
-                            contractId,
-                            valueDate);
-                    },
-                    () => GenerateAsync(
-                        context,
-                        sourceEventId,
-                        commandId,
-                        contractId,
-                        valueDate,
-                        tradeTimestamp,
-                        futuresPrice,
-                        vxPrice,
-                        eventTime)))
-            {
-                telemetry.RecordBusySkipped();
-                return ValueTask.FromResult(true);
-            }
-            return ValueTask.FromResult(true);
+            telemetry.RecordCommandRequested();
+            FuturesItiSignalRealtimeLogging.CommandGenerated(
+                context.Logger, sourceEventId, commandId, contractId, valueDate);
+            await GenerateAsync(context, sourceEventId, commandId, contractId, valueDate,
+                tradeTimestamp, futuresPrice, vxPrice, eventTime).ConfigureAwait(false);
+            return true;
         }
         catch (Exception exception)
         {

@@ -35,6 +35,9 @@ public record FuturesRsiSignalStartedEvent : IEvent<FuturesRsiSignalEntityId>
     [Key(13)] public TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesRsiSignalReadModel? RestoredSignal { get; init; }
     /// <summary>Gets the accumulator checkpoint restored at this lifecycle snapshot boundary.</summary>
     [Key(14)] public TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesRsiAccumulatorCheckpoint? RestoredCheckpoint { get; init; }
+    /// <summary>Warm seed values preceding the separately published final seed signal.</summary>
+    [Key(15)] public TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesRsiSignalReadModel[] HistoricalWarmSignals { get; init; } = [];
+    [Key(16)] public bool ResetForHistoricalSeed { get; init; }
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
@@ -57,7 +60,7 @@ public record FuturesRsiSignalStartedEvent : IEvent<FuturesRsiSignalEntityId>
         DateTime receivedOn,
         DateOnly valueDate,
         DateTime startedOn,
-        string startedBy, int historicalSeedCount = 0, string historicalSeedReason = "", TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesRsiSignalReadModel? restoredSignal = null, TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesRsiAccumulatorCheckpoint? restoredCheckpoint = null)
+        string startedBy, int historicalSeedCount = 0, string historicalSeedReason = "", TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesRsiSignalReadModel? restoredSignal = null, TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesRsiAccumulatorCheckpoint? restoredCheckpoint = null, TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesRsiSignalReadModel[]? historicalWarmSignals = null, bool resetForHistoricalSeed = false)
     {
         Subject = subject;
         Id = id;
@@ -71,6 +74,8 @@ public record FuturesRsiSignalStartedEvent : IEvent<FuturesRsiSignalEntityId>
         StartedOn = startedOn;
         StartedBy = startedBy ?? string.Empty;
         HistoricalSeedCount = historicalSeedCount; HistoricalSeedReason = historicalSeedReason ?? string.Empty; RestoredSignal = restoredSignal; RestoredCheckpoint = restoredCheckpoint;
+        HistoricalWarmSignals = historicalWarmSignals ?? [];
+        ResetForHistoricalSeed = resetForHistoricalSeed;
     }
 
     /// <summary>

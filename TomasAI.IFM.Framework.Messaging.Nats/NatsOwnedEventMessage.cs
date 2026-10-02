@@ -28,6 +28,9 @@ public sealed class NatsOwnedEventMessage : IActorMessage, IActorDeliveryComplet
     }
 
     public ActorSubject Subject { get; }
+    public ActorSubject SourceSubject => _payload.SourceSubject;
+    public string? SourceDataset => _payload.SourceDataset;
+    public Guid SourceGenerationId => _payload.SourceGenerationId;
 
     public System.Diagnostics.ActivityContext TraceContext => _payload.TraceContext;
 
@@ -97,14 +100,25 @@ internal sealed class NatsSharedEventPayload : IDisposable
 
     internal NatsSharedEventPayload(
         NatsMemoryOwner<byte> owner,
-        System.Diagnostics.ActivityContext traceContext = default)
+        System.Diagnostics.ActivityContext traceContext = default,
+        ActorSubject sourceSubject = default,
+        NatsHeaders? headers = null)
     {
         _owner = owner;
         TraceContext = traceContext;
+        SourceSubject = sourceSubject;
+        if (RealtimeSourceGenerationHeaders.TryRead(headers, out var dataset, out var generation))
+        {
+            SourceDataset = dataset;
+            SourceGenerationId = generation;
+        }
         NatsMessagingMetrics.AcquirePayloadLease(owner.Memory.Length);
     }
 
     internal System.Diagnostics.ActivityContext TraceContext { get; }
+    internal ActorSubject SourceSubject { get; }
+    internal string? SourceDataset { get; }
+    internal Guid SourceGenerationId { get; }
 
     internal ReadOnlyMemory<byte> Memory
     {

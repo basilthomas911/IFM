@@ -27,6 +27,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSigna
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -115,18 +116,20 @@ public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
     }
 
     [Fact]
-    public void VwapRealtimeActor_RegistersMarketPriceRoute()
+    public void VwapRealtimeActor_OwnsCheckpointRoute()
     {
-        var routes = factory.Services.GetRequiredService<IActorSupervisor>()
-            .GetRealtimeRoutes(new ActorTypeId(ActorType.Realtime,
-                FuturesMarketPriceUpdatedRealtimeEvent.Actor,
-                FuturesMarketPriceUpdatedRealtimeEvent.Verb));
-        routes.Select(route => route.Destination).Should().Contain(new ActorMailboxId(
+        var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
+        supervisor.ActorExists(new ActorMailboxId(ActorType.Realtime,
+            FuturesVwapSignalRealtimeActor.ActorName)).Should().BeTrue();
+        var routes = supervisor.GetRealtimeRoutes(new ActorTypeId(ActorType.Realtime,
+            FuturesMarketPriceUpdatedRealtimeEvent.Actor,
+            FuturesMarketPriceUpdatedRealtimeEvent.Verb));
+        routes.Select(route => route.Destination).Should().NotContain(new ActorMailboxId(
             ActorType.Realtime, FuturesVwapSignalRealtimeActor.ActorName));
     }
 
     [Fact]
-    public async Task VwapRealtimeTrades_ProjectAndQueryExactSessionValue()
+    public async Task VwapSourceCheckpoint_ProjectsAndQueriesExactSessionValue()
     {
         var offset = Random.Shared.Next(1, 1500);
         var valueDate = new DateOnly(2030, 1, 1).AddDays(offset);
@@ -143,31 +146,36 @@ public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
             var firstTimestamp = new DateTimeOffset(
                 valueDate.AddDays(-1).ToDateTime(new TimeOnly(23, 0), DateTimeKind.Utc));
 
-            foreach (var (ordinal, price, size) in new[] { (1L, 6500m, 2U), (2L, 6503m, 1U) })
+            var entity = new TickDataEntityId(contract.ContractId, valueDate, AssetTypeId.Futures);
+            var timestamp = firstTimestamp.AddSeconds(2);
+            var @event = new FuturesMarketPriceUpdatedRealtimeEvent
             {
-                var entity = new TickDataEntityId(contract.ContractId, valueDate, AssetTypeId.Futures);
-                var timestamp = firstTimestamp.AddSeconds(ordinal);
-                var @event = new FuturesMarketPriceUpdatedRealtimeEvent
+                Subject = new(ActorType.Realtime, FuturesVwapSourceCheckpoint.Actor,
+                    FuturesMarketPriceUpdatedRealtimeEvent.Verb, entity.Format()),
+                Id = Guid.NewGuid(),
+                CommandId = Guid.NewGuid(),
+                EntityId = entity,
+                AggregateId = entity.Format(),
+                EventSource = "VWAP integration",
+                ReceivedOn = timestamp.UtcDateTime,
+                UpdateSource = FuturesMarketPriceUpdateSource.Trade,
+                VwapCheckpoint = new FuturesVwapSourceCheckpoint
                 {
-                    Subject = new(ActorType.Realtime, FuturesMarketPriceUpdatedRealtimeEvent.Actor,
-                        FuturesMarketPriceUpdatedRealtimeEvent.Verb, entity.Format()),
-                    Id = Guid.NewGuid(),
-                    CommandId = Guid.NewGuid(),
-                    EntityId = entity,
-                    AggregateId = entity.Format(),
-                    EventSource = "VWAP integration",
-                    ReceivedOn = timestamp.UtcDateTime,
-                    UpdateSource = FuturesMarketPriceUpdateSource.Trade,
-                    Price = new FuturesMarketPriceSnapshot(
-                        contract.ContractId, 1, 1, AssetTypeId.Futures, valueDate, null,
-                        new FuturesMarketTradeSnapshot(
-                            price, size, 100 + ordinal, timestamp, timestamp,
-                            NormalizedTradeAction.New, NormalizedTradeSide.Unspecified,
-                            NormalizedTradeConditionFlags.None, epoch, ordinal))
-                };
-                await _producer.SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(
-                    @event.Subject, @event);
-            }
+                    StreamEpochId = epoch,
+                    LastTradeOrdinal = 2,
+                    LastTradeSourceSequence = 102,
+                    AsOfUtc = timestamp,
+                    CumulativePriceVolume = 6500m * 2m + 6503m,
+                    CumulativeVolume = 3,
+                    EligibleTradeCount = 2,
+                    LastPrice = 6503m,
+                    IsValid = true,
+                    IsReplayComplete = true,
+                    RecoveryGenerationId = Guid.NewGuid()
+                }
+            };
+            await _producer.SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(
+                @event.Subject, @event);
 
             var configuration = FuturesVwapConfiguration.Standard;
             FuturesVwapSignalReadModel? stored = null;

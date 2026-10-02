@@ -4,6 +4,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
@@ -21,7 +22,6 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
 {
     private const decimal PriceScale = 1_000_000_000m;
     private const long UndefinedPrice = long.MaxValue;
-    private const int TradeReplayBatchCapacity = 512;
     private readonly IDatabentoTickerFeed _feed;
     private readonly ITickContractMappingProvider _mappings;
     private readonly ITickAggregationEventPublisher _publisher;
@@ -738,8 +738,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             state.Sequence = 0;
             state.TradeOrdinal = 0;
             state.StreamEpochId = Guid.NewGuid();
-            state.ReplayBatchOrdinal = 0;
-            state.ReplayTrades.Clear();
+            state.Vwap.Reset(state.StreamEpochId);
+            state.LastVwapPublishedUtcTicks = 0;
+            state.ReplayStarted = false;
             state.MarketPrice.Reset();
             state.SessionStatistics.Reset();
         }
@@ -759,11 +760,20 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 state.Mapping.ContractId,
                 state.ValueDate);
             var liveStreamEpochId = Guid.NewGuid();
-            SetProcessingStage(TickAggregationProcessingStage.TradeReplayPublish);
-            await PublishTradeReplayBatchAsync(
-                state, isFinalBatch: true, liveStreamEpochId, cancellationToken).ConfigureAwait(false);
             state.StreamEpochId = liveStreamEpochId;
             state.TradeOrdinal = 0;
+            if (IsVwapFutures(state.Mapping))
+                state.Vwap.CompleteReplay(liveStreamEpochId);
+            state.LastVwapPublishedUtcTicks = 0;
+            state.ReplayStarted = false;
+            if (IsVwapFutures(state.Mapping)
+                && state.Vwap.EligibleTradeCount > 0)
+            {
+                await PublishVwapCheckpointIfDueAsync(state, null, observedUtc,
+                    cancellationToken).ConfigureAwait(false);
+                // The first live trade should advance the projected replay value promptly.
+                state.LastVwapPublishedUtcTicks = 0;
+            }
             await PublishSessionStatisticsAsync(state, reconstructed, cancellationToken)
                 .ConfigureAwait(false);
             return;
@@ -837,17 +847,20 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                     out _);
                 if (isReplay)
                 {
-                    state.ReplayTrades.Add(new FuturesTradeReplayObservation(
-                        record.Trade.Price / PriceScale,
-                        record.Trade.Size,
-                        record.Trade.Header.Sequence,
-                        FromUnixNanoseconds(record.Trade.Header.EventTimestampNanoseconds),
-                        DatabentoTradeNormalizer.MapAction(record.Trade.Action),
-                        DatabentoTradeNormalizer.MapConditions(
-                            record.Trade.Header.Flags, record.Trade.DbnFlags)));
-                    if (state.ReplayTrades.Count == TradeReplayBatchCapacity)
-                        await PublishTradeReplayBatchAsync(
-                            state, isFinalBatch: false, Guid.Empty, cancellationToken).ConfigureAwait(false);
+                    if (IsVwapFutures(state.Mapping))
+                    {
+                        if (!state.ReplayStarted)
+                        {
+                            state.Vwap.Reset(state.StreamEpochId);
+                            state.ReplayStarted = true;
+                        }
+                        state.Vwap.ApplyReplay(record.Trade.Price / PriceScale,
+                            record.Trade.Size, record.Trade.Header.Sequence,
+                            FromUnixNanoseconds(record.Trade.Header.EventTimestampNanoseconds),
+                            DatabentoTradeNormalizer.MapAction(record.Trade.Action),
+                            DatabentoTradeNormalizer.MapConditions(
+                                record.Trade.Header.Flags, record.Trade.DbnFlags));
+                    }
                     break;
                 }
                 MarkObserved(state);
@@ -857,6 +870,14 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                     break;
                 }
                 MarkAccepted(state, record.Trade.Header.EventTimestampNanoseconds);
+                if (IsVwapFutures(state.Mapping))
+                    state.Vwap.ApplyLive(record.Trade.Price / PriceScale,
+                        record.Trade.Size, record.Trade.Header.Sequence,
+                        FromUnixNanoseconds(record.Trade.Header.EventTimestampNanoseconds),
+                        DatabentoTradeNormalizer.MapAction(record.Trade.Action),
+                        DatabentoTradeNormalizer.MapConditions(
+                            record.Trade.Header.Flags, record.Trade.DbnFlags),
+                        state.StreamEpochId, state.TradeOrdinal);
                 SetProcessingStage(TickAggregationProcessingStage.TradeMarketPricePublish);
                 await PublishMarketPriceAsync(
                         state,
@@ -865,6 +886,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                         observedUtc,
                         cancellationToken)
                     .ConfigureAwait(false);
+                await PublishVwapCheckpointIfDueAsync(state, marketPrice, observedUtc,
+                    cancellationToken).ConfigureAwait(false);
                 if (_liveRouter is not null
                     && _liveRouter.IsActive(state.Mapping.ContractId))
                 {
@@ -907,44 +930,6 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 }
                 break;
         }
-    }
-
-    private async ValueTask PublishTradeReplayBatchAsync(
-        TickerState state,
-        bool isFinalBatch,
-        Guid liveStreamEpochId,
-        CancellationToken cancellationToken)
-    {
-        if (!isFinalBatch && state.ReplayTrades.Count == 0)
-            return;
-        var entityId = new TickDataEntityId(
-            state.Mapping.ContractId,
-            state.ValueDate,
-            state.Mapping.AssetTypeId);
-        var ordinal = state.ReplayBatchOrdinal;
-        var @event = new FuturesTradeReplayBatchRealtimeEvent
-        {
-            Subject = new ActorSubject(
-                ActorType.Realtime,
-                FuturesTradeReplayBatchRealtimeEvent.Actor,
-                FuturesTradeReplayBatchRealtimeEvent.Verb,
-                entityId.Format()),
-            Id = Guid.NewGuid(),
-            EntityId = entityId,
-            CommandId = Guid.NewGuid(),
-            AggregateId = entityId.Format(),
-            EventSource = nameof(TickAggregationService),
-            ReceivedOn = _timeProvider.GetUtcNow().UtcDateTime,
-            RecoveryGenerationId = state.StreamEpochId,
-            BatchOrdinal = ordinal,
-            IsFirstBatch = ordinal == 0,
-            IsFinalBatch = isFinalBatch,
-            LiveStreamEpochId = liveStreamEpochId,
-            Trades = state.ReplayTrades.ToArray()
-        };
-        await _publisher.PublishAsync(@event, cancellationToken).ConfigureAwait(false);
-        state.ReplayTrades.Clear();
-        state.ReplayBatchOrdinal = checked(ordinal + 1);
     }
 
     private async ValueTask PublishSessionStatisticsAsync(
@@ -1144,9 +1129,64 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         }
     }
 
+    private async ValueTask PublishVwapCheckpointIfDueAsync(
+        TickerState state,
+        FuturesMarketPriceSnapshot? marketPrice,
+        DateTime observedUtc,
+        CancellationToken cancellationToken)
+    {
+        if (!IsVwapFutures(state.Mapping)
+            || !state.Vwap.IsReplayComplete
+            || state.LastVwapPublishedUtcTicks != 0
+            && observedUtc.Ticks - state.LastVwapPublishedUtcTicks < TimeSpan.FromSeconds(2).Ticks)
+            return;
+        var entity = new TickDataEntityId(state.Mapping.ContractId, state.ValueDate,
+            state.Mapping.AssetTypeId);
+        var @event = new FuturesMarketPriceUpdatedRealtimeEvent
+        {
+            Subject = new ActorSubject(ActorType.Realtime,
+                FuturesVwapSourceCheckpoint.Actor, FuturesMarketPriceUpdatedRealtimeEvent.Verb,
+                entity.Format()),
+            Id = Guid.NewGuid(),
+            CommandId = Guid.NewGuid(),
+            EntityId = entity,
+            AggregateId = entity.Format(),
+            EventSource = nameof(TickAggregationService),
+            ReceivedOn = DateTime.SpecifyKind(observedUtc, DateTimeKind.Utc),
+            Price = marketPrice ?? default,
+            UpdateSource = FuturesMarketPriceUpdateSource.Trade,
+            VwapCheckpoint = state.Vwap.Snapshot()
+        };
+        try
+        {
+            await _publisher.PublishAsync(@event, cancellationToken).ConfigureAwait(false);
+            state.LastVwapPublishedUtcTicks = observedUtc.Ticks;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            if (!_publisher.IsRunning)
+            {
+                Interlocked.Increment(ref _publicationFailures);
+                throw;
+            }
+            TrackHandledPublicationException(state, exception,
+                nameof(FuturesVwapSourceCheckpoint));
+        }
+    }
+
     private static bool IsVxFutures(TickContractMapping mapping) =>
         mapping.AssetTypeId == AssetTypeId.Futures
         && StringComparer.Ordinal.Equals(mapping.ContractDetails?.Ticker, "VX");
+
+    private static bool IsVwapFutures(TickContractMapping mapping) =>
+        mapping.AssetTypeId == AssetTypeId.Futures
+        && (StringComparer.Ordinal.Equals(mapping.ContractDetails?.Ticker, "ES")
+            || mapping.ContractDetails is null
+            && mapping.ContractId.StartsWith("ES", StringComparison.Ordinal));
 
     private static LiveTickQuoteServiceEvent CreateLiveQuote(
         TickerState state,
@@ -1559,9 +1599,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         public DateOnly ValueDate;
         public long Sequence;
         public long TradeOrdinal;
-        public long ReplayBatchOrdinal;
-        public List<FuturesTradeReplayObservation> ReplayTrades { get; } =
-            new(TradeReplayBatchCapacity);
+        public FuturesVwapSourceAccumulator Vwap { get; } = new();
+        public bool ReplayStarted;
+        public long LastVwapPublishedUtcTicks;
         public ITickQuoteBufferLease? QuoteLease;
         public ushort QuoteCount;
         public PendingQuotePublication? PendingQuote;

@@ -17,7 +17,7 @@ using AppBrokerOrderType = TomasAI.IFM.Application.TradeBroker.Contracts.BrokerO
 
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
-/// <summary>Trade blotter with Market Selection and a preview-only iron-condor Broker Order/Fills tab.</summary>
+/// <summary>Trade blotter with Market Selection and preview-only iron-condor broker tabs.</summary>
 public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsyncFormControl
 {
     public const int VisibleChainRowCapacity = 14;
@@ -42,7 +42,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     private readonly Label _ivRankValue;
     private readonly Label _dteValue;
     private readonly Label _multiplierValue;
-    private readonly Label _expectedMoveValue;
+    private readonly Label _dailyStandardDeviationValue;
     private readonly Label _quoteAgeValue;
     private readonly Label _tickValue;
     private readonly Label _settlementValue;
@@ -191,14 +191,21 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         var orders = new TabPage("Orders and Fills") { Name = "ordersAndFillsTab", BackColor = Color.Black, ForeColor = Color.White };
         if (_strategy == TradeBlotterStrategy.IronCondor)
         {
-            var brokerPreview = new TabPage("Broker Order/Fills")
+            var brokerTrade = new TabPage("Broker Trade")
             {
-                Name = "brokerOrderFillsTab",
+                Name = "brokerTradeTab",
                 BackColor = Color.Black,
                 ForeColor = Color.White
             };
-            brokerPreview.Controls.Add(new BrokerOrderFillsPreviewControl(portfolioId, fund, order, trade));
-            tabs.TabPages.AddRange([market, brokerPreview]);
+            brokerTrade.Controls.Add(new BrokerTradePreviewControl(portfolioId, fund, order, trade));
+            var orderFills = new TabPage("Order Fills")
+            {
+                Name = "orderFillsTab",
+                BackColor = Color.Black,
+                ForeColor = Color.White
+            };
+            orderFills.Controls.Add(new OrderFillsPreviewControl(portfolioId, fund, order, trade));
+            tabs.TabPages.AddRange([market, brokerTrade, orderFills]);
         }
         else
             tabs.TabPages.AddRange([market, _stagingTab, orders]);
@@ -240,7 +247,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         _ivRankValue = MarketValueLabel("-");
         _dteValue = MarketValueLabel("-");
         _multiplierValue = MarketValueLabel("$50");
-        _expectedMoveValue = MarketValueLabel("-");
+        _dailyStandardDeviationValue = MarketValueLabel("-");
         _quoteAgeValue = MarketValueLabel("120 ms");
         _tickValue = MarketValueLabel("0.25");
         _settlementValue = MarketValueLabel("AM");
@@ -406,7 +413,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         AddMarketMetric(primary, "TICK:", _tickValue, 52);
         AddMarketMetric(primary, "SETTLEMENT:", _settlementValue, 52);
         var secondary = MarketInformationRow();
-        AddMarketMetric(secondary, "EXPECTED MOVE:", _expectedMoveValue, 82);
+        AddMarketMetric(secondary, "DAILY STD DEV:", _dailyStandardDeviationValue, 82);
         AddMarketMetric(secondary, "LAST:", _lastPriceValue, 90);
         AddMarketMetric(secondary, "CHG:", _changeValue, 145);
         AddMarketMetric(secondary, "IV:", _ivValue, 62);
@@ -528,13 +535,13 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
                 "-0.84", "1.4K", "510", "41.00", "42.50", ""),
             OptionChainDisplayRow.Preview(5500m, "", "0.22", "14.5K", "8.9K", "28.50", "29.00",
                 "-0.78", "2.3K", "880", "21.25", "22.25", ""),
-            OptionChainDisplayRow.Marker("UPPER EXPECTED MOVE  5,465.50"),
+            OptionChainDisplayRow.Marker("UPPER 2.5σ WINDOW  5,465.50"),
             OptionChainDisplayRow.Preview(5450m, "", "0.35", "19.0K", "12.1K", "44.00", "44.75",
                 "-0.65", "4.1K", "1.1K", "8.50", "9.25", ""),
             OptionChainDisplayRow.Marker("LAST UNDERLYING PRICE  5,420.50"),
             OptionChainDisplayRow.Preview(5400m, "", "0.55", "22.1K", "15.0K", "65.25", "66.00",
                 "-0.45", "14.2K", "9.2K", "3.10", "3.50", ""),
-            OptionChainDisplayRow.Marker("LOWER EXPECTED MOVE  5,375.50"),
+            OptionChainDisplayRow.Marker("LOWER 2.5σ WINDOW  5,375.50"),
             OptionChainDisplayRow.Preview(5350m, "", "0.72", "16.4K", "9.5K", "94.00", "95.25",
                 "-0.28", "21.0K", "13.8K", "8.75", "9.25", ""),
             OptionChainDisplayRow.Preview(5300m, "", "0.84", "8.9K", "4.2K", "124.50", "126.00",
@@ -609,6 +616,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         var requestedMaturity = trade.RequestedMaturityDate ?? trade.RequestedTradeDate;
         _tradeDate = trade.RequestedTradeDate;
         _standardDeviationAmount = null;
+        _dailyStandardDeviationValue.Text = "-";
         _requestedMaturityDate = requestedMaturity;
         SetExpiryState("Loading Databento expiries...");
     }
@@ -633,6 +641,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
                 && double.IsFinite(value.DailyStdDevAmount))
             {
                 _standardDeviationAmount = (decimal)value.DailyStdDevAmount;
+                _dailyStandardDeviationValue.Text = $"±{_standardDeviationAmount:0.00}";
             }
         }
         var valueDateResult = await appRoot.Services.MarketDataQueries.QueryValueDateAsync();
@@ -1078,9 +1087,6 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         }
         if (latestQuote is not null)
             SetTextIfChanged(_quoteAgeValue, $"{Math.Max(0, (chain.AsOfUtc - latestQuote.Value).TotalMilliseconds):0} ms");
-        _expectedMoveValue.Text = _standardDeviationAmount is { } expectedMove
-            ? $"±{expectedMove:0.00}"
-            : "-";
         SetSelectionText(_liquiditySelector, chain.WindowMethod);
     }
 

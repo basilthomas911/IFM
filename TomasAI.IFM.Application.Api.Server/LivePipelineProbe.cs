@@ -9,8 +9,10 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Realtime.Actor;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
+using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Application.Storage;
@@ -32,7 +34,11 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
     FuturesItiSignalRuntimeTelemetry itiTelemetry,
     DeploymentIdentityMonitor deploymentIdentity,
     DatabentoMarketDataWatchdogService watchdog, TimeProvider time, IActorSupervisor? supervisor = null,
-    NatsConnectionManager? messaging = null) : ILivePipelineProbe
+    NatsConnectionManager? messaging = null,
+    IDatabentoRecoveryRequester? recoveryRequester = null,
+    ILogger<LivePipelineProbe>? logger = null,
+    DatasetWorkerCurrentValues? supervisedValues = null,
+    DatasetWorkerProcessRecoveryService? supervisedWorkers = null) : ILivePipelineProbe
 {
     readonly Dictionary<string, (ulong Produced, ulong Consumed, long Completed, ulong Ring, int Channel)> previous = new();
     readonly Dictionary<string, (DateTimeOffset Through, DateTime ObservedUtc)> closedWatermarks = new();
@@ -80,9 +86,31 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
         var health = market.GetHealth();
         var epoch = health.Epoch;
         Add("Value date", "feed", health.ValueDate == date, "Feed epoch must match authoritative active date.");
-        if (epoch?.DatasetFeedStatuses is not { Count: > 0 })
+        IReadOnlyList<DatasetWorkerProcessSnapshot> supervisedSnapshots = [];
+        if (supervisedValues is not null)
+        {
+            if (supervisedWorkers is not null)
+                supervisedSnapshots = await supervisedWorkers.GetHealthAsync(
+                    TimeSpan.FromSeconds(3), token).ConfigureAwait(false);
+            if (supervisedSnapshots.Count == 0)
+                checks.Add(new("Native diagnostics", "datasets", "Unknown",
+                    "No supervised worker diagnostic evidence is available.", now));
+            foreach (var worker in supervisedSnapshots)
+            {
+                var native = worker.Diagnostics;
+                Add("Native transport", worker.Dataset,
+                    worker.Running && worker.ControlResponsive && worker.DataPlaneHealthy
+                    && native is { DatabentoLocallyReady: true }
+                    && native.ObservedOnUtc >= now - TimeSpan.FromSeconds(90),
+                    "Worker transport and Databento subscription acknowledgements.");
+                Add("Aggregation", worker.Dataset, worker.Running
+                    && native is { AggregationRunning: true },
+                    "Supervised worker aggregation is running.");
+            }
+        }
+        else if (epoch?.DatasetFeedStatuses is not { Count: > 0 })
             checks.Add(new("Native diagnostics", "datasets", "Unknown", "No per-dataset diagnostic evidence is available.", now));
-        foreach (var dataset in epoch?.DatasetFeedStatuses ?? [])
+        foreach (var dataset in supervisedValues is null ? epoch?.DatasetFeedStatuses ?? [] : [])
         {
             var native = dataset.Health;
             var aggregation = dataset.AggregationMetrics;
@@ -99,7 +127,11 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
             if (previous.Count > 32) previous.Clear();
             previous[key] = (native.RecordsProduced, native.RecordsConsumed, aggregation.RecordsCompleted, native.RingUsedRecords, native.ChannelBatchCount);
         }
-        Add("Lifecycle consistency", "watchdog", !health.Running || watchdog.Current.State is DatabentoLifecycleState.Healthy or DatabentoLifecycleState.Degraded,
+        Add("Lifecycle consistency", "watchdog", supervisedValues is not null
+            ? !health.Running || supervisedValues.GetStatus().IsFeedUp
+                && supervisedSnapshots.Count > 0
+                && supervisedSnapshots.All(worker => worker.Running && worker.Healthy)
+            : !health.Running || watchdog.Current.State is DatabentoLifecycleState.Healthy or DatabentoLifecycleState.Degraded,
             "Watchdog state must agree with the active feed; restarting is not proof of recovery.");
         var central = operations.GetReadModel();
         Add("Operations observer", "runtime", central.SessionState != "Unknown" && now - central.ObservedOnUtc <= TimeSpan.FromSeconds(30),
@@ -133,11 +165,17 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
                     : $"Contract {contract.ContractId} matured on {contract.LastTradeDate:yyyy-MM-dd}.");
             var status = epoch?.ContractStatuses?.FirstOrDefault(x => x.ContractId == contract.ContractId);
             var grace = session.IsOffTrading ? TimeSpan.FromMinutes(15) : TimeSpan.FromMinutes(5);
-            Add("Price cache", symbol, status?.LastAcceptedCacheUpdateAtUtc is { } accepted && now - accepted.UtcDateTime < grace,
-                "Accepted cache update freshness, scoped to current contract.", status?.LastAcceptedCacheUpdateAtUtc?.UtcDateTime);
-            Add("Price publication", symbol, status?.LastMarketPricePublishedAtUtc is { } published
+            var supervisedRoute = supervisedValues is not null
+                && market.GetFuturesMarketHealth(contract.ContractId) is { Running: true, Healthy: true };
+            Add("Price cache", symbol, supervisedValues is not null ? supervisedRoute
+                : status?.LastAcceptedCacheUpdateAtUtc is { } accepted && now - accepted.UtcDateTime < grace,
+                supervisedValues is not null ? "Supervised contract route is running and healthy."
+                    : "Accepted cache update freshness, scoped to current contract.", status?.LastAcceptedCacheUpdateAtUtc?.UtcDateTime);
+            Add("Price publication", symbol, supervisedValues is not null ? supervisedRoute
+                : status?.LastMarketPricePublishedAtUtc is { } published
                 && (status?.LastAcceptedCacheUpdateAtUtc is not { } input || input - published < TimeSpan.FromMinutes(1)),
-                "Publication must follow accepted price updates.", status?.LastMarketPricePublishedAtUtc?.UtcDateTime);
+                supervisedValues is not null ? "Supervised publication route is running and healthy."
+                    : "Publication must follow accepted price updates.", status?.LastMarketPricePublishedAtUtc?.UtcDateTime);
             // A read verifies the storage/query path as well as the producer.
             try
             {
@@ -154,7 +192,10 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
             catch (Exception ex) when (!token.IsCancellationRequested)
             { Add("Chart storage/query", symbol, false, ex.Message); }
             var tick = evidence.Get("Tick storage", contract.ContractId);
-            checks.Add(tick is null ? new("Tick storage", symbol, "Unknown", "No confirmed durable tick write in this process.", now)
+            checks.Add(tick is null ? new("Tick storage", symbol,
+                supervisedValues is null ? "Unknown" : "Inactive",
+                supervisedValues is null ? "No confirmed durable tick write in this process."
+                    : "No market tick was available to verify; infrastructure and actors are checked independently.", now)
                 : status?.LastDurableTickPublishedAtUtc is { } sent && tick.LastProgressUtc is { } stored && sent.UtcDateTime - stored > TimeSpan.FromMinutes(1)
                     ? tick with { Status = "Degraded", Reason = "Durable tick publication is ahead of confirmed storage." } : tick);
         }
@@ -243,37 +284,16 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
             || sessions.Current.ActiveValueDate != valueDate)
             throw new InvalidOperationException("A current active value date is required for a live-pipeline hard reset.");
 
-        // This is deliberately unconditional once the monitor's five-minute boundary is reached.
-        // A full epoch stop releases every dataset reference, which also stops and recreates the
-        // shared tick publisher that a per-dataset replacement cannot repair.
-        await watchdog.HardResetAsync(valueDate,
-            Guid.CreateVersion7(time.GetUtcNow()), token).ConfigureAwait(false);
-
-        var failures = new List<Exception>();
-        async Task AttemptAsync(Func<Task> action)
-        {
-            try { await action().WaitAsync(token).ConfigureAwait(false); }
-            catch (Exception exception) when (!token.IsCancellationRequested) { failures.Add(exception); }
-        }
-
-        await AttemptAsync(() => EnsureChartBarsAsync(valueDate, restart: true, token)).ConfigureAwait(false);
-        if (market.TryGetOnTheRunFuturesContract("ES", out var es))
-        {
-            foreach (var activation in FuturesIntradaySignalActivationProfile.Create(es.ContractId, valueDate))
-            {
-                foreach (var indicator in new[] { "RSI", "ATR", "ADX", "MACD" })
-                    await AttemptAsync(() => EnsureIntradayAnalyticsAsync(
-                        indicator + "/" + activation.TimeFrame, valueDate, restart: true, token)).ConfigureAwait(false);
-            }
-        }
-        else failures.Add(new InvalidOperationException("The current ES contract is unavailable after the hard reset."));
-
-        await AttemptAsync(() => RestartRealtimeActorAsync(ItiMailbox, token)).ConfigureAwait(false);
-        await AttemptAsync(() => RestartRealtimeActorAsync(
-            new(ActorType.Realtime, MarketOutlookSnapshotRealtimeActor.ActorName), token)).ConfigureAwait(false);
-
-        if (failures.Count != 0)
-            throw new AggregateException("The upstream runtime was hard-reset, but one or more downstream lifecycles did not restart.", failures);
+        var correlationId = Guid.CreateVersion7(time.GetUtcNow());
+        logger?.LogWarning("Requesting hard reset recovery from live-pipeline monitor. CorrelationId={CorrelationId}; ValueDate={ValueDate}", correlationId, valueDate);
+        var episode = await (recoveryRequester ?? throw new InvalidOperationException("Hard reset recovery pipeline is not configured."))
+            .HardResetRecoveryAsync(new DatabentoHardRecoveryRequest(correlationId, valueDate,
+                watchdog.Current.NativeGeneration, nameof(LivePipelineProbe),
+                $"Live pipeline unhealthy: {string.Join(", ", unhealthySnapshot.Checks.Where(check => check.Required && check.Status == "Unhealthy").Select(check => check.Component))}"), token)
+            .ConfigureAwait(false);
+        if (episode.Outcome == DatabentoRecoveryRequestOutcome.FullyHealthy)
+            return;
+        throw new DatabentoRecoveryEpisodeStatusException(episode);
     }
 
     public async Task RecoverDownstreamAsync(

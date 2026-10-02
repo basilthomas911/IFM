@@ -31,12 +31,22 @@ public class FuturesMacdSignalCommandState
     {
         return domainEvent switch
         {
-            FuturesMacdSignalStartedEvent => true,
+            FuturesMacdSignalStartedEvent e => Reset(e.ResetForHistoricalSeed),
             FuturesMacdSignalStoppedEvent => true,
             FuturesMacdSignalGeneratedEvent e => On(e.FuturesMacdSignal),
             FuturesMacdDailySignalGeneratedEvent e => On(e.FuturesMacdSignal),
             _ => false
         };
+
+        bool Reset(bool reset)
+        {
+            if (reset)
+            {
+                _macdSignal = null;
+                _macdSignals.Clear();
+            }
+            return true;
+        }
 
         bool On(FuturesMacdSignalReadModel signal)
         {

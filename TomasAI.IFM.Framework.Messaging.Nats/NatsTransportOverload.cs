@@ -42,8 +42,8 @@ internal static class NatsTransportOverload
                     NatsMessagingMetrics.DispatchFailures.Add(1);
                     logger.LogError(
                         exception,
-                        "Failed to reply to rejected Core NATS {ActorType} request; reason={Reason}.",
-                        actorType,
+                        "Failed to reply to rejected Core NATS request for {Subject}; reason={Reason}.",
+                        message.Subject.ToString(),
                         reason.ToStringFast());
                 }
                 return;
@@ -53,8 +53,8 @@ internal static class NatsTransportOverload
             {
                 NatsMessagingMetrics.RecordOptionalDrop(actorType, trafficClass);
                 logger.LogWarning(
-                    "Dropped explicitly classified Core NATS {ActorType} traffic; class={TrafficClass}, reason={Reason}.",
-                    actorType,
+                    "Dropped explicitly classified Core NATS traffic for {Subject}; class={TrafficClass}, reason={Reason}.",
+                    message.Subject.ToString(),
                     trafficClass,
                     reason.ToStringFast());
                 return;
@@ -62,9 +62,9 @@ internal static class NatsTransportOverload
 
             NatsMessagingMetrics.DispatchFailures.Add(1);
             logger.LogError(
-                "Rejected Core NATS {ActorType} traffic without a reply subject; class={TrafficClass}, reason={Reason}. "
+                "Rejected Core NATS traffic for {Subject} without a reply subject; class={TrafficClass}, reason={Reason}. "
                 + "Enforcement configuration must prevent this required or unknown traffic path.",
-                actorType,
+                message.Subject.ToString(),
                 trafficClass,
                 reason.ToStringFast());
         }

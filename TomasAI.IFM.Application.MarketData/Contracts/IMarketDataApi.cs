@@ -90,6 +90,9 @@ public interface IMarketDataApi
     /// </remarks>
     bool IsDatabentoFeedUp(TimeSpan? timeout = null) => false;
 
+    /// <summary>Whether the supervised dataset worker owns the core futures tick routes.</summary>
+    bool CoreFuturesRoutesAreRuntimeOwned => false;
+
     /// <summary>Reads provider-neutral runtime state without changing feed ownership.</summary>
     MarketDataFeedRuntimeStatusReadModel GetRuntimeStatus()
         => new()
