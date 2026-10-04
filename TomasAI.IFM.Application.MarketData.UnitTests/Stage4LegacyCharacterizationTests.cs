@@ -171,22 +171,6 @@ public sealed class Stage4LegacyCharacterizationTests
         Assert.Null(owner.DefaultValue);
     }
 
-    [Fact]
-    public void Legacy_chain_bool_overloads_remain_ownerless_and_source_compatible()
-    {
-        var start = typeof(IMarketDataApi).GetMethod(
-            nameof(IMarketDataApi.StartStreamingFuturesOptionChainDataAsync),
-            [typeof(string), typeof(DateOnly), typeof(string[])]);
-        var stop = typeof(IMarketDataApi).GetMethod(
-            nameof(IMarketDataApi.StopStreamingFuturesOptionChainDataAsync),
-            [typeof(string), typeof(DateOnly)]);
-
-        Assert.NotNull(start);
-        Assert.NotNull(stop);
-        Assert.Equal(typeof(Task<bool>), start.ReturnType);
-        Assert.Equal(typeof(Task<bool>), stop.ReturnType);
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

@@ -18,7 +18,7 @@ public sealed record OrderExecutionChangedEvent : IEvent<OrderExecutionId>
     [Key(5)] public string AggregateId { get; init; } = string.Empty;
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     [Key(7)] public DateTime ReceivedOn { get; init; }
-    [Key(8)] public OrderExecutionDefinition State { get; init; } = new();
+    [Key(8)] public OrderExecutionDefinition OrderExecutionDefinition { get; init; } = new();
     [Key(9)] public EstablishedTradeDefinition[] CreatedTrades { get; init; } = [];
     [Key(10)] public PositionCloseExecution[] ClosedPositions { get; init; } = [];
     [IgnoreMember] public string UserName => string.Empty;

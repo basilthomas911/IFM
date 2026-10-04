@@ -29,7 +29,7 @@ public static class OptionChainStrikeWindow
         var centre = underlyingPrice.Value;
         if (standardDeviationAmount is not > 0)
         {
-            var nearestStrikes = strikes.OrderBy(strike => Math.Abs(strike - centre)).Take(40).ToArray();
+            var nearestStrikes = strikes.OrderBy(strike => Math.Abs(strike - centre)).Take(80).ToArray();
             var nearestSet = nearestStrikes.ToHashSet();
             var requiredSet = (requiredContractIds ?? []).ToHashSet(StringComparer.Ordinal);
             var nearest = values.Where(value => nearestSet.Contains((decimal)value.StrikePrice)
@@ -38,7 +38,7 @@ public static class OptionChainStrikeWindow
                 .ThenBy(value => value.OptionType, StringComparer.Ordinal)
                 .ThenBy(value => value.ContractId, StringComparer.Ordinal)
                 .ToArray();
-            return new(nearest, nearestStrikes.Min(), nearestStrikes.Max(), "Nearest40StrikesFallback");
+            return new(nearest, nearestStrikes.Min(), nearestStrikes.Max(), "Nearest80StrikesFallback");
         }
         decimal? lower = null, upper = null;
         string method;

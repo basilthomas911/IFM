@@ -349,7 +349,10 @@ public sealed class OptionContractExpiryCalendarStartupService(
 
         foreach (var symbol in options.Symbols.Where(symbol => !string.IsNullOrWhiteSpace(symbol)).Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            try { await refresh.RefreshAsync(symbol, stoppingToken).ConfigureAwait(false); }
+            try
+            {
+                await refresh.RefreshAsync(symbol, stoppingToken).ConfigureAwait(false);
+            }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { throw; }
             catch (Exception exception)
             {
@@ -357,4 +360,5 @@ public sealed class OptionContractExpiryCalendarStartupService(
             }
         }
     }
+
 }

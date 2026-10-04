@@ -90,9 +90,6 @@ public sealed class DatabentoProductionEpochTests
         Assert.False(await api.StartStreamingFuturesTickDataAsync("ES-202609"));
         Assert.True(await api.StartStreamingFuturesOptionTickDataAsync("ES20260918C6500"));
         Assert.False(await api.StartStreamingFuturesOptionTickDataAsync("ES20260918C6500"));
-        await Assert.ThrowsAsync<MarketDataPricingInputUnavailableException>(() =>
-            api.StartStreamingFuturesOptionChainDataAsync(
-                "ES-202609", maturity, ["ES20260918C6500"]));
 
         var oldFeed = provider.Feed;
         var oldGeneration = datasetHealth.GenerationId;

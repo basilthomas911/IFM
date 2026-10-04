@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Portfolio;
@@ -32,6 +32,8 @@ public sealed class PortfolioExecutionContractMapperTests
             MaximumLoss = 450m,
             BrokerOrderType = PortfolioBrokerOrderType.Limit,
             BrokerAlgorithm = PortfolioBrokerAlgorithm.Adaptive,
+            TimeInForce = "GTC",
+            AlgorithmPace = "Urgent",
             Components =
             [
                 new PortfolioExecutionComponent

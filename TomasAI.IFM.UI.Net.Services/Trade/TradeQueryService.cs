@@ -13,6 +13,11 @@ public class TradeQueryService(ITradeQueryApi queryApi) : UiServiceBase<TradeQue
 {
     readonly ITradeQueryApi _queryApi = queryApi ?? throw new ArgumentNullException(nameof(queryApi));
 
+    /// <summary>Returns a typed stored-trade result for composed queries, including normal not-found drafts.</summary>
+    public Task<TomasAI.IFM.Shared.EventSourcing.ServiceResult<OptionTradeReadModel>> QueryOptionTradeAsync(
+        int orderId, int tradeId, CancellationToken token = default)
+        => _queryApi.GetOptionTradeAsync(orderId, tradeId).WaitAsync(token);
+
     /// <summary>
     /// load option trade
     /// </summary>

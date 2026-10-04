@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
+﻿using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Actor;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
@@ -1315,8 +1315,21 @@ public static class Startup
                 container.GetInstance<TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.EmulatorScenario>(),
                 container.GetInstance<TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.IEmulatorClock>(),
                 container.GetInstance<TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.IEmulatorLedgerStore>()));
-        container.RegisterSingleton<TomasAI.IFM.Framework.TradeBroker.Contracts.IFrameworkOrderExecutionBroker,
-            TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.OrderExecution.EmulatedOrderExecutionBroker>();
+        container.RegisterSingleton<TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.OfflineFillSimulation>(() =>
+            new(container.GetInstance<TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.EmulatorLedger>(),
+                new() {
+                    Enabled = config.GetValue("TradeBroker:Emulator:OfflineSimulation:Enabled", true),
+                    CompletionTime = TimeSpan.FromSeconds(config.GetValue("TradeBroker:Emulator:OfflineSimulation:CompletionSeconds", 30)),
+                    MaximumUnitsPerFill = config.GetValue("TradeBroker:Emulator:OfflineSimulation:MaximumUnitsPerFill", 3),
+                    RandomSeed = config.GetValue("TradeBroker:Emulator:OfflineSimulation:RandomSeed", 1)
+                }, () => !container.GetInstance<IFuturesMarketSessionAuthority>().Current.IsMarketOpen));
+        container.RegisterSingleton<TomasAI.IFM.Framework.TradeBroker.Contracts.IFrameworkOrderExecutionBroker>(() =>
+            new FrozenEmulatorOrderExecutionBroker(
+                new TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.OrderExecution.EmulatedOrderExecutionBroker(
+                    container.GetInstance<TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.EmulatorLedger>()),
+                container.GetInstance<IFuturesMarketSessionAuthority>(),
+                container.GetInstance<TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.IEmulatorClock>(),
+                container.GetInstance<TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.OfflineFillSimulation>()));
         container.RegisterSingleton<TomasAI.IFM.Framework.TradeBroker.Contracts.IFrameworkBrokerAccount,
             TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.BrokerAccount.EmulatedBrokerAccount>();
         container.RegisterSingleton<TomasAI.IFM.Application.TradeBroker.Contracts.ITradeBroker,

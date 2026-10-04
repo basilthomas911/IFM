@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using TomasAI.IFM.Application.TradeBroker.Contracts;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -20,7 +20,7 @@ public static class BrokerOrderRequestMapper
             string.IsNullOrWhiteSpace(order.BrokerAccountAlias) || order.BrokerEnvironment == TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Unknown ||
             string.IsNullOrWhiteSpace(order.DefinitionHash) || string.IsNullOrWhiteSpace(order.MicroExecutionProfileHash))
         {
-            reason = "BO.APPROVAL.INCOMPLETE";
+            reason = "BrokerOrder.APPROVAL.INCOMPLETE";
             return false;
         }
         var component = order.Components.SingleOrDefault(c => c.ComponentId == componentId);
@@ -28,7 +28,7 @@ public static class BrokerOrderRequestMapper
             component.MinimumSignedNetDebitLimit is null || component.MaximumSignedNetDebitLimit is null || component.TickIncrement is null ||
             component.Legs.Length == 0 || component.Legs.Any(l => l.TradeLegId == Guid.Empty || string.IsNullOrWhiteSpace(l.ContractId) || l.SignedQuantity == 0 || l.CashMultiplier <= 0))
         {
-            reason = "BO.COMPONENT.INCOMPLETE";
+            reason = "BrokerOrder.COMPONENT.INCOMPLETE";
             return false;
         }
         var shape = component.StrategyKind switch
@@ -40,7 +40,7 @@ public static class BrokerOrderRequestMapper
         };
         if (shape == BrokerOrderShape.Unknown)
         {
-            reason = "BO.SHAPE.UNSUPPORTED";
+            reason = "BrokerOrder.SHAPE.UNSUPPORTED";
             return false;
         }
         var environment = order.BrokerEnvironment switch
@@ -67,7 +67,7 @@ public static class BrokerOrderRequestMapper
             orderType == global::TomasAI.IFM.Application.TradeBroker.Contracts.BrokerOrderType.Unknown ||
             !Enum.IsDefined(algorithm))
         {
-            reason = "BO.EXECUTION_SELECTION.UNSUPPORTED";
+            reason = "BrokerOrder.EXECUTION_SELECTION.UNSUPPORTED";
             return false;
         }
         var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('|', component.Legs.Select(l =>
@@ -79,7 +79,7 @@ public static class BrokerOrderRequestMapper
             component.SignedNetDebitLimit.Value, component.MinimumSignedNetDebitLimit.Value,
             component.MaximumSignedNetDebitLimit.Value, component.TickIncrement.Value,
             order.ValidUntilUtc, order.DefinitionHash, fingerprint, order.RequiredCapital, order.MaximumLoss,
-            orderType, algorithm);
+            orderType, algorithm, order.TimeInForce, order.AlgorithmPace);
         return true;
     }
 }

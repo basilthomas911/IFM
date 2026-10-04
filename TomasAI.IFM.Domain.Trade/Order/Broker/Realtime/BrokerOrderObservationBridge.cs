@@ -47,13 +47,13 @@ public sealed class BrokerOrderObservationBridge(ITradeBroker broker, IActorSupe
             try
             {
                 if (!TryParse(observation.BrokerOrderId, out var id))
-                    throw new InvalidOperationException("BO.OBSERVATION.IDENTITY_INVALID");
+                    throw new InvalidOperationException("BrokerOrder.OBSERVATION.IDENTITY_INVALID");
                 await RouteAsync(id, observation).ConfigureAwait(false);
                 logger.Routed(observation.Kind.ToString(), observation.BrokerOrderId, observation.ObservationId);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                logger.Failed(exception, "BO.OBSERVATION.ROUTE_FAILED", observation.BrokerOrderId, observation.ObservationId);
+                logger.Failed(exception, "BrokerOrder.OBSERVATION.ROUTE_FAILED", observation.BrokerOrderId, observation.ObservationId);
             }
         }
     }

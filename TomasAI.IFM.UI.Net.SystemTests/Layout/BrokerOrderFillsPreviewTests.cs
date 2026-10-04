@@ -1,4 +1,4 @@
-using System.Windows.Forms;
+﻿using System.Windows.Forms;
 using FlaUI.Core.AutomationElements;
 using FlaUI.UIA3;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
@@ -100,9 +100,9 @@ public sealed class BrokerOrderFillsPreviewTests
         Assert.Equal(3, tree.Nodes.Count);
         Assert.Equal(2, tree.Nodes[0].Nodes.Count);
         tree.SelectedNode = tree.Nodes[0].Nodes[0];
-        var detail = (Label)preview.Controls.Find("brokerPreviewSelectedDetail", true).Single();
-        Assert.Contains("Fill 001", detail.Text);
-        Assert.Contains("Order mutation is unavailable", detail.Text);
+        var detail = (PropertyGrid)preview.Controls.Find("brokerPreviewSelectedDetail", true).Single();
+        Assert.Contains("Fill 001", detail.SelectedObject!.GetType().GetProperty("Selection")!.GetValue(detail.SelectedObject)!.ToString());
+        Assert.False(detail.ToolbarVisible);
         var upper = (SplitContainer)preview.Controls.Find("brokerOrderFillsVerticalSplit", true).Single();
         Assert.True(upper.Panel1.Height > 0 && upper.Panel2.Height > 0);
         host.Size = new Size(960, 500);
@@ -174,7 +174,7 @@ public sealed class BrokerOrderFillsPreviewTests
         Assert.True(orderFillsSplit.Panel1Collapsed);
         Assert.True(brokerTradeSplit.Panel1.Height > 0);
         Assert.True(orderFillsSplit.Panel2.Height > 0);
-        Assert.Equal(4, brokerTrade.Controls.Find("brokerPreviewLegGrid", true)
+        Assert.Equal(0, brokerTrade.Controls.Find("brokerPreviewLegGrid", true)
             .Cast<DataGridView>().Single().RowCount);
         Assert.Equal(3, orderFills.Controls.Find("brokerPreviewOrderTree", true)
             .Cast<TreeView>().Single().Nodes.Count);
@@ -200,7 +200,9 @@ public sealed class BrokerOrderFillsPreviewTests
             Assert.All(captions, caption => Assert.Equal(24, caption.Height));
             for (var index = 0; index < captions.Length; index++)
             {
-                Assert.Equal(captions[index].Height, editors[index].Height);
+                if (editors[index] is NumericUpDown quantity)
+                    Assert.Equal(quantity.PreferredHeight, quantity.Height); // Native spinner uses its font's preferred height.
+                else Assert.Equal(captions[index].Height, editors[index].Height);
                 Assert.True(editors[index].Top >= captions[index].Bottom + 2,
                     $"{row.Name} has no separator between {captions[index].Name} and {editors[index].Name}.");
             }

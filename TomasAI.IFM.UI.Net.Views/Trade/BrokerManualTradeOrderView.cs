@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.BrokerAccount.Contracts;
+﻿using TomasAI.IFM.Domain.BrokerAccount.Contracts;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
@@ -7,7 +7,7 @@ using TomasAI.IFM.UI.Net.Views.Presentation;
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
 /// <summary>Dark-theme manual order editor for Futures outright and Vertical Spread emulator orders.</summary>
-public sealed class BrokerManualTradeOrderView : DarkTradingView, ITradeOrderControl, ITradeExecutionSelectionControl, IFormControl
+public sealed class BrokerManualTradeOrderView : DarkTradingView, ITradeOrderControl, ITradeExecutionSelectionControl, ITradeOrderPriceSelectionControl, ITradeOptionLegSelectionControl, ITradeQuantitySelectionControl, IFormControl
 {
     readonly BrokerManualTradeOrderViewModel _viewModel;
     readonly NumericUpDown _quantity = new() { Name = "quantity", Minimum = 1, Maximum = 100000, Value = 1 };
@@ -22,6 +22,7 @@ public sealed class BrokerManualTradeOrderView : DarkTradingView, ITradeOrderCon
     readonly Label _account = ValueLabel("Loading emulator account...");
     readonly Label _gate = ValueLabel("Unknown");
     readonly Label _approval = ValueLabel("Not accepted");
+    readonly Label _contracts = ValueLabel(string.Empty);
     readonly Button _qualification = new()
     {
         Name = "manageBrokerQualification",
@@ -59,7 +60,8 @@ public sealed class BrokerManualTradeOrderView : DarkTradingView, ITradeOrderCon
         Add(layout, "Strategy", ValueLabel(viewModel.StrategyKind.ToString()));
         Add(layout, "Fund / Order / Trade",
             ValueLabel($"{viewModel.Trade.FundId} / {viewModel.Trade.OrderId} / {viewModel.Trade.TradeId}"));
-        Add(layout, "Contracts", ValueLabel(string.Join(Environment.NewLine, viewModel.ContractIds)));
+        _contracts.Text = string.Join(Environment.NewLine, viewModel.ContractIds);
+        Add(layout, "Contracts", _contracts);
         Add(layout, "Reference", ValueLabel(viewModel.Trade.InstructionReference));
         Add(layout, "Quantity", _quantity);
         Add(layout, "Signed net debit / credit limit", _limit);
@@ -70,12 +72,14 @@ public sealed class BrokerManualTradeOrderView : DarkTradingView, ITradeOrderCon
         Add(layout, "Account controls", _qualification);
         _qualification.Click += ManageQualificationClicked;
         Controls.Add(layout);
+        TradeOrderInputPalette.ApplyBlackBackgrounds(this);
         AccessibleName = $"{viewModel.StrategyKind} emulator trade order editor";
         UiExceptionReporter.Observe(RefreshAccountAsync(), nameof(RefreshAccountAsync), this);
     }
 
     /// <inheritdoc />
-    public DateOnly MaturityDate => _viewModel.Trade.RequestedMaturityDate
+    public DateOnly MaturityDate => _viewModel.SelectedOptionExpiry
+        ?? _viewModel.Trade.RequestedMaturityDate
         ?? _viewModel.Trade.RequestedTradeDate;
 
     /// <inheritdoc />
@@ -106,8 +110,24 @@ public sealed class BrokerManualTradeOrderView : DarkTradingView, ITradeOrderCon
     }
 
     /// <inheritdoc />
-    public void SetExecutionSelection(BrokerOrderType orderType, BrokerAlgorithm algorithm)
-        => _viewModel.SetExecutionSelection(orderType, algorithm);
+    public void SetOrderPrice(decimal signedNetDebitLimit) => _limit.Value = signedNetDebitLimit;
+
+    public IReadOnlyList<TradeOrderDefinition> SubmittedTradeOrders => _viewModel.SubmittedTradeOrders;
+
+    public void SetExecutionSelection(BrokerOrderType orderType, BrokerAlgorithm algorithm, string timeInForce = "Day", string algorithmPace = "Normal")
+        => _viewModel.SetExecutionSelection(orderType, algorithm, timeInForce, algorithmPace);
+
+    public void SetQuantity(int quantity)
+    {
+        if (quantity < 1) throw new ArgumentOutOfRangeException(nameof(quantity));
+        _quantity.Value = quantity;
+    }
+
+    public void SetOptionLegSelection(DateOnly expiry, (string ContractId, decimal Strike, bool IsCall)[] legs)
+    {
+        _viewModel.SetOptionLegSelection(expiry, legs);
+        _contracts.Text = string.Join(Environment.NewLine, _viewModel.ContractIds);
+    }
 
     /// <summary>Starts the view.</summary>
     public void Open() => UiExceptionReporter.Observe(RefreshAccountAsync(), nameof(RefreshAccountAsync), this);

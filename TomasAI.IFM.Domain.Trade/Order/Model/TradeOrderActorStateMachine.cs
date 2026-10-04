@@ -10,9 +10,9 @@ public sealed class TradeOrderActorStateMachine
 
     public TradeDecision<TradeOrderDefinition> Create(TradeOrderDefinition order)
     {
-        if (Current is not null) return TradeDecision<TradeOrderDefinition>.Reject("TO.ALREADY_EXISTS", "Trade Order already exists.");
+        if (Current is not null) return TradeDecision<TradeOrderDefinition>.Reject("TradeOrder.ALREADY_EXISTS", "Trade Order already exists.");
         var errors = order.Validate();
-        if (errors.Length > 0) return TradeDecision<TradeOrderDefinition>.Reject("TO.INVALID", string.Join(" | ", errors));
+        if (errors.Length > 0) return TradeDecision<TradeOrderDefinition>.Reject("TradeOrder.INVALID", string.Join(" | ", errors));
         Current = order with { Status = TradeOrderStatus.Draft };
         return TradeDecision<TradeOrderDefinition>.Accept(Current);
     }
@@ -23,9 +23,9 @@ public sealed class TradeOrderActorStateMachine
         if (Current.Status != TradeOrderStatus.Draft)
             return RejectTransition("amend");
         if (replacement.Id != Current.Id || replacement.Revision != Current.Revision + 1)
-            return TradeDecision<TradeOrderDefinition>.Reject("TO.REVISION", "Replacement must retain identity and increment revision exactly once.");
+            return TradeDecision<TradeOrderDefinition>.Reject("TradeOrder.REVISION", "Replacement must retain identity and increment revision exactly once.");
         var errors = replacement.Validate();
-        if (errors.Length > 0) return TradeDecision<TradeOrderDefinition>.Reject("TO.INVALID", string.Join(" | ", errors));
+        if (errors.Length > 0) return TradeDecision<TradeOrderDefinition>.Reject("TradeOrder.INVALID", string.Join(" | ", errors));
         Current = replacement with { Status = TradeOrderStatus.Draft };
         return TradeDecision<TradeOrderDefinition>.Accept(Current);
     }
@@ -41,7 +41,7 @@ public sealed class TradeOrderActorStateMachine
         if (Current.Status != TradeOrderStatus.Ready) return RejectTransition("bind execution");
         if (executionAttemptId == Guid.Empty || boundAtUtc.Kind != DateTimeKind.Utc)
             return TradeDecision<TradeOrderDefinition>.Reject(
-                "TO.INVALID_EXECUTION_BINDING",
+                "TradeOrder.INVALID_EXECUTION_BINDING",
                 "Execution binding requires a non-empty attempt ID and UTC timestamp.");
         Current = Current with
         {
@@ -63,7 +63,7 @@ public sealed class TradeOrderActorStateMachine
         if (!zeroExposureConfirmed || executionAttemptId == Guid.Empty ||
             executionAttemptId != Current.BoundExecutionAttemptId || releasedAtUtc.Kind != DateTimeKind.Utc)
             return TradeDecision<TradeOrderDefinition>.Reject(
-                "TO.EXECUTION_RELEASE_NOT_PROVEN",
+                "TradeOrder.EXECUTION_RELEASE_NOT_PROVEN",
                 "Release requires the bound execution attempt, UTC evidence time, and proven zero exposure.");
         Current = Current with
         {
@@ -89,7 +89,7 @@ public sealed class TradeOrderActorStateMachine
     {
         if (Current is null) return Missing();
         if (nowUtc.Kind != DateTimeKind.Utc || nowUtc < Current.ValidUntilUtc)
-            return TradeDecision<TradeOrderDefinition>.Reject("TO.NOT_EXPIRED", "Order validity has not expired.");
+            return TradeDecision<TradeOrderDefinition>.Reject("TradeOrder.NOT_EXPIRED", "Order validity has not expired.");
         if (Current.Status is TradeOrderStatus.Executing or TradeOrderStatus.Completed)
             return RejectTransition("expire");
         Current = Current with { Status = TradeOrderStatus.Expired };
@@ -107,8 +107,8 @@ public sealed class TradeOrderActorStateMachine
     }
 
     TradeDecision<TradeOrderDefinition> Missing() =>
-        TradeDecision<TradeOrderDefinition>.Reject("TO.NOT_FOUND", "Trade Order does not exist.");
+        TradeDecision<TradeOrderDefinition>.Reject("TradeOrder.NOT_FOUND", "Trade Order does not exist.");
 
     TradeDecision<TradeOrderDefinition> RejectTransition(string operation) =>
-        TradeDecision<TradeOrderDefinition>.Reject("TO.INVALID_TRANSITION", $"Cannot {operation} an order in {Current!.Status} state.");
+        TradeDecision<TradeOrderDefinition>.Reject("TradeOrder.INVALID_TRANSITION", $"Cannot {operation} an order in {Current!.Status} state.");
 }

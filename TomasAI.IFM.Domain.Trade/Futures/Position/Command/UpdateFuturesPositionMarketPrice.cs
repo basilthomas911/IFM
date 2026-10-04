@@ -1,3 +1,4 @@
+﻿using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Command.State;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Model;
 using TomasAI.IFM.Domain.Trade.Model;
@@ -55,6 +56,8 @@ public static class UpdateFuturesPositionMarketPrice
         this UpdateFuturesPositionMarketPriceCommand command,
         StrategyPositionSnapshot snapshot) => new()
         {
+            Subject = new(ActorType.Event, "FuturesTradePositionEvent", FuturesPositionChangedEvent.Verb, command.EntityId.Format()),
+            ReceivedOn = DateTime.UtcNow,
             EntityId = command.EntityId,
             State = snapshot
         };

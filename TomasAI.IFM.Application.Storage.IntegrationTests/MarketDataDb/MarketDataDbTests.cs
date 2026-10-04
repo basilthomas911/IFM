@@ -2576,6 +2576,30 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         result.Rho.Should().Be(expectedData.Rho);
     }
 
+    [Fact]
+    public async Task Futures_option_chain_quote_data_loads_latest_quotes_for_one_expiry_and_date()
+    {
+        var underlying = $"TEST-{Guid.NewGuid():N}";
+        var date = new DateOnly(2026, 10, 2);
+        var expiry = new DateOnly(2026, 10, 19);
+        var call = SampleData.FuturesOptionTickData with
+        {
+            ContractId = "ES20261019C5000", ValueDate = date, TickId = 101, BidPrice = 10
+        };
+        var put = call with { ContractId = "ES20261019P5000", BidPrice = 11 };
+        await TestFixture.DevDatabase.UpsertFuturesOptionChainQuoteDataAsync(underlying, call);
+        await TestFixture.DevDatabase.UpsertFuturesOptionChainQuoteDataAsync(underlying, put);
+        await TestFixture.DevDatabase.UpsertFuturesOptionChainQuoteDataAsync(
+            underlying, call with { TickId = 102, BidPrice = 12 });
+
+        var quotes = await TestFixture.DevDatabase.GetFuturesOptionChainQuoteDataAsync(underlying, expiry, date);
+        quotes.Should().HaveCount(2);
+        quotes.Single(quote => quote.ContractId == call.ContractId).BidPrice.Should().Be(12);
+        quotes.Single(quote => quote.ContractId == put.ContractId).BidPrice.Should().Be(11);
+        (await TestFixture.DevDatabase.GetFuturesOptionChainQuoteDataAsync(
+            underlying, expiry.AddDays(1), date)).Should().BeEmpty();
+    }
+
     /// <summary>
     /// Unit test for GetLastFuturesRsiSignalAsync method using sample data and asserting each expected value.
     /// </summary>

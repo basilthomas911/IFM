@@ -101,6 +101,7 @@ public sealed class EventProjectorDescriptorTests
             item.SourceEventType == typeof(FuturesOptionTickDataInsertedEvent));
         var source = new FuturesOptionTickDataInsertedEvent
         {
+            Contract = new FuturesContractV3ReadModel { ContractId = "ES2026121" },
             TickData = new FuturesOptionTickDataV2ReadModel
             {
                 ContractId = "ESU6 C5000",
@@ -115,6 +116,8 @@ public sealed class EventProjectorDescriptorTests
 
         await marketDataDb.Received(2).InsertFuturesOptionTickDataAsync(
             Arg.Is<FuturesOptionTickDataV2ReadModel>(row => row.TickId == persistedEventId));
+        await marketDataDb.Received(2).UpsertFuturesOptionChainQuoteDataAsync(
+            "ES2026121", Arg.Is<FuturesOptionTickDataV2ReadModel>(row => row.TickId == persistedEventId));
     }
 
     static FuturesTickDataEventProjector CreateTickProjector(IMarketDataDbContext marketDataDb)

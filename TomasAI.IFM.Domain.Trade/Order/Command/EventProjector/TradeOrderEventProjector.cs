@@ -29,16 +29,16 @@ public sealed class TradeOrderEventProjector : ConventionalEventProjector<TradeO
     public override IReadOnlyCollection<Type> ProjectedEventTypes => [typeof(TradeOrderChangedEvent)];
     async Task ProjectAsync(TradeOrderChangedEvent changed)
     {
-        await context.DbFactory.TradeDb.UpsertTradeOrderAsync(changed.State).ConfigureAwait(false);
-        if (changed.State.Status != TomasAI.IFM.Domain.Trade.Shared.TradeOrderStatus.Executing || changed.ExecutionAttemptId == Guid.Empty) return;
-        var executionId = new TomasAI.IFM.Domain.Trade.Shared.OrderExecutionId(
-            changed.State.Id, changed.ExecutionAttemptId);
+        await context.DbFactory.TradeDb.UpsertTradeOrderAsync(changed.TradeOrderDefinition).ConfigureAwait(false);
+        if (changed.TradeOrderDefinition.Status != TradeOrderStatus.Executing || changed.ExecutionAttemptId == Guid.Empty) return;
+        var executionId = new OrderExecutionId(
+            changed.TradeOrderDefinition.Id, changed.ExecutionAttemptId);
         var command = new StartOrderExecutionCommand
         {
-            CommandId = TradeHandoffIdentity.Create("order-execution", changed.State.Id.Format(), changed.ExecutionAttemptId.ToString("N")),
+            CommandId = TradeHandoffIdentity.Create("order-execution", changed.TradeOrderDefinition.Id.Format(), changed.ExecutionAttemptId.ToString("N")),
             Subject = new ActorSubject(ActorType.Command, OrderExecutionActorNames.Command, StartOrderExecutionCommand.Verb, executionId.Format()),
             EntityId = executionId,
-            Order = changed.State,
+            Order = changed.TradeOrderDefinition,
             ExecutionAttemptId = changed.ExecutionAttemptId,
             Channel = changed.ExecutionChannel,
             EffectiveAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc ? changed.ReceivedOn : DateTime.UtcNow

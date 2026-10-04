@@ -160,7 +160,7 @@ public sealed class TradeFlowSerializationAndRecoveryTests
         var changed = new TradeOrderChangedEvent
         {
             EntityId = order.Id,
-            State = order
+            TradeOrderDefinition = order
         };
         var eventCopy = MessagePackSerializer.Deserialize<TradeOrderChangedEvent>(
             MessagePackSerializer.Serialize(changed));
@@ -169,7 +169,7 @@ public sealed class TradeFlowSerializationAndRecoveryTests
         state.ReplayEvents([eventCopy]);
 
         commandCopy.Should().BeEquivalentTo(command);
-        state.Current.Should().BeEquivalentTo(order);
+        state.TradeOrderDefinition.Should().BeEquivalentTo(order);
     }
 
     [Fact]

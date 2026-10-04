@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Command.Actor;
@@ -50,30 +50,34 @@ public sealed class OrderExecutionEventProjector
 
     async Task ProjectAsync(OrderExecutionChangedEvent changed)
     {
-        await context.DbFactory.TradeDb.UpsertOrderExecutionAsync(changed.State).ConfigureAwait(false);
+        await context.DbFactory.TradeDb.UpsertOrderExecutionAsync(changed.OrderExecutionDefinition).ConfigureAwait(false);
 
-        if (changed.State.Status == OrderExecutionStatus.Pending &&
-            changed.State.Channel == ExecutionChannel.Broker)
+        if (changed.OrderExecutionDefinition.Status == OrderExecutionStatus.Pending &&
+            changed.OrderExecutionDefinition.Channel == ExecutionChannel.Broker)
         {
             await BeginBrokerExecutionAsync(changed).ConfigureAwait(false);
             return;
         }
 
-        if (changed.State.Status is OrderExecutionStatus.Cancelled or OrderExecutionStatus.Rejected &&
-            changed.State.Fills.Length == 0)
+        if (changed.OrderExecutionDefinition.Status is OrderExecutionStatus.Cancelled or OrderExecutionStatus.Rejected &&
+            changed.OrderExecutionDefinition.Fills.Length == 0)
         {
             await ReleaseTradeOrderAsync(changed).ConfigureAwait(false);
             return;
         }
 
-        if (changed.State.Status is not (OrderExecutionStatus.Filled or OrderExecutionStatus.Cancelled) ||
-            changed.State.Fills.Length == 0) return;
+        if (changed.OrderExecutionDefinition.Status is not (OrderExecutionStatus.Filled or OrderExecutionStatus.Cancelled) ||
+            changed.OrderExecutionDefinition.Fills.Length == 0) return;
 
-        var confirmedAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc
-            ? changed.ReceivedOn
-            : DateTime.SpecifyKind(changed.ReceivedOn, DateTimeKind.Utc);
+        // Completion evidence also supports persisted events whose older envelope omitted ReceivedOn.
+        var confirmedAt = changed.OrderExecutionDefinition.CompletedAtUtc ?? changed.ReceivedOn;
+        if (confirmedAt == default)
+            throw new InvalidOperationException("ORDER_EXECUTION.COMPLETION_TIME_MISSING");
+        var confirmedAtUtc = confirmedAt.Kind == DateTimeKind.Utc
+            ? confirmedAt
+            : DateTime.SpecifyKind(confirmedAt, DateTimeKind.Utc);
         Ensure(await context.PortfolioAccounting.PostConfirmedExecutionAsync(
-            changed.State, changed.Id == Guid.Empty ? changed.CommandId : changed.Id,
+            changed.OrderExecutionDefinition, changed.Id == Guid.Empty ? changed.CommandId : changed.Id,
             confirmedAtUtc).ConfigureAwait(false));
 
         foreach (var trade in changed.CreatedTrades)
@@ -85,14 +89,14 @@ public sealed class OrderExecutionEventProjector
         {
             CommandId = TradeHandoffIdentity.Create(
                 "complete-order",
-                changed.State.TradeOrderId.Format(),
-                changed.State.ExecutionAttemptId.ToString("N")),
+                changed.OrderExecutionDefinition.TradeOrderId.Format(),
+                changed.OrderExecutionDefinition.ExecutionAttemptId.ToString("N")),
             Subject = new ActorSubject(
                 ActorType.Command,
                 TradeOrderCommandActor.ActorName,
                 CompleteTradeOrderCommand.Verb,
-                changed.State.TradeOrderId.Format()),
-            EntityId = changed.State.TradeOrderId
+                changed.OrderExecutionDefinition.TradeOrderId.Format()),
+            EntityId = changed.OrderExecutionDefinition.TradeOrderId
         };
         Ensure(await context.ActorService
             .SendAsync<CompleteTradeOrderCommand, TradeOrderId>(complete, complete.EntityId)
@@ -101,7 +105,7 @@ public sealed class OrderExecutionEventProjector
 
     async ValueTask BeginBrokerExecutionAsync(OrderExecutionChangedEvent changed)
     {
-        foreach (var component in changed.State.Components)
+        foreach (var component in changed.OrderExecutionDefinition.Components)
         {
             var brokerOrderId = new BrokerOrderId(changed.EntityId, component.ComponentId);
             var operationId = TradeHandoffIdentity.Create("broker-place-operation", brokerOrderId.Format());
@@ -111,14 +115,13 @@ public sealed class OrderExecutionEventProjector
                 Subject = new(ActorType.Command, BrokerOrderCommandActor.ActorName,
                     CreateBrokerOrderCommand.Verb, brokerOrderId.Format()),
                 EntityId = brokerOrderId,
-                Order = changed.State.Order,
+                Order = changed.OrderExecutionDefinition.Order,
                 OperationId = operationId,
                 EffectiveAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc
                     ? changed.ReceivedOn
                     : DateTime.SpecifyKind(changed.ReceivedOn, DateTimeKind.Utc)
             };
-            Ensure(await context.ActorService.SendAsync<CreateBrokerOrderCommand, BrokerOrderId>(
-                create, create.EntityId).ConfigureAwait(false));
+            Ensure(await context.ActorService.RequestAsync<CreateBrokerOrderCommand, BrokerOrderId>(create).ConfigureAwait(false));
         }
         var submit = new SubmitOrderExecutionCommand
         {
@@ -138,15 +141,15 @@ public sealed class OrderExecutionEventProjector
         {
             CommandId = TradeHandoffIdentity.Create(
                 "release-order-execution",
-                changed.State.TradeOrderId.Format(),
-                changed.State.ExecutionAttemptId.ToString("N")),
+                changed.OrderExecutionDefinition.TradeOrderId.Format(),
+                changed.OrderExecutionDefinition.ExecutionAttemptId.ToString("N")),
             Subject = new ActorSubject(
                 ActorType.Command,
                 TradeOrderCommandActor.ActorName,
                 ReleaseTradeOrderExecutionCommand.Verb,
-                changed.State.TradeOrderId.Format()),
-            EntityId = changed.State.TradeOrderId,
-            ExecutionAttemptId = changed.State.ExecutionAttemptId,
+                changed.OrderExecutionDefinition.TradeOrderId.Format()),
+            EntityId = changed.OrderExecutionDefinition.TradeOrderId,
+            ExecutionAttemptId = changed.OrderExecutionDefinition.ExecutionAttemptId,
             ZeroExposureConfirmed = true,
             EffectiveAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc
                 ? changed.ReceivedOn

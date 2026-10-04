@@ -354,61 +354,6 @@ internal sealed class DeterministicMarketDataApi(
             futuresOptionContractId));
     }
 
-    public async Task<bool> StartStreamingFuturesOptionChainDataAsync(
-        string futuresContractId,
-        DateOnly maturityDate,
-        string[] optionContractIds)
-    {
-        var active = GetRunningEpoch();
-        RequireFuture(active, futuresContractId);
-        ValidateDate(maturityDate, nameof(maturityDate));
-        ArgumentNullException.ThrowIfNull(optionContractIds);
-        if (optionContractIds.Length == 0)
-        {
-            throw new ArgumentException("At least one option contract is required.", nameof(optionContractIds));
-        }
-        var selectedOptions = optionContractIds.ToArray();
-
-        var status = active.TickAggregation.GetStatus(futuresContractId);
-        if (!status.ServiceRunning)
-        {
-            throw new TickAggregationNotRunningException(futuresContractId);
-        }
-        if (!status.TickerConfigured || !status.TickerRunning)
-        {
-            throw new UnderlyingTickerNotRunningException(futuresContractId);
-        }
-
-        foreach (var optionContractId in selectedOptions)
-        {
-            var option = RequireOption(active, optionContractId);
-            if (active.Catalog.OptionUnderlyings.GetValueOrDefault(optionContractId)
-                    != futuresContractId
-                || option.ContractMonth != maturityDate)
-            {
-                throw new MarketDataContractMappingException(
-                    optionContractId,
-                    "the option does not belong to the requested underlying and maturity");
-            }
-        }
-
-        _ = await active.TreasuryCurve.GetLatestAsync(active.ValueDate);
-        return active.OptionRoutes.StartChain(
-            futuresContractId,
-            maturityDate,
-            selectedOptions);
-    }
-
-    public Task<bool> StopStreamingFuturesOptionChainDataAsync(
-        string futuresContractId,
-        DateOnly maturityDate)
-    {
-        var active = GetRunningEpoch();
-        RequireFuture(active, futuresContractId);
-        ValidateDate(maturityDate, nameof(maturityDate));
-        return Task.FromResult(active.OptionRoutes.StopChain(futuresContractId, maturityDate));
-    }
-
     private FakeMarketDataEpoch GetRunningEpoch() =>
         Volatile.Read(ref epoch) ?? throw new MarketDataApiNotRunningException();
 

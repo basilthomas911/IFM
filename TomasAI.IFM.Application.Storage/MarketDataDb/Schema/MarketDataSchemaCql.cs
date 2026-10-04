@@ -752,6 +752,35 @@ CREATE TABLE IF NOT EXISTS market_data_download_log (
     ) WITH CLUSTERING ORDER BY (valueDate ASC, tickId ASC);
     """;
 
+    public const string AddOptionChainVolume = "ALTER TABLE futures_option_chain_quote_data ADD volume bigint;";
+    public const string AddOptionChainOpenInterest = "ALTER TABLE futures_option_chain_quote_data ADD openInterest bigint;";
+    public const string AddOptionChainVolumeDate = "ALTER TABLE futures_option_chain_quote_data ADD volumeValueDate date;";
+    public const string AddOptionChainOpenInterestDate = "ALTER TABLE futures_option_chain_quote_data ADD openInterestValueDate date;";
+
+    public const string CreateFuturesOptionChainQuoteDataTable = """
+    CREATE TABLE IF NOT EXISTS futures_option_chain_quote_data (
+        underlyingContractId text,
+        expiryDate date,
+        valueDate date,
+        contractId text,
+        tickId bigint,
+        tickTime time,
+        optionPrice double,
+        bidPrice double,
+        askPrice double,
+        bidSize int,
+        askSize int,
+        impliedVolatility double,
+        underlyingPrice double,
+        delta double,
+        gamma double,
+        vega double,
+        theta double,
+        rho double,
+        PRIMARY KEY ((underlyingContractId, expiryDate, valueDate), contractId)
+    );
+    """;
+
     public const string CreateFuturesOptionTickPriceDataTable = """
     CREATE TABLE IF NOT EXISTS futures_option_tick_price_data (
     contractId text,

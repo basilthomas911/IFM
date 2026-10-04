@@ -1,7 +1,9 @@
-# Actor Event Modeling Conventions
+﻿# Actor Event Modeling Conventions
 
 **Status:** Initial high-level convention  
-**Applies to:** Domain command actors, their event-sourced states, event projectors, and public lifecycle events
+**Applies to:** Command, query, and event extension handlers; domain command actors, their event-sourced states, event projectors, and public lifecycle events
+
+Follow this document together with [Actor Implementation Conventions](Actor-Implementation-Conventions.md). That document defines actor maps, dispatch, lifecycle, and handler boundaries; this document defines business intent, computation, state ownership, and event application. Both apply when creating command, query, or event extension handlers.
 
 ## 1. Intent is a concrete command
 
@@ -50,3 +52,48 @@ The health action coordinator currently performs generation-fenced automatic res
 ## 7. Qualification
 
 For every operation family, test contract serialization, exact route mapping, validation, authorization, generation fencing, command acknowledgement, committed source event, one projected Complete or Fail event, and duplicate command delivery. Test exceptions and cancellation at the pre-effect, post-effect, commit, and projector boundaries. A non-durable projector must be tested for the documented loss window; a durable one must be tested for idempotent replay.
+
+
+## 8. Command extension computation, guards, and business names
+
+Use `AddFuturesContract` for command/event application ownership and `GenerateFuturesAdxDailySignal` for the clean compute/switch/updated-result structure. The Trade Order handlers demonstrate both conventions together.
+
+1. A command extension receives its concrete command and the owning `Command/State` object.
+2. `Compute` is a command extension accepting business data from state and returning a computation through a business-named `out` parameter. A stateless implementation may live in `Command/Model`. Computation must not mutate its inputs, actor state, pending events, storage, or external services.
+3. Check the computation result and, where required, a guard such as `tradeOrderChange.IsValidFor(command.EntityId)` before event creation or state application. Guards check acceptance, required domain data, ownership, and business validity. A rejected computation or guard must not create pending events or modify current state. Preserve the business rejection reason.
+4. Prefer a switch expression in `Execute`. Put all failure checks in `_ when` arms first; the final default `_` arm is the single event/state update expression. Capture its boolean result in `updated`.
+5. The command's event factory receives the computed business model. The event carries its accepted business data under an explicit domain property such as `TradeOrderDefinition`. Do not persist a transient calculation wrapper merely to follow this pattern.
+6. Call `state.Update(event, command)`, as in `AddFuturesContract`. This framework entry point records command metadata and pending events and invokes the State object's `Apply` method. Do not bypass it with a direct assignment or direct call to the protected event dispatcher.
+7. Authoritative variables live in State with controlled setters. State's `Apply` dispatches with a switch and mutates the domain variables in the corresponding event case. Model code computes proposed values; it does not own a second mutable aggregate.
+8. Return `updated ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId)) : command.UpdateFailed(...)`.
+9. Every command-handler method, including `Compute`, guard helpers, and event factories, has XML documentation explaining purpose, parameters, results, state effects, and deliberately propagated exceptions where applicable.
+
+### Business naming examples
+
+| Generic name | Business domain name |
+| --- | --- |
+| `current` / `State` / `Current` | `tradeOrderDefinition` / `TradeOrderDefinition` |
+| `replacement` | `amendedTradeOrderDefinition` |
+| `model` / `value` | `tradeOrderChange`, `tradeOrderAmendment`, or `TradeOrderDefinition` |
+| `errors` / `code` / `detail` | `tradeOrderErrors`, `RejectionCode`, `RejectionReason` |
+
+Use names that identify the actual domain object or decision, including event payload properties. Framework concepts such as `command`, `state`, and `updated` retain their established meaning.
+
+```csharp
+var errorMsg = $"{command.CommandName}: unable to apply Trade Order change event";
+var updated = command.Compute(state.TradeOrderDefinition, out var tradeOrderChange) switch
+{
+    _ when !tradeOrderChange.Accepted
+        => command.UpdateFailed(ref errorMsg, $"{tradeOrderChange.RejectionCode};{tradeOrderChange.RejectionReason}"),
+    _ when !tradeOrderChange.IsValidFor(command.EntityId)
+        => command.UpdateFailed(ref errorMsg, "Computed Trade Order definition is invalid for this order"),
+    _ => state.Update(command.CreateTradeOrderChangedEvent(tradeOrderChange), command)
+};
+return updated
+    ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
+    : command.UpdateFailed(errorMsg);
+```
+
+Query extensions read domain-named data and return query results; they do not mutate authoritative command state. Event extensions requiring an authoritative change send a concrete command to its owner. Read-model projection remains the projector's responsibility. Apply these responsibilities together with the [actor handler boundaries](Actor-Implementation-Conventions.md).
+
+Failure guard arms use `command.UpdateFailed(ref errorMsg, businessReason)` to capture their reason and return false. Initialize `errorMsg` with the event-application failure reason before computation; return `command.UpdateFailed(errorMsg)` when `updated` is false.

@@ -1,4 +1,4 @@
-using TomasAI.IFM.UI.Net.Models.Portfolio;
+﻿using TomasAI.IFM.UI.Net.Models.Portfolio;
 using System.Security.Cryptography;
 using System.Text;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -75,6 +75,36 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     decimal _fundBalance;
     BrokerOrderType _brokerOrderType = BrokerOrderType.Limit;
     BrokerAlgorithm _brokerAlgorithm = BrokerAlgorithm.None;
+    public IReadOnlyList<TradeOrderDefinition> SubmittedTradeOrders { get; private set; } = [];
+    string _timeInForce = "Day";
+    string _algorithmPace = "Normal";
+
+    public void SetOptionLegSelection(DateOnly expiry, (string ContractId, decimal Strike, bool IsCall)[] legs)
+    {
+        if (expiry == default || legs.Length != 4 || legs.Select(leg => leg.ContractId).Distinct(StringComparer.Ordinal).Count() != 4
+            || legs.Count(leg => leg.IsCall) != 2 || legs.Count(leg => !leg.IsCall) != 2
+            || legs.Any(leg => string.IsNullOrWhiteSpace(leg.ContractId) || leg.Strike <= 0))
+            throw new InvalidOperationException("Select two calls and two puts for the emulator iron condor.");
+        if (_ironCondorTrade?.OptionLegs is not { Length: 4 } current)
+            throw new InvalidOperationException("The iron condor order legs are not loaded.");
+        var puts = legs.Where(leg => !leg.IsCall).OrderByDescending(leg => leg.Strike).ToArray();
+        var calls = legs.Where(leg => leg.IsCall).OrderBy(leg => leg.Strike).ToArray();
+        if (puts[0].Strike == puts[1].Strike || calls[0].Strike == calls[1].Strike)
+            throw new InvalidOperationException("Each iron condor wing must use a different strike.");
+        var replacement = current.Select(leg =>
+        {
+            var first = leg.OptionLegType == OptionType.Put
+                ? leg.OptionLegAction == OptionLeg1Action
+                : leg.OptionLegAction == OptionLeg3Action;
+            var chosen = leg.OptionLegType == OptionType.Put
+                ? puts[first ? 0 : 1]
+                : calls[first ? 0 : 1];
+            return leg with { ContractId = chosen.ContractId, StrikePrice = chosen.Strike };
+        }).ToArray();
+        _ironCondorTrade = (_ironCondorTrade with { MaturityDate = expiry }).AddOptionLegs(replacement);
+        _optionLegMap = replacement.ToDictionary(leg => (leg.OptionLegAction, leg.OptionLegType));
+        OnPropertyChanged(nameof(OptionLegs));
+    }
     decimal _orderPrice;
     decimal _assetPrice;
     decimal? _fundMaxProfit;
@@ -165,14 +195,18 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     public IAppRoot AppRoot => _appRoot;
     public bool IsHistoricalReadOnly => _historicalReadOnly;
 
-    public void SetExecutionSelection(BrokerOrderType orderType, BrokerAlgorithm algorithm)
+    public void SetExecutionSelection(BrokerOrderType orderType, BrokerAlgorithm algorithm, string timeInForce = "Day", string algorithmPace = "Normal")
     {
         ThrowIfHistoricalReadOnly();
         if (orderType is not (BrokerOrderType.Market or BrokerOrderType.Limit) ||
             algorithm is not (BrokerAlgorithm.None or BrokerAlgorithm.Adaptive))
             throw new InvalidOperationException($"Unsupported broker execution selection: {orderType} / {algorithm}.");
         _brokerOrderType = orderType;
+        if (timeInForce is not ("Day" or "GTC") || algorithmPace is not ("Patient" or "Normal" or "Urgent"))
+            throw new ArgumentException("Unsupported time in force or algorithm pace.");
         _brokerAlgorithm = algorithm;
+        _timeInForce = timeInForce;
+        _algorithmPace = algorithmPace;
     }
     public DateOnly ValueDate => _valueDate;
     public DateOnly TradeDate => _ironCondorTrade.TradeDate;
@@ -718,6 +752,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
                 tradeOrder.TradeFillType == TradeFillType.Manual
                     ? ExecutionChannel.Manual
                     : ExecutionChannel.Broker).ConfigureAwait(false);
+            SubmittedTradeOrders = submission.TradeOrders;
             commandId = submission.PortfolioEventId;
             return commandId;
         }
@@ -807,10 +842,12 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         var componentId = Guid.NewGuid();
         var compositionId = Guid.NewGuid();
         var risk = Math.Abs(_ironCondorTrade.TradeLimit?.RiskMargin ?? tradeOrder.TotalAmount);
-        var maximumLoss = Math.Abs(_ironCondorTrade.TradeLimit?.MaxLoss ?? tradeOrder.TotalAmount);
+        var maximumLoss = Math.Max(Math.Abs(_ironCondorTrade.TradeLimit?.MaxLoss ?? tradeOrder.TotalAmount),
+            SelectedOrderPriceRisk.MaximumOptionLoss(legs, tradeOrder.OrderPrice, tradeOrder.OrderQuantity));
+        risk = Math.Max(risk, maximumLoss);
         var evidence = string.Join('|', PortfolioId, FundId, compositionId, componentId,
             _baseContract.ContractId, tradeOrder.ValueDate, tradeOrder.TotalAmount, tradeOrder.OrderPrice,
-            _brokerOrderType, _brokerAlgorithm,
+            _brokerOrderType, _brokerAlgorithm, _timeInForce, _algorithmPace,
             string.Join(';', legs.Select(leg => $"{leg.TradeLegId:N}:{leg.ContractId}:{leg.SignedQuantity}")));
         var evidenceHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(evidence))).ToLowerInvariant();
         var accountAlias = "IFM-EMULATOR-PAPER";
@@ -849,7 +886,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
                     Legs = legs,
                     PermitBalancedPartialAcceptance = false,
                     SignedNetDebitLimit = tradeOrder.OrderPrice,
-                    MinimumSignedNetDebitLimit = tradeOrder.OrderPrice,
+                    MinimumSignedNetDebitLimit = tradeOrder.OrderPrice - 0.50m,
                     MaximumSignedNetDebitLimit = tradeOrder.OrderPrice,
                     TickIncrement = 0.05m
                 }.ToPortfolioComponent()
@@ -866,12 +903,14 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             PositionType = PortfolioExecutionPositionType.Opening,
             BrokerAccountAlias = accountAlias,
             BrokerEnvironment = PortfolioBrokerEnvironment.Emulator,
-            MicroExecutionProfileId = "ManualExactLimit",
+            MicroExecutionProfileId = "ManualPriceImprovement",
             MicroExecutionProfileVersion = 1,
             MicroExecutionProfileHash = evidenceHash,
             AccountPromotionApprovalReference = approvalReference,
             BrokerOrderType = (PortfolioBrokerOrderType)_brokerOrderType,
-            BrokerAlgorithm = (PortfolioBrokerAlgorithm)_brokerAlgorithm
+            BrokerAlgorithm = (PortfolioBrokerAlgorithm)_brokerAlgorithm,
+            TimeInForce = _timeInForce,
+            AlgorithmPace = _algorithmPace
         };
     }
 

@@ -1,4 +1,4 @@
-# Actor Implementation Conventions
+﻿# Actor Implementation Conventions
 
 **Document type:** System-wide implementation guide for all actor types  
 **Status:** Evolving design convention; EventActor, RealtimeActor, CommandActor, QueryActor, and FunctionActor conventions documented
@@ -7,6 +7,8 @@
 **Applies to:** Actor base classes, derived actors, actor message contracts, mapped handlers, and actor unit and integration tests
 
 ## 1. Purpose
+
+Command, query, and event extension handlers must also follow [Actor Event Modeling Conventions](Actor-Event-Modeling-Conventions.md), including business domain naming, stateless computation, pre-application guards, state-owned event mutation, and command acknowledgement structure. Follow both documents when implementing handlers.
 
 This document is the system-wide implementation guide for IFM actors. It will define the common structure and actor-type-specific conventions for EventActors, CommandActors, QueryActors, and any additional actor roles approved later.
 

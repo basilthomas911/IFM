@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Query.Actor;
+using TomasAI.IFM.Application.MarketData.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Query;
 
@@ -11,8 +12,19 @@ internal static class OptionChainWindowInputs
         CancellationToken cancellationToken)
     {
         var valueDate = context.MarketSessionAuthority.Current.OperationalValueDate;
-        var price = context.MarketDataApi is null ? null
-            : await context.MarketDataApi.GetFuturesPriceAsync(underlyingContractId).ConfigureAwait(false);
+        decimal? price = null;
+        if (context.MarketDataApi is { } marketDataApi && marketDataApi.GetRuntimeStatus().IsRunning)
+        {
+            try
+            {
+                price = await marketDataApi.GetFuturesPriceAsync(underlyingContractId).ConfigureAwait(false);
+            }
+            catch (MarketDataApiNotRunningException)
+            {
+                // The feed may stop between the status check and price read.
+                // Stored EOD and Bollinger values still support chain discovery.
+            }
+        }
         var currentEod = await context.DbFactory.MarketDataDb.GetFuturesEodDataAsync(
             underlyingContractId, valueDate).ConfigureAwait(false);
         var deviationEod = currentEod;

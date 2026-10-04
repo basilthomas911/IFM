@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Portfolio.Identity;
+﻿using TomasAI.IFM.Domain.Portfolio.Identity;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 
@@ -63,7 +63,9 @@ public static class PortfolioCloseOrderCompositionModel
             RequiredCapital = openingOrder.RequiredCapital,
             MaximumLoss = openingOrder.MaximumLoss,
             BrokerOrderType = openingOrder.BrokerOrderType,
-            BrokerAlgorithm = openingOrder.BrokerAlgorithm
+            BrokerAlgorithm = openingOrder.BrokerAlgorithm,
+            TimeInForce = openingOrder.TimeInForce,
+            AlgorithmPace = openingOrder.AlgorithmPace
         };
 
         return new PortfolioCloseOrderCompositionReceipt

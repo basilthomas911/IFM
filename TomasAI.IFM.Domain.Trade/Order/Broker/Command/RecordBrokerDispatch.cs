@@ -1,69 +1,63 @@
+using TomasAI.IFM.Domain.Trade.Order.Broker.Command.Model;
 using TomasAI.IFM.Domain.Trade.Order.Broker.Command.State;
 using TomasAI.IFM.Domain.Trade.Shared.Order.Broker;
+using TomasAI.IFM.Domain.BrokerAccount.Contracts;
+using TomasAI.IFM.Domain.BrokerAccount.Query.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Order.Broker.Command;
 
-/// <summary>Handles the durable local result of one previously committed broker mutation.</summary>
+/// <summary>Handles RecordBrokerDispatch through computation, failure guards and state-owned event application.</summary>
 public static class RecordBrokerDispatch
 {
-    /// <summary>Records a matching operation receipt and ignores its exact replay.</summary>
-    public static ServiceResult<GuidResult> Execute(this RecordBrokerDispatchCommand command, BrokerOrderCommandState state)
+    /// <summary>Applies a valid broker-order decision; exact replay succeeds without another event.</summary>
+    /// <param name="command">The concrete broker-order intent.</param>
+    /// <param name="state">The authoritative broker-order state.</param>
+    /// <returns>The command ID on success, or the business/application failure.</returns>
+    public static ServiceResult<GuidResult> Execute(this RecordBrokerDispatchCommand command,
+        BrokerOrderCommandState state)
     {
-        var current = state.Current;
-        if (current is null) return command.UpdateFailed("BO.NOT_FOUND");
-        if (current.OperationId != command.OperationId) return command.UpdateFailed("BO.OPERATION.CONFLICT");
-        if (current.PendingMutation == BrokerMutationKind.Unknown &&
-            current.DispatchCategory == command.Category && current.DispatchDetail == command.Detail)
-            return new ServiceOk<GuidResult>(new(command.CommandId));
-        var acceptedStatus = current.PendingMutation switch
+        var errorMsg = "BrokerOrder.STATE.APPLY_FAILED";
+        var computed = command.Compute(state.BrokerOrderDefinition, out var brokerOrderChange);
+        // An accepted replay has no new intent to persist or dispatch.
+        if (brokerOrderChange.Accepted && brokerOrderChange.IsReplay && brokerOrderChange.IsValidFor(command.EntityId))
+            return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
+        var updated = computed switch
         {
-            BrokerMutationKind.Place => BrokerOrderStatus.Dispatched,
-            BrokerMutationKind.UpdateLimit => current.StatusBeforeMutation,
-            BrokerMutationKind.Cancel => BrokerOrderStatus.CancelPending,
-            _ => BrokerOrderStatus.Unknown
+            _ when !brokerOrderChange.Accepted
+                => command.UpdateFailed(ref errorMsg, brokerOrderChange.RejectionReason),
+            _ when !brokerOrderChange.IsValidFor(command.EntityId)
+                => command.UpdateFailed(ref errorMsg, "BrokerOrder.COMPUTED_ORDER.INVALID"),
+            _ => state.Update(command.CreateBrokerOrderChangedEvent(brokerOrderChange), command)
         };
-        if (acceptedStatus == BrokerOrderStatus.Unknown)
-            return command.UpdateFailed("BO.DISPATCH.MUTATION_UNKNOWN");
-        var localRejectionStatus = current.PendingMutation == BrokerMutationKind.Place
-            ? BrokerOrderStatus.Rejected
-            : current.StatusBeforeMutation;
-        var receiptStatus = command.Outcome switch
-        {
-            BrokerDispatchResult.AcceptedForDispatch => acceptedStatus,
-            BrokerDispatchResult.OutcomeUnknown => BrokerOrderStatus.OutcomeUnknown,
-            _ => localRejectionStatus
-        };
-        var authoritativeStatusAlreadyAdvanced = current.Status is BrokerOrderStatus.Working or
-            BrokerOrderStatus.PartiallyFilled or BrokerOrderStatus.Filled or BrokerOrderStatus.Cancelled;
-        var status = authoritativeStatusAlreadyAdvanced && command.Outcome is not BrokerDispatchResult.RejectedLocally
-            ? current.Status
-            : receiptStatus;
-        if (current.Status == status && current.DispatchCategory == command.Category && current.DispatchDetail == command.Detail)
-            return new ServiceOk<GuidResult>(new(command.CommandId));
-        if (current.Status is not (BrokerOrderStatus.PlacePending or BrokerOrderStatus.UpdatePending or
-                BrokerOrderStatus.CancelPending) && !authoritativeStatusAlreadyAdvanced)
-            return command.UpdateFailed($"BO.DISPATCH.INVALID_STATE;{current.Status}");
-        if (authoritativeStatusAlreadyAdvanced && command.Outcome == BrokerDispatchResult.RejectedLocally)
-            return command.UpdateFailed("BO.DISPATCH.CONFLICTS_WITH_AUTHORITATIVE_OBSERVATION");
-        var next = current with
-        {
-            Status = status,
-            Revision = current.Revision + 1,
-            DispatchCategory = command.Category,
-            DispatchDetail = command.Detail,
-            ChangedAtUtc = command.RecordedAtUtc,
-            LastObservation = null,
-            PendingMutation = command.Outcome == BrokerDispatchResult.OutcomeUnknown
-                ? current.PendingMutation : BrokerMutationKind.Unknown
-        };
-        var applied = state.Update(new BrokerOrderChangedEvent
-        {
-            Subject = new(ActorType.Event, BrokerOrderChangedEvent.Actor, BrokerOrderChangedEvent.Verb, command.EntityId.Format()),
-            EntityId = command.EntityId,
-            State = next
-        }, command);
-        return applied ? new ServiceOk<GuidResult>(new(command.CommandId)) : command.UpdateFailed("BO.STATE.APPLY_FAILED");
+        return updated
+            ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
+            : command.UpdateFailed(errorMsg);
     }
+
+    /// <summary>Computes proposed business data without modifying its inputs or actor state.</summary>
+    /// <param name="command">The proposed broker-order intent.</param>
+    /// <param name="brokerOrderDefinition">The current authoritative definition, if any.</param>
+    /// <param name="brokerOrderChange">The proposed definition, replay or rejection.</param>
+    /// <returns>True when the business decision is accepted.</returns>
+    internal static bool Compute(this RecordBrokerDispatchCommand command,
+        BrokerOrderDefinition? brokerOrderDefinition, out BrokerOrderCompute brokerOrderChange)
+    {
+        brokerOrderChange = BrokerOrderComputation.RecordBrokerDispatch(command, brokerOrderDefinition);
+        return brokerOrderChange.Accepted;
+    }
+
+    /// <summary>Creates the private event carrying the guarded broker-order definition.</summary>
+    /// <param name="command">The originating command identity and route.</param>
+    /// <param name="brokerOrderChange">The accepted business decision.</param>
+    /// <returns>The source event to apply and persist through State.Update.</returns>
+    internal static BrokerOrderChangedEvent CreateBrokerOrderChangedEvent(this RecordBrokerDispatchCommand command,
+        BrokerOrderCompute brokerOrderChange) => new()
+    {
+        CommandId = command.CommandId,
+        Subject = new(ActorType.Event, BrokerOrderChangedEvent.Actor, BrokerOrderChangedEvent.Verb, command.EntityId.Format()),
+        EntityId = command.EntityId,
+        BrokerOrderDefinition = brokerOrderChange.BrokerOrderDefinition!
+    };
 }

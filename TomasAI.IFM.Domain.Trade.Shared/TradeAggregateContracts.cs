@@ -1,4 +1,4 @@
-using MessagePack;
+﻿using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
 namespace TomasAI.IFM.Domain.Trade.Shared;
@@ -90,6 +90,10 @@ public sealed record TradeOrderDefinition
     [Key(24)] public BrokerAlgorithm BrokerAlgorithm { get; init; } = BrokerAlgorithm.None;
     /// <summary>Exact immutable analytics evidence accepted for an opening order; null for legacy/closing orders.</summary>
     [Key(25)] public VolatilityWorkflowInput? VolatilityEvidence { get; init; }
+    [Key(26)] public string TimeInForce { get => timeInForce; init => timeInForce = string.IsNullOrEmpty(value) ? "Day" : value; }
+    private string timeInForce = "Day";
+    [Key(27)] public string AlgorithmPace { get => algorithmPace; init => algorithmPace = string.IsNullOrEmpty(value) ? "Normal" : value; }
+    private string algorithmPace = "Normal";
 }
 
 /// <summary>Normalized immutable fill evidence accepted by OrderExecution.</summary>

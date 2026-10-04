@@ -1,55 +1,63 @@
+using TomasAI.IFM.Domain.Trade.Order.Broker.Command.Model;
 using TomasAI.IFM.Domain.Trade.Order.Broker.Command.State;
 using TomasAI.IFM.Domain.Trade.Shared.Order.Broker;
+using TomasAI.IFM.Domain.BrokerAccount.Contracts;
+using TomasAI.IFM.Domain.BrokerAccount.Query.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Order.Broker.Command;
 
-/// <summary>Records an individual broker-order cancellation before the broker is called.</summary>
+/// <summary>Handles RequestBrokerOrderCancel through computation, failure guards and state-owned event application.</summary>
 public static class RequestBrokerOrderCancel
 {
-    /// <summary>Moves a working logical order into its durable cancel-pending state.</summary>
-    public static ServiceResult<GuidResult> Execute(
-        this RequestBrokerOrderCancelCommand command,
+    /// <summary>Applies a valid broker-order decision; exact replay succeeds without another event.</summary>
+    /// <param name="command">The concrete broker-order intent.</param>
+    /// <param name="state">The authoritative broker-order state.</param>
+    /// <returns>The command ID on success, or the business/application failure.</returns>
+    public static ServiceResult<GuidResult> Execute(this RequestBrokerOrderCancelCommand command,
         BrokerOrderCommandState state)
     {
-        var current = state.Current;
-        if (current is null) return command.UpdateFailed("BO.NOT_FOUND");
-        if (current.OperationId == command.OperationId && current.Status == BrokerOrderStatus.CancelPending)
-            return new ServiceOk<GuidResult>(new(command.CommandId));
-        if (current.Status is not (BrokerOrderStatus.Dispatched or BrokerOrderStatus.Working or
-            BrokerOrderStatus.PartiallyFilled or BrokerOrderStatus.OutcomeUnknown))
-            return command.UpdateFailed($"BO.CANCEL.INVALID_STATE;{current.Status}");
-        if (current.BrokerRevision <= 0)
-            return command.UpdateFailed("BO.CANCEL.BROKER_REVISION_UNKNOWN");
-        var next = current with
+        var errorMsg = "BrokerOrder.STATE.APPLY_FAILED";
+        var computed = command.Compute(state.BrokerOrderDefinition, out var brokerOrderChange);
+        // An accepted replay has no new intent to persist or dispatch.
+        if (brokerOrderChange.Accepted && brokerOrderChange.IsReplay && brokerOrderChange.IsValidFor(command.EntityId))
+            return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
+        var updated = computed switch
         {
-            PriorOperationId = current.OperationId,
-            OperationId = command.OperationId,
-            StatusBeforeMutation = current.Status,
-            Status = BrokerOrderStatus.CancelPending,
-            PendingMutation = BrokerMutationKind.Cancel,
-            Revision = current.Revision + 1,
-            ChangedAtUtc = command.EffectiveAtUtc,
-            LastObservation = null
+            _ when !brokerOrderChange.Accepted
+                => command.UpdateFailed(ref errorMsg, brokerOrderChange.RejectionReason),
+            _ when !brokerOrderChange.IsValidFor(command.EntityId)
+                => command.UpdateFailed(ref errorMsg, "BrokerOrder.COMPUTED_ORDER.INVALID"),
+            _ => state.Update(command.CreateBrokerOrderChangedEvent(brokerOrderChange), command)
         };
-        return Apply(command, state, next);
+        return updated
+            ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
+            : command.UpdateFailed(errorMsg);
     }
 
-    private static ServiceResult<GuidResult> Apply(
-        RequestBrokerOrderCancelCommand command,
-        BrokerOrderCommandState state,
-        BrokerOrderDefinition next)
+    /// <summary>Computes proposed business data without modifying its inputs or actor state.</summary>
+    /// <param name="command">The proposed broker-order intent.</param>
+    /// <param name="brokerOrderDefinition">The current authoritative definition, if any.</param>
+    /// <param name="brokerOrderChange">The proposed definition, replay or rejection.</param>
+    /// <returns>True when the business decision is accepted.</returns>
+    internal static bool Compute(this RequestBrokerOrderCancelCommand command,
+        BrokerOrderDefinition? brokerOrderDefinition, out BrokerOrderCompute brokerOrderChange)
     {
-        var applied = state.Update(new BrokerOrderChangedEvent
-        {
-            Subject = new(ActorType.Event, BrokerOrderChangedEvent.Actor,
-                BrokerOrderChangedEvent.Verb, command.EntityId.Format()),
-            EntityId = command.EntityId,
-            State = next
-        }, command);
-        return applied
-            ? new ServiceOk<GuidResult>(new(command.CommandId))
-            : command.UpdateFailed("BO.STATE.APPLY_FAILED");
+        brokerOrderChange = BrokerOrderComputation.RequestBrokerOrderCancel(command, brokerOrderDefinition);
+        return brokerOrderChange.Accepted;
     }
+
+    /// <summary>Creates the private event carrying the guarded broker-order definition.</summary>
+    /// <param name="command">The originating command identity and route.</param>
+    /// <param name="brokerOrderChange">The accepted business decision.</param>
+    /// <returns>The source event to apply and persist through State.Update.</returns>
+    internal static BrokerOrderChangedEvent CreateBrokerOrderChangedEvent(this RequestBrokerOrderCancelCommand command,
+        BrokerOrderCompute brokerOrderChange) => new()
+    {
+        CommandId = command.CommandId,
+        Subject = new(ActorType.Event, BrokerOrderChangedEvent.Actor, BrokerOrderChangedEvent.Verb, command.EntityId.Format()),
+        EntityId = command.EntityId,
+        BrokerOrderDefinition = brokerOrderChange.BrokerOrderDefinition!
+    };
 }

@@ -129,6 +129,14 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
         where TDataRecord : IObjectDataRecord => new(ContractId: e.GetString(0), ValueDate: e.GetDateOnly(1), TickId: e.GetLong(2));
     internal static FuturesOptionTickDataV2ReadModel MapToFuturesOptionTickData<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), tickId: e.GetLong(2), tickTime: e.GetTimeOnly(3), optionPrice: e.GetDouble(4), bidPrice: e.GetDouble(5), askPrice: e.GetDouble(6), bidSize: e.GetInt(7), askSize: e.GetInt(8), impliedVolatility: e.GetDouble(9), underlyingPrice: e.GetDouble(10), delta: e.GetDouble(11), gamma: e.GetDouble(12), vega: e.GetDouble(13), theta: e.GetDouble(14), rho: e.GetDouble(15));
+    internal static FuturesOptionTickDataV2ReadModel MapToOptionChainQuote<TDataRecord>(TDataRecord e)
+        where TDataRecord : IObjectDataRecord => MapToFuturesOptionTickData(e) with
+        {
+            Volume = e.IsNull(16) ? null : e.GetLong(16),
+            OpenInterest = e.IsNull(17) ? null : e.GetLong(17),
+            VolumeValueDate = e.IsNull(18) ? null : e.GetDateOnly(18),
+            OpenInterestValueDate = e.IsNull(19) ? null : e.GetDateOnly(19)
+        };
     internal static FuturesOptionTickDataV2ReadModel MapToFuturesOptionTickPriceData<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), tickId: e.GetLong(2), tickTime: e.GetTimeOnly(3), optionPrice: e.GetDouble(4), bidPrice: e.GetDouble(5), askPrice: e.GetDouble(6), bidSize: e.GetInt(7), askSize: e.GetInt(8), impliedVolatility: e.GetDouble(9), underlyingPrice: e.GetDouble(10), delta: e.GetDouble(11), gamma: e.GetDouble(12), vega: e.GetDouble(13), theta: e.GetDouble(14), rho: e.GetDouble(15));
     internal static FuturesOptionTickDataId MapToFuturesOptionTickDataId<TDataRecord>(TDataRecord e)
@@ -623,6 +631,13 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     public async Task<FuturesOptionTickDataV2ReadModel?> GetLastFuturesOptionTickDataAsync(string contractId, DateOnly valueDate) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesOptionTickData)}", MarketDataDbCql.GetLastFuturesOptionTickData)
         .SetParameters(new GetLastFuturesOptionTickData(contractId, valueDate))
         .ExecuteSingleAsync(MapToFuturesOptionTickData!);
+
+    public async Task<ICollection<FuturesOptionTickDataV2ReadModel>> GetFuturesOptionChainQuoteDataAsync(
+        string underlyingContractId, DateOnly expiryDate, DateOnly valueDate, CancellationToken cancellationToken = default) =>
+        await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesOptionChainQuoteData)}",
+                MarketDataDbCql.GetFuturesOptionChainQuoteData)
+            .SetParameters(new GetFuturesOptionChainQuoteData(underlyingContractId, expiryDate, valueDate))
+            .ExecuteQueryAsync(MapToOptionChainQuote!, cancellationToken);
     /// <summary>
     /// Asynchronously retrieves the most recent tick price data for a specified futures option contract on a given
     /// date.
@@ -990,6 +1005,40 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
         var tickId = e.TickId > 0 ? e.TickId : await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesOptionTickData_TickId);
         await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesOptionTickData)}", MarketDataDbCql.InsertFuturesOptionTickData)
             .SetParameters(new InsertFuturesOptionTickData(contractId: e.ContractId, valueDate: e.ValueDate, tickId, tickTime: e.TickTime, optionPrice: e.OptionPrice, bidPrice: e.BidPrice, askPrice: e.AskPrice, bidSize: e.BidSize, askSize: e.AskSize, impliedVolatility: e.ImpliedVolatility, underlyingPrice: e.UnderlyingPrice, delta: e.Delta, gamma: e.Gamma, vega: e.Vega, theta: e.Theta, rho: e.Rho))
+            .ExecuteCommandAsync();
+    }
+
+    /// <summary>Enriches existing frozen quotes without replacing prices, timestamps, or newer ticks.</summary>
+    public async Task UpdateFuturesOptionChainQuoteGreeksAsync(string underlyingContractId, DateOnly expiryDate,
+        ICollection<FuturesOptionTickDataV2ReadModel> quotes)
+    {
+        if (quotes.Count == 0) return;
+        await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.UpdateOptionChainGreeks)}", MarketDataDbCql.UpdateOptionChainGreeks)
+            .SetParameters(quotes.Select(x => new UpdateOptionChainGreeks(underlyingContractId, expiryDate, x)))
+            .ExecuteCommandAsync();
+    }
+
+    public async Task UpsertFuturesOptionChainQuoteDataAsync(
+        string underlyingContractId, FuturesOptionTickDataV2ReadModel tick)
+    {
+        DateOnly expiry;
+        try { expiry = DateOnly.FromDateTime(new FuturesOptionContractId(tick.ContractId).MaturityDate); }
+        catch (Exception exception) when (exception is InvalidOperationException or ArgumentException)
+        {
+            var definition = await _dbFactory.SecuritiesDb.GetFuturesOptionContractAsync(tick.ContractId)
+                .ConfigureAwait(false)
+                ?? throw new InvalidOperationException($"Option expiry is unavailable for {tick.ContractId}.");
+            expiry = definition.ExpirationUtc is { } at
+                ? DateOnly.FromDateTime(at.UtcDateTime) : definition.ContractMonth;
+        }
+        if (tick.Vega == 0 && tick.UnderlyingPrice > 0)
+        {
+            var pricingDefinition = await _dbFactory.SecuritiesDb.GetFuturesOptionContractAsync(tick.ContractId).ConfigureAwait(false);
+            if (pricingDefinition is not null) tick = OptionQuoteGreekEnrichment.Calculate(pricingDefinition, tick);
+        }
+        await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.UpsertFuturesOptionChainQuoteData)}",
+                MarketDataDbCql.UpsertFuturesOptionChainQuoteData)
+            .SetParameters(new UpsertFuturesOptionChainQuoteData(underlyingContractId, expiry, tick))
             .ExecuteCommandAsync();
     }
 

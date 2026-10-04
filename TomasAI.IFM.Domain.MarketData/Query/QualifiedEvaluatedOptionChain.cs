@@ -34,6 +34,9 @@ static class QualifiedEvaluatedOptionChain
         var discovery = context.CompositionDiscovery;
         var market = context.CompositionMarketData;
         var admissions = context.WorkerAdmissions;
+        if (query.AllowFrozenEmulatorPreview && !query.ReleaseOnly
+            && (query.FrozenEmulatorPreviewOnly || api?.GetRuntimeStatus().ActiveValueDate is null))
+            return await FrozenEmulatorOptionChain.ExecuteAsync(query, context, token);
         if (api is null || discovery is null || market is null || admissions is null)
             return new ServiceFailed<EvaluatedOptionChainReadModel>(503, "Qualified market-data runtime is unavailable.");
         var key = $"{query.UnderlyingContractId}|{query.ExpiryDate:yyyyMMdd}";

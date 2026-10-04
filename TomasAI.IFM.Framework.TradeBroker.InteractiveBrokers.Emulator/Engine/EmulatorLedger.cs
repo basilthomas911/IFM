@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -306,6 +306,43 @@ public sealed class EmulatorLedger
         }
     }
 
+    public bool HasFreshMarketQuotes(string brokerOrderId)
+    {
+        lock (_sync) return _orders.TryGetValue(brokerOrderId, out var order) &&
+            order.Request.Legs.All(leg => _latestQuotes.TryGetValue(leg.ContractId, out var quote) &&
+                quote.MarketTimeUtc <= _clock.UtcNow && _clock.UtcNow - quote.MarketTimeUtc <= _scenario.MaximumQuoteAge);
+    }
+
+    public int RemainingStrategyUnits(string brokerOrderId)
+    {
+        lock (_sync) return _orders.TryGetValue(brokerOrderId, out var order) && !order.Cancelled && !order.Filled
+            ? Math.Abs(order.Request.Legs[0].SignedQuantity) - order.FilledStrategyUnits : 0;
+    }
+
+    /// <summary>Simulates a crossing at the latest accepted limit using the normal execution and accounting path.</summary>
+    public bool SimulateOfflineFill(string brokerOrderId, int strategyUnits)
+    {
+        lock (_sync)
+        {
+            if (strategyUnits <= 0 || !_orders.TryGetValue(brokerOrderId, out var order) || order.Cancelled || order.Filled)
+                return false;
+            var legs = order.Request.Legs;
+            var total = Math.Abs(legs[0].SignedQuantity);
+            var prices = legs.Select(leg => _latestQuotes.TryGetValue(leg.ContractId, out var quote)
+                ? (leg.SignedQuantity > 0 ? quote.Ask : quote.Bid) : 1m).ToArray();
+            var net = legs.Select((leg, i) => prices[i] * leg.SignedQuantity / total).Sum();
+            var difference = order.Request.OrderType == FrameworkOrderType.Market ? 0m : order.Limit - net;
+            var pivot = Array.FindIndex(legs, leg => difference >= 0 ? leg.SignedQuantity > 0 : leg.SignedQuantity < 0);
+            if (pivot < 0) pivot = 0;
+            prices[pivot] += difference * total / legs[pivot].SignedQuantity;
+            if (prices.Any(price => price <= 0)) return false;
+            var quotes = legs.Select((leg, i) => new EmulatorQuote(leg.ContractId, prices[i], prices[i],
+                strategyUnits, strategyUnits, _clock.UtcNow, _generation, _sequence + 1)).ToArray();
+            // Do not publish synthetic quotes into the live quote cache or match other orders.
+            return TryMatch(brokerOrderId, quotes);
+        }
+    }
+
     public FrameworkAccountSnapshot Snapshot()
     {
         lock (_sync)
@@ -336,6 +373,7 @@ public sealed class EmulatorLedger
 
     private (string Code, string Detail)? Validate(FrameworkOrderRequest r)
     {
+        if (r.TimeInForce is not ("Day" or "GTC") || r.AlgorithmPace is not ("Patient" or "Normal" or "Urgent")) return ("EM.EXECUTION.INVALID", "Unsupported time in force or pace.");
         if (r.AccountAlias != AccountAlias || string.IsNullOrWhiteSpace(r.BrokerOrderId) || r.OperationId == Guid.Empty || r.ComponentId == Guid.Empty || string.IsNullOrWhiteSpace(r.ApprovalHash)) return ("EM.IDENTITY.INVALID", "Account/order/operation/approval is missing or mismatched.");
         if (r.OrderType is not (FrameworkOrderType.Market or FrameworkOrderType.Limit)
             || r.Algorithm is not (FrameworkOrderAlgorithm.None or FrameworkOrderAlgorithm.Adaptive))

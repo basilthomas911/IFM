@@ -1,4 +1,4 @@
-using TomasAI.IFM.UI.Net.Services.Analytics;
+﻿using TomasAI.IFM.UI.Net.Services.Analytics;
 using TomasAI.IFM.UI.Net.Services.Application;
 using TomasAI.IFM.UI.Net.Services.MarketData;
 using TomasAI.IFM.UI.Net.Services.MarketDataFeed;
@@ -36,8 +36,10 @@ public interface IUiServiceCatalog
     IBrokerAccountCommandApi BrokerAccountCommands { get; }
     /// <summary>Gets durable broker-order execution evidence.</summary>
     IBrokerOrderQueryApi BrokerOrders { get; }
+    IBrokerOrderCommandApi BrokerOrderCommands { get; }
     /// <summary>Gets durable order-execution fill and cost evidence.</summary>
     IOrderExecutionQueryApi OrderExecutions { get; }
+    IOrderExecutionNotificationService OrderExecutionNotifications { get; }
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi ReferenceQueries { get; }
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceCommandApi ReferenceCommands { get; }
     /// <summary>Gets the shared command-response event service.</summary>

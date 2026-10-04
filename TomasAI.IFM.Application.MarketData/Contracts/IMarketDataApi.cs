@@ -270,40 +270,6 @@ public interface IMarketDataApi
         string futuresOptionContractId,
         TickerStreamOwner? owner = null);
 
-    /// <summary>
-    /// Starts one futures-option chain using domain contract identifiers.
-    /// </summary>
-    /// <param name="futuresContractId">
-    /// The canonical domain contract ID of the underlying futures contract.
-    /// </param>
-    /// <param name="maturityDate">The exact option-chain maturity date.</param>
-    /// <param name="optionContractIds">
-    /// The canonical domain contract IDs of the futures options to include in the chain.
-    /// All contracts must resolve to the supplied underlying contract and maturity.
-    /// </param>
-    /// <returns>
-    /// <see langword="true"/> when a new chain stream is started; otherwise,
-    /// <see langword="false"/> when the identical chain is already running.
-    /// </returns>
-    Task<bool> StartStreamingFuturesOptionChainDataAsync(
-        string futuresContractId,
-        DateOnly maturityDate,
-        string[] optionContractIds);
-
-    /// <summary>
-    /// Stops one futures-option chain identified by its domain underlying contract and maturity.
-    /// </summary>
-    /// <param name="futuresContractId">
-    /// The canonical domain contract ID of the underlying futures contract.
-    /// </param>
-    /// <param name="maturityDate">The exact option-chain maturity date.</param>
-    /// <returns>
-    /// <see langword="true"/> when a running chain is stopped; otherwise,
-    /// <see langword="false"/> when no matching chain is running.
-    /// </returns>
-    Task<bool> StopStreamingFuturesOptionChainDataAsync(
-        string futuresContractId,
-        DateOnly maturityDate);
 }
 
 public readonly record struct FuturesMarketHealthSnapshot(bool Running, bool Healthy, string Generation,

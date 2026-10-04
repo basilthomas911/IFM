@@ -1,4 +1,4 @@
-using MessagePack;
+﻿using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
 namespace TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
@@ -115,4 +115,8 @@ public sealed record PortfolioExecutionOrderInstruction
     [Key(20)] public PortfolioBrokerOrderType BrokerOrderType { get; init; } = PortfolioBrokerOrderType.Limit;
     [Key(21)] public PortfolioBrokerAlgorithm BrokerAlgorithm { get; init; }
     [Key(22)] public VolatilityWorkflowInput? VolatilityEvidence { get; init; }
+    [Key(23)] public string TimeInForce { get => timeInForce; init => timeInForce = string.IsNullOrEmpty(value) ? "Day" : value; }
+    private string timeInForce = "Day";
+    [Key(24)] public string AlgorithmPace { get => algorithmPace; init => algorithmPace = string.IsNullOrEmpty(value) ? "Normal" : value; }
+    private string algorithmPace = "Normal";
 }

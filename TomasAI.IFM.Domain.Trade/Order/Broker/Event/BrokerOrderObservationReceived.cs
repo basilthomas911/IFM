@@ -29,7 +29,7 @@ public static class BrokerOrderObservationReceived
                 command, received.EntityId).ConfigureAwait(false);
             if (!result.Success)
                 throw new InvalidOperationException(
-                    $"BO.OBSERVATION.HANDOFF_FAILED;{result.ErrorCode};{result.ErrorMessage}");
+                    $"BrokerOrder.OBSERVATION.HANDOFF_FAILED;{result.ErrorCode};{result.ErrorMessage}");
         }
         catch (Exception exception)
         {

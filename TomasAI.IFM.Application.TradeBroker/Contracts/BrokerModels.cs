@@ -1,4 +1,4 @@
-namespace TomasAI.IFM.Application.TradeBroker.Contracts;
+﻿namespace TomasAI.IFM.Application.TradeBroker.Contracts;
 
 /// <summary>Account mode; Unknown cannot authorize a broker dispatch.</summary>
 public enum BrokerEnvironment : byte { Unknown = 0, Emulator = 1, Paper = 2, Live = 3 }
@@ -16,7 +16,8 @@ public sealed record BrokerOrderRequest(string AccountAlias, BrokerEnvironment E
     Guid OperationId, Guid ComponentId, BrokerOrderShape Shape, bool IsClosing, BrokerOrderLeg[] Legs,
     decimal SignedNetDebitLimit, decimal MinimumLimit, decimal MaximumLimit, decimal TickIncrement,
     DateTime ValidUntilUtc, string ApprovalHash, string ContractReferenceHash, decimal RequiredCapital, decimal MaximumLoss,
-    BrokerOrderType OrderType = BrokerOrderType.Limit, BrokerAlgorithm Algorithm = BrokerAlgorithm.None);
+    BrokerOrderType OrderType = BrokerOrderType.Limit, BrokerAlgorithm Algorithm = BrokerAlgorithm.None,
+    string TimeInForce = "Day", string AlgorithmPace = "Normal");
 
 /// <summary>Explicit capabilities loaded for one adapter/account binding.</summary>
 public sealed record BrokerCapabilities(string Adapter, string AccountAlias, BrokerEnvironment Environment,
@@ -45,6 +46,8 @@ public sealed record BrokerCapabilities(string Adapter, string AccountAlias, Bro
             return "Broker environment or account does not match the loaded adapter/account.";
         if (!Shapes.Contains(request.Shape)) return $"Order shape {request.Shape} is not supported.";
         if (!OrderTypes.Contains(request.OrderType)) return $"Order type {request.OrderType} is not supported.";
+        if (request.TimeInForce is not ("Day" or "GTC") || request.AlgorithmPace is not ("Patient" or "Normal" or "Urgent"))
+            return "Unsupported time in force or algorithm pace.";
         if (!Algorithms.Contains(request.Algorithm)) return $"Algorithm {request.Algorithm} is not supported.";
         if (request.Algorithm == BrokerAlgorithm.Adaptive
             && request.OrderType is not (BrokerOrderType.Market or BrokerOrderType.Limit))

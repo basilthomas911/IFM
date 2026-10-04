@@ -19,7 +19,7 @@ public sealed record TradeOrderChangedEvent : IEvent<NewTradeOrderId>
     [Key(5)] public string AggregateId { get; init; } = string.Empty;
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     [Key(7)] public DateTime ReceivedOn { get; init; }
-    [Key(8)] public TradeOrderDefinition State { get; init; } = new();
+    [Key(8)] public TradeOrderDefinition TradeOrderDefinition { get; init; } = new();
     [Key(9)] public Guid ExecutionAttemptId { get; init; }
     [Key(10)] public ExecutionChannel ExecutionChannel { get; init; }
     [IgnoreMember] public string UserName => string.Empty;

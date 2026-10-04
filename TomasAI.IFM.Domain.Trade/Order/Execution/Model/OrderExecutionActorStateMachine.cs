@@ -20,11 +20,11 @@ public sealed class OrderExecutionActorStateMachine
         ExecutionChannel channel,
         DateTime startedAtUtc)
     {
-        if (Current is not null) return Reject("OE.ALREADY_EXISTS", "Execution already exists.");
+        if (Current is not null) return Reject("OrderExecution.ALREADY_EXISTS", "Execution already exists.");
         if (order.Status != TradeOrderStatus.Executing)
-            return Reject("OE.ORDER_NOT_BOUND", "Trade Order must be bound to execution.");
+            return Reject("OrderExecution.ORDER_NOT_BOUND", "Trade Order must be bound to execution.");
         if (executionAttemptId == Guid.Empty || startedAtUtc.Kind != DateTimeKind.Utc)
-            return Reject("OE.INVALID_IDENTITY", "ExecutionAttemptId and UTC start time are required.");
+            return Reject("OrderExecution.INVALID_IDENTITY", "ExecutionAttemptId and UTC start time are required.");
         Current = new OrderExecutionDefinition
         {
             TradeOrderId = order.Id,
@@ -50,30 +50,30 @@ public sealed class OrderExecutionActorStateMachine
     {
         if (Current is null) return Missing();
         if (Current.Status is OrderExecutionStatus.Rejected or OrderExecutionStatus.Filled)
-            return Reject("OE.TERMINAL", $"Cannot add a fill to {Current.Status} execution.");
+            return Reject("OrderExecution.TERMINAL", $"Cannot add a fill to {Current.Status} execution.");
         if (fill.ExecutionFillId == Guid.Empty || fill.ExecutionAttemptId != Current.ExecutionAttemptId ||
             fill.TradeLegId == Guid.Empty || fill.SignedQuantity == 0 || fill.Price <= 0 ||
             fill.FilledAtUtc.Kind != DateTimeKind.Utc)
-            return Reject("OE.INVALID_FILL", "Fill identity, quantity, positive price, attempt, and UTC time are required.");
+            return Reject("OrderExecution.INVALID_FILL", "Fill identity, quantity, positive price, attempt, and UTC time are required.");
 
         var component = Current.Components.SingleOrDefault(value => value.ComponentId == fill.ComponentId);
         var leg = component?.Legs.SingleOrDefault(value => value.TradeLegId == fill.TradeLegId);
         if (leg is null || !string.Equals(leg.ContractId, fill.ContractId, StringComparison.Ordinal) ||
             Math.Sign(leg.SignedQuantity) != Math.Sign(fill.SignedQuantity))
-            return Reject("OE.FILL_NOT_ALLOCATABLE", "Fill does not match a proposed component leg.");
+            return Reject("OrderExecution.FILL_NOT_ALLOCATABLE", "Fill does not match a proposed component leg.");
 
         var existing = _fills.FirstOrDefault(value => value.ExecutionFillId == fill.ExecutionFillId ||
             !string.IsNullOrWhiteSpace(fill.ExternalExecutionId) && value.ExternalExecutionId == fill.ExternalExecutionId);
         if (existing is not null)
             return existing == fill
                 ? TradeDecision<OrderExecutionDefinition>.Accept(Current)
-                : Reject("OE.FILL_ID_CONFLICT", "A fill identity was reused with different evidence.");
+                : Reject("OrderExecution.FILL_ID_CONFLICT", "A fill identity was reused with different evidence.");
 
         var allocatedQuantity = _fills
             .Where(value => value.ComponentId == fill.ComponentId && value.TradeLegId == fill.TradeLegId)
             .Sum(static value => value.SignedQuantity);
         if (Math.Abs(allocatedQuantity + fill.SignedQuantity) > Math.Abs(leg.SignedQuantity))
-            return Reject("OE.FILL_OVER_ALLOCATED", "Fill quantity exceeds the approved component leg quantity.");
+            return Reject("OrderExecution.FILL_OVER_ALLOCATED", "Fill quantity exceeds the approved component leg quantity.");
 
         if (!string.IsNullOrWhiteSpace(fill.ExternalExecutionId) &&
             _pendingCosts.Remove(fill.ExternalExecutionId, out var pendingCommission))
@@ -95,7 +95,7 @@ public sealed class OrderExecutionActorStateMachine
     {
         if (Current is null) return Missing();
         if (string.IsNullOrWhiteSpace(externalExecutionId) || commission < 0)
-            return Reject("OE.INVALID_FILL_COST", "External execution identity and non-negative commission are required.");
+            return Reject("OrderExecution.INVALID_FILL_COST", "External execution identity and non-negative commission are required.");
         var index = _fills.FindIndex(value => value.ExternalExecutionId == externalExecutionId);
         if (index < 0)
         {
@@ -114,11 +114,11 @@ public sealed class OrderExecutionActorStateMachine
     public TradeDecision<OrderExecutionAcceptance> Accept(DateTime completedAtUtc)
     {
         if (Current is null)
-            return TradeDecision<OrderExecutionAcceptance>.Reject("OE.NOT_FOUND", "Execution does not exist.");
+            return TradeDecision<OrderExecutionAcceptance>.Reject("OrderExecution.NOT_FOUND", "Execution does not exist.");
         if (completedAtUtc.Kind != DateTimeKind.Utc)
-            return TradeDecision<OrderExecutionAcceptance>.Reject("OE.INVALID_TIME", "Completion time must be UTC.");
+            return TradeDecision<OrderExecutionAcceptance>.Reject("OrderExecution.INVALID_TIME", "Completion time must be UTC.");
         if (Current.Status == OrderExecutionStatus.Filled)
-            return TradeDecision<OrderExecutionAcceptance>.Reject("OE.ALREADY_ACCEPTED", "Execution was already accepted.");
+            return TradeDecision<OrderExecutionAcceptance>.Reject("OrderExecution.ALREADY_ACCEPTED", "Execution was already accepted.");
 
         List<EstablishedTradeDefinition> trades = [];
         foreach (var component in Current.Components)
@@ -126,7 +126,7 @@ public sealed class OrderExecutionActorStateMachine
             var componentFills = _fills.Where(value => value.ComponentId == component.ComponentId).ToArray();
             if (!TryResolveAcceptedScale(component, componentFills, out _))
                 return TradeDecision<OrderExecutionAcceptance>.Reject(
-                    "OE.UNBALANCED_EXPOSURE", $"Component {component.ComponentId} is not completely filled or an allowed balanced partial fill.");
+                    "OrderExecution.UNBALANCED_EXPOSURE", $"Component {component.ComponentId} is not completely filled or an allowed balanced partial fill.");
 
             if (Current.PositionType == TradeOrderPositionType.Closing)
                 continue;
@@ -161,11 +161,11 @@ public sealed class OrderExecutionActorStateMachine
         {
             if (Current.TargetPositionId is not { IsValid: true } target)
                 return TradeDecision<OrderExecutionAcceptance>.Reject(
-                    "OE.CLOSE_TARGET_REQUIRED", "A closing execution requires its existing strategy position identity.");
+                    "OrderExecution.CLOSE_TARGET_REQUIRED", "A closing execution requires its existing strategy position identity.");
             var strategyKinds = Current.Components.Select(static component => component.StrategyKind).Distinct().ToArray();
             if (strategyKinds.Length != 1)
                 return TradeDecision<OrderExecutionAcceptance>.Reject(
-                    "OE.CLOSE_STRATEGY_AMBIGUOUS", "A closing order must contain exactly one strategy kind.");
+                    "OrderExecution.CLOSE_STRATEGY_AMBIGUOUS", "A closing order must contain exactly one strategy kind.");
             closedPositions =
             [
                 new PositionCloseExecution
@@ -186,11 +186,11 @@ public sealed class OrderExecutionActorStateMachine
     public TradeDecision<OrderExecutionAcceptance> Cancel(DateTime completedAtUtc)
     {
         if (Current is null)
-            return TradeDecision<OrderExecutionAcceptance>.Reject("OE.NOT_FOUND", "Execution does not exist.");
+            return TradeDecision<OrderExecutionAcceptance>.Reject("OrderExecution.NOT_FOUND", "Execution does not exist.");
         if (completedAtUtc.Kind != DateTimeKind.Utc)
-            return TradeDecision<OrderExecutionAcceptance>.Reject("OE.INVALID_TIME", "Completion time must be UTC.");
+            return TradeDecision<OrderExecutionAcceptance>.Reject("OrderExecution.INVALID_TIME", "Completion time must be UTC.");
         if (Current.Status is not (OrderExecutionStatus.Pending or OrderExecutionStatus.Submitted or OrderExecutionStatus.PartiallyFilled))
-            return TradeDecision<OrderExecutionAcceptance>.Reject("OE.INVALID_TRANSITION", $"Cannot cancel an execution in {Current.Status} state.");
+            return TradeDecision<OrderExecutionAcceptance>.Reject("OrderExecution.INVALID_TRANSITION", $"Cannot cancel an execution in {Current.Status} state.");
         if (_fills.Count == 0)
         {
             Current = Current with { Status = OrderExecutionStatus.Cancelled, CompletedAtUtc = completedAtUtc };
@@ -258,14 +258,14 @@ public sealed class OrderExecutionActorStateMachine
         string operation)
     {
         if (Current is null) return Missing();
-        if (!expected.Contains(Current.Status)) return Reject("OE.INVALID_TRANSITION", $"Cannot {operation} an execution in {Current.Status} state.");
+        if (!expected.Contains(Current.Status)) return Reject("OrderExecution.INVALID_TRANSITION", $"Cannot {operation} an execution in {Current.Status} state.");
         Current = Current with { Status = next, Fills = [.. _fills] };
         return TradeDecision<OrderExecutionDefinition>.Accept(Current);
     }
 
     static TradeDecision<OrderExecutionDefinition> Reject(string code, string detail) =>
         TradeDecision<OrderExecutionDefinition>.Reject(code, detail);
-    static TradeDecision<OrderExecutionDefinition> Missing() => Reject("OE.NOT_FOUND", "Execution does not exist.");
+    static TradeDecision<OrderExecutionDefinition> Missing() => Reject("OrderExecution.NOT_FOUND", "Execution does not exist.");
 
     PendingExecutionCostEvidence[] PendingCosts() =>
         [.. _pendingCosts.OrderBy(static item => item.Key, StringComparer.Ordinal)

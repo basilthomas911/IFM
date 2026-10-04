@@ -28,7 +28,7 @@ public sealed class TradeOrderSchemaTests
         Assert.Equal(old.Id, newReader.Id);
         Assert.Equal(old.Components[0].ComponentId, newReader.Components[0].ComponentId);
         Assert.False(BrokerOrderRequestMapper.TryCreate(newReader, Guid.NewGuid(), old.Components[0].ComponentId, Guid.NewGuid(), out _, out var reason));
-        Assert.Equal("BO.APPROVAL.INCOMPLETE", reason);
+        Assert.Equal("BrokerOrder.APPROVAL.INCOMPLETE", reason);
     }
 
     [Theory]

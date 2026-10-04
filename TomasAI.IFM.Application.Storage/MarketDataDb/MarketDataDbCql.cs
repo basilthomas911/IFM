@@ -1071,6 +1071,46 @@ internal static class MarketDataDbCql
         );
     """;
 
+    public const string UpsertFuturesOptionChainQuoteData = """
+        INSERT INTO futures_option_chain_quote_data (
+            underlyingContractId, expiryDate, valueDate, contractId, tickId, tickTime,
+            optionPrice, bidPrice, askPrice, bidSize, askSize, impliedVolatility,
+            underlyingPrice, delta, gamma, vega, theta, rho
+        ) VALUES (
+            :underlyingContractId, :expiryDate, :valueDate, :contractId, :tickId, :tickTime,
+            :optionPrice, :bidPrice, :askPrice, :bidSize, :askSize, :impliedVolatility,
+            :underlyingPrice, :delta, :gamma, :vega, :theta, :rho
+        );
+    """;
+
+    public const string UpdateOptionChainGreeks = """
+        UPDATE futures_option_chain_quote_data SET impliedVolatility = :impliedVolatility,
+            underlyingPrice = :underlyingPrice, delta = :delta, gamma = :gamma,
+            vega = :vega, theta = :theta, rho = :rho
+        WHERE underlyingContractId = :underlyingContractId AND expiryDate = :expiryDate
+            AND valueDate = :valueDate AND contractId = :contractId IF tickId = :tickId;
+        """;
+
+    public const string UpdateOptionChainStatistics = """
+        UPDATE futures_option_chain_quote_data SET volume = :volume, openInterest = :openInterest,
+            volumeValueDate = :volumeValueDate, openInterestValueDate = :openInterestValueDate
+        WHERE underlyingContractId = :underlyingContractId AND expiryDate = :expiryDate
+            AND valueDate = :valueDate AND contractId = :contractId IF EXISTS;
+        """;
+
+    public const string GetFuturesOptionChainQuoteData = """
+        SELECT contractId AS "ContractId", valueDate AS "ValueDate", tickId AS "TickId",
+            tickTime AS "TickTime", optionPrice AS "OptionPrice", bidPrice AS "BidPrice",
+            askPrice AS "AskPrice", bidSize AS "BidSize", askSize AS "AskSize",
+            impliedVolatility AS "ImpliedVolatility", underlyingPrice AS "UnderlyingPrice",
+            delta AS "Delta", gamma AS "Gamma", vega AS "Vega", theta AS "Theta", rho AS "Rho",
+            volume AS "Volume", openInterest AS "OpenInterest",
+            volumeValueDate AS "VolumeValueDate", openInterestValueDate AS "OpenInterestValueDate"
+        FROM futures_option_chain_quote_data
+        WHERE underlyingContractId = :underlyingContractId
+            AND expiryDate = :expiryDate AND valueDate = :valueDate;
+    """;
+
     public const string InsertFuturesOptionTickPriceData = """
         INSERT INTO futures_option_tick_price_data (
             contractId, valueDate, tickId, tickTime, optionPrice, bidPrice, askPrice, bidSize, askSize, impliedVolatility, underlyingPrice, delta, gamma, vega, theta, rho
@@ -2310,6 +2350,7 @@ internal static class MarketDataDbCql
         FROM futures_option_tick_data
         WHERE contractId = :contractId 
         AND valueDate = :valueDate 
+        ORDER BY valueDate DESC, tickId DESC
         LIMIT 1;
     """;
 

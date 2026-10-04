@@ -32,6 +32,102 @@ public sealed class TradeFlowStateMachineTests
     static readonly DateTime Now = new(2026, 9, 12, 14, 0, 0, DateTimeKind.Utc);
 
     [Fact]
+    public void Execution_handlers_preserve_commission_received_before_fill()
+    {
+        var order = Fixture.ExecutingOrder();
+        var attempt = Guid.NewGuid();
+        var executionId = new OrderExecutionId(order.Id, attempt);
+        var state = new OrderExecutionCommandState();
+        new StartOrderExecutionCommand { CommandId = Guid.NewGuid(), EntityId = executionId,
+            Order = order, ExecutionAttemptId = attempt, Channel = ExecutionChannel.Broker, EffectiveAtUtc = Now }.Execute(state).Success.Should().BeTrue();
+        var fill = Fixture.Fills(order.Components.Single(), attempt)[0];
+        var cost = new UpdateOrderExecutionFillCostCommand { CommandId = Guid.NewGuid(), EntityId = executionId,
+            ExternalExecutionId = fill.ExternalExecutionId, Commission = 1.25m };
+        cost.Execute(state).Success.Should().BeTrue();
+        var definition = state.OrderExecutionDefinition;
+        var count = state.Events.Count;
+        cost.Execute(state).Success.Should().BeTrue();
+        state.OrderExecutionDefinition.Should().BeSameAs(definition);
+        state.Events.Count.Should().Be(count);
+        new AddOrderExecutionFillCommand { CommandId = Guid.NewGuid(), EntityId = executionId, Fill = fill }.Execute(state).Success.Should().BeTrue();
+        state.OrderExecutionDefinition!.Fills.Should().ContainSingle().Which.Commission.Should().Be(1.25m);
+        state.OrderExecutionDefinition.PendingFillCosts.Should().BeEmpty();
+        definition!.PendingFillCosts.Should().ContainSingle();
+        definition.Fills.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Execution_handlers_persist_balanced_acceptance_or_cancellation(bool cancel)
+    {
+        var order = Fixture.ExecutingOrder(2, permitPartial: true);
+        var attempt = Guid.NewGuid();
+        var executionId = new OrderExecutionId(order.Id, attempt);
+        var subject = new ActorSubject(ActorType.Command, StartOrderExecutionCommand.Actor, StartOrderExecutionCommand.Verb, executionId.Format());
+        var state = new OrderExecutionCommandState();
+        new StartOrderExecutionCommand { CommandId = Guid.NewGuid(), EntityId = executionId, Subject = subject,
+            Order = order, ExecutionAttemptId = attempt, Channel = ExecutionChannel.Broker, EffectiveAtUtc = Now }.Execute(state).Success.Should().BeTrue();
+        new SubmitOrderExecutionCommand { CommandId = Guid.NewGuid(), EntityId = executionId,
+            Subject = subject with { Verb = SubmitOrderExecutionCommand.Verb } }.Execute(state).Success.Should().BeTrue();
+        var fills = Fixture.Fills(order.Components.Single(), attempt, cancel ? 1 : 2);
+        foreach (var fill in fills)
+        {
+            var command = new AddOrderExecutionFillCommand { CommandId = Guid.NewGuid(), EntityId = executionId,
+                Subject = subject with { Verb = AddOrderExecutionFillCommand.Verb }, Fill = fill };
+            command.Execute(state).Success.Should().BeTrue();
+            var count = state.Events.Count;
+            var definition = state.OrderExecutionDefinition;
+            command.Execute(state).Success.Should().BeTrue();
+            state.Events.Count.Should().Be(count);
+            state.OrderExecutionDefinition.Should().BeSameAs(definition);
+            (command with { Fill = fill with { Price = fill.Price + 1 } }).Execute(state).Success.Should().BeFalse();
+            state.Events.Count.Should().Be(count);
+        }
+        new UpdateOrderExecutionFillCostCommand { CommandId = Guid.NewGuid(), EntityId = executionId,
+            Subject = subject with { Verb = UpdateOrderExecutionFillCostCommand.Verb },
+            ExternalExecutionId = fills[0].ExternalExecutionId, Commission = 1.5m }.Execute(state).Success.Should().BeTrue();
+        var terminal = cancel
+            ? new CancelOrderExecutionCommand { CommandId = Guid.NewGuid(), EntityId = executionId,
+                Subject = subject with { Verb = CancelOrderExecutionCommand.Verb }, EffectiveAtUtc = Now.AddSeconds(30) }.Execute(state)
+            : new AcceptOrderExecutionCommand { CommandId = Guid.NewGuid(), EntityId = executionId,
+                Subject = subject with { Verb = AcceptOrderExecutionCommand.Verb }, EffectiveAtUtc = Now.AddSeconds(30) }.Execute(state);
+        terminal.Success.Should().BeTrue();
+        state.OrderExecutionDefinition!.Status.Should().Be(cancel ? OrderExecutionStatus.Cancelled : OrderExecutionStatus.Filled);
+        state.OrderExecutionDefinition.CumulativeFilledQuantity.Should().Be(cancel ? 1 : 2);
+        var source = state.Events.OfType<OrderExecutionChangedEvent>().Last();
+        source.CreatedTrades.Should().ContainSingle();
+        var bytes = MessagePack.MessagePackSerializer.Serialize(source);
+        var restored = MessagePack.MessagePackSerializer.Deserialize<OrderExecutionChangedEvent>(bytes);
+        restored.OrderExecutionDefinition.Id.Should().Be(executionId);
+        restored.CreatedTrades.Should().ContainSingle();
+        restored.OrderExecutionDefinition.Fills[0].Commission.Should().Be(1.5m);
+    }
+
+    [Fact]
+    public void Execution_rejection_and_wrong_actor_identity_do_not_apply_invalid_events()
+    {
+        var order = Fixture.ExecutingOrder();
+        var attempt = Guid.NewGuid();
+        var executionId = new OrderExecutionId(order.Id, attempt);
+        var command = new StartOrderExecutionCommand { CommandId = Guid.NewGuid(), EntityId = executionId,
+            Subject = new(ActorType.Command, StartOrderExecutionCommand.Actor, StartOrderExecutionCommand.Verb, executionId.Format()),
+            Order = order, ExecutionAttemptId = attempt, Channel = ExecutionChannel.Broker, EffectiveAtUtc = Now };
+        var state = new OrderExecutionCommandState();
+        (command with { EntityId = new(order.Id, Guid.NewGuid()) }).Execute(state).Success.Should().BeFalse();
+        state.Events.Should().BeEmpty();
+        state.OrderExecutionDefinition.Should().BeNull();
+        command.Execute(state).Success.Should().BeTrue();
+        new RejectOrderExecutionCommand { CommandId = Guid.NewGuid(), EntityId = executionId,
+            Subject = command.Subject with { Verb = RejectOrderExecutionCommand.Verb } }.Execute(state).Success.Should().BeTrue();
+        state.OrderExecutionDefinition!.Status.Should().Be(OrderExecutionStatus.Rejected);
+        var count = state.Events.Count;
+        new CancelOrderExecutionCommand { CommandId = Guid.NewGuid(), EntityId = executionId,
+            Subject = command.Subject with { Verb = CancelOrderExecutionCommand.Verb }, EffectiveAtUtc = Now }.Execute(state).Success.Should().BeFalse();
+        state.Events.Count.Should().Be(count);
+    }
+
+    [Fact]
     public void Trade_order_position_type_values_are_stable()
     {
         ((byte)TradeOrderPositionType.Unknown).Should().Be(0);
@@ -64,7 +160,7 @@ public sealed class TradeFlowStateMachineTests
         var executionAttemptId = Guid.NewGuid();
         state.BindExecution(executionAttemptId, ExecutionChannel.Manual, Now).Accepted.Should().BeTrue();
         state.Complete().Value!.Status.Should().Be(TradeOrderStatus.Completed);
-        state.Cancel().Code.Should().Be("TO.INVALID_TRANSITION");
+        state.Cancel().Code.Should().Be("TradeOrder.INVALID_TRANSITION");
     }
 
     [Fact]
@@ -78,9 +174,9 @@ public sealed class TradeFlowStateMachineTests
         state.BindExecution(attempt, ExecutionChannel.Broker, Now).Accepted.Should().BeTrue();
 
         state.ReleaseExecution(Guid.NewGuid(), true, Now.AddSeconds(1)).Code
-            .Should().Be("TO.EXECUTION_RELEASE_NOT_PROVEN");
+            .Should().Be("TradeOrder.EXECUTION_RELEASE_NOT_PROVEN");
         state.ReleaseExecution(attempt, false, Now.AddSeconds(1)).Code
-            .Should().Be("TO.EXECUTION_RELEASE_NOT_PROVEN");
+            .Should().Be("TradeOrder.EXECUTION_RELEASE_NOT_PROVEN");
 
         var released = state.ReleaseExecution(attempt, true, Now.AddSeconds(1));
 
@@ -97,7 +193,7 @@ public sealed class TradeFlowStateMachineTests
         state.Create(order);
         state.Approve();
 
-        state.Amend(order with { Revision = 2 }).Code.Should().Be("TO.INVALID_TRANSITION");
+        state.Amend(order with { Revision = 2 }).Code.Should().Be("TradeOrder.INVALID_TRANSITION");
     }
 
     [Fact]
@@ -187,7 +283,7 @@ public sealed class TradeFlowStateMachineTests
         var conflict = state.AddFill(fill with { Price = fill.Price + 1m });
 
         conflict.Accepted.Should().BeFalse();
-        conflict.Code.Should().Be("OE.FILL_ID_CONFLICT");
+        conflict.Code.Should().Be("OrderExecution.FILL_ID_CONFLICT");
         state.Current!.Fills.Should().ContainSingle().Which.Price.Should().Be(fill.Price);
     }
 
@@ -224,7 +320,7 @@ public sealed class TradeFlowStateMachineTests
         state.Start(order, attempt, ExecutionChannel.Manual, Now);
         foreach (var fill in Fixture.Fills(order.Components[0], attempt).Take(3)) state.AddFill(fill);
 
-        state.Accept(Now.AddSeconds(1)).Code.Should().Be("OE.UNBALANCED_EXPOSURE");
+        state.Accept(Now.AddSeconds(1)).Code.Should().Be("OrderExecution.UNBALANCED_EXPOSURE");
     }
 
     [Fact]
@@ -346,7 +442,7 @@ public sealed class TradeFlowStateMachineTests
         }.Execute(state);
 
         wait.Success.Should().BeTrue();
-        state.Current!.Status.Should().NotBe(OrderExecutionStatus.Filled);
+        state.OrderExecutionDefinition!.Status.Should().NotBe(OrderExecutionStatus.Filled);
         state.Events.Should().BeEmpty();
     }
 
@@ -694,7 +790,7 @@ public sealed class TradeFlowStateMachineTests
 
         command.Execute(state).Success.Should().BeTrue();
 
-        state.Current.Should().BeEquivalentTo(order);
+        state.TradeOrderDefinition.Should().BeEquivalentTo(order);
         state.Events.Should().ContainSingle().Which.Should().BeOfType<TradeOrderChangedEvent>();
     }
 
@@ -778,6 +874,52 @@ public sealed class TradeFlowStateMachineTests
         state.Current.Legs.Should().ContainSingle().Which.CurrentPrice.Should().Be(101.25m);
         state.Current.UnrealizedPnl.Should().Be(1.25m);
         state.Events.Should().ContainSingle().Which.Should().BeOfType<FuturesPositionChangedEvent>();
+    }
+
+    [Fact]
+    public void Command_handlers_apply_the_complete_order_lifecycle_through_state_events()
+    {
+        var definition = Fixture.Order(); var state = new TradeOrderCommandState();
+        new CreateTradeOrderCommand { CommandId=Guid.NewGuid(),EntityId=definition.Id,Order=definition }.Execute(state).Success.Should().BeTrue();
+        new AmendTradeOrderCommand { CommandId=Guid.NewGuid(),EntityId=definition.Id,Order=definition with { Revision=2 } }.Execute(state).Success.Should().BeTrue();
+        new ApproveTradeOrderCommand { CommandId=Guid.NewGuid(),EntityId=definition.Id }.Execute(state).Success.Should().BeTrue();
+        new ReadyTradeOrderCommand { CommandId=Guid.NewGuid(),EntityId=definition.Id }.Execute(state).Success.Should().BeTrue();
+        var attempt=Guid.NewGuid();
+        new BindTradeOrderExecutionCommand { CommandId=Guid.NewGuid(),EntityId=definition.Id,ExecutionAttemptId=attempt,ExecutionChannel=ExecutionChannel.Manual,EffectiveAtUtc=Now }.Execute(state).Success.Should().BeTrue();
+        new ReleaseTradeOrderExecutionCommand { CommandId=Guid.NewGuid(),EntityId=definition.Id,ExecutionAttemptId=attempt,ZeroExposureConfirmed=true,EffectiveAtUtc=Now }.Execute(state).Success.Should().BeTrue();
+        new BindTradeOrderExecutionCommand { CommandId=Guid.NewGuid(),EntityId=definition.Id,ExecutionAttemptId=attempt,ExecutionChannel=ExecutionChannel.Manual,EffectiveAtUtc=Now }.Execute(state).Success.Should().BeTrue();
+        new CompleteTradeOrderCommand { CommandId=Guid.NewGuid(),EntityId=definition.Id }.Execute(state).Success.Should().BeTrue();
+        state.TradeOrderDefinition!.Status.Should().Be(TradeOrderStatus.Completed);
+        state.TradeOrderDefinition.Revision.Should().Be(2);
+        state.Events.Should().HaveCount(8);
+        state.Events.Cast<TradeOrderChangedEvent>().Should().OnlyContain(e=>e.TradeOrderDefinition.Id==definition.Id && e.CommandId!=Guid.Empty);
+    }
+
+    [Fact]
+    public void Invalid_computed_ownership_and_revision_do_not_mutate_state_or_append_events()
+    {
+        var definition=Fixture.Order();var state=new TradeOrderCommandState();
+        new CreateTradeOrderCommand { CommandId=Guid.NewGuid(),EntityId=definition.Id,Order=definition }.Execute(state).Success.Should().BeTrue();
+        var before=state.TradeOrderDefinition;var eventCount=state.Events.Count;
+        new AmendTradeOrderCommand { CommandId=Guid.NewGuid(),EntityId=definition.Id,Order=definition with { Revision=5 } }.Execute(state).Success.Should().BeFalse();
+        new ApproveTradeOrderCommand { CommandId=Guid.NewGuid(),EntityId=default }.Execute(state).Success.Should().BeFalse();
+        new BindTradeOrderExecutionCommand { CommandId=Guid.NewGuid(),EntityId=definition.Id,ExecutionAttemptId=Guid.NewGuid(),EffectiveAtUtc=Now }.Execute(state).Success.Should().BeFalse();
+        state.TradeOrderDefinition.Should().BeSameAs(before);state.Events.Should().HaveCount(eventCount);
+    }
+
+    [Fact]
+    public void Cancel_and_expire_handlers_apply_events_only_when_business_guards_allow()
+    {
+        var definition=Fixture.Order();var cancelled=new TradeOrderCommandState();var expired=new TradeOrderCommandState();
+        new CreateTradeOrderCommand { CommandId=Guid.NewGuid(),EntityId=definition.Id,Order=definition }.Execute(cancelled);
+        new CreateTradeOrderCommand { CommandId=Guid.NewGuid(),EntityId=definition.Id,Order=definition }.Execute(expired);
+        new CancelTradeOrderCommand { CommandId=Guid.NewGuid(),EntityId=definition.Id }.Execute(cancelled).Success.Should().BeTrue();
+        new CancelTradeOrderCommand { CommandId=Guid.NewGuid(),EntityId=definition.Id }.Execute(cancelled).Success.Should().BeFalse();
+        new ExpireTradeOrderCommand { CommandId=Guid.NewGuid(),EntityId=definition.Id,EffectiveAtUtc=Now }.Execute(expired).Success.Should().BeFalse();
+        new ExpireTradeOrderCommand { CommandId=Guid.NewGuid(),EntityId=definition.Id,EffectiveAtUtc=definition.ValidUntilUtc.AddSeconds(1) }.Execute(expired).Success.Should().BeTrue();
+        cancelled.TradeOrderDefinition!.Status.Should().Be(TradeOrderStatus.Cancelled);
+        expired.TradeOrderDefinition!.Status.Should().Be(TradeOrderStatus.Expired);
+        cancelled.Events.Should().HaveCount(2);expired.Events.Should().HaveCount(2);
     }
 
     static class Fixture

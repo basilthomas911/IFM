@@ -94,6 +94,8 @@ public interface IMarketDataDbWriteContext
     Task InsertFuturesTickDataAsync(FuturesTickDataV2ReadModel e);
     Task InsertFuturesTickDataAsync(ICollection<FuturesTickDataV2ReadModel> e);
     Task InsertFuturesOptionTickDataAsync(FuturesOptionTickDataV2ReadModel e);
+    Task UpsertFuturesOptionChainQuoteDataAsync(string underlyingContractId, FuturesOptionTickDataV2ReadModel tick);
+    Task UpdateFuturesOptionChainQuoteGreeksAsync(string underlyingContractId, DateOnly expiryDate, ICollection<FuturesOptionTickDataV2ReadModel> quotes);
     Task InsertFuturesOptionTickPriceDataAsync(FuturesOptionTickDataV2ReadModel e);
     Task InsertFuturesOptionTickDataAsync(ICollection<FuturesOptionTickDataV2ReadModel> e);
     Task InsertFuturesItiSignalAsync(FuturesItiSignalV2ReadModel e);

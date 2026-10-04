@@ -88,13 +88,13 @@ public sealed class OptionChainStrikeWindowTests
         var result = OptionChainStrikeWindow.Select(definitions, 5010m, null, 2.5);
 
         Assert.Equal(9, result.Contracts.Length);
-        Assert.Equal("Nearest40StrikesFallback", result.Method);
+        Assert.Equal("Nearest80StrikesFallback", result.Method);
         Assert.Equal(4800m, result.LowerBound);
         Assert.Equal(5200m, result.UpperBound);
     }
 
     [Fact]
-    public void Select_limits_missing_sigma_fallback_to_forty_nearest_strikes()
+    public void Select_limits_missing_sigma_fallback_to_eighty_nearest_strikes()
     {
         var definitions = Enumerable.Range(0, 100).SelectMany(index => new[]
         {
@@ -103,9 +103,9 @@ public sealed class OptionChainStrikeWindowTests
 
         var result = OptionChainStrikeWindow.Select(definitions, 5000m, null, 2.5);
 
-        Assert.Equal("Nearest40StrikesFallback", result.Method);
-        Assert.Equal(80, result.Contracts.Length);
-        Assert.Equal(40, result.Contracts.Select(contract => contract.StrikePrice).Distinct().Count());
+        Assert.Equal("Nearest80StrikesFallback", result.Method);
+        Assert.Equal(160, result.Contracts.Length);
+        Assert.Equal(80, result.Contracts.Select(contract => contract.StrikePrice).Distinct().Count());
     }
 
     [Fact]

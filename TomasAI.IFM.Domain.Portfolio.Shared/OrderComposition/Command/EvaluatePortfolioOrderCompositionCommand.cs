@@ -1,4 +1,4 @@
-using MessagePack;
+﻿using MessagePack;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -51,6 +51,10 @@ public sealed record PortfolioOrderCandidate
     [Key(28)] public PortfolioBrokerOrderType BrokerOrderType { get; init; } = PortfolioBrokerOrderType.Limit;
     [Key(29)] public PortfolioBrokerAlgorithm BrokerAlgorithm { get; init; } = PortfolioBrokerAlgorithm.None;
     [Key(30)] public VolatilityWorkflowInput? VolatilityEvidence { get; init; }
+    [Key(31)] public string TimeInForce { get => timeInForce; init => timeInForce = string.IsNullOrEmpty(value) ? "Day" : value; }
+    private string timeInForce = "Day";
+    [Key(32)] public string AlgorithmPace { get => algorithmPace; init => algorithmPace = string.IsNullOrEmpty(value) ? "Normal" : value; }
+    private string algorithmPace = "Normal";
 }
 
 [MessagePackObject]

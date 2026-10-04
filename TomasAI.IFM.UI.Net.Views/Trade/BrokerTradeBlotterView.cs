@@ -1,3 +1,5 @@
+﻿using System.Globalization;
+using TomasAI.IFM.UI.Net.ViewModels.Trade;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.TradeBroker.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -28,7 +30,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     private readonly DataGridView _selectedLegGrid;
     private readonly DataGridView _legGrid;
     private readonly ComboBox _strategySelector;
-    private readonly Label _directionValue;
+    private readonly Label _tradeTypeValue;
     private readonly Label _brokerModeValue;
     private readonly ComboBox _algorithmSelector;
     private readonly ComboBox _orderTypeSelector;
@@ -60,6 +62,22 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     private readonly BrokerCapabilities _capabilities;
     private readonly bool _readOnly;
     private readonly TradeType _tradeType;
+    private readonly TableLayoutPanel _header;
+    private TableLayoutPanel? _marketInformation;
+    private BrokerTradePreviewControl? _brokerTradePreview;
+    private OrderFillsPreviewControl? _orderFillsView;
+    private TabPage? _orderFillsTab;
+    private bool _brokerOrderSubmitted;
+    private bool _isNewTrade;
+    private OrderActionType _brokerOrderAction = OrderActionType.Open;
+    private readonly PortfolioFundOrderTradeEditorModel _brokerTradeIdentity;
+    private readonly int _brokerPortfolioId;
+    private readonly PortfolioFundOrderEditorModel _brokerFundOrder;
+    private IReadOnlyList<TradeOrderDefinition> _submittedTradeOrders = [];
+    public IReadOnlyList<TradeOrderDefinition> SubmittedTradeOrders => _submittedTradeOrders;
+    private BrokerTradeInitializationResult? _brokerInitialization;
+    private Task<BrokerTradeInitializationResult>? _brokerInitializationTask;
+
     private readonly VolatilityContextHistoryControl _volatilityContext;
     private readonly TradeBlotterStrategy _strategy;
     private readonly IAppRoot _appRoot;
@@ -90,6 +108,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     private bool _spreadDefaultsLoaded;
     private bool _bindingSpreadDefaults;
     private readonly System.Windows.Forms.Timer _chainRefreshTimer = new() { Interval = 1000 };
+    private bool _displayedFrozenPreview;
 
     public event EventHandler? SubmitOpeningRequested;
     public event EventHandler? SubmitClosingRequested;
@@ -110,6 +129,10 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         ArgumentNullException.ThrowIfNull(appRoot);
         _appRoot = appRoot;
         _tradeType = trade.TradeType;
+        _isNewTrade = trade.TradeState == TradeState.NewTrade;
+        _brokerTradeIdentity = trade;
+        _brokerPortfolioId = portfolioId;
+        _brokerFundOrder = order;
         Name = "esTradeBlotter";
         AccessibleName = "ES trade blotter";
         Dock = DockStyle.Fill;
@@ -124,8 +147,6 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             TradeType.FuturesOutright => "Futures Outright",
             _ => "Vertical Spread"
         };
-        var direction = trade.TradeType is TradeType.LongIronCondor or TradeType.CallDebitSpread
-            or TradeType.PutDebitSpread ? "Long" : "Short";
         _strategy = strategy switch
         {
             "Iron Condor" => TradeBlotterStrategy.IronCondor,
@@ -136,23 +157,24 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         _capabilities = capabilities;
         _workflowControl = workflowControl;
         _workflow = workflowControl as ITradeOrderControl;
-        _readOnly = historicalReadOnly || trade.TradeState != TradeState.NewTrade || _workflow is null;
+        _readOnly = historicalReadOnly || trade.TradeState != TradeState.NewTrade;
 
         var header = new TableLayoutPanel
         {
             Name = "tradeBlotterHeader",
             Dock = DockStyle.Fill,
-            ColumnCount = 7,
+            ColumnCount = 8,
             BackColor = Color.FromArgb(32, 32, 32),
             Padding = new Padding(6, 5, 6, 3)
         };
-        var directionWidth = Enum.GetNames<TradeBlotterDirection>()
+        _header = header;
+        var tradeTypeWidth = Enum.GetNames<TradeType>()
             .Select(value => TextRenderer.MeasureText(value, Font).Width).Max() + 24;
         var brokerModeWidth = Enum.GetNames<AppBrokerEnvironment>()
             .Select(value => TextRenderer.MeasureText(value, Font).Width).Max() + 12;
         header.ColumnStyles.Add(new(SizeType.AutoSize)); header.ColumnStyles.Add(new(SizeType.Absolute, 170));
         header.ColumnStyles.Add(new(SizeType.Absolute, 16));
-        header.ColumnStyles.Add(new(SizeType.AutoSize)); header.ColumnStyles.Add(new(SizeType.Absolute, directionWidth));
+        header.ColumnStyles.Add(new(SizeType.AutoSize)); header.ColumnStyles.Add(new(SizeType.Absolute, tradeTypeWidth));
         header.ColumnStyles.Add(new(SizeType.AutoSize)); header.ColumnStyles.Add(new(SizeType.Absolute, brokerModeWidth));
         header.ColumnStyles.Add(new(SizeType.Percent, 100));
         _strategySelector = Selector("strategySelector", ["Iron Condor", "Vertical Spread", "Futures Outright"], strategy);
@@ -168,11 +190,11 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             TextAlign = ContentAlignment.MiddleLeft,
             Padding = new Padding(6, 0, 4, 0)
         };
-        _directionValue = ReadOnlyValue("directionValue", direction);
+        _tradeTypeValue = ReadOnlyValue("tradeTypeValue", trade.TradeType.ToString());
         _brokerModeValue = ReadOnlyValue("brokerModeValue", capabilities.Environment.ToString());
-        header.Controls.Add(HeaderLabel("Trade Strategy"), 0, 0); header.Controls.Add(_strategyValue, 1, 0);
-        header.Controls.Add(HeaderLabel("Direction"), 3, 0); header.Controls.Add(_directionValue, 4, 0);
-        header.Controls.Add(HeaderLabel("Broker Mode"), 5, 0); header.Controls.Add(_brokerModeValue, 6, 0);
+        header.Controls.Add(HeaderLabel("Trade Strategy:"), 0, 0); header.Controls.Add(_strategyValue, 1, 0);
+        header.Controls.Add(HeaderLabel("Trade Type:"), 3, 0); header.Controls.Add(_tradeTypeValue, 4, 0);
+        header.Controls.Add(HeaderLabel("Broker Mode:"), 5, 0); header.Controls.Add(_brokerModeValue, 6, 0);
         _sourceLabel = HeaderLabel(historicalReadOnly ? "Historical read-only" : "Manual submitted / evidence");
         _sourceLabel.Name = "sourceModeLabel";
         _sourceLabel.AutoSize = false;
@@ -189,7 +211,6 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         var market = new TabPage("Market Selection") { Name = "marketSelectionTab", BackColor = Color.Black, ForeColor = Color.White };
         _stagingTab = new TabPage("Leg Staging") { Name = "legStagingTab", BackColor = Color.Black, ForeColor = Color.White };
         var orders = new TabPage("Orders and Fills") { Name = "ordersAndFillsTab", BackColor = Color.Black, ForeColor = Color.White };
-        if (_strategy == TradeBlotterStrategy.IronCondor)
         {
             var brokerTrade = new TabPage("Broker Trade")
             {
@@ -197,18 +218,52 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
                 BackColor = Color.Black,
                 ForeColor = Color.White
             };
-            brokerTrade.Controls.Add(new BrokerTradePreviewControl(portfolioId, fund, order, trade));
+            _brokerTradePreview = new BrokerTradePreviewControl(portfolioId, fund, order, trade);
+            _brokerTradePreview.SetOrderTypeEditable(!_readOnly && _isNewTrade);
+            _brokerTradePreview.EnableQualificationManagement();
+            _brokerTradePreview.ManageQualificationRequested += (_, _) => UiExceptionReporter.Observe(
+                ManageBrokerQualificationAsync(), nameof(ManageBrokerQualificationAsync), this);
+
+            brokerTrade.Controls.Add(_brokerTradePreview);
+            _brokerTradePreview.OrderTypeChanged += (_, _) =>
+            {
+                if (_readOnly) return;
+                _orderTypeSelector.SelectedItem = _brokerTradePreview.SelectedOrderType;
+                _algorithmSelector.SelectedItem = _brokerTradePreview.SelectedAlgorithm;
+                ApplyExecutionSelection();
+                RefreshBrokerTradeSelection();
+            };
+            _brokerTradePreview.ActionChanged += (_, _) => UiExceptionReporter.Observe(
+                OrderActionTypeChangedAsync(Enum.Parse<OrderActionType>(_brokerTradePreview.SelectedAction)),
+                nameof(OrderActionTypeChangedAsync), this);
+            _brokerTradePreview.PlaceOrderRequested += (_, _) =>
+            {
+                if (_brokerOrderAction == OrderActionType.Close) SubmitClosingRequested?.Invoke(this, EventArgs.Empty);
+                else SubmitOpeningRequested?.Invoke(this, EventArgs.Empty);
+            };
+            _brokerTradePreview.QuantitiesChanged += (_, _) =>
+            {
+                if (!_isNewTrade && _workflowControl is ITradeQuantitySelectionControl quantityControl)
+                    quantityControl.SetQuantity(_brokerTradePreview.Quantity);
+                RefreshBrokerTradeSelection();
+            };
+            tabs.SelectedIndexChanged += (_, _) =>
+            {
+                if (tabs.SelectedTab == brokerTrade && _isNewTrade)
+                    UiExceptionReporter.Observe(LoadBrokerTradeAsync(), nameof(LoadBrokerTradeAsync), this);
+            };
             var orderFills = new TabPage("Order Fills")
             {
                 Name = "orderFillsTab",
                 BackColor = Color.Black,
                 ForeColor = Color.White
             };
-            orderFills.Controls.Add(new OrderFillsPreviewControl(portfolioId, fund, order, trade));
-            tabs.TabPages.AddRange([market, brokerTrade, orderFills]);
+            _orderFillsTab = orderFills;
+            _orderFillsView = new OrderFillsPreviewControl(portfolioId, fund, order, trade, historicalReadOnly, appRoot);
+            orderFills.Controls.Add(_orderFillsView);
+            if (_strategy == TradeBlotterStrategy.IronCondor) tabs.TabPages.AddRange([market, brokerTrade, orderFills]);
+            else tabs.TabPages.AddRange([market, brokerTrade, orderFills, _stagingTab, orders]);
         }
-        else
-            tabs.TabPages.AddRange([market, _stagingTab, orders]);
         _volatilityContext = new VolatilityContextHistoryControl();
 
         _marketGrid = Grid("marketSelectionGrid");
@@ -330,6 +385,12 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             LoadOptionDefinitionsAsync(appRoot, trade), nameof(LoadOptionDefinitionsAsync), this);
     }
 
+    /// <summary>Width needed for every metric column, including Settlement and Quote Age.</summary>
+    internal int RequiredMarketSelectionWidth => _marketInformation is null ? 0
+        : (int)Math.Ceiling(_marketInformation.Controls.OfType<TableLayoutPanel>()
+            .Select(row => row.ColumnStyles.Cast<ColumnStyle>().Sum(column => column.Width) + row.Padding.Horizontal)
+            .DefaultIfEmpty(0).Max()) + _marketInformation.Padding.Horizontal + _marketInformation.Margin.Horizontal + 32;
+
     public bool IsReadOnly => _readOnly;
     public TradeBlotterStagingResult? Staging => _staging;
     public VolatilityContextHistoryControl VolatilityContext => _volatilityContext;
@@ -388,7 +449,8 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             BackColor = Color.Black,
             Padding = new Padding(0)
         };
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
+        const int headerToOptionLabelsGap = 20;
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
@@ -396,29 +458,33 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
 
         var information = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 1,
             RowCount = 3,
             BackColor = Color.FromArgb(20, 20, 20),
-            Padding = new Padding(5, 3, 5, 2)
+            Padding = new Padding(5, 3, 5, 2),
+            Margin = new Padding(3, 3, 3, headerToOptionLabelsGap + 3)
         };
-        information.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
-        information.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
-        information.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        _marketInformation = information;
+        information.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        information.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        information.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         var primary = MarketInformationRow();
         AddMarketMetric(primary, "EXPIRY:", _expirationSelector, 130);
         AddMarketMetric(primary, "DTE:", _dteValue, 42);
         AddMarketMetric(primary, "UNDERLYING:", _marketContextLabel, 92);
         AddMarketMetric(primary, "MULTIPLIER:", _multiplierValue, 62);
         AddMarketMetric(primary, "TICK:", _tickValue, 52);
-        AddMarketMetric(primary, "SETTLEMENT:", _settlementValue, 52);
+        AddMarketMetric(primary, "SETTLEMENT:", _settlementValue, 52, fixedWidth: true);
         var secondary = MarketInformationRow();
         AddMarketMetric(secondary, "DAILY STD DEV:", _dailyStandardDeviationValue, 82);
         AddMarketMetric(secondary, "LAST:", _lastPriceValue, 90);
         AddMarketMetric(secondary, "CHG:", _changeValue, 145);
         AddMarketMetric(secondary, "IV:", _ivValue, 62);
         AddMarketMetric(secondary, "IV RANK:", _ivRankValue, 50);
-        AddMarketMetric(secondary, "QUOTE AGE:", _quoteAgeValue, 74);
+        AddMarketMetric(secondary, "QUOTE AGE:", _quoteAgeValue, 74, fixedWidth: true);
         var tertiary = MarketInformationRow();
         if (_strategy == TradeBlotterStrategy.IronCondor)
         {
@@ -433,6 +499,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             AddMarketMetric(tertiary, "WIDTH:", _spreadWidth, 68);
         }
         AddMarketMetric(tertiary, "LIQUIDITY:", _liquiditySelector, 115);
+        AlignMarketInformationRows(primary, secondary, tertiary);
         information.Controls.Add(primary, 0, 0);
         information.Controls.Add(secondary, 0, 1);
         information.Controls.Add(tertiary, 0, 2);
@@ -447,29 +514,60 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         return layout;
     }
 
-    private static FlowLayoutPanel MarketInformationRow() => new()
+    private static TableLayoutPanel MarketInformationRow() => new()
     {
         Dock = DockStyle.Fill,
-        FlowDirection = FlowDirection.LeftToRight,
-        WrapContents = false,
+        AutoSize = true,
+        AutoSizeMode = AutoSizeMode.GrowAndShrink,
+        MinimumSize = new Size(0, 30),
+        ColumnCount = 12,
+        RowCount = 1,
         BackColor = Color.FromArgb(20, 20, 20),
-        Margin = new Padding(0)
+        Margin = new Padding(0),
+        Padding = new Padding(0)
     };
 
-    private static void AddMarketMetric(FlowLayoutPanel row, string caption, Control value, int width)
+    private static void AddMarketMetric(TableLayoutPanel row, string caption, Control value, int width, bool fixedWidth = false)
     {
+        var column = row.Controls.Count;
         row.Controls.Add(new Label
         {
-            Text = caption,
-            AutoSize = true,
+            Text = caption.TrimEnd(':') + ":",
+            AutoSize = false,
+            Dock = DockStyle.Fill,
             ForeColor = Color.Silver,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Padding = new Padding(7, 5, 3, 0)
-        });
+            TextAlign = ContentAlignment.MiddleRight,
+            Margin = new Padding(0, 0, 6, 0)
+        }, column, 0);
         value.Width = width;
         value.Height = 25;
-        value.Margin = new Padding(0, 1, 10, 1);
-        row.Controls.Add(value);
+        value.Anchor = fixedWidth ? AnchorStyles.Left : AnchorStyles.Left | AnchorStyles.Right;
+        if (fixedWidth)
+        {
+            value.MinimumSize = new Size(width, 25);
+            value.MaximumSize = new Size(width, 25);
+        }
+        value.Margin = new Padding(0, 1, 14, 1);
+        row.Controls.Add(value, column + 1, 0);
+    }
+
+    private static void AlignMarketInformationRows(params TableLayoutPanel[] rows)
+    {
+        // Each metric shares the same label/value columns across all three rows.
+        for (var column = 0; column < 12; column += 2)
+        {
+            var labelWidth = rows.Select(row => row.GetControlFromPosition(column, 0))
+                .OfType<Label>().Select(label => TextRenderer.MeasureText(label.Text, label.Font).Width + 6)
+                .DefaultIfEmpty(0).Max();
+            var valueWidth = rows.Select(row => row.GetControlFromPosition(column + 1, 0))
+                .Where(value => value is not null).Select(value => value!.Width + 14)
+                .DefaultIfEmpty(0).Max();
+            foreach (var row in rows)
+            {
+                row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, labelWidth));
+                row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, valueWidth));
+            }
+        }
     }
 
     private static TableLayoutPanel BuildOptionSideHeader()
@@ -535,13 +633,13 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
                 "-0.84", "1.4K", "510", "41.00", "42.50", ""),
             OptionChainDisplayRow.Preview(5500m, "", "0.22", "14.5K", "8.9K", "28.50", "29.00",
                 "-0.78", "2.3K", "880", "21.25", "22.25", ""),
-            OptionChainDisplayRow.Marker("UPPER 2.5σ WINDOW  5,465.50"),
+            OptionChainDisplayRow.Marker("UPPER 2.5ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ WINDOW  5,465.50"),
             OptionChainDisplayRow.Preview(5450m, "", "0.35", "19.0K", "12.1K", "44.00", "44.75",
                 "-0.65", "4.1K", "1.1K", "8.50", "9.25", ""),
             OptionChainDisplayRow.Marker("LAST UNDERLYING PRICE  5,420.50"),
             OptionChainDisplayRow.Preview(5400m, "", "0.55", "22.1K", "15.0K", "65.25", "66.00",
                 "-0.45", "14.2K", "9.2K", "3.10", "3.50", ""),
-            OptionChainDisplayRow.Marker("LOWER 2.5σ WINDOW  5,375.50"),
+            OptionChainDisplayRow.Marker("LOWER 2.5ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ WINDOW  5,375.50"),
             OptionChainDisplayRow.Preview(5350m, "", "0.72", "16.4K", "9.5K", "94.00", "95.25",
                 "-0.28", "21.0K", "13.8K", "8.75", "9.25", ""),
             OptionChainDisplayRow.Preview(5300m, "", "0.84", "8.9K", "4.2K", "124.50", "126.00",
@@ -641,7 +739,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
                 && double.IsFinite(value.DailyStdDevAmount))
             {
                 _standardDeviationAmount = (decimal)value.DailyStdDevAmount;
-                _dailyStandardDeviationValue.Text = $"±{_standardDeviationAmount:0.00}";
+                _dailyStandardDeviationValue.Text = $"ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±{_standardDeviationAmount:0.00}";
             }
         }
         var valueDateResult = await appRoot.Services.MarketDataQueries.QueryValueDateAsync();
@@ -895,7 +993,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             .DistinctBy(contract => contract.ContractId)
             .ToArray();
         BindSelectedOptionChain();
-        if (_liveFeedEnabled)
+        if (_liveFeedEnabled || _capabilities.Environment == AppBrokerEnvironment.Emulator)
             await RefreshEvaluatedChainAsync();
     }
 
@@ -929,7 +1027,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
 
     private async Task RefreshEvaluatedChainAsync()
     {
-        if (!_liveFeedEnabled || _chainRefreshInProgress
+        if ((!_liveFeedEnabled && _capabilities.Environment != AppBrokerEnvironment.Emulator) || _chainRefreshInProgress
             || string.IsNullOrWhiteSpace(_underlyingContractId)
             || _expirationSelector.SelectedItem is not ExpiryChoice expiry) return;
         _chainRefreshInProgress = true;
@@ -968,7 +1066,9 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         ExpiryDate = expiry,
         StandardDeviationAmount = _standardDeviationAmount,
         StandardDeviationMultiplier = 2.5,
-        RequiredContractIds = _selectedMarketContractIds
+        RequiredContractIds = _selectedMarketContractIds,
+        AllowFrozenEmulatorPreview = _capabilities.Environment == AppBrokerEnvironment.Emulator,
+        FrozenEmulatorPreviewOnly = _capabilities.Environment == AppBrokerEnvironment.Emulator && !_liveFeedEnabled
     };
 
     private string[] ProviderRootsFor(DateOnly expiry)
@@ -995,9 +1095,11 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
 
     private void BindEvaluatedChain(EvaluatedOptionChainReadModel chain)
     {
-        if (_displayedEvaluatedExpiry != chain.ExpiryDate)
+        var frozenPreview = chain.WindowMethod.StartsWith("Frozen emulator preview", StringComparison.Ordinal);
+        if (_displayedEvaluatedExpiry != chain.ExpiryDate || _displayedFrozenPreview != frozenPreview)
         {
             _displayedEvaluatedExpiry = chain.ExpiryDate;
+            _displayedFrozenPreview = frozenPreview;
             _defaultSelectionExpiry = null;
             _selectedMarketContracts.Clear();
             _selectedMarketRoles.Clear();
@@ -1087,6 +1189,8 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         }
         if (latestQuote is not null)
             SetTextIfChanged(_quoteAgeValue, $"{Math.Max(0, (chain.AsOfUtc - latestQuote.Value).TotalMilliseconds):0} ms");
+        else if (frozenPreview)
+            SetTextIfChanged(_quoteAgeValue, "Frozen preview");
         SetSelectionText(_liquiditySelector, chain.WindowMethod);
     }
 
@@ -1101,32 +1205,31 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         if (_tradeType is not (TradeType.ShortIronCondor or TradeType.LongIronCondor)
             || _strategy != TradeBlotterStrategy.IronCondor)
             return;
-        var call = chain.Contracts
+        var calls = chain.Contracts
             .Where(value => value.IsCall && value.Delta is > 0 and < 0.5)
             .OrderBy(value => Math.Abs(value.Delta!.Value - (double)(_shortCallDelta.Value / 100m)))
             .ThenBy(value => chain.UnderlyingPrice is { } price
-                ? Math.Abs(value.Strike - price) : 0m)
-            .FirstOrDefault();
-        var put = chain.Contracts
+                ? Math.Abs(value.Strike - price) : 0m);
+        var puts = chain.Contracts
             .Where(value => !value.IsCall && value.Delta is < 0 and > -0.5)
             .OrderBy(value => Math.Abs(Math.Abs(value.Delta!.Value) - (double)(_shortPutDelta.Value / 100m)))
             .ThenBy(value => chain.UnderlyingPrice is { } price
-                ? Math.Abs(value.Strike - price) : 0m)
-            .FirstOrDefault();
-        if (call is null || put is null) return;
+                ? Math.Abs(value.Strike - price) : 0m);
         var shortCondor = _tradeType == TradeType.ShortIronCondor;
-        var callWing = FindWingContract(chain,
-            call.Strike + (shortCondor ? _callSpreadWidth.Value : -_callSpreadWidth.Value), true);
-        var putWing = FindWingContract(chain,
-            put.Strike + (shortCondor ? -_putSpreadWidth.Value : _putSpreadWidth.Value), false);
-        if (callWing is null || putWing is null) return;
+        var callPair = calls.Select(call => (Call: call, Wing: FindWingContract(chain,
+                call.Strike + (shortCondor ? _callSpreadWidth.Value : -_callSpreadWidth.Value), true, call.Strike)))
+            .FirstOrDefault(pair => pair.Wing is not null);
+        var putPair = puts.Select(put => (Put: put, Wing: FindWingContract(chain,
+                put.Strike + (shortCondor ? -_putSpreadWidth.Value : _putSpreadWidth.Value), false, put.Strike)))
+            .FirstOrDefault(pair => pair.Wing is not null);
+        if (callPair.Call is null || putPair.Put is null) return;
 
         _selectedMarketContracts.Clear();
         _selectedMarketRoles.Clear();
-        Add(call.ContractId, "-SC");
-        Add(callWing, "+LC");
-        Add(put.ContractId, "-SP");
-        Add(putWing, "+LP");
+        Add(callPair.Call.ContractId, "-SC");
+        Add(callPair.Wing!, "+LC");
+        Add(putPair.Put.ContractId, "-SP");
+        Add(putPair.Wing!, "+LP");
         _defaultSelectionExpiry = chain.ExpiryDate;
         UpdateMarketSelectionStatus();
 
@@ -1163,15 +1266,27 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         UpdateMarketSelectionStatus();
     }
 
-    private string? FindWingContract(EvaluatedOptionChainReadModel chain, decimal strike, bool isCall)
+    private string? FindWingContract(EvaluatedOptionChainReadModel chain, decimal strike, bool isCall,
+        decimal? shortStrike = null)
     {
         var live = chain.Contracts.FirstOrDefault(value => value.IsCall == isCall && value.Strike == strike);
         if (live is not null) return live.ContractId;
-        return _availableOptionContracts
+        var exact = _availableOptionContracts
             .Where(value => GetOptionExpiry(value) == chain.ExpiryDate
                 && (decimal)value.StrikePrice == strike
                 && value.OptionType.StartsWith(isCall ? "C" : "P", StringComparison.OrdinalIgnoreCase))
             .OrderBy(value => value.ContractId, StringComparer.Ordinal)
+            .Select(value => value.ContractId)
+            .FirstOrDefault();
+        if (exact is not null || shortStrike is null) return exact;
+        var outward = strike > shortStrike.Value;
+        return _availableOptionContracts
+            .Where(value => GetOptionExpiry(value) == chain.ExpiryDate
+                && value.OptionType.StartsWith(isCall ? "C" : "P", StringComparison.OrdinalIgnoreCase)
+                && (outward ? (decimal)value.StrikePrice > shortStrike.Value
+                    : (decimal)value.StrikePrice < shortStrike.Value))
+            .OrderBy(value => Math.Abs((decimal)value.StrikePrice - strike))
+            .ThenBy(value => value.ContractId, StringComparer.Ordinal)
             .Select(value => value.ContractId)
             .FirstOrDefault();
     }
@@ -1428,12 +1543,91 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
 
     private void UpdateMarketSelectionStatus()
     {
+        if (_marketSelectionEditedManually && _selectedMarketContracts.Count == MaximumSelectedLegs)
+        {
+            foreach (var callSide in new[] { false, true })
+            {
+                var side = _optionChainRows.Where(row => row.Strike is not null
+                    && ContractKey(row, callSide) is { } id && _selectedMarketContracts.Contains(id))
+                    .OrderBy(row => row.Strike).ToArray();
+                if (side.Length != 2) continue;
+                var lowIsLong = _tradeType switch
+                {
+                    TradeType.ShortIronCondor => !callSide,
+                    TradeType.LongIronCondor => callSide,
+                    TradeType.PutCreditSpread => true,
+                    TradeType.CallDebitSpread => true,
+                    _ => false
+                };
+                for (var index = 0; index < 2; index++)
+                {
+                    var isLong = index == 0 ? lowIsLong : !lowIsLong;
+                    _selectedMarketRoles[ContractKey(side[index], callSide)!] =
+                        (isLong ? "+L" : "-S") + (callSide ? "C" : "P");
+                }
+            }
+        }
         _selectedMarketContractIds = _selectedMarketContracts.ToArray();
         _stagingTab.Text = "Leg Staging";
         _marketSelectionLabel.Text =
             $"Selected legs: {_selectedMarketContracts.Count} / {MaximumSelectedLegs} - Select a Call or Put quote to stage a leg";
         RefreshSelectedLegRows();
+        if (_isNewTrade) RefreshBrokerTradeSelection();
         _marketGrid.Invalidate();
+    }
+
+    private async Task LoadBrokerTradeAsync()
+    {
+        RefreshBrokerTradeSelection();
+        _brokerInitializationTask ??= BrokerTradeInitializationQuery.ExecuteAsync(_appRoot,
+            _brokerPortfolioId, _brokerTradeIdentity.FundId, _brokerTradeIdentity.OrderId,
+            _brokerTradeIdentity.TradeId, _underlyingContractId, _tradeDate, _brokerTradePreview!.SelectedLegs, _capabilities);
+        try
+        {
+            _brokerInitialization = await _brokerInitializationTask;
+            if (IsDisposed || !_isNewTrade) return;
+            _brokerTradePreview!.BindInitialization(_brokerInitialization);
+            RefreshBrokerTradeSelection();
+
+        }
+        finally { _brokerInitializationTask = null; }
+    }
+
+    private void RefreshBrokerTradeSelection()
+    {
+        if (_brokerTradePreview is null || !_isNewTrade) return;
+        var legs = new List<BrokerTradeLegData>();
+        foreach (var row in _optionChainRows)
+            foreach (var callSide in new[] { true, false })
+            {
+                var id = ContractKey(row, callSide);
+                if (id is null || !_selectedMarketContracts.Contains(id)) continue;
+                var evaluated = callSide ? row.CallEvaluated : row.PutEvaluated;
+                var live = callSide ? row.Call?.Instrument : row.Put?.Instrument;
+                _selectedMarketRoles.TryGetValue(id, out var role);
+                var definition = _availableOptionContracts.FirstOrDefault(x => x.ContractId == id);
+                decimal? multiplier = decimal.TryParse(definition?.Multiplier, NumberStyles.Number, CultureInfo.InvariantCulture, out var m) && m > 0 ? m : null;
+                legs.Add(new BrokerTradeLegData(id, role ?? "", row.Strike,
+                    evaluated?.Bid ?? live?.Quote?.Bid, evaluated?.Ask ?? live?.Quote?.Ask,
+                    evaluated?.Delta ?? live?.Selection?.Delta, callSide,
+                    evaluated?.Vega, multiplier, evaluated?.QuoteAtUtc ?? live?.Quote?.EventAtUtc, _displayedFrozenPreview));
+            }
+        if (_strategy == TradeBlotterStrategy.FuturesOutright && _brokerInitialization?.Underlying is { } future)
+        {
+            decimal? multiplier = decimal.TryParse(future.Multiplier, NumberStyles.Number, CultureInfo.InvariantCulture, out var m) && m > 0 ? m : null;
+            // An EOD close is a stored reference price, not a fabricated executable bid/ask.
+            legs.Add(new BrokerTradeLegData(future.ContractId, _brokerTradeIdentity.TradeAction == TradeAction.Sell ? "-Future" : "+Future",
+                null, null, null, 1, false, 0, multiplier, null, true, true));
+        }
+        if (_brokerInitialization is not null) _brokerInitialization = _brokerInitialization with { SelectedLegs = legs.ToArray() };
+        _brokerTradePreview.BindSelectedLegs(legs);
+        _brokerTradePreview.SetPlaceOrderEnabled(!_readOnly && _isNewTrade && !_brokerOrderSubmitted
+            && legs.Count == MaximumSelectedLegs
+            && (_strategy == TradeBlotterStrategy.FuturesOutright || legs.All(x => x.Sign != 0 && x.Bid.HasValue && x.Ask.HasValue))
+            && _brokerTradePreview.LegQuantities.Values.Distinct().Count() <= 1);
+        _brokerTradePreview.SetExecutionFields(_orderTypeSelector.SelectedItem?.ToString() ?? "Limit",
+            _algorithmSelector.SelectedItem?.ToString() ?? "None", _brokerOrderAction.ToString(), _capabilities.Adapter,
+            _brokerInitialization?.Underlying?.Exchange ?? "Unavailable", _strategy == TradeBlotterStrategy.FuturesOutright ? "0.25" : "0.05");
     }
 
     private void RefreshSelectedLegRows()
@@ -1491,7 +1685,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             .Select(row => row.Strike)
             .FirstOrDefault();
 
-    private static DataGridView Grid(string name) => new()
+    private static DataGridView Grid(string name) => new MarketSelectionDataGridView()
     {
         Name = name,
         Dock = DockStyle.Fill,
@@ -1508,6 +1702,45 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         EnableHeadersVisualStyles = false,
         ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing
     };
+
+    /// <summary>Matches label and value columns to the host's Trade Type row.</summary>
+    internal void AlignHeaderColumns(int firstLabelWidth, int firstValueWidth,
+        int secondLabelWidth, int secondValueWidth, int thirdLabelWidth, int thirdValueWidth, int groupGap,
+        Font headerFont, int controlHeight)
+    {
+        _header.SuspendLayout();
+        try
+        {
+            _header.Margin = new Padding(0);
+            _header.Padding = new Padding(0, 5, 0, 3);
+            _header.RowCount = 1;
+            _header.RowStyles.Clear();
+            _header.RowStyles.Add(new RowStyle(SizeType.Absolute, controlHeight));
+            var widths = new[] { firstLabelWidth, firstValueWidth, groupGap,
+                secondLabelWidth, secondValueWidth, groupGap + thirdLabelWidth, thirdValueWidth };
+            for (var index = 0; index < widths.Length; index++)
+            {
+                _header.ColumnStyles[index].SizeType = SizeType.Absolute;
+                _header.ColumnStyles[index].Width = widths[index];
+            }
+            foreach (Control control in _header.Controls)
+            {
+                control.Margin = new Padding(0);
+                control.Font = headerFont;
+                if (control is Label label && control != _strategyValue
+                    && control != _tradeTypeValue && control != _brokerModeValue)
+                {
+                    label.AutoSize = false;
+                    label.Dock = DockStyle.Fill;
+                    label.TextAlign = ContentAlignment.MiddleRight;
+                    label.Padding = new Padding(_header.GetColumn(control) == 5 ? groupGap : 0, 0, 6, 0);
+                }
+            }
+            if (_header.Parent is TableLayoutPanel layout)
+                layout.Padding = new Padding(0, layout.Padding.Top, 0, layout.Padding.Bottom);
+        }
+        finally { _header.ResumeLayout(true); }
+    }
 
     private static Label HeaderLabel(string text) => new() { AutoSize = true, ForeColor = Color.White, Text = text, Padding = new Padding(4, 4, 4, 0) };
     private static Label ReadOnlyValue(string name, string text) => new()
@@ -1586,16 +1819,75 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             new(strike, null, null, CallContractId: callContractId, PutContractId: putContractId);
     }
 
-    public DateOnly MaturityDate => RequiredWorkflow().MaturityDate;
+    public DateOnly MaturityDate => (_expirationSelector.SelectedItem as ExpiryChoice)?.Value
+        ?? _brokerTradeIdentity.RequestedMaturityDate ?? _brokerTradeIdentity.RequestedTradeDate;
     public Task RemoveTradeAsync(int fundId, int orderId, int tradeId) =>
         RequiredWorkflow().RemoveTradeAsync(fundId, orderId, tradeId);
-    public Task<Guid> SubmitOrderAsync(DateOnly tradeDate, OrderActionType orderAction,
+    private async Task ManageBrokerQualificationAsync()
+    {
+        if (_brokerInitialization?.Underlying is null) await LoadBrokerTradeAsync();
+        var underlying = _brokerInitialization?.Underlying
+            ?? throw new InvalidOperationException("The underlying contract definition is unavailable.");
+        var account = new BrokerManualTradeOrderViewModel(_appRoot, _brokerPortfolioId,
+            _brokerFundOrder, _brokerTradeIdentity, underlying);
+        using var dialog = new BrokerAccountQualificationDialog(account);
+        dialog.ShowDialog(this);
+        await LoadBrokerTradeAsync();
+    }
+
+    public async Task<Guid> SubmitOrderAsync(DateOnly tradeDate, OrderActionType orderAction,
         ITradeOrderConfirmationService tradeOrderConfirmation)
     {
-        if (_readOnly)
-            throw new InvalidOperationException("This trade blotter is read-only.");
-        ApplyExecutionSelection();
-        return RequiredWorkflow().SubmitOrderAsync(tradeDate, orderAction, tradeOrderConfirmation);
+        if (_readOnly || _brokerOrderSubmitted)
+            throw new InvalidOperationException("This trade has already been submitted or is read-only.");
+        // Return from the accessibility/button callback before opening a modal confirmation.
+        await Task.Yield();
+        if (_strategy != TradeBlotterStrategy.FuturesOutright && _displayedFrozenPreview
+            && _capabilities.Environment == AppBrokerEnvironment.Emulator
+            && _expirationSelector.SelectedItem is ExpiryChoice selectedExpiry)
+        {
+            var requiredLegs = _strategy == TradeBlotterStrategy.IronCondor ? 4 : 2;
+            if (_selectedMarketContracts.Count != requiredLegs
+                || _brokerTradePreview is null)
+                throw new InvalidOperationException(
+                    $"Select all {requiredLegs} option legs before submitting the frozen emulator spread.");
+            var snapshot = await _appRoot.Services.MarketDataQueries.QueryEvaluatedOptionChainAsync(
+                CreateChainQuery(selectedExpiry.Value) with { FrozenEmulatorPreviewOnly = true });
+            if (!snapshot.Success || snapshot.Value is null
+                || _selectedMarketContracts.Any(id => !snapshot.Value.Contracts.Any(contract =>
+                    contract.ContractId == id && contract.Bid is > 0 && contract.Ask >= contract.Bid)))
+                throw new InvalidOperationException("A complete frozen emulator quote is unavailable for the selected legs.");
+            BindEvaluatedChain(snapshot.Value);
+        }
+        if (orderAction != OrderActionType.Open)
+            throw new InvalidOperationException("This New Trade screen submits opening orders only.");
+        var preview = _brokerTradePreview ?? throw new InvalidOperationException("Broker Trade is unavailable.");
+        if (_brokerInitialization?.Underlying is null) await LoadBrokerTradeAsync();
+        preview.CommitDraftEdits();
+        var underlying = _brokerInitialization?.Underlying
+            ?? throw new InvalidOperationException("The underlying contract definition is unavailable.");
+        var price = preview.SelectedOrderPrice ?? throw new InvalidOperationException("Enter a valid Order Price.");
+        var tick = _strategy == TradeBlotterStrategy.FuturesOutright ? 0.25m : 0.05m;
+        if (price % tick != 0) throw new InvalidOperationException($"Order Price must be a multiple of {tick}.");
+        var submission = new BrokerManualTradeOrderViewModel(_appRoot, _brokerPortfolioId,
+            _brokerFundOrder, _brokerTradeIdentity with { RequestedTradeDate = tradeDate }, underlying);
+        submission.SetScreenLegSelection((_expirationSelector.SelectedItem as ExpiryChoice)?.Value
+            ?? _brokerTradeIdentity.RequestedMaturityDate ?? tradeDate, preview.SelectedLegs, preview.LegQuantities);
+        submission.SetExecutionSelection(
+            Enum.Parse<TomasAI.IFM.Domain.Trade.Shared.BrokerOrderType>(preview.SelectedOrderType),
+            Enum.Parse<TomasAI.IFM.Domain.Trade.Shared.BrokerAlgorithm>(preview.SelectedAlgorithm),
+            preview.SelectedTimeInForce, preview.SelectedPace);
+        var result = await submission.SubmitAsync(preview.Quantity, price, tradeOrderConfirmation);
+        _submittedTradeOrders = submission.SubmittedTradeOrders;
+        if (result != Guid.Empty)
+        {
+            _brokerOrderSubmitted = true;
+            _orderFillsView?.BindSubmittedOrders(_submittedTradeOrders);
+            if (_orderFillsTab?.Parent is TabControl orderTabs) orderTabs.SelectedTab = _orderFillsTab;
+            _brokerTradePreview?.SetOrderTypeEditable(false);
+            _brokerTradePreview?.SetPlaceOrderEnabled(false);
+        }
+        return result;
     }
     public async Task SetLiveFeedAsync(bool enabled)
     {
@@ -1615,11 +1907,17 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             _chainRefreshTimer.Stop();
             _chainRequestCancellation?.Cancel();
             await ReleaseEvaluatedChainAsync();
+            if (_capabilities.Environment == AppBrokerEnvironment.Emulator)
+                await RefreshEvaluatedChainAsync();
         }
     }
     public void SetNearestStrikePrices() => RequiredWorkflow().SetNearestStrikePrices();
-    public Task OrderActionTypeChangedAsync(OrderActionType orderActionType) =>
-        RequiredWorkflow().OrderActionTypeChangedAsync(orderActionType);
+    public Task OrderActionTypeChangedAsync(OrderActionType orderActionType)
+    {
+        _brokerOrderAction = orderActionType;
+        RefreshBrokerTradeSelection();
+        return _isNewTrade ? Task.CompletedTask : RequiredWorkflow().OrderActionTypeChangedAsync(orderActionType);
+    }
 
     private void ApplyExecutionSelection()
     {
@@ -1627,6 +1925,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             !Enum.TryParse<AppBrokerAlgorithm>(_algorithmSelector.SelectedItem?.ToString(), out var algorithm) ||
             !_capabilities.OrderTypes.Contains(orderType) || !_capabilities.Algorithms.Contains(algorithm))
             throw new InvalidOperationException("The selected order type or algorithm is not supported by this broker.");
+        if (_isNewTrade) return;
         if (_workflow is not ITradeExecutionSelectionControl selectionControl)
         {
             if (orderType != AppBrokerOrderType.Limit || algorithm != AppBrokerAlgorithm.None)
@@ -1639,7 +1938,9 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
                 : TomasAI.IFM.Domain.Trade.Shared.BrokerOrderType.Limit,
             algorithm == AppBrokerAlgorithm.Adaptive
                 ? TomasAI.IFM.Domain.Trade.Shared.BrokerAlgorithm.Adaptive
-                : TomasAI.IFM.Domain.Trade.Shared.BrokerAlgorithm.None);
+                : TomasAI.IFM.Domain.Trade.Shared.BrokerAlgorithm.None,
+            _brokerTradePreview?.SelectedTimeInForce ?? "Day",
+            _brokerTradePreview?.SelectedPace ?? "Normal");
     }
 
     private ITradeOrderControl RequiredWorkflow() => _workflow ??
@@ -1658,6 +1959,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         _liveFeedEnabled = false;
         _chainRequestCancellation?.Cancel();
         await ReleaseEvaluatedChainAsync();
+        if (_orderFillsView is not null) await _orderFillsView.StopNotificationsAsync();
         if (_workflowControl is IAsyncFormControl asyncControl)
             await asyncControl.CloseAsync();
         else if (_workflowControl is IFormControl formControl)

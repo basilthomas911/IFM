@@ -18,6 +18,20 @@ public sealed class DarkTabControl : TabControl
     const FontStyle SelectedTabFontStyle = FontStyle.Bold;
     const FontStyle InactiveTabFontStyle = FontStyle.Regular;
     bool _showCloseButtons;
+    bool _showHeaderSeparator = true;
+
+    /// <summary>Draws the standard gray underline beneath the top tab headers.</summary>
+    [System.ComponentModel.DefaultValue(true)]
+    public bool ShowHeaderSeparator
+    {
+        get => _showHeaderSeparator;
+        set
+        {
+            if (_showHeaderSeparator == value) return;
+            _showHeaderSeparator = value;
+            Invalidate();
+        }
+    }
 
     /// <summary>Raised when the close glyph on a tab header is clicked.</summary>
     public event EventHandler<TabCloseRequestedEventArgs>? TabCloseRequested;
@@ -106,6 +120,21 @@ public sealed class DarkTabControl : TabControl
                 | TextFormatFlags.EndEllipsis);
         }
 
+        if (ShowHeaderSeparator && Alignment == TabAlignment.Top && TabCount > 0 && ClientSize.Width > 0 && ClientSize.Height > 0)
+        {
+            // Header-only button tabs can be shorter than the native page display area.
+            var y = Math.Clamp(DisplayRectangle.Top - 1, 0, ClientSize.Height - 1);
+            using var separator = new Pen(Color.Gray, 1F);
+            var headerBounds = Rectangle.Empty;
+            for (var index = 0; index < TabCount; index++)
+            {
+                var bounds = Rectangle.Intersect(GetTabRect(index), ClientRectangle);
+                if (bounds.Width <= 0 || bounds.Height <= 0) continue;
+                headerBounds = headerBounds.IsEmpty ? bounds : Rectangle.Union(headerBounds, bounds);
+            }
+            if (!headerBounds.IsEmpty)
+                e.Graphics.DrawLine(separator, headerBounds.Left, y, headerBounds.Right - 1, y);
+        }
     }
 
     protected override void OnMouseDown(MouseEventArgs e)

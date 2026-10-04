@@ -1,3 +1,4 @@
+﻿using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Command.State;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
@@ -40,6 +41,8 @@ public static class AmendOptionTradeEvidence
         this AmendOptionTradeEvidenceCommand command,
         EstablishedTradeDefinition current) => new()
         {
+            Subject = new(ActorType.Event, "FuturesOptionTradeEvent", OptionTradeChangedEvent.Verb, command.EntityId.Format()),
+            ReceivedOn = DateTime.UtcNow,
             EntityId = command.EntityId,
             State = current with
             {

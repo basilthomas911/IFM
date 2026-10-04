@@ -23,11 +23,16 @@ public sealed class FuturesOptionTickDataEventProjector(
         DescribeNotification<FuturesOptionTickDataStreamingStartedEvent, FuturesOptionTickEntityId>(useDurableReplay: false),
         DescribeNotification<FuturesOptionTickDataStreamingStoppedEvent, FuturesOptionTickEntityId>(useDurableReplay: false),
         Describe<FuturesOptionTickDataInsertedEvent, FuturesOptionTickDataInsertedCompleteEvent, FuturesOptionTickDataInsertedFailEvent, FuturesOptionTickEntityId>(
-            (e, context) => actorContext.DbFactory.MarketDataDb.InsertFuturesOptionTickDataAsync(
-                e.TickData with
+            async (e, context) =>
+            {
+                var tick = e.TickData with
                 {
                     TickId = e.TickData.TickId > 0 ? e.TickData.TickId : context.EventId
-                }))
+                };
+                await actorContext.DbFactory.MarketDataDb.InsertFuturesOptionTickDataAsync(tick);
+                await actorContext.DbFactory.MarketDataDb.UpsertFuturesOptionChainQuoteDataAsync(
+                    e.Contract.ContractId, tick);
+            })
     ];
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;
     public override IReadOnlyCollection<Type> ProjectedEventTypes => _descriptors.Select(static x => x.SourceEventType).ToArray();

@@ -1,4 +1,4 @@
-using TomasAI.IFM.UI.Net.Services.MarketData;
+﻿using TomasAI.IFM.UI.Net.Services.MarketData;
 using System;
 using System.Reflection;
 using System.Linq;
@@ -473,6 +473,8 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
         var navigationResult = _navigator.ShowModal<TradeOrderEditorForm>(view =>
         {
             dlg = view;
+            view.FitToTradeView(marketViewSplitter.Panel1.RectangleToScreen(
+                marketViewSplitter.Panel1.ClientRectangle));
             view.LoadViewModel(new TradeOrderEditorViewModel(
                 _appRoot,
                 _viewModel.ValueDate,

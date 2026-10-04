@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
+﻿using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Portfolio;
@@ -31,6 +31,8 @@ public static class PortfolioExecutionContractMapper
         BrokerOrderType = (BrokerOrderType)value.BrokerOrderType,
         BrokerAlgorithm = (BrokerAlgorithm)value.BrokerAlgorithm,
         VolatilityEvidence = value.VolatilityEvidence,
+        TimeInForce = value.TimeInForce,
+        AlgorithmPace = value.AlgorithmPace,
     };
 
     public static PortfolioExecutionOrderInstruction ToPortfolioInstruction(this TradeOrderDefinition value) => new()
@@ -57,6 +59,8 @@ public static class PortfolioExecutionContractMapper
         BrokerOrderType = (PortfolioBrokerOrderType)value.BrokerOrderType,
         BrokerAlgorithm = (PortfolioBrokerAlgorithm)value.BrokerAlgorithm,
         VolatilityEvidence = value.VolatilityEvidence,
+        TimeInForce = value.TimeInForce,
+        AlgorithmPace = value.AlgorithmPace,
     };
 
     public static PortfolioExecutionComponent ToPortfolioComponent(this TradeOrderComponentDefinition value) => new()

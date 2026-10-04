@@ -1,4 +1,4 @@
-using TomasAI.IFM.UI.Net.Models.Portfolio;
+﻿using TomasAI.IFM.UI.Net.Models.Portfolio;
 using TomasAI.IFM.Domain.Trade.Shared;
 using System.Data;
 using TomasAI.IFM.UI.Net.Contracts;
@@ -150,8 +150,8 @@ public partial class TradeOrderEditorForm
     void ConfigureCompactLayout()
     {
         // The initial width is a layout baseline, not a measurement of a designer-scaled combo.
-        ClientSize = new Size(1440, DefaultClientHeight);
-        MinimumSize = SizeFromClientSize(new Size(1200, MinimumClientHeight));
+        ClientSize = new Size(1400, DefaultClientHeight);
+        MinimumSize = SizeFromClientSize(new Size(1000, MinimumClientHeight));
         pnlTradePosition.Controls.Remove(lblDaysToExpiry);
         pnlTradePosition.Controls.Remove(txtDaysToExpiry);
         ConfigureWorkspaceTabs();
@@ -325,7 +325,7 @@ public partial class TradeOrderEditorForm
         foreach (var label in new[]
                  {
                      _portfolioLabel, lblFundSelector, lblFrom, lblTradeOrders,
-                     label1, lblTrades, lblTradeType,
+                     label1, lblTrades, lblTradeId,
                  })
             label.Left = LeftLabelLeft;
 
@@ -334,27 +334,42 @@ public partial class TradeOrderEditorForm
         dtpFrom.Left = ContentLeft;
         lblTo.Left = dtpFrom.Right + 24;
         dtpTo.Left = lblTo.Right + 8;
-        txtTradeType.Left = ContentLeft;
-        lblTradeType.Left = 8;
+        txtTradeId.Left = ContentLeft;
+        lblTradeId.Left = 8;
     }
 
     void AlignTradePositionHeader()
     {
         var longestTradeType = Enum.GetNames<TradeType>()
-            .Select(name => TextRenderer.MeasureText(name, txtTradeType.Font).Width)
-            .DefaultIfEmpty(txtTradeType.Width)
+            .Select(name => TextRenderer.MeasureText(name, txtTradeId.Font).Width)
+            .DefaultIfEmpty(txtTradeId.Width)
             .Max();
-        txtTradeType.Width = longestTradeType + 30;
+        txtTradeId.Width = longestTradeType + 30;
+        dtpTradeDate.Width = Math.Max(dtpTradeDate.Width, longestTradeType + 30);
+        lblTradeId.AutoSize = false;
+        lblTradeId.Width = Math.Max(lblTradeId.PreferredWidth,
+            TextRenderer.MeasureText("Trade Strategy:", lblTradeId.Font).Width);
+        lblTradeDate.AutoSize = false;
+        lblTradeDate.Width = Math.Max(lblTradeDate.PreferredWidth,
+            TextRenderer.MeasureText("Trade Type:", lblTradeDate.Font).Width);
+        lblOrderAction.AutoSize = false;
+        lblOrderAction.Width = Math.Max(lblOrderAction.PreferredWidth,
+            TextRenderer.MeasureText("Broker Mode:", lblOrderAction.Font).Width);
         const int labelToControlGap = 6;
         const int groupGap = 14;
-        lblTradeType.Left = 8;
-        txtTradeType.Left = lblTradeType.Right + labelToControlGap;
-        lblTradeDate.Left = txtTradeType.Right + groupGap;
+        lblTradeId.Left = 8;
+        txtTradeId.Left = lblTradeId.Right + labelToControlGap;
+        lblTradeDate.Left = txtTradeId.Right + groupGap;
         dtpTradeDate.Left = lblTradeDate.Right + labelToControlGap;
         lblOrderAction.Left = dtpTradeDate.Right + groupGap;
         ddlOrderActionType.Left = lblOrderAction.Right + labelToControlGap;
         cbLiveFeed.Left = ddlOrderActionType.Right + groupGap;
         cbLiveFeed.Top = ddlOrderActionType.Top - 1;
+        foreach (var blotter in pnlTradeBlotter.Controls.OfType<EsTradeBlotterControl>())
+            blotter.AlignHeaderColumns(txtTradeId.Left - lblTradeId.Left, txtTradeId.Width,
+                dtpTradeDate.Left - lblTradeDate.Left, dtpTradeDate.Width,
+                ddlOrderActionType.Left - lblOrderAction.Left, ddlOrderActionType.Width, groupGap,
+                txtTradeId.Font, txtTradeId.Height);
     }
 
     void LayoutTradeBlotterHeight()
@@ -516,8 +531,22 @@ public partial class TradeOrderEditorForm
         }
     }
 
+    private Rectangle? _tradeViewBounds;
+
+    public void FitToTradeView(Rectangle bounds)
+    {
+        _tradeViewBounds = bounds;
+    }
+
     void TradeOrderEditorForm_Shown(object sender, EventArgs e)
     {
+        var bounds = _tradeViewBounds ?? Owner?.RectangleToScreen(Owner.ClientRectangle)
+            ?? Screen.FromControl(this).WorkingArea;
+        var available = Rectangle.Intersect(bounds, Screen.FromRectangle(bounds).WorkingArea);
+        if (available.Width <= 0) return;
+        MinimumSize = new Size(Math.Min(MinimumSize.Width, available.Width), MinimumSize.Height);
+        Width = available.Width;
+        Left = available.Left;
     }
 
     async void TradeOrderEditorForm_FormClosing(object sender, FormClosingEventArgs e)
@@ -571,7 +600,7 @@ public partial class TradeOrderEditorForm
         try
         {
             _portfolioSelector.Items.Clear();
-            foreach (var portfolio in _viewModel.Portfolios) _portfolioSelector.Items.Add($"{portfolio.PortfolioId} — {portfolio.Name}");
+            foreach (var portfolio in _viewModel.Portfolios) _portfolioSelector.Items.Add($"{portfolio.PortfolioId} - {portfolio.Name}");
             _portfolioSelector.SelectedIndex = _viewModel.PortfolioSelectedIndex;
         }
         finally { _rendering = prior; }
@@ -856,6 +885,7 @@ public partial class TradeOrderEditorForm
                 pnlTradePosition.Controls.Remove(btnEndOfDay);
                 blotter.Dock = DockStyle.Fill;
                 pnlTradeBlotter.Controls.Add(blotter);
+                AlignTradePositionHeader();
             }
             if (lstTradeOrders.SelectedIndices.Count > 0)
             {
@@ -1019,7 +1049,7 @@ public partial class TradeOrderEditorForm
             LoadTradeStateTargets(trade.TradeState);
             foreach (var control in new Control[] { dtpTradeDate, ddlOrderActionType })
                 control.Enabled = trade.TradeState == TradeState.NewTrade;
-            txtTradeType.Text = trade.TradeType.ToString();
+            txtTradeId.Text = trade.TradeId.ToString();
             dtpTradeDate.Value = trade.RequestedTradeDate.ToDateTime(TimeOnly.MinValue);
             txtDaysToExpiry.Visible = true;
             lblDaysToExpiry.Visible = true;

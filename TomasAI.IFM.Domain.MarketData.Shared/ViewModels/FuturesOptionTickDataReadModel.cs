@@ -17,6 +17,11 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 [MessagePackObject(AllowPrivate = true)]
 public record FuturesOptionTickDataV2ReadModel
 {
+    [Key(16)] public long? Volume { get; init; }
+    [Key(17)] public long? OpenInterest { get; init; }
+    [Key(18)] public DateOnly? VolumeValueDate { get; init; }
+    [Key(19)] public DateOnly? OpenInterestValueDate { get; init; }
+
     /// <summary>Full futures option contract identifier.</summary>
     [Key(0)]
     public string ContractId { get; init; }

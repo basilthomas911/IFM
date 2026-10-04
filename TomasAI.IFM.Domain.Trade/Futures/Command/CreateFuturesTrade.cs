@@ -1,3 +1,4 @@
+﻿using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.Trade.Futures.Command.State;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Futures;
@@ -55,6 +56,8 @@ public static class CreateFuturesTrade
         EstablishedTradeDefinition trade,
         bool isInitialEstablishment) => new()
         {
+            Subject = new(ActorType.Event, "FuturesTradeEvent", FuturesTradeChangedEvent.Verb, command.EntityId.Format()),
+            ReceivedOn = DateTime.UtcNow,
             EntityId = command.EntityId,
             State = trade,
             IsInitialEstablishment = isInitialEstablishment

@@ -1,4 +1,4 @@
-using TomasAI.IFM.UI.Net.Services.Analytics;
+﻿using TomasAI.IFM.UI.Net.Services.Analytics;
 using TomasAI.IFM.UI.Net.Services.Application;
 using TomasAI.IFM.UI.Net.Services.MarketData;
 using TomasAI.IFM.UI.Net.Services.MarketDataFeed;
@@ -26,7 +26,9 @@ public sealed class UiServiceCatalog(
     IBrokerAccountQueryApi brokerAccounts,
     IBrokerAccountCommandApi brokerAccountCommands,
     IBrokerOrderQueryApi brokerOrders,
+    IBrokerOrderCommandApi brokerOrderCommands,
     IOrderExecutionQueryApi orderExecutions,
+    IOrderExecutionNotificationService orderExecutionNotifications,
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi referenceQueries,
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceCommandApi referenceCommands,
     CommandResponseEventService commandResponses,
@@ -74,8 +76,10 @@ public sealed class UiServiceCatalog(
     public IBrokerAccountCommandApi BrokerAccountCommands { get; } = brokerAccountCommands;
     /// <inheritdoc />
     public IBrokerOrderQueryApi BrokerOrders { get; } = brokerOrders;
+    public IBrokerOrderCommandApi BrokerOrderCommands { get; } = brokerOrderCommands;
     /// <inheritdoc />
     public IOrderExecutionQueryApi OrderExecutions { get; } = orderExecutions;
+    public IOrderExecutionNotificationService OrderExecutionNotifications { get; } = orderExecutionNotifications;
     public TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi ReferenceQueries { get; } = referenceQueries;
     public TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceCommandApi ReferenceCommands { get; } = referenceCommands;
     /// <inheritdoc />

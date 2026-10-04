@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Hosting;
@@ -64,6 +64,125 @@ public sealed class TradeBrokerEmulatorRegistrationTests
 public sealed class TradeBrokerEmulatorHostTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> sourceFactory)
     : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>
 {
+    [Fact]
+    public async Task Hosted_emulator_places_updates_and_cancels_through_Nats_actor_lifecycle()
+    {
+        await using var host = sourceFactory.WithWebHostBuilder(builder => builder
+            .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.BrokerAccount,TomasAI.IFM.Domain.Portfolio")
+            .UseSetting("IFM_TEST_NATS_URL", DomainActorIntegrationInfrastructureFixture.NatsUrl));
+        using var client = host.CreateClient();
+        var lifecycle = host.Services.GetRequiredService<ISupervisorManagedActorLifecycle>();
+        TomasAI.IFM.Shared.EventModelActor.Contracts.IActorProducer? producer = null;
+        IActorEventListener? notifications = null;
+        try
+        {
+            var container = host.Services.GetRequiredService<Container>();
+            var broker = container.GetInstance<ITradeBroker>();
+            broker.Environment.Should().Be(BrokerEnvironment.Emulator);
+            var accounts = container.GetInstance<TomasAI.IFM.Domain.BrokerAccount.Query.Model.IBrokerAccountReadStore>();
+            var approval = Guid.NewGuid();
+            producer = host.Services.GetRequiredService<TomasAI.IFM.Shared.EventModelActor.Contracts.IActorProducer>();
+            await producer.StartAsync(new(TomasAI.IFM.Shared.EventModelActor.ActorType.Realtime, "BrokerUiWorkflowVerification"));
+            var accountId = new TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountId(broker.AccountAlias);
+            await WaitAsync(() => Task.FromResult(accounts.Get(accountId)?.Snapshot is { Complete: true } ? accounts.Get(accountId) : null));
+            var accountCommands = new TomasAI.IFM.Application.Api.Nats.Client.BrokerAccountCommandApi(producer);
+            var manifest = Guid.NewGuid().ToString("N");
+            var evidence = await accountCommands.SubmitQualificationEvidenceAsync(accountId, manifest, "isolated-test-evidence", DateTime.UtcNow);
+            evidence.Success.Should().BeTrue(evidence.ErrorMessage);
+            var accepted = await accountCommands.AcceptQualificationAsync(accountId, approval, manifest, "isolated-test-reviewer", DateTime.UtcNow);
+            accepted.Success.Should().BeTrue(accepted.ErrorMessage);
+            await WaitAsync(() => Task.FromResult(accounts.Get(accountId)?.Gate == TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountOperationalGate.Open ? accounts.Get(accountId) : null));
+            var componentId = Guid.NewGuid();
+            var order = new TomasAI.IFM.Domain.Trade.Shared.TradeOrderDefinition
+            {
+                Id = new(1, 1, Random.Shared.Next(10000, int.MaxValue)), Revision = 1,
+                Status = TomasAI.IFM.Domain.Trade.Shared.TradeOrderStatus.Approved,
+                PositionType = TomasAI.IFM.Domain.Trade.Shared.TradeOrderPositionType.Opening,
+                ValueDate = DateOnly.FromDateTime(DateTime.UtcNow), ValidUntilUtc = DateTime.UtcNow.AddMinutes(5),
+                BrokerEnvironment = TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Emulator,
+                BrokerAccountAlias = broker.AccountAlias, PortfolioApprovalId = Guid.NewGuid(),
+                AccountPromotionApprovalReference = approval.ToString("N"), DefinitionHash = "hosted-test", MicroExecutionProfileHash = "hosted-profile",
+                RequiredCapital = 1000m, MaximumLoss = 1000m, TimeInForce = "GTC", AlgorithmPace = "Patient",
+                Components = [new()
+                {
+                    ComponentId = componentId, ReservedTradeId = 1,
+                    StrategyKind = TomasAI.IFM.Domain.Trade.Shared.TradeStrategyKind.FuturesOutright,
+                    SignedNetDebitLimit = 100m, MinimumSignedNetDebitLimit = 99m, MaximumSignedNetDebitLimit = 100m, TickIncrement = .25m,
+                    Legs = [new() { TradeLegId = Guid.NewGuid(), ContractId = "ES20261218", ContractKey = "ES20261218", SignedQuantity = 1, CashMultiplier = 50m, AssetFamily = TomasAI.IFM.Domain.Trade.Shared.TradeAssetFamily.Futures }]
+                }]
+            };
+            var receivedExecutionEvents = new System.Collections.Concurrent.ConcurrentQueue<TomasAI.IFM.Domain.Trade.Shared.Order.Execution.OrderExecutionChangedEvent>();
+            var cancelledNotification = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            notifications = new TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorEventListener(
+                host.Services.GetRequiredService<TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts.INatsEventListenerOptions>(),
+                NullLogger.Instance,
+                host.Services.GetRequiredService<TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsConnectionManager>());
+            await notifications.StartAsync($"OrderFillsTest-{Guid.NewGuid():N}", new()
+            {
+                [new(TomasAI.IFM.Shared.EventModelActor.ActorType.Event, "OrderExecutionEvent")] = ["OrderExecutionChanged"]
+            }, (_, message) =>
+            {
+                var value = TomasAI.IFM.Shared.EventModelActor.ActorExtensions.AsEvent<TomasAI.IFM.Domain.Trade.Shared.Order.Execution.OrderExecutionChangedEvent>(message)!;
+                if (value.OrderExecutionDefinition.TradeOrderId == order.Id)
+                {
+                    receivedExecutionEvents.Enqueue(value);
+                    if (value.OrderExecutionDefinition.Status == TomasAI.IFM.Domain.Trade.Shared.OrderExecutionStatus.Cancelled)
+                        cancelledNotification.TrySetResult();
+                }
+                return ValueTask.CompletedTask;
+            });
+            var submitted = await new TomasAI.IFM.Application.Api.Nats.Client.TradeOrderLifecycleApi(producer)
+                .SubmitAcceptedAsync(order, order.PortfolioApprovalId, TomasAI.IFM.Domain.Trade.Shared.ExecutionChannel.Broker);
+            submitted.Success.Should().BeTrue(submitted.ErrorMessage);
+            var query = new TomasAI.IFM.Application.Api.Nats.Client.BrokerOrderQueryApi(producer);
+            var commands = new TomasAI.IFM.Application.Api.Nats.Client.BrokerOrderCommandApi(producer);
+            var working = await WaitAsync(async () =>
+            {
+                var result = await query.ListAsync(order.Id);
+                return result.Value?.SingleOrDefault(x => x.Status == TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerOrderStatus.Working);
+            });
+            var updated = await commands.UpdatePriceAsync(working.Id, 99.75m, Guid.NewGuid());
+            updated.Success.Should().BeTrue(updated.ErrorMessage);
+            await WaitAsync(async () =>
+            {
+                var result = await query.GetAsync(working.Id);
+                return result.Value is { BrokerRevision: 2, CurrentSignedNetDebitLimit: 99.75m, Status: TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerOrderStatus.Working } ? result.Value : null;
+            });
+            var cancelled = await commands.CancelAsync(working.Id, Guid.NewGuid());
+            cancelled.Success.Should().BeTrue(cancelled.ErrorMessage);
+            await WaitAsync(async () =>
+            {
+                var result = await query.GetAsync(working.Id);
+                return result.Value?.Status == TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerOrderStatus.Cancelled ? result.Value : null;
+            });
+            await WaitAsync(async () =>
+            {
+                var result = await new TomasAI.IFM.Application.Api.Nats.Client.OrderExecutionQueryApi(producer)
+                    .GetAsync(order.Id, working.Id.Execution.ExecutionAttemptId);
+                return result.Value?.Status == TomasAI.IFM.Domain.Trade.Shared.OrderExecutionStatus.Cancelled ? result.Value : null;
+            });
+            await cancelledNotification.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            receivedExecutionEvents.Should().Contain(x => x.OrderExecutionDefinition.Status == TomasAI.IFM.Domain.Trade.Shared.OrderExecutionStatus.Submitted);
+            receivedExecutionEvents.Should().Contain(x => x.OrderExecutionDefinition.Status == TomasAI.IFM.Domain.Trade.Shared.OrderExecutionStatus.Cancelled);
+        }
+        finally
+        {
+            if (notifications is not null) await notifications.StopAsync();
+            if (producer is not null) await producer.StopAsync();
+            (await lifecycle.ShutdownActorsAsync(CancellationToken.None)).Succeeded.Should().BeTrue();
+        }
+        static async Task<T> WaitAsync<T>(Func<Task<T?>> read) where T : class
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(30);
+            while (DateTime.UtcNow < deadline)
+            {
+                if (await read() is { } value) return value;
+                await Task.Delay(100);
+            }
+            throw new TimeoutException("Hosted broker actor workflow did not reach the expected state.");
+        }
+    }
+
     /// <summary>Starts and cleanly stops the API actor host with one coherent synthetic account.</summary>
     [Fact]
     public async Task Isolated_host_starts_broker_and_account_actors_with_one_coherent_snapshot()

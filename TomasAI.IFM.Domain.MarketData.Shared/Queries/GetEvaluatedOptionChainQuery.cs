@@ -26,7 +26,7 @@ public sealed record GetEvaluatedOptionChainQuery : IQuery<EvaluatedOptionChainR
     /// <param name="requiredContractIds">The RequiredContractIds field.</param>
     /// <param name="releaseOnly">The ReleaseOnly field.</param>
     [SerializationConstructor]
-    public GetEvaluatedOptionChainQuery(ActorSubject subject, IActorEntityId entityId, string underlyingContractId, string underlyingSymbol, string[] providerRoots, DateOnly expiryDate, decimal? standardDeviationAmount, double standardDeviationMultiplier, int maximumStrikeCount, string[] requiredContractIds, bool releaseOnly)
+    public GetEvaluatedOptionChainQuery(ActorSubject subject, IActorEntityId entityId, string underlyingContractId, string underlyingSymbol, string[] providerRoots, DateOnly expiryDate, decimal? standardDeviationAmount, double standardDeviationMultiplier, int maximumStrikeCount, string[] requiredContractIds, bool releaseOnly, bool allowFrozenEmulatorPreview = false, bool frozenEmulatorPreviewOnly = false)
     {
         Subject = subject;
         EntityId = entityId;
@@ -41,6 +41,8 @@ public sealed record GetEvaluatedOptionChainQuery : IQuery<EvaluatedOptionChainR
 #pragma warning restore CS0618
         RequiredContractIds = requiredContractIds;
         ReleaseOnly = releaseOnly;
+        AllowFrozenEmulatorPreview = allowFrozenEmulatorPreview;
+        FrozenEmulatorPreviewOnly = frozenEmulatorPreviewOnly;
     }
     [IgnoreMember] public const string Actor = "MarketDataQuery";
     [IgnoreMember] public const string Verb = "GetEvaluatedOptionChain";
@@ -58,6 +60,8 @@ public sealed record GetEvaluatedOptionChainQuery : IQuery<EvaluatedOptionChainR
     [Key(8)] public int MaximumStrikeCount { get; set; }
     [Key(9)] public string[] RequiredContractIds { get; set; } = [];
     [Key(10)] public bool ReleaseOnly { get; set; }
+    [Key(11)] public bool AllowFrozenEmulatorPreview { get; set; }
+    [Key(12)] public bool FrozenEmulatorPreviewOnly { get; set; }
     [IgnoreMember] public int ErrorCode => ErrorId;
     [IgnoreMember] public string QueryParams => UnderlyingContractId;
 }

@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Realtime;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Realtime.Model;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -29,7 +28,6 @@ public sealed class FuturesVxTermStructureSignalRealtimeActor(
     /// <summary>Gets the typed realtime context supplied through open-generic registration.</summary>
     IFuturesVxTermStructureSignalRealtimeContext TypedContext { get; } = IsArgumentNull.Set(
         actorContext as IFuturesVxTermStructureSignalRealtimeContext, nameof(actorContext))!;
-    readonly FuturesVxTermStructureStreamOwnership streamOwnership = new();
     readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesVxTermStructureSignalRealtimeContext,
         FuturesTermStructureContracts, ILogger, ValueTask<bool>>> _receiveMap =
         new Dictionary<Type, Func<IEvent, IFuturesVxTermStructureSignalRealtimeContext,
@@ -41,30 +39,17 @@ public sealed class FuturesVxTermStructureSignalRealtimeActor(
         };
 
     /// <inheritdoc />
-    protected override async ValueTask OnStartup(
+    protected override ValueTask OnStartup(
         IEventActorContext<FuturesVxTermStructureSignalRealtimeActor> context)
     {
         context.AddRealtimeRouter(Route, Id);
-        if (TypedContext.MarketDataApi.TryGetFuturesTermStructureContracts("VX", out var contracts)
-            && contracts.IsValid)
-        {
-            try
-            {
-                _ = await streamOwnership.EnsureAsync(TypedContext.MarketDataApi).ConfigureAwait(false);
-            }
-            catch (MarketDataApiNotRunningException)
-            {
-                // Actor registration precedes feed startup. Keep the price router attached;
-                // ReceiveAsync acquires both leases on the first update after the epoch starts.
-                TypedContext.Logger.LogInformation("VX term-structure stream acquisition deferred until the market-data epoch starts.");
-            }
-        }
+        return ValueTask.CompletedTask;
     }
     /// <inheritdoc />
-    protected override async ValueTask OnShutdown(IEventActorContext<FuturesVxTermStructureSignalRealtimeActor> context)
+    protected override ValueTask OnShutdown(IEventActorContext<FuturesVxTermStructureSignalRealtimeActor> context)
     {
         context.RemoveRealtimeRouter(Route, Id);
-        await streamOwnership.ReleaseAsync(TypedContext.MarketDataApi).ConfigureAwait(false);
+        return ValueTask.CompletedTask;
     }
     /// <inheritdoc />
     protected override IEvent ParseMessage(IEventActorContext<FuturesVxTermStructureSignalRealtimeActor> context,
@@ -76,7 +61,10 @@ public sealed class FuturesVxTermStructureSignalRealtimeActor(
     {
         ArgumentNullException.ThrowIfNull(context);
         var handler = ResolveMappedEventHandler(@event, _receiveMap);
-        var contracts = await streamOwnership.EnsureAsync(TypedContext.MarketDataApi).ConfigureAwait(false);
+        if (!TypedContext.MarketDataApi.TryGetFuturesTermStructureContracts("VX", out var contracts)
+            || !contracts.IsValid)
+            throw new FuturesContractRolloverConfigurationException(
+                "The front and second VX contracts are not available in the startup registry.");
         _ = await handler(@event, TypedContext, contracts, TypedContext.Logger).ConfigureAwait(false);
     }
     /// <inheritdoc />

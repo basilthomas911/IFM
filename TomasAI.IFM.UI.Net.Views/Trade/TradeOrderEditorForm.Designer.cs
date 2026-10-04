@@ -53,7 +53,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             pnlTradePosition = new BufferedTradePanel();
             cbLiveFeed = new CheckBox();
             btnEndOfDay = new Button();
-            txtTradeType = new TextBox();
+            txtTradeId = new TextBox();
             txtDaysToExpiry = new TextBox();
             lblDaysToExpiry = new Label();
             dtpTradeDate = new IronCondor.DarkDateTimePicker();
@@ -62,7 +62,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             lblOrderAction = new Label();
             btnSubmitOrder = new Button();
             ddlOrderActionType = new ComboBox();
-            lblTradeType = new Label();
+            lblTradeId = new Label();
             pnlTrades = new Panel();
             ddlTradeState = new ComboBox();
             lblTradeStateTarget = new Label();
@@ -354,7 +354,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             pnlTradePosition.BackColor = Color.FromArgb(64, 64, 64);
             pnlTradePosition.Controls.Add(cbLiveFeed);
             pnlTradePosition.Controls.Add(btnEndOfDay);
-            pnlTradePosition.Controls.Add(txtTradeType);
+            pnlTradePosition.Controls.Add(txtTradeId);
             pnlTradePosition.Controls.Add(txtDaysToExpiry);
             pnlTradePosition.Controls.Add(lblDaysToExpiry);
             pnlTradePosition.Controls.Add(dtpTradeDate);
@@ -363,7 +363,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             pnlTradePosition.Controls.Add(lblOrderAction);
             pnlTradePosition.Controls.Add(btnSubmitOrder);
             pnlTradePosition.Controls.Add(ddlOrderActionType);
-            pnlTradePosition.Controls.Add(lblTradeType);
+            pnlTradePosition.Controls.Add(lblTradeId);
             pnlTradePosition.Dock = DockStyle.Fill;
             pnlTradePosition.Location = new Point(0, 222);
             pnlTradePosition.Margin = new Padding(3, 2, 3, 2);
@@ -401,17 +401,17 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             btnEndOfDay.UseVisualStyleBackColor = true;
             btnEndOfDay.Click += btnEndOfDay_Click;
             // 
-            // txtTradeType
+            // txtTradeId
             // 
-            txtTradeType.BackColor = Color.Black;
-            txtTradeType.BorderStyle = BorderStyle.FixedSingle;
-            txtTradeType.Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            txtTradeType.Location = new Point(94, 11);
-            txtTradeType.Margin = new Padding(3, 2, 3, 2);
-            txtTradeType.Name = "txtTradeType";
-            txtTradeType.ReadOnly = true;
-            txtTradeType.Size = new Size(287, 26);
-            txtTradeType.TabIndex = 29;
+            txtTradeId.BackColor = Color.Black;
+            txtTradeId.BorderStyle = BorderStyle.FixedSingle;
+            txtTradeId.Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            txtTradeId.Location = new Point(94, 11);
+            txtTradeId.Margin = new Padding(3, 2, 3, 2);
+            txtTradeId.Name = "txtTradeId";
+            txtTradeId.ReadOnly = true;
+            txtTradeId.Size = new Size(287, 26);
+            txtTradeId.TabIndex = 29;
             // 
             // txtDaysToExpiry
             // 
@@ -513,18 +513,18 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             ddlOrderActionType.TabIndex = 19;
             ddlOrderActionType.SelectedIndexChanged += ddlOrderActionType_SelectedIndexChanged;
             // 
-            // lblTradeType
+            // lblTradeId
             // 
-            lblTradeType.AutoSize = true;
-            lblTradeType.Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            lblTradeType.ForeColor = Color.White;
-            lblTradeType.Location = new Point(0, 13);
-            lblTradeType.Margin = new Padding(0);
-            lblTradeType.Name = "lblTradeType";
-            lblTradeType.Size = new Size(92, 20);
-            lblTradeType.TabIndex = 1;
-            lblTradeType.Text = "Trade Type:";
-            lblTradeType.TextAlign = ContentAlignment.MiddleRight;
+            lblTradeId.AutoSize = true;
+            lblTradeId.Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            lblTradeId.ForeColor = Color.White;
+            lblTradeId.Location = new Point(0, 13);
+            lblTradeId.Margin = new Padding(0);
+            lblTradeId.Name = "lblTradeId";
+            lblTradeId.Size = new Size(92, 20);
+            lblTradeId.TabIndex = 1;
+            lblTradeId.Text = "Trade Id:";
+            lblTradeId.TextAlign = ContentAlignment.MiddleRight;
             // 
             // pnlTrades
             // 
@@ -758,7 +758,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
         private System.Windows.Forms.Panel pnlTradePosition;
         private System.Windows.Forms.Button btnSubmitOrder;
         private System.Windows.Forms.ComboBox ddlOrderActionType;
-        private System.Windows.Forms.Label lblTradeType;
+        private System.Windows.Forms.Label lblTradeId;
         private System.Windows.Forms.Label lblOrderAction;
         private System.Windows.Forms.Button btnAddTrade;
         private System.Windows.Forms.Button btnRemoveTrade;
@@ -770,7 +770,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
         private System.Windows.Forms.Label lblDaysToExpiry;
         private System.Windows.Forms.DateTimePicker dtpTradeDate;
         private System.Windows.Forms.Label lblTradeDate;
-        private System.Windows.Forms.TextBox txtTradeType;
+        private System.Windows.Forms.TextBox txtTradeId;
         private System.Windows.Forms.Button btnEndOfDay;
         private System.Windows.Forms.Button btnCreateFund;
         private System.Windows.Forms.Label lblTo;

@@ -1,4 +1,4 @@
-namespace TomasAI.IFM.Framework.TradeBroker.Contracts;
+﻿namespace TomasAI.IFM.Framework.TradeBroker.Contracts;
 
 /// <summary>The exact first-release strategy shape supported by a provider.</summary>
 public enum FrameworkOrderShape : byte
@@ -64,7 +64,8 @@ public sealed record FrameworkOrderRequest(
     decimal RequiredCapital,
     decimal MaximumLoss,
     FrameworkOrderType OrderType = FrameworkOrderType.Limit,
-    FrameworkOrderAlgorithm Algorithm = FrameworkOrderAlgorithm.None);
+    FrameworkOrderAlgorithm Algorithm = FrameworkOrderAlgorithm.None,
+    string TimeInForce = "Day", string AlgorithmPace = "Normal");
 
 /// <summary>The bounded price-only change authorized by the current order envelope.</summary>
 public sealed record FrameworkLimitUpdate(

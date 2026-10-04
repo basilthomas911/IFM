@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
+﻿using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -164,6 +164,7 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<ITradeQueryApi, OptionTradeQueryApi>();
             _container!.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Contracts.IBrokerAccountQueryApi,
                 BrokerAccountQueryApi>();
+            _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.Order.Broker.IBrokerOrderCommandApi, TomasAI.IFM.Application.Api.Nats.Client.BrokerOrderCommandApi>();
             _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.Order.Broker.IBrokerOrderQueryApi,
                 BrokerOrderQueryApi>();
             _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.Order.Execution.IOrderExecutionQueryApi,
@@ -356,6 +357,8 @@ namespace TomasAI.IFM.UI.Net
             _container.RegisterSingleton<TradeQueryService>();
             _container.RegisterSingleton<TradePlacementCommandService>();
             _container.RegisterSingleton<TradePlacementEventService>();
+            _container.RegisterSingleton<IOrderExecutionNotificationService>(() =>
+                new OrderExecutionNotificationService(() => _container.GetInstance<IActorEventListener>()));
             _container.RegisterSingleton<TradePlanQueryService>();
             _container.RegisterSingleton<StrategyTradePlanQueryService>();
             _container.RegisterSingleton<StrategyPositionService>();

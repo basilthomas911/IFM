@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.ViewModels.Portfolio;
 using TomasAI.IFM.UI.Net.Views.App;
@@ -9,7 +9,7 @@ namespace TomasAI.IFM.UI.Net.Views.Portfolio;
 public sealed partial class PortfolioAdministrationForm
 {
     readonly DataGridView _fundSummary = PortfolioUiStyle.Grid("Selected Fund information");
-    readonly TableLayoutPanel _sections = new() { Name = "portfolioSections", Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
+    readonly DarkTabControl _sections = new() { Name = "portfolioAdministrationTabs", AccessibleName = "Portfolio administration tabs", Dock = DockStyle.Fill, Margin = Padding.Empty };
     readonly TableLayoutPanel _metricStrip = new() { Name = "fundMetrics", Dock = DockStyle.Fill, ColumnCount = 10, RowCount = 2, Height = 64, Margin = Padding.Empty };
     readonly TextBox[] _metricValues = new TextBox[10];
     readonly Label _metricStatus = new() { AutoEllipsis = true, Dock = DockStyle.Fill, Height = 25, Text = "Select a Fund to view metrics.", AccessibleName = "Fund metrics status" };
@@ -43,12 +43,13 @@ public sealed partial class PortfolioAdministrationForm
         tabs.TabPages.Add(Page("Assignments", _assignments));
         tabs.TabPages[2].ToolTipText = "Fund Risk Envelope";
         tabs.TabPages[3].ToolTipText = "Fund Trade Assignments";
-        for (var index = 0; index < 3; index++) _sections.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / 3));
-        _sections.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        _sections.Controls.Add(Section("Portfolios", _portfolios,
-            [new Label { Text = "Show State", AutoSize = true, Margin = new Padding(4, 8, 4, 4) }, _state, _refresh, _createPortfolio, _riskPolicy, _portfolioActions]), 0, 0);
-        _sections.Controls.Add(Section("Funds", _funds, [_createFund, _newFundVersion, _fundState, _financials, _riskHistory]), 1, 0);
-        _sections.Controls.Add(Section("Selected Fund Details", tabs, [_configureAllocation, _configureEnvelope, _configureAssignment]), 2, 0);
+        _sections.TabPages.Add(Page("Portfolios", Section("Portfolios", _portfolios,
+            [new Label { Text = "Show State", AutoSize = true, Margin = new Padding(4, 8, 4, 4) }, _state, _refresh, _createPortfolio, _riskPolicy, _portfolioActions])));
+        _sections.TabPages.Add(Page("Funds", Section("Funds", _funds,
+            [_createFund, _newFundVersion, _fundState, _financials, _riskHistory])));
+        _sections.TabPages.Add(Page("Fund Details", Section("Selected Fund Details", tabs,
+            [_configureAllocation, _configureEnvelope, _configureAssignment])));
+
 
         string[] labels = ["Win Rate", "Avg Profit", "Loss Rate", "Avg Loss", "W/L Ratio", "Sharpe Ratio", "P&L", "P&L (%)", "Commission", "Max DD (%)"];
         _metricStrip.RowStyles.Add(new RowStyle(SizeType.Percent, 50));

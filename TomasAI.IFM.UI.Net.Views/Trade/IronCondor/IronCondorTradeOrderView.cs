@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Globalization;
 using TomasAI.IFM.UI.Net.Models.Portfolio;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
@@ -17,7 +17,7 @@ using TomasAI.IFM.UI.Net.ViewModels.Operations;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 
-public partial class IronCondorTradeOrderView : DarkTradingView, IAsyncFormControl, ITradeOrderControl, ITradeExecutionSelectionControl
+public partial class IronCondorTradeOrderView : DarkTradingView, IAsyncFormControl, ITradeOrderControl, ITradeExecutionSelectionControl, ITradeOrderPriceSelectionControl, ITradeOptionLegSelectionControl, ITradeQuantitySelectionControl
 {
     readonly TradeOrderEditorForm _parentControl;
     readonly IronCondorTradeOrderViewModel _viewModel;
@@ -83,6 +83,7 @@ public partial class IronCondorTradeOrderView : DarkTradingView, IAsyncFormContr
         Controls.Add(_initialLoading);
         _initialContent.ResumeLayout(true);
         ResumeLayout(true);
+        TradeOrderInputPalette.ApplyBlackBackgrounds(this);
         // Invisible docked panels are skipped by the normal docking pass.
         SizeChanged += (_, _) => _initialContent.Width = ClientSize.Width;
     }
@@ -479,7 +480,7 @@ public partial class IronCondorTradeOrderView : DarkTradingView, IAsyncFormContr
         var optionLeg4StrikePrice = $"{_viewModel.GetStrikePrice(_viewModel.OptionLeg4Action, OptionType.Call):F0}";
         var orderAction = _viewModel.GetOrderAction();
         var orderType = (OrderType)Enum.Parse(typeof(OrderType), $"{ddlOrderType.SelectedItem}");
-        var tradeFillType = TradeFillType.Manual;
+        var tradeFillType = TradeFillType.Broker;
         var orderAmount = _viewModel.OrderAmount;
         var totalAmount = _viewModel.TotalAmount;
         var intraDayPnl = await _viewModel.GetIntraDayPnl();
@@ -546,8 +547,28 @@ public partial class IronCondorTradeOrderView : DarkTradingView, IAsyncFormContr
 
     }
 
-    public void SetExecutionSelection(BrokerOrderType orderType, BrokerAlgorithm algorithm)
-        => _viewModel.SetExecutionSelection(orderType, algorithm);
+    public void SetOrderPrice(decimal signedNetDebitLimit) => _viewModel.OrderPrice = signedNetDebitLimit;
+
+    public IReadOnlyList<TradeOrderDefinition> SubmittedTradeOrders => _viewModel.SubmittedTradeOrders;
+
+    public void SetExecutionSelection(BrokerOrderType orderType, BrokerAlgorithm algorithm, string timeInForce = "Day", string algorithmPace = "Normal")
+        => _viewModel.SetExecutionSelection(orderType, algorithm, timeInForce, algorithmPace);
+
+    public void SetQuantity(int quantity)
+    {
+        if (quantity is < 1 or > 100000) throw new ArgumentOutOfRangeException(nameof(quantity));
+        nudQuantity.Maximum = 100000;
+        nudQuantity.Minimum = 1;
+        nudQuantity.Increment = 1;
+        nudQuantity.DecimalPlaces = 0;
+        nudQuantity.Value = quantity;
+    }
+
+    public void SetOptionLegSelection(DateOnly expiry, (string ContractId, decimal Strike, bool IsCall)[] legs)
+    {
+        dtmLeg1LastTradeDate.Value = expiry.ToDateTime(TimeOnly.MinValue);
+        _viewModel.SetOptionLegSelection(expiry, legs);
+    }
 
     public void ShowAssetPrice(decimal assetPrice) => txtAssetPrice.Text = $"{assetPrice:C}";
 

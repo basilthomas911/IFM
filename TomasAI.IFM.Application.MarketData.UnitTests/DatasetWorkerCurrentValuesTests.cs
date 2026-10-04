@@ -283,11 +283,6 @@ public sealed class DatasetWorkerCurrentValuesTests
         Assert.Equal(batch[0], batch[1]);
         Assert.Null(await api.GetFuturesContractAsync("MISSING"));
         Assert.Throws<NotSupportedException>(() => { _ = api.StartStreamingFuturesTickDataAsync(MarketDataApiTestContext.FutureId); });
-        Assert.Throws<NotSupportedException>(() =>
-        {
-            _ = api.StartStreamingFuturesOptionChainDataAsync(
-            MarketDataApiTestContext.FutureId, MarketDataApiTestContext.OptionMaturity, [MarketDataApiTestContext.CallId]);
-        });
         Assert.Throws<NotSupportedException>(() => api.TryGetLastOptionTickPrice(MarketDataApiTestContext.CallId, out _));
         Assert.True(api.IsTickDataStreamActive(MarketDataApiTestContext.FutureId));
         Assert.True(api.CoreFuturesRoutesAreRuntimeOwned);

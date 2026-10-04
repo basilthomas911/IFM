@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Trade.Order.Broker.Command;
+﻿using TomasAI.IFM.Domain.Trade.Order.Broker.Command;
 using TomasAI.IFM.Domain.Trade.Order.Broker.Command.State;
 using TomasAI.IFM.Domain.Trade.Order.Broker.Query.Model;
 using TomasAI.IFM.Domain.BrokerAccount.Contracts;
@@ -13,12 +13,31 @@ namespace TomasAI.IFM.Application.TradeBroker.UnitTests;
 public sealed class BrokerOrderCommandTests
 {
     [Fact]
+    public void Broker_order_source_event_keeps_definition_at_wire_key_eight()
+    {
+        var command = CreateCommand();
+        var state = new BrokerOrderCommandState();
+        Assert.True(ExecuteCreate(command, state).Success);
+        var source = Assert.IsType<BrokerOrderChangedEvent>(Assert.Single(state.Events));
+        var bytes = MessagePack.MessagePackSerializer.Serialize(source);
+        var restored = MessagePack.MessagePackSerializer.Deserialize<BrokerOrderChangedEvent>(bytes);
+        var reader = new MessagePack.MessagePackReader(bytes);
+        Assert.True(reader.ReadArrayHeader() > 8);
+        for (var key = 0; key < 8; key++) reader.Skip();
+        var definition = MessagePack.MessagePackSerializer.Deserialize<BrokerOrderDefinition>(ref reader);
+        Assert.Equal(command.EntityId, definition.Id);
+        Assert.Equal(command.EntityId, restored.BrokerOrderDefinition.Id);
+        Assert.Equal(command.CommandId, restored.CommandId);
+        Assert.Equal(BrokerOrderStatus.PlacePending, restored.BrokerOrderDefinition.Status);
+    }
+
+    [Fact]
     public void Create_commits_one_pending_intent_and_exact_replay_adds_no_event()
     {
         var command = CreateCommand();
         var state = new BrokerOrderCommandState();
         Assert.True(ExecuteCreate(command, state).Success);
-        Assert.Equal(BrokerOrderStatus.PlacePending, state.Current!.Status);
+        Assert.Equal(BrokerOrderStatus.PlacePending, state.BrokerOrderDefinition!.Status);
         Assert.Single(state.Events);
         Assert.True(ExecuteCreate(command, state).Success);
         Assert.Single(state.Events);
@@ -42,7 +61,7 @@ public sealed class BrokerOrderCommandTests
             RecordedAtUtc = create.EffectiveAtUtc.AddMilliseconds(1)
         };
         Assert.True(receipt.Execute(state).Success);
-        Assert.Equal(BrokerOrderStatus.Dispatched, state.Current!.Status);
+        Assert.Equal(BrokerOrderStatus.Dispatched, state.BrokerOrderDefinition!.Status);
         Assert.Equal(2, state.Events.Count);
         Assert.True(receipt.Execute(state).Success);
         Assert.Equal(2, state.Events.Count);
@@ -91,7 +110,7 @@ public sealed class BrokerOrderCommandTests
                 RecordBrokerOrderObservationCommand.Verb, create.EntityId.Format())
         };
         Assert.True(observed.Execute(state).Success);
-        Assert.Equal(BrokerOrderStatus.Working, state.Current!.Status);
+        Assert.Equal(BrokerOrderStatus.Working, state.BrokerOrderDefinition!.Status);
         Assert.Equal(3, state.Events.Count);
         Assert.True(observed.Execute(state).Success);
         Assert.Equal(3, state.Events.Count);
@@ -144,8 +163,8 @@ public sealed class BrokerOrderCommandTests
             RecordedAtUtc = create.EffectiveAtUtc.AddMilliseconds(2)
         };
         Assert.True(receipt.Execute(state).Success);
-        Assert.Equal(BrokerOrderStatus.Working, state.Current!.Status);
-        Assert.Null(state.Current.LastObservation);
+        Assert.Equal(BrokerOrderStatus.Working, state.BrokerOrderDefinition!.Status);
+        Assert.Null(state.BrokerOrderDefinition.LastObservation);
     }
 
     [Fact]
@@ -166,8 +185,8 @@ public sealed class BrokerOrderCommandTests
         };
 
         Assert.True(update.Execute(state).Success);
-        Assert.Equal(BrokerOrderStatus.UpdatePending, state.Current!.Status);
-        Assert.Equal(BrokerMutationKind.UpdateLimit, state.Current.PendingMutation);
+        Assert.Equal(BrokerOrderStatus.UpdatePending, state.BrokerOrderDefinition!.Status);
+        Assert.Equal(BrokerMutationKind.UpdateLimit, state.BrokerOrderDefinition.PendingMutation);
         Assert.Single(state.Events);
         state.AcceptChanges();
         var updateReceipt = new RecordBrokerDispatchCommand
@@ -183,7 +202,7 @@ public sealed class BrokerOrderCommandTests
             RecordedAtUtc = create.EffectiveAtUtc.AddSeconds(2)
         };
         Assert.True(updateReceipt.Execute(state).Success);
-        Assert.Equal(BrokerOrderStatus.Working, state.Current!.Status);
+        Assert.Equal(BrokerOrderStatus.Working, state.BrokerOrderDefinition!.Status);
         state.AcceptChanges();
         var cancel = new RequestBrokerOrderCancelCommand
         {
@@ -195,8 +214,8 @@ public sealed class BrokerOrderCommandTests
             EffectiveAtUtc = create.EffectiveAtUtc.AddSeconds(3)
         };
         Assert.True(cancel.Execute(state).Success);
-        Assert.Equal(BrokerOrderStatus.CancelPending, state.Current!.Status);
-        Assert.Equal(BrokerMutationKind.Cancel, state.Current.PendingMutation);
+        Assert.Equal(BrokerOrderStatus.CancelPending, state.BrokerOrderDefinition!.Status);
+        Assert.Equal(BrokerMutationKind.Cancel, state.BrokerOrderDefinition.PendingMutation);
     }
 
     [Fact]
@@ -230,7 +249,7 @@ public sealed class BrokerOrderCommandTests
             }
         };
         Assert.True(partial.Execute(state).Success);
-        Assert.Equal(BrokerOrderStatus.PartiallyFilled, state.Current!.Status);
+        Assert.Equal(BrokerOrderStatus.PartiallyFilled, state.BrokerOrderDefinition!.Status);
 
         var update = new RequestBrokerOrderLimitUpdateCommand
         {
@@ -243,7 +262,7 @@ public sealed class BrokerOrderCommandTests
             EffectiveAtUtc = create.EffectiveAtUtc.AddSeconds(2)
         };
         Assert.True(update.Execute(state).Success);
-        Assert.Equal(BrokerOrderStatus.UpdatePending, state.Current!.Status);
+        Assert.Equal(BrokerOrderStatus.UpdatePending, state.BrokerOrderDefinition!.Status);
         Assert.True(new RecordBrokerDispatchCommand
         {
             CommandId = Guid.NewGuid(),
@@ -256,7 +275,7 @@ public sealed class BrokerOrderCommandTests
             Detail = "remaining quantity updated",
             RecordedAtUtc = create.EffectiveAtUtc.AddSeconds(3)
         }.Execute(state).Success);
-        Assert.Equal(BrokerOrderStatus.PartiallyFilled, state.Current!.Status);
+        Assert.Equal(BrokerOrderStatus.PartiallyFilled, state.BrokerOrderDefinition!.Status);
 
         var cancel = new RequestBrokerOrderCancelCommand
         {
@@ -287,7 +306,7 @@ public sealed class BrokerOrderCommandTests
                 ContentHash = "CANCELLED"
             }
         }.Execute(state).Success);
-        Assert.Equal(BrokerOrderStatus.Cancelled, state.Current!.Status);
+        Assert.Equal(BrokerOrderStatus.Cancelled, state.BrokerOrderDefinition!.Status);
 
         Assert.True(new RecordBrokerOrderObservationCommand
         {
@@ -305,7 +324,7 @@ public sealed class BrokerOrderCommandTests
                 ContentHash = "LATE-FILL"
             }
         }.Execute(state).Success);
-        Assert.Equal(BrokerOrderStatus.PartiallyFilled, state.Current!.Status);
+        Assert.Equal(BrokerOrderStatus.PartiallyFilled, state.BrokerOrderDefinition!.Status);
     }
 
     [Fact]

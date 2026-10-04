@@ -1,3 +1,4 @@
+﻿using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Command.State;
 using TomasAI.IFM.Domain.Trade.Model;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -44,6 +45,8 @@ public static class CloseOptionTrade
         this CloseOptionTradeCommand command,
         EstablishedTradeDefinition current) => new()
         {
+            Subject = new(ActorType.Event, "FuturesOptionTradeEvent", OptionTradeChangedEvent.Verb, command.EntityId.Format()),
+            ReceivedOn = DateTime.UtcNow,
             EntityId = command.EntityId,
             State = ApplyClosingEvidence(current, command),
             IsInitialEstablishment = false

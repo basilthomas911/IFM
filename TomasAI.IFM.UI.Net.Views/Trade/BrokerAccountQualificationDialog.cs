@@ -1,3 +1,4 @@
+﻿using System.Security.Cryptography;
 using TomasAI.IFM.Domain.BrokerAccount.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
@@ -48,6 +49,26 @@ public sealed class BrokerAccountQualificationDialog : DarkTradingForm
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         Add(layout, "Current state", _state);
+        var loadReport = ActionButton("loadQualificationReport", "Load test report...");
+        var reportPreview = new TextBox { Name = "qualificationReportPreview", Multiline = true,
+            ReadOnly = true, ScrollBars = ScrollBars.Vertical, Height = 120, Dock = DockStyle.Fill,
+            BackColor = Color.Black, ForeColor = Color.White };
+        loadReport.Click += (_, _) =>
+        {
+            using var picker = new OpenFileDialog { Title = "Select emulator qualification report",
+                Filter = "Test reports (*.txt;*.trx;*.json)|*.txt;*.trx;*.json|All files (*.*)|*.*" };
+            if (picker.ShowDialog(this) != DialogResult.OK) return;
+            try
+            {
+                var bytes = File.ReadAllBytes(picker.FileName);
+                _manifest.Text = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+                _evidence.Text = Path.GetFullPath(picker.FileName);
+                reportPreview.Text = System.Text.Encoding.UTF8.GetString(bytes);
+            }
+            catch (Exception exception) { _state.Text = exception.Message; }
+        };
+        Add(layout, "Qualification report:", loadReport);
+        Add(layout, "Report contents:", reportPreview);
         Add(layout, "Manifest SHA-256", _manifest);
         Add(layout, "Evidence reference", _evidence);
         Add(layout, "Authorized reviewer", _reviewer);

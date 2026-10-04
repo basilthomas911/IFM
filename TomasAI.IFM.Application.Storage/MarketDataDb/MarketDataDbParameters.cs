@@ -1,5 +1,6 @@
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
@@ -653,6 +654,19 @@ internal readonly record struct InsertFuturesOptionTickData(string contractId, D
 {
     public object Bind() => new object?[] { contractId, valueDate, tickId, tickTime, optionPrice, bidPrice, askPrice, bidSize, askSize, impliedVolatility, underlyingPrice, delta, gamma, vega, theta, rho };
 }
+internal readonly record struct UpsertFuturesOptionChainQuoteData(
+    string underlyingContractId, DateOnly expiryDate, FuturesOptionTickDataV2ReadModel tick) : IBindValue
+{
+    public object Bind() => new object?[] { underlyingContractId, expiryDate, tick.ValueDate,
+        tick.ContractId, tick.TickId, tick.TickTime, tick.OptionPrice, tick.BidPrice,
+        tick.AskPrice, tick.BidSize, tick.AskSize, tick.ImpliedVolatility,
+        tick.UnderlyingPrice, tick.Delta, tick.Gamma, tick.Vega, tick.Theta, tick.Rho };
+}
+internal readonly record struct GetFuturesOptionChainQuoteData(
+    string underlyingContractId, DateOnly expiryDate, DateOnly valueDate) : IBindValue
+{
+    public object Bind() => new object?[] { underlyingContractId, expiryDate, valueDate };
+}
 internal readonly record struct InsertFuturesEmaSignal(
     string seriesKey, string timePeriod, string configurationId, int yearMonth,
     DateTime marketDataAsOf, Guid observationId, string contractId, DateOnly valueDate,
@@ -1165,4 +1179,20 @@ internal readonly record struct HistoricalRawEodRangeKey(
     DateOnly EndDate) : IBindValue
 {
     public object Bind() => new object?[] { SeriesKey, YearMonth, StartDate, EndDate };
+}
+
+internal readonly record struct UpdateOptionChainStatisticsParameters(
+    string UnderlyingContractId, DateOnly ExpiryDate, DateOnly ValueDate, string ContractId,
+    long? Volume, long? OpenInterest, DateOnly? VolumeValueDate, DateOnly? OpenInterestValueDate) : IBindValue
+{
+    public object Bind() => new object?[] { Volume, OpenInterest, VolumeValueDate, OpenInterestValueDate,
+        UnderlyingContractId, ExpiryDate, ValueDate, ContractId };
+}
+
+internal readonly record struct UpdateOptionChainGreeks(string underlyingContractId, DateOnly expiryDate,
+    FuturesOptionTickDataV2ReadModel tick) : IBindValue
+{
+    public object Bind() => new object?[] { tick.ImpliedVolatility, tick.UnderlyingPrice, tick.Delta,
+        tick.Gamma, tick.Vega, tick.Theta, tick.Rho, underlyingContractId, expiryDate,
+        tick.ValueDate, tick.ContractId, tick.TickId };
 }

@@ -1,3 +1,4 @@
+﻿using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Command.State;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Model;
 using TomasAI.IFM.Domain.Trade.Model;
@@ -25,6 +26,8 @@ internal static class VerticalSpreadPositionTransition
 
         if (!state.Update(new VerticalSpreadPositionChangedEvent
         {
+            Subject = new(ActorType.Event, "FuturesVerticalSpreadTradePositionEvent", VerticalSpreadPositionChangedEvent.Verb, command.EntityId.Format()),
+            ReceivedOn = DateTime.UtcNow,
             EntityId = command.EntityId,
             State = decision.Value
         }, command))

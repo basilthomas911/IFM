@@ -120,7 +120,7 @@ public sealed class TradeFlowBehaviorTests
             Math.Sign(order.Components[0].Legs[0].SignedQuantity)));
 
         execution.Current!.Status.Should().Be(OrderExecutionStatus.PartiallyFilled);
-        execution.Accept(Now.AddSeconds(1)).Code.Should().Be("OE.UNBALANCED_EXPOSURE");
+        execution.Accept(Now.AddSeconds(1)).Code.Should().Be("OrderExecution.UNBALANCED_EXPOSURE");
     }
 
     [Fact]

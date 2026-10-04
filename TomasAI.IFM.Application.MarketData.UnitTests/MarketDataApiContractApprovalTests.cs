@@ -11,12 +11,13 @@ public sealed class MarketDataApiContractApprovalTests
     {
         var methods = typeof(IMarketDataApi).GetMethods();
 
-        methods.Should().HaveCount(41);
+        methods.Should().HaveCount(40);
         methods.Select(method => method.Name).Should().BeEquivalentTo(
             "TryGetMarketInstrumentId",
             "GetFuturesMarketHealth",
             "GetTradeStrategySymbolsAsync",
             "IsDatabentoFeedUp",
+            "get_CoreFuturesRoutesAreRuntimeOwned",
             "GetRuntimeStatus",
             "TryGetOnTheRunFuturesContract",
             "TryGetFuturesTermStructureContracts",
@@ -45,8 +46,6 @@ public sealed class MarketDataApiContractApprovalTests
             "StopStreamingFuturesTickDataAsync",
             "StartStreamingFuturesOptionTickDataAsync",
             "StopStreamingFuturesOptionTickDataAsync",
-            "StartStreamingFuturesOptionChainDataAsync",
-            "StopStreamingFuturesOptionChainDataAsync",
             // Additive typed Stage 4 methods; legacy signatures remain above unchanged.
             "StartStreamingFuturesTickDataAsync",
             "StartStreamingFuturesOptionTickDataAsync",

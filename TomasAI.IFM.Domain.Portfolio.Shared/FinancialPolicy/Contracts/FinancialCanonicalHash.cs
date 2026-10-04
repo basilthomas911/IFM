@@ -1,8 +1,10 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
+using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 
 namespace TomasAI.IFM.Domain.Portfolio.Shared.Financial;
@@ -17,7 +19,25 @@ public static class FinancialCanonicalHash
         Exposures = value.Exposures.OrderBy(x => x.ScopeKind).ThenBy(x => x.ScopeKey, StringComparer.Ordinal)
             .ThenBy(x => x.Measure).ThenBy(x => x.Unit).ToArray()
     });
-    static readonly JsonSerializerOptions Options = new() { Converters = { new CanonicalUtcDateTimeConverter() } };
+    static readonly JsonSerializerOptions Options = CreateOptions();
+    static JsonSerializerOptions CreateOptions()
+    {
+        var resolver = new DefaultJsonTypeInfoResolver();
+        resolver.Modifiers.Add(info =>
+        {
+            if (info.Type != typeof(PortfolioOrderCandidate) && info.Type != typeof(PortfolioExecutionOrderInstruction)) return;
+            // Absent execution settings in historical requests mean Day/Normal. Preserve their
+            // semantic hash while including every nondefault choice in the approved identity.
+            foreach (var property in info.Properties)
+            {
+                if (property.Name == nameof(PortfolioOrderCandidate.TimeInForce))
+                    property.ShouldSerialize = (_, value) => value is string text && text != "Day";
+                if (property.Name == nameof(PortfolioOrderCandidate.AlgorithmPace))
+                    property.ShouldSerialize = (_, value) => value is string text && text != "Normal";
+            }
+        });
+        return new() { TypeInfoResolver = resolver, Converters = { new CanonicalUtcDateTimeConverter() } };
+    }
     public static string Request<T>(IFinancialRequest<T> request) => Compute(new
     {
         request.PortfolioId,

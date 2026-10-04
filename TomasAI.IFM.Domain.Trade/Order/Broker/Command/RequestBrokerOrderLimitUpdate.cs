@@ -1,69 +1,63 @@
+using TomasAI.IFM.Domain.Trade.Order.Broker.Command.Model;
 using TomasAI.IFM.Domain.Trade.Order.Broker.Command.State;
 using TomasAI.IFM.Domain.Trade.Shared.Order.Broker;
+using TomasAI.IFM.Domain.BrokerAccount.Contracts;
+using TomasAI.IFM.Domain.BrokerAccount.Query.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Order.Broker.Command;
 
-/// <summary>Records a price-only broker-order change before the external broker is called.</summary>
+/// <summary>Handles RequestBrokerOrderLimitUpdate through computation, failure guards and state-owned event application.</summary>
 public static class RequestBrokerOrderLimitUpdate
 {
-    /// <summary>Applies a new approved limit only while the broker order is working.</summary>
-    public static ServiceResult<GuidResult> Execute(
-        this RequestBrokerOrderLimitUpdateCommand command,
+    /// <summary>Applies a valid broker-order decision; exact replay succeeds without another event.</summary>
+    /// <param name="command">The concrete broker-order intent.</param>
+    /// <param name="state">The authoritative broker-order state.</param>
+    /// <returns>The command ID on success, or the business/application failure.</returns>
+    public static ServiceResult<GuidResult> Execute(this RequestBrokerOrderLimitUpdateCommand command,
         BrokerOrderCommandState state)
     {
-        var current = state.Current;
-        if (current is null) return command.UpdateFailed("BO.NOT_FOUND");
-        if (current.OperationId == command.OperationId &&
-            current.CurrentSignedNetDebitLimit == command.NewSignedNetDebitLimit)
-            return new ServiceOk<GuidResult>(new(command.CommandId));
-        if (current.Status is not (BrokerOrderStatus.Working or BrokerOrderStatus.Dispatched or
-            BrokerOrderStatus.PartiallyFilled))
-            return command.UpdateFailed($"BO.UPDATE.INVALID_STATE;{current.Status}");
-        if (current.BrokerRevision <= 0)
-            return command.UpdateFailed("BO.UPDATE.BROKER_REVISION_UNKNOWN");
-        if (command.NewSignedNetDebitLimit == current.CurrentSignedNetDebitLimit)
-            return new ServiceOk<GuidResult>(new(command.CommandId));
-        var component = current.Order.Components.SingleOrDefault(item =>
-            item.ComponentId == command.EntityId.ComponentId);
-        if (component is null) return command.UpdateFailed("BO.UPDATE.COMPONENT_NOT_FOUND");
-        var minimum = component.MinimumSignedNetDebitLimit;
-        var maximum = component.MaximumSignedNetDebitLimit;
-        var tick = component.TickIncrement;
-        if (minimum is null || maximum is null || tick is null || tick <= 0m ||
-            command.NewSignedNetDebitLimit < minimum || command.NewSignedNetDebitLimit > maximum ||
-            decimal.Remainder(command.NewSignedNetDebitLimit, tick.Value) != 0m)
-            return command.UpdateFailed("BO.UPDATE.OUTSIDE_APPROVED_ENVELOPE");
-        var next = current with
+        var errorMsg = "BrokerOrder.STATE.APPLY_FAILED";
+        var computed = command.Compute(state.BrokerOrderDefinition, out var brokerOrderChange);
+        // An accepted replay has no new intent to persist or dispatch.
+        if (brokerOrderChange.Accepted && brokerOrderChange.IsReplay && brokerOrderChange.IsValidFor(command.EntityId))
+            return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
+        var updated = computed switch
         {
-            PriorOperationId = current.OperationId,
-            OperationId = command.OperationId,
-            CurrentSignedNetDebitLimit = command.NewSignedNetDebitLimit,
-            StatusBeforeMutation = current.Status,
-            Status = BrokerOrderStatus.UpdatePending,
-            PendingMutation = BrokerMutationKind.UpdateLimit,
-            Revision = current.Revision + 1,
-            ChangedAtUtc = command.EffectiveAtUtc,
-            LastObservation = null
+            _ when !brokerOrderChange.Accepted
+                => command.UpdateFailed(ref errorMsg, brokerOrderChange.RejectionReason),
+            _ when !brokerOrderChange.IsValidFor(command.EntityId)
+                => command.UpdateFailed(ref errorMsg, "BrokerOrder.COMPUTED_ORDER.INVALID"),
+            _ => state.Update(command.CreateBrokerOrderChangedEvent(brokerOrderChange), command)
         };
-        return Apply(command, state, next);
+        return updated
+            ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
+            : command.UpdateFailed(errorMsg);
     }
 
-    private static ServiceResult<GuidResult> Apply(
-        RequestBrokerOrderLimitUpdateCommand command,
-        BrokerOrderCommandState state,
-        BrokerOrderDefinition next)
+    /// <summary>Computes proposed business data without modifying its inputs or actor state.</summary>
+    /// <param name="command">The proposed broker-order intent.</param>
+    /// <param name="brokerOrderDefinition">The current authoritative definition, if any.</param>
+    /// <param name="brokerOrderChange">The proposed definition, replay or rejection.</param>
+    /// <returns>True when the business decision is accepted.</returns>
+    internal static bool Compute(this RequestBrokerOrderLimitUpdateCommand command,
+        BrokerOrderDefinition? brokerOrderDefinition, out BrokerOrderCompute brokerOrderChange)
     {
-        var applied = state.Update(new BrokerOrderChangedEvent
-        {
-            Subject = new(ActorType.Event, BrokerOrderChangedEvent.Actor,
-                BrokerOrderChangedEvent.Verb, command.EntityId.Format()),
-            EntityId = command.EntityId,
-            State = next
-        }, command);
-        return applied
-            ? new ServiceOk<GuidResult>(new(command.CommandId))
-            : command.UpdateFailed("BO.STATE.APPLY_FAILED");
+        brokerOrderChange = BrokerOrderComputation.RequestBrokerOrderLimitUpdate(command, brokerOrderDefinition);
+        return brokerOrderChange.Accepted;
     }
+
+    /// <summary>Creates the private event carrying the guarded broker-order definition.</summary>
+    /// <param name="command">The originating command identity and route.</param>
+    /// <param name="brokerOrderChange">The accepted business decision.</param>
+    /// <returns>The source event to apply and persist through State.Update.</returns>
+    internal static BrokerOrderChangedEvent CreateBrokerOrderChangedEvent(this RequestBrokerOrderLimitUpdateCommand command,
+        BrokerOrderCompute brokerOrderChange) => new()
+    {
+        CommandId = command.CommandId,
+        Subject = new(ActorType.Event, BrokerOrderChangedEvent.Actor, BrokerOrderChangedEvent.Verb, command.EntityId.Format()),
+        EntityId = command.EntityId,
+        BrokerOrderDefinition = brokerOrderChange.BrokerOrderDefinition!
+    };
 }

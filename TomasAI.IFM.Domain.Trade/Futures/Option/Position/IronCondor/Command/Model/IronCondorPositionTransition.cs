@@ -1,3 +1,4 @@
+﻿using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.State;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Model;
 using TomasAI.IFM.Domain.Trade.Model;
@@ -25,6 +26,8 @@ internal static class IronCondorPositionTransition
 
         if (!state.Update(new IronCondorPositionChangedEvent
         {
+            Subject = new(ActorType.Event, "FuturesIronCondorTradePositionEvent", IronCondorPositionChangedEvent.Verb, command.EntityId.Format()),
+            ReceivedOn = DateTime.UtcNow,
             EntityId = command.EntityId,
             State = decision.Value
         }, command))

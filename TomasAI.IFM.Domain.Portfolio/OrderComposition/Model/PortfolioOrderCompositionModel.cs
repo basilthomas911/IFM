@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Portfolio.Identity;
+﻿using TomasAI.IFM.Domain.Portfolio.Identity;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 
@@ -21,6 +21,8 @@ public static class PortfolioOrderCompositionModel
         var candidate = request.Body;
         if (request.PortfolioId <= 0 || request.OperationId == Guid.Empty || candidate.CompositionId == Guid.Empty
             || candidate.WorkflowId == Guid.Empty || candidate.Components.Length == 0
+            || candidate.TimeInForce is not ("Day" or "GTC")
+            || candidate.AlgorithmPace is not ("Patient" or "Normal" or "Urgent")
             || candidate.PositionType != PortfolioExecutionPositionType.Opening
             || candidate.Components.Any(component => component.Legs.Length == 0 ||
                 component.Legs.Any(leg => string.IsNullOrWhiteSpace(leg.ContractId)))
@@ -109,6 +111,8 @@ public static class PortfolioOrderCompositionModel
                 MaximumLoss = candidate.MaximumLoss,
                 BrokerOrderType = candidate.BrokerOrderType,
                 BrokerAlgorithm = candidate.BrokerAlgorithm,
+                TimeInForce = candidate.TimeInForce,
+                AlgorithmPace = candidate.AlgorithmPace,
                 VolatilityEvidence = candidate.VolatilityEvidence
             });
             effect = effect! with { OrderId = orderId };

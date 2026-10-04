@@ -37,32 +37,32 @@ public sealed class BrokerOrderEventProjector : ConventionalEventProjector<Broke
 
     private async Task ProjectAsync(BrokerOrderChangedEvent changed)
     {
-        _context.ReadStore.Set(changed.State);
-        if (changed.State.LastObservation is { } observation)
+        _context.ReadStore.Set(changed.BrokerOrderDefinition);
+        if (changed.BrokerOrderDefinition.LastObservation is { } observation)
         {
             await ProjectObservationAsync(changed.EntityId, observation).ConfigureAwait(false);
             return;
         }
-        if (changed.State.PendingMutation == BrokerMutationKind.Unknown) return;
-        var receipt = changed.State.PendingMutation switch
+        if (changed.BrokerOrderDefinition.PendingMutation == BrokerMutationKind.Unknown) return;
+        var receipt = changed.BrokerOrderDefinition.PendingMutation switch
         {
             BrokerMutationKind.Place => await PlaceAsync(changed).ConfigureAwait(false),
             BrokerMutationKind.UpdateLimit => await _context.TradeBroker.ModifyLimitAsync(new(
-                changed.State.Order.BrokerAccountAlias,
+                changed.BrokerOrderDefinition.Order.BrokerAccountAlias,
                 changed.EntityId.Format(),
-                changed.State.OperationId,
-                changed.State.CurrentSignedNetDebitLimit,
-                changed.State.BrokerRevision)).ConfigureAwait(false),
+                changed.BrokerOrderDefinition.OperationId,
+                changed.BrokerOrderDefinition.CurrentSignedNetDebitLimit,
+                changed.BrokerOrderDefinition.BrokerRevision)).ConfigureAwait(false),
             BrokerMutationKind.Cancel => await _context.TradeBroker.CancelAsync(new(
-                changed.State.Order.BrokerAccountAlias,
+                changed.BrokerOrderDefinition.Order.BrokerAccountAlias,
                 changed.EntityId.Format(),
-                changed.State.OperationId,
-                changed.State.BrokerRevision)).ConfigureAwait(false),
+                changed.BrokerOrderDefinition.OperationId,
+                changed.BrokerOrderDefinition.BrokerRevision)).ConfigureAwait(false),
             _ => throw new InvalidOperationException("BROKER_ORDER.MUTATION_UNKNOWN")
         };
         var command = new RecordBrokerDispatchCommand
         {
-            CommandId = DeterministicId("dispatch-receipt", changed.EntityId.Format(), changed.State.OperationId.ToString("N")),
+            CommandId = DeterministicId("dispatch-receipt", changed.EntityId.Format(), changed.BrokerOrderDefinition.OperationId.ToString("N")),
             Subject = new(ActorType.Command, BrokerOrderActorNames.Command, RecordBrokerDispatchCommand.Verb, changed.EntityId.Format()),
             EntityId = changed.EntityId,
             OperationId = receipt.OperationId,
@@ -77,9 +77,9 @@ public sealed class BrokerOrderEventProjector : ConventionalEventProjector<Broke
 
     private async ValueTask<BrokerDispatchReceipt> PlaceAsync(BrokerOrderChangedEvent changed)
     {
-        if (!BrokerOrderRequestMapper.TryCreate(changed.State.Order,
+        if (!BrokerOrderRequestMapper.TryCreate(changed.BrokerOrderDefinition.Order,
                 changed.EntityId.Execution.ExecutionAttemptId, changed.EntityId.ComponentId,
-                changed.State.OperationId, out var request, out var reason) || request is null)
+                changed.BrokerOrderDefinition.OperationId, out var request, out var reason) || request is null)
             throw new InvalidOperationException($"BROKER_ORDER.MAPPING_FAILED;{reason}");
         return await _context.TradeBroker.PlaceAsync(request).ConfigureAwait(false);
     }
