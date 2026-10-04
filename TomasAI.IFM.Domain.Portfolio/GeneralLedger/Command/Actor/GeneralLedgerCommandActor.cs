@@ -23,9 +23,21 @@ public sealed class GeneralLedgerCommandActor(ICommandActorContext<GeneralLedger
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap = new Dictionary<Type, Func<ICommand, List<ValidationError>>>
     {
-        [typeof(PostFundTransactionCommand)] = command => new List<ValidationError>().ValidateFinancialRequest<PostFundTransactionCommand, LedgerPostingRequest>((PostFundTransactionCommand)command, ActorType.Command, ActorName, PostFundTransactionCommand.Verb),
-        [typeof(PostFundTransactionsCommand)] = command => new List<ValidationError>().ValidateFinancialRequest<PostFundTransactionsCommand, LedgerPostingBatchRequest>((PostFundTransactionsCommand)command, ActorType.Command, ActorName, PostFundTransactionsCommand.Verb),
-    }.ToFrozenDictionary();
+        [typeof(PostFundTransactionCommand)] = static command =>
+        {
+            var typed = (PostFundTransactionCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateFinancialEntityId(typed.EntityId, typed.CommandName)
+                .ValidateFinancialRequest<PostFundTransactionCommand, LedgerPostingRequest>(typed, ActorType.Command, ActorName, PostFundTransactionCommand.Verb);
+        },        [typeof(PostFundTransactionsCommand)] = static command =>
+        {
+            var typed = (PostFundTransactionsCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateFinancialEntityId(typed.EntityId, typed.CommandName)
+                .ValidateFinancialRequest<PostFundTransactionsCommand, LedgerPostingBatchRequest>(typed, ActorType.Command, ActorName, PostFundTransactionsCommand.Verb);
+        },    }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, Func<ICommand, GeneralLedgerCommandServices, CancellationToken, ValueTask<ServiceResult<GuidResult>>>> _receiveMap =
         new Dictionary<Type, Func<ICommand, GeneralLedgerCommandServices, CancellationToken, ValueTask<ServiceResult<GuidResult>>>>
         {

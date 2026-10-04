@@ -144,7 +144,8 @@ public class DownloadLogContractTests
         Assert.True(command.Execute(state).Success); Assert.Single(state.Events);
         Assert.True(command.Execute(state).Success); Assert.Single(state.Events);
         var conflict = new InsertMarketDataDownloadLogCommand(command.Outcome with { PersistedRecordCount = 4 });
-        Assert.Throws<InvalidOperationException>(() => conflict.Execute(state));
+        Assert.False(conflict.Execute(state).Success);
+        Assert.Single(state.Events);
         Assert.Equal(command.Outcome, state.Outcome);
     }
 }

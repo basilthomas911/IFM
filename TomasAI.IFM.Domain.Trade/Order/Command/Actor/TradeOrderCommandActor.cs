@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared;
 using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Trade.Order.Command;
 using TomasAI.IFM.Domain.Trade.Order.Command.State;
@@ -34,15 +34,78 @@ public sealed class TradeOrderCommandActor(ICommandActorContext<TradeOrderComman
     private static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
-            [typeof(CreateTradeOrderCommand)] = TradeOrderCommandValidation.Validate,
-            [typeof(AmendTradeOrderCommand)] = TradeOrderCommandValidation.Validate,
-            [typeof(ApproveTradeOrderCommand)] = TradeOrderCommandValidation.Validate,
-            [typeof(ReadyTradeOrderCommand)] = TradeOrderCommandValidation.Validate,
-            [typeof(BindTradeOrderExecutionCommand)] = TradeOrderCommandValidation.Validate,
-            [typeof(ReleaseTradeOrderExecutionCommand)] = TradeOrderCommandValidation.Validate,
-            [typeof(CompleteTradeOrderCommand)] = TradeOrderCommandValidation.Validate,
-            [typeof(CancelTradeOrderCommand)] = TradeOrderCommandValidation.Validate,
-            [typeof(ExpireTradeOrderCommand)] = TradeOrderCommandValidation.Validate
+            [typeof(CreateTradeOrderCommand)] = static command =>
+            {
+                var typed = (CreateTradeOrderCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateTradeOrderId(typed.EntityId, typed.CommandName)
+                    .ValidateTradeOrderCommand(typed);
+            },
+            [typeof(AmendTradeOrderCommand)] = static command =>
+            {
+                var typed = (AmendTradeOrderCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateTradeOrderId(typed.EntityId, typed.CommandName)
+                    .ValidateTradeOrderCommand(typed);
+            },
+            [typeof(ApproveTradeOrderCommand)] = static command =>
+            {
+                var typed = (ApproveTradeOrderCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateTradeOrderId(typed.EntityId, typed.CommandName)
+                    .ValidateTradeOrderCommand(typed);
+            },
+            [typeof(ReadyTradeOrderCommand)] = static command =>
+            {
+                var typed = (ReadyTradeOrderCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateTradeOrderId(typed.EntityId, typed.CommandName)
+                    .ValidateTradeOrderCommand(typed);
+            },
+            [typeof(BindTradeOrderExecutionCommand)] = static command =>
+            {
+                var typed = (BindTradeOrderExecutionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateTradeOrderId(typed.EntityId, typed.CommandName)
+                    .ValidateTradeOrderCommand(typed);
+            },
+            [typeof(ReleaseTradeOrderExecutionCommand)] = static command =>
+            {
+                var typed = (ReleaseTradeOrderExecutionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateTradeOrderId(typed.EntityId, typed.CommandName)
+                    .ValidateTradeOrderCommand(typed);
+            },
+            [typeof(CompleteTradeOrderCommand)] = static command =>
+            {
+                var typed = (CompleteTradeOrderCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateTradeOrderId(typed.EntityId, typed.CommandName)
+                    .ValidateTradeOrderCommand(typed);
+            },
+            [typeof(CancelTradeOrderCommand)] = static command =>
+            {
+                var typed = (CancelTradeOrderCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateTradeOrderId(typed.EntityId, typed.CommandName)
+                    .ValidateTradeOrderCommand(typed);
+            },
+            [typeof(ExpireTradeOrderCommand)] = static command =>
+            {
+                var typed = (ExpireTradeOrderCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateTradeOrderId(typed.EntityId, typed.CommandName)
+                    .ValidateTradeOrderCommand(typed);
+            }
         }.ToFrozenDictionary();
     private static readonly IReadOnlyDictionary<Type, Func<ICommand, TradeOrderCommandState, ServiceResult<GuidResult>>> _receiveMap =
         new Dictionary<Type, Func<ICommand, TradeOrderCommandState, ServiceResult<GuidResult>>>

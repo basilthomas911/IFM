@@ -1,40 +1,55 @@
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.Model;
 using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.State;
-using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command;
 
+/// <summary>Records a guarded import request; the projector performs downloading and storage policy enforcement.</summary>
 public static class ImportYieldCurveRates
 {
-    /// <summary>
-    /// Imports a batch of yield curve rates into the specified command state.
-    /// </summary>
-    /// <param name="e">The import command containing the collection of yield curve rates to import.</param>
-    /// <param name="state">The current state of the yield curve rate commands to update.</param>
-    /// <returns>true if the yield curve rates were successfully imported; otherwise, false.</returns>
-    public static ServiceResult<GuidResult> Execute(this ImportYieldCurveRatesCommand e, YieldCurveRateCommandState state)
+    /// <summary>Computes request parameters and records one operation marker without rebuilding external records.</summary>
+    /// <param name="command">The import intent and duplicate policy.</param>
+    /// <param name="state">The authoritative command state.</param>
+    /// <returns>The command ID on success, or the request/application failure.</returns>
+    public static ServiceResult<GuidResult> Execute(this ImportYieldCurveRatesCommand command, YieldCurveRateCommandState state)
     {
-        return e.UpdateResult(() => state.Update(e.CreateYieldCurveRatesImportedEvent(), e));
+        var errorMsg = "YieldCurveRate.IMPORT.STATE.APPLY_FAILED";
+        var computed = command.Compute(out var yieldCurveRateImport);
+        var updated = computed switch
+        {
+            _ when !computed => command.UpdateFailed(ref errorMsg, "YieldCurveRate.IMPORT.REQUEST.INVALID"),
+            _ => state.Update(command.CreateYieldCurveRatesImportedEvent(yieldCurveRateImport), command)
+        };
+        return updated
+            ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
+            : command.UpdateFailed(errorMsg);
     }
 
-    /// <summary>
-    /// Creates a <see cref="YieldCurveRatesImportedEvent"/> from an <see cref="ImportYieldCurveRatesCommand"/>.
-    /// </summary>
-    /// <param name="e">The source import command containing request and origin metadata.</param>
-    /// <returns>A fully-populated imported event ready to be applied to actor state.</returns>
-    internal static YieldCurveRatesImportedEvent CreateYieldCurveRatesImportedEvent(
-        this ImportYieldCurveRatesCommand e)
-    => new()
+    /// <summary>Computes immutable request parameters without downloading data or changing state.</summary>
+    /// <param name="command">The import intent.</param>
+    /// <param name="yieldCurveRateImport">The computed request parameters.</param>
+    /// <returns>True when required request parameters and ownership are valid.</returns>
+    internal static bool Compute(this ImportYieldCurveRatesCommand command, out YieldCurveRateImport yieldCurveRateImport)
     {
-        CommandId = e.CommandId,
-        Subject = new ActorSubject(ActorType.Event, YieldCurveRatesImportedEvent.Actor, YieldCurveRatesImportedEvent.Verb, e.EntityId.Format()),
-        EntityId = e.EntityId,
-        ImportDate = e.ImportDate,
-        RequestedOn = e.OriginatedOn,
-        RequestedBy = e.OriginatedBy,
-        DuplicatePolicy = e.DuplicatePolicy
+        yieldCurveRateImport = new(command.ImportDate, command.DuplicatePolicy);
+        return command.EntityId is not null && yieldCurveRateImport.ImportDate != default && Enum.IsDefined(yieldCurveRateImport.DuplicatePolicy) && yieldCurveRateImport.ImportDate.Year == command.EntityId.Year;
+    }
+
+    /// <summary>Creates the source event carrying the guarded import request parameters.</summary>
+    /// <param name="command">The originating command and route.</param>
+    /// <param name="yieldCurveRateImport">The computed import request.</param>
+    /// <returns>The private request event persisted through State.Update.</returns>
+    internal static YieldCurveRatesImportedEvent CreateYieldCurveRatesImportedEvent(this ImportYieldCurveRatesCommand command, YieldCurveRateImport yieldCurveRateImport) => new()
+    {
+        CommandId = command.CommandId,
+        Subject = new(ActorType.Event, YieldCurveRatesImportedEvent.Actor, YieldCurveRatesImportedEvent.Verb, command.EntityId.Format()),
+        EntityId = command.EntityId,
+        ImportDate = yieldCurveRateImport.ImportDate,
+        DuplicatePolicy = yieldCurveRateImport.DuplicatePolicy,
+        RequestedOn = command.OriginatedOn,
+        RequestedBy = command.OriginatedBy
     };
 }

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Futures.Command.Validation;
 using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.State;
@@ -38,13 +39,62 @@ public sealed class FuturesIronCondorTradePositionCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
-            [typeof(OpenIronCondorPositionCommand)] = Validate,
-            [typeof(UpdateIronCondorPositionLegMarketPriceCommand)] = Validate,
-            [typeof(ChangeTradeLegDataCommand)] = Validate,
-            [typeof(EndOfDayIronCondorPositionCommand)] = Validate,
-            [typeof(CloseIronCondorPositionCommand)] = Validate,
-            [typeof(CorrectIronCondorPositionBasisCommand)] = Validate,
-            [typeof(SnapshotIronCondorPositionCommand)] = Validate,
+            [typeof(OpenIronCondorPositionCommand)] = static command =>
+            {
+                var typed = (OpenIronCondorPositionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.FuturesOption, TradeStrategyKind.IronCondor);
+            },
+            [typeof(UpdateIronCondorPositionLegMarketPriceCommand)] = static command =>
+            {
+                var typed = (UpdateIronCondorPositionLegMarketPriceCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.FuturesOption, TradeStrategyKind.IronCondor);
+            },
+            [typeof(ChangeTradeLegDataCommand)] = static command =>
+            {
+                var typed = (ChangeTradeLegDataCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.FuturesOption, TradeStrategyKind.IronCondor);
+            },
+            [typeof(EndOfDayIronCondorPositionCommand)] = static command =>
+            {
+                var typed = (EndOfDayIronCondorPositionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.FuturesOption, TradeStrategyKind.IronCondor);
+            },
+            [typeof(CloseIronCondorPositionCommand)] = static command =>
+            {
+                var typed = (CloseIronCondorPositionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.FuturesOption, TradeStrategyKind.IronCondor);
+            },
+            [typeof(CorrectIronCondorPositionBasisCommand)] = static command =>
+            {
+                var typed = (CorrectIronCondorPositionBasisCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.FuturesOption, TradeStrategyKind.IronCondor);
+            },
+            [typeof(SnapshotIronCondorPositionCommand)] = static command =>
+            {
+                var typed = (SnapshotIronCondorPositionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.FuturesOption, TradeStrategyKind.IronCondor);
+            },
         }.ToFrozenDictionary();
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand, IronCondorPositionCommandState, ServiceResult<GuidResult>>> _receiveMap =
@@ -82,17 +132,6 @@ public sealed class FuturesIronCondorTradePositionCommandActor(
     protected override ValueTask SaveStateToStoreAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, ActorThreadId threadId, IronCondorPositionCommandState state, ICommand command, CancellationToken cancellationToken) => services.StateRepository.SaveStateAsync(context, state, command, cancellationToken);
     protected override ValueTask PersistResidentEventsAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, ICommand command, DomainEventCollection events, long expectedStreamVersion, CancellationToken cancellationToken) => services.StateRepository.SaveResidentEventsAsync(context, events, command, expectedStreamVersion, cancellationToken);
     protected override ValueTask<ServiceResult<GuidResult>> HandleCommandExceptionAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, ActorThreadId threadId, ICommand command, Exception exception) => ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(command.ErrorCode, exception.Message));
-
-    static List<ValidationError> Validate(ICommand command) =>
-        new List<ValidationError>().ValidateCommandId(command.CommandId, command.CommandName).CaptureCommandValidation(() =>
-        {
-            if (command is not ICommand<StrategyPositionId> typed || !typed.EntityId.IsValid ||
-                command.Subject.EntityId != typed.EntityId.Format() ||
-                command is OpenIronCondorPositionCommand { Trade.StrategyKind: not TradeStrategyKind.IronCondor } ||
-                command is ChangeTradeLegDataCommand routed &&
-                (routed.TradeType != TradeStrategyKind.IronCondor || string.IsNullOrWhiteSpace(routed.ContractId)))
-                throw new ArgumentException("Valid Iron Condor position identity, type, ContractId, and subject are required.");
-        });
 
     static IIronCondorPositionCommandContext Typed(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context) =>
         context as IIronCondorPositionCommandContext ?? throw new ArgumentException("Typed Iron Condor position context required.");

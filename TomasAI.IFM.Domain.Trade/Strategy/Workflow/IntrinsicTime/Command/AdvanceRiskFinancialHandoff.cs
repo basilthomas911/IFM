@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Validation;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
@@ -19,12 +20,8 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command;
 public static class AdvanceRiskFinancialHandoff
 {
     public static List<ValidationError> ValidateRiskFinancialHandoff(this List<ValidationError> errors, AdvanceRiskFinancialHandoffCommand command)
-        => errors.ValidateCommandId(command.CommandId, command.CommandName).ValidateEntityId(command.EntityId, command.CommandName)
-            .CaptureCommandValidation(() =>
-            {
-                if (command.WorkflowId.Value == Guid.Empty || command.InputWorkflowRevision < 1 || !Enum.IsDefined(command.ExpectedPhase))
-                    throw new ArgumentException("Exact financial handoff identity and checkpoint are required.");
-            });
+        => errors.ValidateCommandId(command.CommandId, command.CommandName)
+            .ValidateWorkflowEntityId(command.EntityId).ValidateWorkflowCommand(command);
 
     public static ValueTask<bool> ResumeAfterAuditAsync(this AdvanceRiskFinancialHandoffCommand command, CancellationToken token)
     { token.ThrowIfCancellationRequested(); return ValueTask.FromResult(true); }

@@ -4,7 +4,6 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.State;
 
@@ -33,14 +32,22 @@ public class EconomicCalendarCommandState
     /// <returns>true if the event was successfully applied; otherwise, false.</returns>
     protected override bool Apply(IEvent domainEvent)
     {
-        return domainEvent switch
+        switch (domainEvent)
         {
-            EconomicCalendarAddedEvent e => On(e),
-            EconomicCalendarsImportedEvent e => On(e),
-            EconomicCalendarChangedEvent e => On(e),
-            EconomicCalendarRemovedEvent e => On(e),
-            _ => false
-        };
+            case EconomicCalendarAddedEvent added when added.EconomicCalendar is not null:
+                return _economicCalendars.TryAdd(added.EntityId, added.EconomicCalendar);
+            case EconomicCalendarChangedEvent changed when changed.EconomicCalendar is not null:
+                if (!_economicCalendars.ContainsKey(changed.EconomicCalendar.Id)) return false;
+                _economicCalendars[changed.EconomicCalendar.Id] = changed.EconomicCalendar;
+                return true;
+            case EconomicCalendarRemovedEvent removed when removed.EntityId is not null:
+                return _economicCalendars.Remove(removed.EntityId);
+            case EconomicCalendarsImportedEvent:
+                // Import is an operation marker; external records are projected separately.
+                return true;
+            default:
+                return false;
+        }
     }
 
     /// <summary>
@@ -64,61 +71,4 @@ public class EconomicCalendarCommandState
             destination[index++] = economicCalendar;
     }
 
-    /// <summary>
-    /// Applies an economic calendar added event to the state.
-    /// </summary>
-    /// <remarks>This method attempts to add the economic calendar from the event to the internal dictionary.
-    /// If the economic calendar already exists or if the event data is null, the operation fails.</remarks>
-    /// <param name="e">The event containing the economic calendar to add. Cannot be null.</param>
-    /// <returns>true if the economic calendar was successfully added to the state; otherwise, false.</returns>
-    bool On(EconomicCalendarAddedEvent e)
-    {
-        if (e is not null && e.EconomicCalendar is not null)
-        {
-            return _economicCalendars.TryAdd(e.EntityId, e.EconomicCalendar);
-        }
-        return false;
-    }
-
-    bool On(EconomicCalendarsImportedEvent e)
-    {
-        ArgumentNullException.ThrowIfNull(e);
-        return true;
-    }
-
-    /// <summary>
-    /// Applies an economic calendar changed event to the state.
-    /// </summary>
-    /// <remarks>This method updates the economic calendar in the internal dictionary if it exists.
-    /// If the economic calendar does not exist or if the event data is null, the operation fails.</remarks>
-    /// <param name="e">The event containing the updated economic calendar. Cannot be null.</param>
-    /// <returns>true if the economic calendar was successfully updated in the state; otherwise, false.</returns>
-    bool On(EconomicCalendarChangedEvent e)
-    {
-        if (e is not null && e.EconomicCalendar is not null)
-        {
-            if (_economicCalendars.ContainsKey(e.EconomicCalendar.Id))
-            {
-                _economicCalendars[e.EconomicCalendar.Id] = e.EconomicCalendar;
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Applies an economic calendar removed event to the state.
-    /// </summary>
-    /// <remarks>This method removes the economic calendar from the internal dictionary using the provided identifier.
-    /// If the economic calendar does not exist or if the event data is null, the operation fails.</remarks>
-    /// <param name="e">The event containing the identifier of the economic calendar to remove. Cannot be null.</param>
-    /// <returns>true if the economic calendar was successfully removed from the state; otherwise, false.</returns>
-    bool On(EconomicCalendarRemovedEvent e)
-    {
-        if (e is not null && e.EntityId is not null)
-        {
-            return _economicCalendars.Remove(e.EntityId);
-        }
-        return false;
-    }
 }

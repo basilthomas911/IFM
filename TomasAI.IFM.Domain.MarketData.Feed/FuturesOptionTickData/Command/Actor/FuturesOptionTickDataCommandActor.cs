@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.Validation;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Shared.Domain;
@@ -123,7 +124,7 @@ public class FuturesOptionTickDataCommandActor(
 
         var refLookupService = context.Container.Resolve<IReferenceLookupService>();
         await refLookupService.EnsureLoadedAsync().ConfigureAwait(false);
-        ValidateReferenceData(cmd, refLookupService)
+        cmd.ValidateReferenceData(refLookupService)
             .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
     }
 
@@ -158,21 +159,6 @@ public class FuturesOptionTickDataCommandActor(
                     .ValidateEntityId(e.EntityId, e.CommandName)
                     .ValidateContractId(e.ContractId, e.CommandName);
             }
-        };
-
-    static List<ValidationError> ValidateReferenceData(
-        ICommand command,
-        IReferenceLookupService referenceLookupService)
-        => command switch
-        {
-            StartFuturesOptionTickDataStreamingCommand start => new List<ValidationError>()
-                .ValidateFuturesOptionContract(
-                    start.Contract,
-                    referenceLookupService,
-                    start.CommandName),
-            InsertFuturesOptionTickDataCommand or StopFuturesOptionTickDataStreamingCommand => [],
-            _ => throw new InvalidOperationException(
-                $"Unable to validate {ActorName} reference data for command: {command.Subject}")
         };
 
     /// <summary>

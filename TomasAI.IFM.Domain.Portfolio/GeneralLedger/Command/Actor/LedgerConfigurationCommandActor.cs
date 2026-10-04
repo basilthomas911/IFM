@@ -22,8 +22,14 @@ public sealed class LedgerConfigurationCommandActor(ICommandActorContext<LedgerC
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap = new Dictionary<Type, Func<ICommand, List<ValidationError>>>
     {
-        [typeof(ConfigureLedgerCommand)] = command => new List<ValidationError>().ValidateLedgerConfiguration((ConfigureLedgerCommand)command),
-    }.ToFrozenDictionary();
+        [typeof(ConfigureLedgerCommand)] = static command =>
+        {
+            var typed = (ConfigureLedgerCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateFinancialEntityId(typed.EntityId, typed.CommandName)
+                .ValidateLedgerConfiguration(typed);
+        },    }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, Func<ICommand, LedgerConfigurationCommandServices, CancellationToken, ValueTask<ServiceResult<GuidResult>>>> _receiveMap =
         new Dictionary<Type, Func<ICommand, LedgerConfigurationCommandServices, CancellationToken, ValueTask<ServiceResult<GuidResult>>>>
         {

@@ -20,14 +20,23 @@ public sealed class DownloadLogCommandState : BaseEventSourceActorState<Download
         return true;
     }
 
+    /// <summary>Mutates terminal outcome data only from a hash-verified source event.</summary>
+    /// <param name="domainEvent">The source event to apply or reconstruct.</param>
+    /// <returns>True when the terminal evidence is accepted.</returns>
+    /// <exception cref="InvalidOperationException">The source hash is corrupt or conflicts with committed evidence.</exception>
     protected override bool Apply(IEvent domainEvent)
     {
-        if (domainEvent is not MarketDataDownloadLogInsertedEvent inserted) return false;
-        var command = new InsertMarketDataDownloadLogCommand(inserted.Outcome);
-        if (inserted.PayloadSha256 != command.PayloadSha256) throw new InvalidOperationException("Corrupt DownloadLog event hash.");
-        if (VerifyDuplicate(command)) return true;
-        Outcome = inserted.Outcome;
-        PayloadSha256 = inserted.PayloadSha256;
-        return true;
+        switch (domainEvent)
+        {
+            case MarketDataDownloadLogInsertedEvent inserted:
+                var command = new InsertMarketDataDownloadLogCommand(inserted.Outcome);
+                if (inserted.PayloadSha256 != command.PayloadSha256) throw new InvalidOperationException("Corrupt DownloadLog event hash.");
+                if (VerifyDuplicate(command)) return true;
+                Outcome = inserted.Outcome;
+                PayloadSha256 = inserted.PayloadSha256;
+                return true;
+            default:
+                return false;
+        }
     }
 }

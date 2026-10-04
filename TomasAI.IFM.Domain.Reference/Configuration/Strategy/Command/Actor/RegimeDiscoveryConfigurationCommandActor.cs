@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Validation;
 using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command;
 using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.State;
 using TomasAI.IFM.Domain.Reference.Shared.Configuration.Strategy;
@@ -31,24 +32,22 @@ public sealed class RegimeDiscoveryConfigurationCommandActor(
                 var create = (CreateRegimeDiscoveryParameterSetCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(create.CommandId, create.CommandName)
-                    .ValidateEntityId(create.EntityId, create.CommandName)
-                    .CaptureCommandValidation(() => ValidateCreate(create));
+                    .ValidateRegimeDiscoveryConfigurationId(create.EntityId)
+                    .ValidateRegimeDiscoveryCreation(create);
             },
             [typeof(PublishRegimeDiscoveryParameterSetCommand)] = command =>
             {
                 var publish = (PublishRegimeDiscoveryParameterSetCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(publish.CommandId, publish.CommandName)
-                    .ValidateEntityId(publish.EntityId, publish.CommandName)
-                    .CaptureCommandValidation(() => ValidateCommon(publish));
+                    .ValidateRegimeDiscoveryConfigurationId(publish.EntityId);
             },
             [typeof(RetireRegimeDiscoveryParameterSetCommand)] = command =>
             {
                 var retire = (RetireRegimeDiscoveryParameterSetCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(retire.CommandId, retire.CommandName)
-                    .ValidateEntityId(retire.EntityId, retire.CommandName)
-                    .CaptureCommandValidation(() => ValidateCommon(retire));
+                    .ValidateRegimeDiscoveryConfigurationId(retire.EntityId);
             }
         };
 
@@ -119,27 +118,6 @@ public sealed class RegimeDiscoveryConfigurationCommandActor(
         ActorThreadId threadId, ICommand command, Exception ex)
         => ValueTask.FromResult<ServiceResult<GuidResult>>(
             new ServiceResult<GuidResult>(command?.ErrorCode ?? 33000, ex.Message));
-
-    static void ValidateCreate(CreateRegimeDiscoveryParameterSetCommand command)
-    {
-        ValidateCommon(command);
-        var errors = new RegimeDiscoveryParameterSetValidationRules().Execute(command.ParameterSet);
-        if (errors.Length != 0)
-            throw new ArgumentException(string.Join("; ", errors.Select(x => x.ErrorMessage)), nameof(command));
-        if (command.EntityId.ParameterSetId != command.ParameterSet.ParameterSetId ||
-            command.EntityId.Version != command.ParameterSet.Version)
-            throw new ArgumentException("Entity identity must match the parameter payload.", nameof(command));
-        ArgumentException.ThrowIfNullOrWhiteSpace(command.CreatedBy);
-    }
-
-    static void ValidateCommon(ICommand command)
-    {
-        if (command.CommandId == Guid.Empty)
-            throw new ArgumentException("CommandId is required.", nameof(command));
-        var entity = ((ICommand<RegimeDiscoveryParameterSetEntityId>)command).EntityId;
-        if (entity.ParameterSetId == Guid.Empty || entity.Version <= 0)
-            throw new ArgumentException("A parameter-set identity and positive version are required.", nameof(command));
-    }
 
     static IRegimeDiscoveryConfigurationCommandContext Typed(
         ICommandActorContext<RegimeDiscoveryConfigurationCommandActor> context)

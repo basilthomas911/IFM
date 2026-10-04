@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader.Command.Validation;
 using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader.Command.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
@@ -59,34 +60,10 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderCommandActor(
                 var load = (LoadFuturesAnalyticsHistoricalDataCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(load.CommandId, load.CommandName)
-                    .ValidateEntityId(load.EntityId, load.CommandName)
-                    .CaptureCommandValidation(() => ValidateLoad(load));
+                    .ValidateDataLoadAttemptId(load.EntityId)
+                    .ValidateHistoricalLoad(load);
             }
         };
-
-    static void ValidateLoad(LoadFuturesAnalyticsHistoricalDataCommand value)
-    {
-        if (value.CommandId == Guid.Empty || value.EntityId.Value == Guid.Empty
-            || value.CommandId != value.EntityId.Value)
-            throw new ArgumentException("CommandId and DataLoadAttemptId must be the same non-empty identity.");
-        if (value.Parameters.StartDate == default || value.Parameters.EndDate < value.Parameters.StartDate)
-            throw new ArgumentException("A valid inclusive data load date range is required.");
-        if (value.Parameters.Series.Length == 0)
-            throw new ArgumentException("At least one historical series is required.");
-        if (value.Parameters.MaximumCostUsd <= 0 || value.Parameters.MaximumBytes <= 0)
-            throw new ArgumentException("Positive cost and byte budgets are required.");
-        if (string.IsNullOrWhiteSpace(value.Parameters.NormalizationVersion)
-            || string.IsNullOrWhiteSpace(value.Parameters.CalculationConfigurationVersion)
-            || string.IsNullOrWhiteSpace(value.Parameters.RequestedBy))
-            throw new ArgumentException("Normalization, calculation configuration, and requester are required.");
-        foreach (var series in value.Parameters.Series)
-        {
-            if (new MarketSeriesIdentityValidationRules().Execute(series.MarketSeriesIdentity).Length != 0)
-                throw new ArgumentException("Every data load series identity must be valid.");
-            if (!Enum.IsDefined(series.Schema))
-                throw new ArgumentException("Every data load historical schema must be supported.");
-        }
-    }
 
     /// <inheritdoc />
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(

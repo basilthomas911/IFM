@@ -199,13 +199,11 @@ public static class FuturesItiSignalGeneratedComplete
                 "The ITI Generate completion identity does not match its signal snapshot.");
         }
 
-        var triggerId = completed.CommandId == Guid.Empty
-            ? completed.CommandId
-            : completed.Id;
+        var triggerId = completed.CommandId;
         if (triggerId == Guid.Empty)
         {
             throw new InvalidOperationException(
-                "The ITI Generate completion requires an event or command identifier.");
+                "The ITI Generate completion requires a command identifier.");
         }
 
         var trigger = new FuturesItiSignalGeneratedEvent
@@ -215,7 +213,7 @@ public static class FuturesItiSignalGeneratedComplete
                 FuturesItiSignalGeneratedEvent.Actor,
                 FuturesItiSignalGeneratedEvent.Verb,
                 completed.EntityId.Format()),
-            Id = completed.Id,
+            Id = triggerId,
             EntityId = completed.EntityId,
             EventId = completed.EventId,
             CommandId = completed.CommandId,
@@ -232,7 +230,7 @@ public static class FuturesItiSignalGeneratedComplete
         var requestedAtUtc = DateTime.UtcNow;
         var command = new ExecuteIntrinsicTimeStrategyWorkflowCommand
         {
-            CommandId = triggerId,
+            CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(
                 ActorType.Command,
                 ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor,

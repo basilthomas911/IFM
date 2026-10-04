@@ -29,59 +29,23 @@ public class YieldCurveRateCommandState
     /// <returns></returns>
     protected override bool Apply(IEvent domainEvent)
     {
-        try
+        switch (domainEvent)
         {
-            return domainEvent switch
-            {
-                YieldCurveRateAddedEvent e => On(e),
-                YieldCurveRateChangedEvent e => On(e),
-                YieldCurveRateRemovedEvent e => On(e),
-                YieldCurveRatesImportedEvent e => On(e),
-                _ => false
-            };
+            case YieldCurveRateAddedEvent added when added.YieldCurveRate is not null:
+                _yieldCurveRateDates.Add(added.YieldCurveRate.ValueDate);
+                return true;
+            case YieldCurveRateChangedEvent changed when changed.YieldCurveRate is not null:
+                _yieldCurveRateDates.Add(changed.YieldCurveRate.ValueDate);
+                return true;
+            case YieldCurveRateRemovedEvent removed:
+                _yieldCurveRateDates.Remove(removed.ValueDate);
+                return true;
+            case YieldCurveRatesImportedEvent:
+                // Import is an operation marker; external records are projected separately.
+                return true;
+            default:
+                return false;
         }
-        catch { }
-        return false;
-    }
-
-    /// <summary>
-    /// Create yield curve rate
-    /// </summary>
-    /// <param name="e"></param>
-    bool On(YieldCurveRateAddedEvent e)
-    {
-        _yieldCurveRateDates.Add(e.YieldCurveRate.ValueDate);
-        return true;
-    }
-
-    /// <summary>
-    /// Change yield curve rate
-    /// </summary>
-    /// <param name="e"></param>
-    bool On(YieldCurveRateChangedEvent e)
-    {
-        _yieldCurveRateDates.Add(e.YieldCurveRate.ValueDate);
-        return true;
-    }
-
-    /// <summary>
-    /// Delete yield curve rate
-    /// </summary>
-    /// <param name="e"></param>
-    bool On(YieldCurveRateRemovedEvent e)
-    {
-        _yieldCurveRateDates.Remove(e.ValueDate);
-        return true;
-    }
-
-    /// <summary>
-    /// Import yield curve rates
-    /// </summary>
-    /// <param name="e"></param>
-    bool On(YieldCurveRatesImportedEvent e)
-    {
-        ArgumentNullException.ThrowIfNull(e);
-        return true;
     }
 
     /// <summary>

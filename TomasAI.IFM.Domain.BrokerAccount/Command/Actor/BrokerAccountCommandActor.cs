@@ -32,13 +32,62 @@ public sealed class BrokerAccountCommandActor(ICommandActorContext<BrokerAccount
     private static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
-            [typeof(RecordBrokerAccountSnapshotCommand)] = BrokerAccountCommandValidation.Validate,
-            [typeof(SubmitAccountQualificationEvidenceCommand)] = BrokerAccountCommandValidation.Validate,
-            [typeof(AcceptAccountQualificationCommand)] = BrokerAccountCommandValidation.Validate,
-            [typeof(RevokeAccountQualificationCommand)] = BrokerAccountCommandValidation.Validate,
-            [typeof(SetManualTradingHoldCommand)] = BrokerAccountCommandValidation.Validate,
-            [typeof(ReleaseManualTradingHoldCommand)] = BrokerAccountCommandValidation.Validate,
-            [typeof(RequestBrokerAccountResynchronizationCommand)] = BrokerAccountCommandValidation.Validate
+            [typeof(RecordBrokerAccountSnapshotCommand)] = static command =>
+            {
+                var typed = (RecordBrokerAccountSnapshotCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateBrokerAccountId(typed.EntityId, typed.CommandName)
+                    .ValidateBrokerAccountCommand(typed);
+            },
+            [typeof(SubmitAccountQualificationEvidenceCommand)] = static command =>
+            {
+                var typed = (SubmitAccountQualificationEvidenceCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateBrokerAccountId(typed.EntityId, typed.CommandName)
+                    .ValidateBrokerAccountCommand(typed);
+            },
+            [typeof(AcceptAccountQualificationCommand)] = static command =>
+            {
+                var typed = (AcceptAccountQualificationCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateBrokerAccountId(typed.EntityId, typed.CommandName)
+                    .ValidateBrokerAccountCommand(typed);
+            },
+            [typeof(RevokeAccountQualificationCommand)] = static command =>
+            {
+                var typed = (RevokeAccountQualificationCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateBrokerAccountId(typed.EntityId, typed.CommandName)
+                    .ValidateBrokerAccountCommand(typed);
+            },
+            [typeof(SetManualTradingHoldCommand)] = static command =>
+            {
+                var typed = (SetManualTradingHoldCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateBrokerAccountId(typed.EntityId, typed.CommandName)
+                    .ValidateBrokerAccountCommand(typed);
+            },
+            [typeof(ReleaseManualTradingHoldCommand)] = static command =>
+            {
+                var typed = (ReleaseManualTradingHoldCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateBrokerAccountId(typed.EntityId, typed.CommandName)
+                    .ValidateBrokerAccountCommand(typed);
+            },
+            [typeof(RequestBrokerAccountResynchronizationCommand)] = static command =>
+            {
+                var typed = (RequestBrokerAccountResynchronizationCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateBrokerAccountId(typed.EntityId, typed.CommandName)
+                    .ValidateBrokerAccountCommand(typed);
+            }
         }.ToFrozenDictionary();
 
     private static readonly IReadOnlyDictionary<Type, Func<ICommand, IBrokerAccountCommandContext,

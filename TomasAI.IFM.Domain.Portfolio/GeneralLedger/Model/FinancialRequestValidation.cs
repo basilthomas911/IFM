@@ -26,15 +26,15 @@ public static class FinancialRequestValidation
         Add(request.Body is not null, "A typed financial payload is required.");
         var identity = request switch
         {
-            SubmitEmulatorOrderCommand x when x.EntityId.PortfolioId == x.PortfolioId => x.EntityId.Format(),
-            PostFundTransactionCommand x when x.EntityId.PortfolioId == x.PortfolioId => x.EntityId.Format(),
-            PostFundTransactionsCommand x when x.EntityId.PortfolioId == x.PortfolioId => x.EntityId.Format(),
-            ConfigureLedgerCommand x when x.EntityId.PortfolioId == x.PortfolioId => x.EntityId.Format(),
-            ReservePortfolioTradeRiskCommand x when x.EntityId.PortfolioId == x.PortfolioId && x.EntityId.OperationId == x.OperationId => x.EntityId.Format(),
-            ConsumeCapacityReservationCommand x when x.EntityId.PortfolioId == x.PortfolioId && x.EntityId.OperationId == x.OperationId => x.EntityId.Format(),
-            TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.EvaluatePortfolioOrderCompositionCommand x when x.EntityId.PortfolioId == x.PortfolioId && x.EntityId.OperationId == x.OperationId => x.EntityId.Format(),
-            TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.EvaluatePortfolioCloseOrderCompositionCommand x when x.EntityId.PortfolioId == x.PortfolioId && x.EntityId.OperationId == x.OperationId => x.EntityId.Format(),
-            ChangeCapacityReservationCommand x when x.Body is not null && x.EntityId.PortfolioId == x.PortfolioId && x.EntityId.ReservationId == x.Body.ReservationId => x.EntityId.Format(),
+            SubmitEmulatorOrderCommand { EntityId: not null } x when x.EntityId.PortfolioId == x.PortfolioId => x.EntityId.Format(),
+            PostFundTransactionCommand { EntityId: not null } x when x.EntityId.PortfolioId == x.PortfolioId => x.EntityId.Format(),
+            PostFundTransactionsCommand { EntityId: not null } x when x.EntityId.PortfolioId == x.PortfolioId => x.EntityId.Format(),
+            ConfigureLedgerCommand { EntityId: not null } x when x.EntityId.PortfolioId == x.PortfolioId => x.EntityId.Format(),
+            ReservePortfolioTradeRiskCommand { EntityId: not null } x when x.EntityId.PortfolioId == x.PortfolioId && x.EntityId.OperationId == x.OperationId => x.EntityId.Format(),
+            ConsumeCapacityReservationCommand { EntityId: not null } x when x.EntityId.PortfolioId == x.PortfolioId && x.EntityId.OperationId == x.OperationId => x.EntityId.Format(),
+            TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.EvaluatePortfolioOrderCompositionCommand { EntityId: not null } x when x.EntityId.PortfolioId == x.PortfolioId && x.EntityId.OperationId == x.OperationId => x.EntityId.Format(),
+            TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.EvaluatePortfolioCloseOrderCompositionCommand { EntityId: not null } x when x.EntityId.PortfolioId == x.PortfolioId && x.EntityId.OperationId == x.OperationId => x.EntityId.Format(),
+            ChangeCapacityReservationCommand { EntityId: not null } x when x.Body is not null && x.EntityId.PortfolioId == x.PortfolioId && x.EntityId.ReservationId == x.Body.ReservationId => x.EntityId.Format(),
             _ => null
         };
         Add(identity is not null && request.Subject.EntityId == identity, "Subject, aggregate and business identities must agree.");

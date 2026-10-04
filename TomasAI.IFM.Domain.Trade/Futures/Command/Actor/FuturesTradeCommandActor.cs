@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Futures.Command.Validation;
 using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Trade.Futures.Command.State;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -38,10 +39,38 @@ public sealed class FuturesTradeCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
-            [typeof(CreateFuturesTradeCommand)] = Validate,
-            [typeof(AmendFuturesTradeEvidenceCommand)] = Validate,
-            [typeof(BeginCloseFuturesTradeCommand)] = Validate,
-            [typeof(CloseFuturesTradeCommand)] = Validate,
+            [typeof(CreateFuturesTradeCommand)] = static command =>
+            {
+                var typed = (CreateFuturesTradeCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateTradeEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateEstablishedTradeCommand(typed, TradeAssetFamily.Futures, TradeStrategyKind.FuturesOutright);
+            },
+            [typeof(AmendFuturesTradeEvidenceCommand)] = static command =>
+            {
+                var typed = (AmendFuturesTradeEvidenceCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateTradeEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateEstablishedTradeCommand(typed, TradeAssetFamily.Futures, TradeStrategyKind.FuturesOutright);
+            },
+            [typeof(BeginCloseFuturesTradeCommand)] = static command =>
+            {
+                var typed = (BeginCloseFuturesTradeCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateTradeEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateEstablishedTradeCommand(typed, TradeAssetFamily.Futures, TradeStrategyKind.FuturesOutright);
+            },
+            [typeof(CloseFuturesTradeCommand)] = static command =>
+            {
+                var typed = (CloseFuturesTradeCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateTradeEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateEstablishedTradeCommand(typed, TradeAssetFamily.Futures, TradeStrategyKind.FuturesOutright);
+            },
         }.ToFrozenDictionary();
 
     static readonly IReadOnlyDictionary<Type,
@@ -113,24 +142,6 @@ public sealed class FuturesTradeCommandActor(
         Exception exception) =>
         ValueTask.FromResult<ServiceResult<GuidResult>>(
             new ServiceFailed<GuidResult>(command.ErrorCode, exception.Message));
-
-    static List<ValidationError> Validate(ICommand command) =>
-        new List<ValidationError>()
-            .ValidateCommandId(command.CommandId, command.CommandName)
-            .CaptureCommandValidation(() =>
-            {
-                if (command is not ICommand<TradeEntityId> typedCommand ||
-                    !typedCommand.EntityId.IsValid ||
-                    command.Subject.EntityId != typedCommand.EntityId.Format() ||
-                    command is CreateFuturesTradeCommand
-                    {
-                        Trade.AssetFamily: not TradeAssetFamily.Futures
-                    })
-                {
-                    throw new ArgumentException(
-                        "Valid Futures Trade identity, type, and subject are required.");
-                }
-            });
 
     static IFuturesTradeCommandContext Typed(
         ICommandActorContext<FuturesTradeCommandActor> context) =>

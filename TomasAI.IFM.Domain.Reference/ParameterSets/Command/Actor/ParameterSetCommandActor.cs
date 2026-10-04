@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.ParameterSets.Command.Validation;
 using System.Collections.Concurrent;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Command.State;
@@ -25,12 +26,42 @@ public sealed class ParameterSetCommandActor(ICommandActorContext<ParameterSetCo
     };
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap = new Dictionary<Type, Func<ICommand, List<ValidationError>>>
     {
-        [typeof(CreateParameterSetCommand)] = c => new List<ValidationError>().ValidateCommandId(c.CommandId, c.CommandName).CaptureCommandValidation(() => ValidateIdentity((IParameterSetMutation)c)),
-        [typeof(SaveParameterDraftCommand)] = c => new List<ValidationError>().ValidateCommandId(c.CommandId, c.CommandName).CaptureCommandValidation(() => ValidateIdentity((IParameterSetMutation)c)),
-        [typeof(RenameParameterSetCommand)] = c => new List<ValidationError>().ValidateCommandId(c.CommandId, c.CommandName).CaptureCommandValidation(() => ValidateIdentity((IParameterSetMutation)c)),
-        [typeof(PublishParameterVersionCommand)] = c => new List<ValidationError>().ValidateCommandId(c.CommandId, c.CommandName).CaptureCommandValidation(() => ValidateIdentity((IParameterSetMutation)c)),
-        [typeof(RetireParameterVersionCommand)] = c => new List<ValidationError>().ValidateCommandId(c.CommandId, c.CommandName).CaptureCommandValidation(() => ValidateIdentity((IParameterSetMutation)c)),
-    };
+        [typeof(CreateParameterSetCommand)] = static command =>
+        {
+            var typed = (CreateParameterSetCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateParameterSetId(typed.EntityId)
+                .ValidateParameterCommand(typed);
+        },        [typeof(SaveParameterDraftCommand)] = static command =>
+        {
+            var typed = (SaveParameterDraftCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateParameterSetId(typed.EntityId)
+                .ValidateParameterCommand(typed);
+        },        [typeof(RenameParameterSetCommand)] = static command =>
+        {
+            var typed = (RenameParameterSetCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateParameterSetId(typed.EntityId)
+                .ValidateParameterCommand(typed);
+        },        [typeof(PublishParameterVersionCommand)] = static command =>
+        {
+            var typed = (PublishParameterVersionCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateParameterSetId(typed.EntityId)
+                .ValidateParameterCommand(typed);
+        },        [typeof(RetireParameterVersionCommand)] = static command =>
+        {
+            var typed = (RetireParameterVersionCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateParameterSetId(typed.EntityId)
+                .ValidateParameterCommand(typed);
+        },    };
     static readonly IReadOnlyDictionary<Type, Func<ICommand, IParameterSetCommandContext, ParameterSetCommandState, Task<ServiceResult<GuidResult>>>> _receiveMap = new Dictionary<Type, Func<ICommand, IParameterSetCommandContext, ParameterSetCommandState, Task<ServiceResult<GuidResult>>>>
     {
         [typeof(CreateParameterSetCommand)] = (c, ctx, state) => ((CreateParameterSetCommand)c).ExecuteAsync(ctx, state, ctx.Logger),
@@ -39,7 +70,6 @@ public sealed class ParameterSetCommandActor(ICommandActorContext<ParameterSetCo
         [typeof(PublishParameterVersionCommand)] = (c, ctx, state) => ((PublishParameterVersionCommand)c).ExecuteAsync(ctx, state, ctx.Logger),
         [typeof(RetireParameterVersionCommand)] = (c, ctx, state) => ((RetireParameterVersionCommand)c).ExecuteAsync(ctx, state, ctx.Logger),
     };
-    static void ValidateIdentity(IParameterSetMutation c) { if (c.EntityId.SetId == Guid.Empty || c.ExpectedRevision < 0) throw new ArgumentException("PARAM.IDENTITY_INVALID"); }
     protected override ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<ParameterSetCommandActor> ctx, ICommand cmd, CancellationToken token) => ValueTask.FromResult(true);
     protected override ValueTask OnCommandFinishedAsync(ICommandActorContext<ParameterSetCommandActor> ctx, ICommand? cmd) => cmd is null ? ValueTask.CompletedTask : ReleaseLease(cmd);
     protected override ICommand ParseMessage(ICommandActorContext<ParameterSetCommandActor> ctx, IActorMessage msg) => ParseMappedCommand(ctx, msg, _parseMap);

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.ParameterSets.Command.Validation;
 using System.Collections.Concurrent;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Command.State;
@@ -22,15 +23,26 @@ public sealed class ParameterAssignmentCommandActor(ICommandActorContext<Paramet
     };
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap = new Dictionary<Type, Func<ICommand, List<ValidationError>>>
     {
-        [typeof(AssignParameterVersionCommand)] = c => new List<ValidationError>().ValidateCommandId(c.CommandId, c.CommandName).CaptureCommandValidation(() => ValidateIdentity(((AssignParameterVersionCommand)c).EntityId, ((AssignParameterVersionCommand)c).Scope, ((AssignParameterVersionCommand)c).ExpectedRevision)),
-        [typeof(DisableParameterAssignmentCommand)] = c => new List<ValidationError>().ValidateCommandId(c.CommandId, c.CommandName).CaptureCommandValidation(() => ValidateIdentity(((DisableParameterAssignmentCommand)c).EntityId, ((DisableParameterAssignmentCommand)c).Scope, ((DisableParameterAssignmentCommand)c).ExpectedRevision)),
-    };
+        [typeof(AssignParameterVersionCommand)] = static command =>
+        {
+            var typed = (AssignParameterVersionCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateParameterAssignmentId(typed.EntityId)
+                .ValidateParameterCommand(typed);
+        },        [typeof(DisableParameterAssignmentCommand)] = static command =>
+        {
+            var typed = (DisableParameterAssignmentCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateParameterAssignmentId(typed.EntityId)
+                .ValidateParameterCommand(typed);
+        },    };
     static readonly IReadOnlyDictionary<Type, Func<ICommand, IParameterAssignmentCommandContext, ParameterAssignmentCommandState, Task<ServiceResult<GuidResult>>>> _receiveMap = new Dictionary<Type, Func<ICommand, IParameterAssignmentCommandContext, ParameterAssignmentCommandState, Task<ServiceResult<GuidResult>>>>
     {
         [typeof(AssignParameterVersionCommand)] = (c, ctx, state) => ((AssignParameterVersionCommand)c).ExecuteAsync(ctx, state, ctx.Logger),
         [typeof(DisableParameterAssignmentCommand)] = (c, ctx, state) => ((DisableParameterAssignmentCommand)c).ExecuteAsync(ctx, state, ctx.Logger),
     };
-    static void ValidateIdentity(ParameterAssignmentEntityId entityId, ParameterAssignmentScope scope, long expectedRevision) { if (scope is null || entityId.AssignmentId != TomasAI.IFM.Domain.Reference.ParameterSets.Model.ParameterAssignmentPolicyModel.AssignmentId(scope) || expectedRevision < 0) throw new ArgumentException("PARAM.IDENTITY_INVALID"); }
     protected override ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<ParameterAssignmentCommandActor> ctx, ICommand cmd, CancellationToken token) => ValueTask.FromResult(true);
     protected override ValueTask OnCommandFinishedAsync(ICommandActorContext<ParameterAssignmentCommandActor> ctx, ICommand? cmd) => cmd is null ? ValueTask.CompletedTask : ReleaseLease(cmd);
     protected override ICommand ParseMessage(ICommandActorContext<ParameterAssignmentCommandActor> ctx, IActorMessage msg) => ParseMappedCommand(ctx, msg, _parseMap);

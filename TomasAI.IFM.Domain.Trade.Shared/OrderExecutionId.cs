@@ -14,3 +14,15 @@ public readonly record struct OrderExecutionId(
         $"{TradeOrder.Format()}.{ExecutionAttemptId:N}");
     [IgnoreMember] public bool IsValid => TradeOrder.IsValid && ExecutionAttemptId != Guid.Empty;
 }
+
+/// <summary>Intrinsic OrderExecutionId validation used by command actors.</summary>
+public static class OrderExecutionIdValidationExtensions
+{
+    /// <summary>Checks the intrinsic business identity without accessing state.</summary>
+    public static List<TomasAI.IFM.Shared.Validation.ValidationError> ValidateOrderExecutionId(this List<TomasAI.IFM.Shared.Validation.ValidationError> errors, OrderExecutionId entityId, string commandName)
+    {
+        if (!entityId.IsValid) errors.Add(new($"{commandName}.EntityId is invalid."));
+        return errors;
+    }
+
+}

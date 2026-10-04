@@ -22,8 +22,14 @@ public sealed class CapacityReservationCommandActor(ICommandActorContext<Capacit
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap = new Dictionary<Type, Func<ICommand, List<ValidationError>>>
     {
-        [typeof(ChangeCapacityReservationCommand)] = command => new List<ValidationError>().ValidateFinancialRequest<ChangeCapacityReservationCommand, CapacityLifecycleRequest>((ChangeCapacityReservationCommand)command, ActorType.Command, ActorName, ChangeCapacityReservationCommand.Verb),
-    }.ToFrozenDictionary();
+        [typeof(ChangeCapacityReservationCommand)] = static command =>
+        {
+            var typed = (ChangeCapacityReservationCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateFinancialEntityId(typed.EntityId, typed.CommandName)
+                .ValidateFinancialRequest<ChangeCapacityReservationCommand, CapacityLifecycleRequest>(typed, ActorType.Command, ActorName, ChangeCapacityReservationCommand.Verb);
+        },    }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, Func<ICommand, CapacityReservationCommandServices, CancellationToken, ValueTask<ServiceResult<GuidResult>>>> _receiveMap =
         new Dictionary<Type, Func<ICommand, CapacityReservationCommandServices, CancellationToken, ValueTask<ServiceResult<GuidResult>>>>
         {

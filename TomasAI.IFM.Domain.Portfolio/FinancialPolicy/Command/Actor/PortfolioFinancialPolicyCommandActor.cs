@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Portfolio.FinancialPolicy.Command.Validation;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
@@ -53,55 +54,45 @@ public sealed class PortfolioFinancialPolicyCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
-            [typeof(CreatePortfolioFinancialPolicyCommand)] = command =>
+            [typeof(CreatePortfolioFinancialPolicyCommand)] = static command =>
             {
                 var typed = (CreatePortfolioFinancialPolicyCommand)command;
-                var errors = new List<ValidationError>()
+                return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName);
-                ValidateIdentity(errors, typed);
-                ValidateCreate(errors, typed);
-                return errors;
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateFinancialPolicyCommand(typed);
             },
-            [typeof(AddPortfolioFinancialPolicyVersionCommand)] = command =>
+            [typeof(AddPortfolioFinancialPolicyVersionCommand)] = static command =>
             {
                 var typed = (AddPortfolioFinancialPolicyVersionCommand)command;
-                var errors = new List<ValidationError>()
+                return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName);
-                ValidateIdentity(errors, typed);
-                ValidateVersion(errors, typed);
-                return errors;
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateFinancialPolicyCommand(typed);
             },
-            [typeof(ActivateAndAssignPortfolioFinancialPolicyCommand)] = command =>
+            [typeof(ActivateAndAssignPortfolioFinancialPolicyCommand)] = static command =>
             {
                 var typed = (ActivateAndAssignPortfolioFinancialPolicyCommand)command;
-                var errors = new List<ValidationError>()
+                return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName);
-                ValidateIdentity(errors, typed);
-                ValidateActivation(errors, typed);
-                return errors;
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateFinancialPolicyCommand(typed);
             },
-            [typeof(RetirePortfolioFinancialPolicyCommand)] = command =>
+            [typeof(RetirePortfolioFinancialPolicyCommand)] = static command =>
             {
                 var typed = (RetirePortfolioFinancialPolicyCommand)command;
-                var errors = new List<ValidationError>()
+                return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName);
-                ValidateIdentity(errors, typed);
-                ValidateRetire(errors, typed);
-                return errors;
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateFinancialPolicyCommand(typed);
             },
-            [typeof(DeleteDraftPortfolioFinancialPolicyCommand)] = command =>
+            [typeof(DeleteDraftPortfolioFinancialPolicyCommand)] = static command =>
             {
                 var typed = (DeleteDraftPortfolioFinancialPolicyCommand)command;
-                var errors = new List<ValidationError>()
+                return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName);
-                ValidateIdentity(errors, typed);
-                ValidateDelete(errors, typed);
-                return errors;
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateFinancialPolicyCommand(typed);
             },
         };
 
@@ -223,91 +214,7 @@ public sealed class PortfolioFinancialPolicyCommandActor(
             ? new(portfolioId, policyId) : new();
     }
 
-    static void ValidateIdentity(
-        List<ValidationError> errors,
-        ICommand<PortfolioFinancialPolicyId> command)
-    {
-        if (command.EntityId is null)
-        {
-            return;
-        }
-        AddErrors(errors, command.EntityId.Validate(), command.CommandName);
-        if (!string.Equals(command.Subject.EntityId, command.EntityId.Format(), StringComparison.Ordinal))
-            errors.Add(new($"{command.CommandName}.EntityId does not match Subject.EntityId"));
-    }
 
-    static void ValidateCreate(List<ValidationError> errors, CreatePortfolioFinancialPolicyCommand command)
-    {
-        if (command.IdempotencyKey == Guid.Empty)
-            errors.Add(new($"{command.CommandName}.IdempotencyKey is empty"));
-        ValidatePolicy(errors, command, command.Policy);
-    }
-
-    static void ValidateVersion(List<ValidationError> errors, AddPortfolioFinancialPolicyVersionCommand command)
-    {
-        ValidateExpectedRevision(errors, command.ExpectedVersion, command.CommandName);
-        ValidatePolicy(errors, command, command.Policy);
-    }
-
-    static void ValidateActivation(List<ValidationError> errors, ActivateAndAssignPortfolioFinancialPolicyCommand command)
-    {
-        if (command.PolicyVersion <= 0)
-            errors.Add(new($"{command.CommandName}.PolicyVersion must be positive"));
-        ValidateExpectedRevision(errors, command.ExpectedPolicyRevision, command.CommandName);
-        ValidateExpectedRevision(errors, command.ExpectedPortfolioRevision, command.CommandName);
-    }
-
-    static void ValidateRetire(List<ValidationError> errors, RetirePortfolioFinancialPolicyCommand command)
-    {
-        if (command.PolicyVersion <= 0)
-            errors.Add(new($"{command.CommandName}.PolicyVersion must be positive"));
-        ValidateExpectedRevision(errors, command.ExpectedRevision, command.CommandName);
-        ValidateReason(errors, command.Reason, command.CommandName);
-    }
-
-    static void ValidateDelete(List<ValidationError> errors, DeleteDraftPortfolioFinancialPolicyCommand command)
-    {
-        ValidateExpectedRevision(errors, command.ExpectedRevision, command.CommandName);
-        ValidateReason(errors, command.Reason, command.CommandName);
-    }
-
-    static void ValidatePolicy(
-        List<ValidationError> errors,
-        ICommand<PortfolioFinancialPolicyId> command,
-        PortfolioFinancialPolicyReadModel? policy)
-    {
-        if (policy is null)
-        {
-            errors.Add(new($"{command.CommandName}.Policy is null"));
-            return;
-        }
-        if (policy.TradeFamilyLimits is null || policy.TradeFamilyLimits.Any(static family => family is null))
-            errors.Add(new($"{command.CommandName}.Policy.TradeFamilyLimits contains null values"));
-        else
-            AddErrors(errors, policy.Validate(), command.CommandName);
-        if (command.EntityId is null)
-            return;
-        if (policy.PortfolioId != command.EntityId.PortfolioId || policy.PolicyId != command.EntityId.PolicyId)
-            errors.Add(new($"{command.CommandName}.Policy identity does not match EntityId"));
-    }
-
-    static void ValidateExpectedRevision(List<ValidationError> errors, long expectedRevision, string commandName)
-    {
-        if (expectedRevision < 0)
-            errors.Add(new($"{commandName}.expected revision cannot be negative"));
-    }
-
-    static void ValidateReason(List<ValidationError> errors, string? reason, string commandName)
-    {
-        if (string.IsNullOrWhiteSpace(reason))
-            errors.Add(new($"{commandName}.Reason is required"));
-    }
-
-    static void AddErrors(List<ValidationError> errors, IEnumerable<string> messages, string commandName)
-    {
-        foreach (var message in messages)
-            errors.Add(new($"{commandName}.{message}"));
-    }
 
     sealed class PolicyActorState(PortfolioFinancialPolicyId id, PortfolioFinancialPolicyAggregate aggregate) : IActorState<PolicyActorState>
     {

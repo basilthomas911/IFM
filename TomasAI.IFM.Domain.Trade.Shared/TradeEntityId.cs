@@ -33,3 +33,15 @@ public readonly record struct TradeEntityId(
             : throw new FormatException($"Invalid TradeEntityId '{value}'. All identity values must be positive.");
     }
 }
+
+/// <summary>Intrinsic TradeEntityId validation used by command actors.</summary>
+public static class TradeEntityIdValidationExtensions
+{
+    /// <summary>Validates all four business identifiers of a Trade.</summary>
+    public static List<TomasAI.IFM.Shared.Validation.ValidationError> ValidateTradeEntityId(this List<TomasAI.IFM.Shared.Validation.ValidationError> errors, TradeEntityId id, string commandName)
+    {
+        if (!id.IsValid) errors.Add(new($"{commandName}.EntityId requires positive Portfolio, Fund, Order and Trade IDs."));
+        return errors;
+    }
+
+}

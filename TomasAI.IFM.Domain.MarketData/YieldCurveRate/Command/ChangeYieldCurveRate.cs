@@ -1,48 +1,57 @@
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
-using TomasAI.IFM.Domain.MarketData.Shared.Exceptions;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.State;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command;
 
+/// <summary>Handles ChangeYieldCurveRate through computation, failure guards and state-owned event application.</summary>
 public static class ChangeYieldCurveRate
 {
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="e"></param>
-    /// <param name="state"></param>
-    /// <returns></returns>
-    /// <exception cref="ChangeYieldCurveRateException"></exception>
-    public static ServiceResult<GuidResult> Execute(this ChangeYieldCurveRateCommand e, YieldCurveRateCommandState state)
-        => e switch
+    /// <summary>Applies the computed business data only when ownership and lifecycle guards succeed.</summary>
+    /// <param name="command">The concrete YieldCurveRate intent.</param>
+    /// <param name="state">The authoritative YieldCurveRate state.</param>
+    /// <returns>The command ID on success, or the guarded/application failure.</returns>
+    public static ServiceResult<GuidResult> Execute(this ChangeYieldCurveRateCommand command, YieldCurveRateCommandState state)
+    {
+        var errorMsg = "YieldCurveRate.STATE.APPLY_FAILED";
+        var computed = command.Compute(out var yieldCurveRate);
+        var updated = computed switch
         {
-            _ when state.YieldCurveRateDoesNotExist(e.YieldCurveRate.ValueDate, e.Overwrite) => throw new ChangeYieldCurveRateException(e.YieldCurveRateDoesNotExistErrorMsg()),
-            _ => e.UpdateResult(() => state.Update(e.CreateYieldCurveRateChangedEvent(), e))
+            _ when !computed => command.UpdateFailed(ref errorMsg, "YieldCurveRate.COMPUTED_DATA.INVALID"),
+            _ when state.YieldCurveRateDoesNotExist(yieldCurveRate.ValueDate, command.Overwrite)
+                => command.UpdateFailed(ref errorMsg, $"{command.CommandName}: yield curve rate for {yieldCurveRate.ValueDate:yyyy-MMM-dd} does not exist"),
+            _ => state.Update(command.CreateYieldCurveRateChangedEvent(yieldCurveRate), command)
         };
+        return updated
+            ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
+            : command.UpdateFailed(errorMsg);
+    }
 
-    /// <summary>
-    /// Creates a <see cref="YieldCurveRateChangedEvent"/> from a <see cref="ChangeYieldCurveRateCommand"/>.
-    /// </summary>
-    /// <param name="e">The source change command containing entity identifiers, payload, and origin metadata.</param>
-    /// <returns>A fully-populated changed event ready to be applied to actor state.</returns>
-    internal static YieldCurveRateChangedEvent CreateYieldCurveRateChangedEvent(this ChangeYieldCurveRateCommand e)
-        => new()
-        {
-            CommandId = e.CommandId,
-            Subject = new ActorSubject(ActorType.Event, YieldCurveRateChangedEvent.Actor, YieldCurveRateChangedEvent.Verb, e.EntityId.Format()),
-            EntityId = e.EntityId,
-            YieldCurveRate = e.YieldCurveRate,
-            UpdatedOn = e.OriginatedOn,
-            UpdatedBy = e.OriginatedBy
-        };
+    /// <summary>Computes business data without modifying actor state or command inputs.</summary>
+    /// <param name="command">The proposed YieldCurveRate change.</param>
+    /// <param name="yieldCurveRate">The computed business data to carry in its event.</param>
+    /// <returns>True when the computed data belongs to the commanded entity.</returns>
+    internal static bool Compute(this ChangeYieldCurveRateCommand command, out YieldCurveRateReadModel yieldCurveRate)
+    {
+        yieldCurveRate = command.YieldCurveRate is { } proposedYieldCurveRate ? proposedYieldCurveRate with { } : null!;
+        return yieldCurveRate is not null && yieldCurveRate.ValueDate != default && command.EntityId is not null && yieldCurveRate.ValueDate.Year == command.EntityId.Year;
+    }
 
-    /// <summary>
-    /// Returns the error message for an attempt to change a yield curve rate that does not exist.
-    /// </summary>
-    internal static string YieldCurveRateDoesNotExistErrorMsg(this ChangeYieldCurveRateCommand e)
-        => $"{e.CommandName}: yield curve rate for {e.YieldCurveRate.ValueDate:yyyy-MMM-dd} does not exist";
-
+    /// <summary>Creates the private event from guarded business data without changing state.</summary>
+    /// <param name="command">The originating command and route.</param>
+    /// <param name="yieldCurveRate">The computed, guarded business data.</param>
+    /// <returns>The source event applied and persisted through State.Update.</returns>
+    internal static YieldCurveRateChangedEvent CreateYieldCurveRateChangedEvent(this ChangeYieldCurveRateCommand command, YieldCurveRateReadModel yieldCurveRate) => new()
+    {
+        CommandId = command.CommandId,
+        Subject = new(ActorType.Event, YieldCurveRateChangedEvent.Actor, YieldCurveRateChangedEvent.Verb, command.EntityId.Format()),
+        EntityId = command.EntityId,
+        YieldCurveRate = yieldCurveRate,
+        UpdatedOn = command.OriginatedOn,
+        UpdatedBy = command.OriginatedBy
+    };
 }

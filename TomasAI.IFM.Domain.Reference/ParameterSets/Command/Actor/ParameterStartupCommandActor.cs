@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.ParameterSets.Command.Validation;
 using System.Collections.Concurrent;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Command.State;
@@ -23,21 +24,34 @@ public sealed class ParameterStartupCommandActor(ICommandActorContext<ParameterS
     };
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap = new Dictionary<Type, Func<ICommand, List<ValidationError>>>
     {
-        [typeof(ApplySignalStartupPlanCommand)] = c => new List<ValidationError>().ValidateCommandId(c.CommandId, c.CommandName).CaptureCommandValidation(() => ValidateIdentity((IParameterStartupMutation)c)),
-        [typeof(ReleaseSignalStartupPlanCommand)] = c => new List<ValidationError>().ValidateCommandId(c.CommandId, c.CommandName).CaptureCommandValidation(() => ValidateIdentity((IParameterStartupMutation)c)),
-        [typeof(RecordSignalStartupReportCommand)] = c => new List<ValidationError>().ValidateCommandId(c.CommandId, c.CommandName).CaptureCommandValidation(() => ValidateIdentity((IParameterStartupMutation)c)),
-    };
+        [typeof(ApplySignalStartupPlanCommand)] = static command =>
+        {
+            var typed = (ApplySignalStartupPlanCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateParameterStartupId(typed.EntityId)
+                .ValidateParameterCommand(typed);
+        },        [typeof(ReleaseSignalStartupPlanCommand)] = static command =>
+        {
+            var typed = (ReleaseSignalStartupPlanCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateParameterStartupId(typed.EntityId)
+                .ValidateParameterCommand(typed);
+        },        [typeof(RecordSignalStartupReportCommand)] = static command =>
+        {
+            var typed = (RecordSignalStartupReportCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateParameterStartupId(typed.EntityId)
+                .ValidateParameterCommand(typed);
+        },    };
     static readonly IReadOnlyDictionary<Type, Func<ICommand, IParameterStartupCommandContext, ParameterStartupCommandState, Task<ServiceResult<GuidResult>>>> _receiveMap = new Dictionary<Type, Func<ICommand, IParameterStartupCommandContext, ParameterStartupCommandState, Task<ServiceResult<GuidResult>>>>
     {
         [typeof(ApplySignalStartupPlanCommand)] = (c, ctx, state) => ((ApplySignalStartupPlanCommand)c).ExecuteAsync(ctx, state, ctx.Logger),
         [typeof(ReleaseSignalStartupPlanCommand)] = (c, ctx, state) => ((ReleaseSignalStartupPlanCommand)c).ExecuteAsync(ctx, state, ctx.Logger),
         [typeof(RecordSignalStartupReportCommand)] = (c, ctx, state) => ((RecordSignalStartupReportCommand)c).ExecuteAsync(ctx, state, ctx.Logger),
     };
-    static void ValidateIdentity(IParameterStartupMutation c)
-    {
-        if (c.EntityId != ParameterStartupEntityId.Registry || c.RunId == Guid.Empty) throw new ArgumentException("PARAM.STARTUP_ID_INVALID");
-        if (c is ApplySignalStartupPlanCommand && c.CommandId != c.RunId) throw new ArgumentException("PARAM.STARTUP_OPERATION_ID_INVALID");
-    }
     protected override async ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<ParameterStartupCommandActor> ctx, ICommand cmd, CancellationToken token)
     {
         var previous = await Services.DbEventSource.GetCommandLogAsync(cmd.CommandId).WaitAsync(token)

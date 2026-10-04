@@ -132,6 +132,20 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
     }
 
     [Fact]
+    public async Task GenerateCompletion_MissingCommandIdIsRejectedEvenWhenEventIdExists()
+    {
+        var completed = CreateCompletion(TimeFrameType.Daily) with { CommandId = Guid.Empty, Id = Guid.NewGuid() };
+        var context = CreateSuccessfulContext();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            FuturesItiSignalGeneratedComplete.StartStrategyWorkflowAsync(completed, context).AsTask());
+
+        Assert.Contains("command identifier", exception.Message);
+        await context.DidNotReceiveWithAnyArgs().SendAsync<ExecuteIntrinsicTimeStrategyWorkflowCommand,
+            IntrinsicTimeStrategyWorkflowEntityId>(default!, default!);
+    }
+
+    [Fact]
     public async Task DailyCompletion_MissingSignalSnapshotIsRejectedWithoutChildCommands()
     {
         var source = CreateCompletion(TimeFrameType.Daily) with { FuturesItiSignal = null };

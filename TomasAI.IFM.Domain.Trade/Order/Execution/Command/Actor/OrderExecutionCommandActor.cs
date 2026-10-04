@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Trade.Order.Execution.Command;
 using TomasAI.IFM.Domain.Trade.Order.Execution.Command.State;
@@ -32,13 +33,62 @@ public sealed class OrderExecutionCommandActor(ICommandActorContext<OrderExecuti
     private static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
-            [typeof(StartOrderExecutionCommand)] = OrderExecutionCommandValidation.Validate,
-            [typeof(SubmitOrderExecutionCommand)] = OrderExecutionCommandValidation.Validate,
-            [typeof(AddOrderExecutionFillCommand)] = OrderExecutionCommandValidation.Validate,
-            [typeof(UpdateOrderExecutionFillCostCommand)] = OrderExecutionCommandValidation.Validate,
-            [typeof(AcceptOrderExecutionCommand)] = OrderExecutionCommandValidation.Validate,
-            [typeof(CancelOrderExecutionCommand)] = OrderExecutionCommandValidation.Validate,
-            [typeof(RejectOrderExecutionCommand)] = OrderExecutionCommandValidation.Validate
+            [typeof(StartOrderExecutionCommand)] = static command =>
+            {
+                var typed = (StartOrderExecutionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateOrderExecutionId(typed.EntityId, typed.CommandName)
+                    .ValidateOrderExecutionCommand(typed);
+            },
+            [typeof(SubmitOrderExecutionCommand)] = static command =>
+            {
+                var typed = (SubmitOrderExecutionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateOrderExecutionId(typed.EntityId, typed.CommandName)
+                    .ValidateOrderExecutionCommand(typed);
+            },
+            [typeof(AddOrderExecutionFillCommand)] = static command =>
+            {
+                var typed = (AddOrderExecutionFillCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateOrderExecutionId(typed.EntityId, typed.CommandName)
+                    .ValidateOrderExecutionCommand(typed);
+            },
+            [typeof(UpdateOrderExecutionFillCostCommand)] = static command =>
+            {
+                var typed = (UpdateOrderExecutionFillCostCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateOrderExecutionId(typed.EntityId, typed.CommandName)
+                    .ValidateOrderExecutionCommand(typed);
+            },
+            [typeof(AcceptOrderExecutionCommand)] = static command =>
+            {
+                var typed = (AcceptOrderExecutionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateOrderExecutionId(typed.EntityId, typed.CommandName)
+                    .ValidateOrderExecutionCommand(typed);
+            },
+            [typeof(CancelOrderExecutionCommand)] = static command =>
+            {
+                var typed = (CancelOrderExecutionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateOrderExecutionId(typed.EntityId, typed.CommandName)
+                    .ValidateOrderExecutionCommand(typed);
+            },
+            [typeof(RejectOrderExecutionCommand)] = static command =>
+            {
+                var typed = (RejectOrderExecutionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateOrderExecutionId(typed.EntityId, typed.CommandName)
+                    .ValidateOrderExecutionCommand(typed);
+            }
         }.ToFrozenDictionary();
 
     private static readonly IReadOnlyDictionary<Type,

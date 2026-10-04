@@ -37,3 +37,16 @@ public readonly record struct StrategyPositionId(
     public string Format() => string.Create(CultureInfo.InvariantCulture, $"{Trade.Format()}.{PositionId:N}");
     [IgnoreMember] public bool IsValid => Trade.IsValid && PositionId != Guid.Empty;
 }
+
+/// <summary>Intrinsic StrategyPositionId validation used by command actors.</summary>
+public static class StrategyPositionIdValidationExtensions
+{
+    /// <summary>Validates the Trade identity and strategy Position identity.</summary>
+    public static List<TomasAI.IFM.Shared.Validation.ValidationError> ValidateStrategyPositionId(this List<TomasAI.IFM.Shared.Validation.ValidationError> errors, StrategyPositionId id, string commandName)
+    {
+        errors.ValidateTradeEntityId(id.Trade, commandName);
+        if (id.PositionId == Guid.Empty) errors.Add(new($"{commandName}.EntityId.PositionId is required."));
+        return errors;
+    }
+
+}

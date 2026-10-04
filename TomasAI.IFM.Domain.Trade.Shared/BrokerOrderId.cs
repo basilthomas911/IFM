@@ -14,3 +14,15 @@ public readonly record struct BrokerOrderId(
     public string Format() => string.Create(CultureInfo.InvariantCulture, $"{Execution.Format()}.{ComponentId:N}");
     [IgnoreMember] public bool IsValid => Execution.IsValid && ComponentId != Guid.Empty;
 }
+
+/// <summary>Intrinsic BrokerOrderId validation used by command actors.</summary>
+public static class BrokerOrderIdValidationExtensions
+{
+    /// <summary>Checks the intrinsic business identity without accessing state.</summary>
+    public static List<TomasAI.IFM.Shared.Validation.ValidationError> ValidateBrokerOrderId(this List<TomasAI.IFM.Shared.Validation.ValidationError> errors, BrokerOrderId entityId, string commandName)
+    {
+        if (!entityId.IsValid) errors.Add(new($"{commandName}.EntityId is invalid."));
+        return errors;
+    }
+
+}

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.Validation;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Shared.Domain;
@@ -32,8 +33,6 @@ public class YieldCurveRateCommandActor(
 {
     public const string ActorName = "YieldCurveRateCommand";
     readonly ILogger<YieldCurveRateCommandActor> _logger = IsArgumentNull.Set(actorContext.Logger);
-    static readonly IValidationRules<YieldCurveRateReadModel> ValidationRules =
-        new YieldCurveRateValidationRules();
     IEventSourceActorStateRepository<YieldCurveRateCommandState> _repo = default!;
 
     /// <summary>
@@ -135,9 +134,21 @@ public class YieldCurveRateCommandActor(
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
             [typeof(AddYieldCurveRateCommand)] = static command =>
-                Validate((AddYieldCurveRateCommand)command, ValidationRules),
+            {
+                var typed = (AddYieldCurveRateCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateYieldCurveCommand(typed);
+            },
             [typeof(ChangeYieldCurveRateCommand)] = static command =>
-                Validate((ChangeYieldCurveRateCommand)command, ValidationRules),
+            {
+                var typed = (ChangeYieldCurveRateCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateYieldCurveCommand(typed);
+            },
             [typeof(RemoveYieldCurveRateCommand)] = static command =>
             {
                 var remove = (RemoveYieldCurveRateCommand)command;
@@ -147,38 +158,14 @@ public class YieldCurveRateCommandActor(
                     .ValidateDateOnly(remove.ValueDate, remove.CommandName, "ValueDate");
             },
             [typeof(ImportYieldCurveRatesCommand)] = static command =>
-                Validate((ImportYieldCurveRatesCommand)command, ValidationRules)
+            {
+                var typed = (ImportYieldCurveRatesCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateYieldCurveCommand(typed);
+            }
         };
-
-    static List<ValidationError> Validate(
-        AddYieldCurveRateCommand command,
-        IValidationRules<YieldCurveRateReadModel> validationRules)
-    {
-        var errors = new List<ValidationError>(2)
-            .ValidateCommandId(command.CommandId, command.CommandName)
-            .ValidateEntityId(command.EntityId, command.CommandName);
-        errors.AddRange(validationRules.Execute(command.YieldCurveRate));
-        return errors;
-    }
-
-    static List<ValidationError> Validate(
-        ChangeYieldCurveRateCommand command,
-        IValidationRules<YieldCurveRateReadModel> validationRules)
-    {
-        var errors = new List<ValidationError>(2)
-            .ValidateCommandId(command.CommandId, command.CommandName)
-            .ValidateEntityId(command.EntityId, command.CommandName);
-        errors.AddRange(validationRules.Execute(command.YieldCurveRate));
-        return errors;
-    }
-
-    static List<ValidationError> Validate(
-        ImportYieldCurveRatesCommand command,
-        IValidationRules<YieldCurveRateReadModel> validationRules)
-        => new List<ValidationError>()
-            .ValidateCommandId(command.CommandId, command.CommandName)
-            .ValidateEntityId(command.EntityId, command.CommandName)
-            .ValidateDateTime(command.ImportDate, command.CommandName, "ImportDate");
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.

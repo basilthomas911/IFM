@@ -275,3 +275,15 @@ public sealed record GetBrokerAccountQuery : IQuery<BrokerAccountDefinition>
     [IgnoreMember] public int ErrorCode => 25212;
     [IgnoreMember] public string? QueryParams => null;
 }
+
+/// <summary>Intrinsic broker account identity validation.</summary>
+public static class BrokerAccountIdentityValidation
+{
+    /// <summary>Checks the intrinsic business identity without accessing state.</summary>
+    public static List<TomasAI.IFM.Shared.Validation.ValidationError> ValidateBrokerAccountId(this List<TomasAI.IFM.Shared.Validation.ValidationError> errors, BrokerAccountId entityId, string commandName)
+    {
+        if (!entityId.IsValid) errors.Add(new($"{commandName}.EntityId is invalid."));
+        return errors;
+    }
+
+}

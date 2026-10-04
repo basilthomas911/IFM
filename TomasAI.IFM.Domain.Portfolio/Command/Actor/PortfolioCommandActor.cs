@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Portfolio.Command.Validation;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
@@ -53,85 +54,69 @@ public sealed class PortfolioCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
-            [typeof(CreatePortfolioCommand)] = command =>
+            [typeof(CreatePortfolioCommand)] = static command =>
             {
                 var typed = (CreatePortfolioCommand)command;
-                var errors = new List<ValidationError>()
+                return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName);
-                ValidateIdentity(errors, typed);
-                ValidateCreate(errors, typed);
-                return errors;
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidatePortfolioCommand(typed);
             },
-            [typeof(AddPortfolioVersionCommand)] = command =>
+            [typeof(AddPortfolioVersionCommand)] = static command =>
             {
                 var typed = (AddPortfolioVersionCommand)command;
-                var errors = new List<ValidationError>()
+                return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName);
-                ValidateIdentity(errors, typed);
-                ValidateVersion(errors, typed);
-                return errors;
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidatePortfolioCommand(typed);
             },
-            [typeof(ChangePortfolioOperatingStateCommand)] = command =>
+            [typeof(ChangePortfolioOperatingStateCommand)] = static command =>
             {
                 var typed = (ChangePortfolioOperatingStateCommand)command;
-                var errors = new List<ValidationError>()
+                return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName);
-                ValidateIdentity(errors, typed);
-                ValidateStateChange(errors, typed);
-                return errors;
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidatePortfolioCommand(typed);
             },
-            [typeof(AddFundToPortfolioCommand)] = command =>
+            [typeof(AddFundToPortfolioCommand)] = static command =>
             {
                 var typed = (AddFundToPortfolioCommand)command;
-                var errors = new List<ValidationError>()
+                return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName);
-                ValidateIdentity(errors, typed);
-                ValidateFund(errors, typed);
-                return errors;
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidatePortfolioCommand(typed);
             },
-            [typeof(DelegateFundAllocationCommand)] = command =>
+            [typeof(DelegateFundAllocationCommand)] = static command =>
             {
                 var typed = (DelegateFundAllocationCommand)command;
-                var errors = new List<ValidationError>()
+                return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName);
-                ValidateIdentity(errors, typed);
-                ValidateAllocation(errors, typed);
-                return errors;
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidatePortfolioCommand(typed);
             },
-            [typeof(DelegateFundRiskEnvelopeCommand)] = command =>
+            [typeof(DelegateFundRiskEnvelopeCommand)] = static command =>
             {
                 var typed = (DelegateFundRiskEnvelopeCommand)command;
-                var errors = new List<ValidationError>()
+                return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName);
-                ValidateIdentity(errors, typed);
-                ValidateRiskEnvelope(errors, typed);
-                return errors;
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidatePortfolioCommand(typed);
             },
-            [typeof(RetirePortfolioCommand)] = command =>
+            [typeof(RetirePortfolioCommand)] = static command =>
             {
                 var typed = (RetirePortfolioCommand)command;
-                var errors = new List<ValidationError>()
+                return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName);
-                ValidateIdentity(errors, typed);
-                ValidateRetire(errors, typed);
-                return errors;
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidatePortfolioCommand(typed);
             },
-            [typeof(DeleteDraftPortfolioCommand)] = command =>
+            [typeof(DeleteDraftPortfolioCommand)] = static command =>
             {
                 var typed = (DeleteDraftPortfolioCommand)command;
-                var errors = new List<ValidationError>()
+                return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName);
-                ValidateIdentity(errors, typed);
-                ValidateDelete(errors, typed);
-                return errors;
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidatePortfolioCommand(typed);
             },
         };
 
@@ -235,128 +220,7 @@ public sealed class PortfolioCommandActor(
             ? new PortfolioId(id)
             : throw new ArgumentException("Portfolio command subject identity is invalid.");
 
-    static void ValidateIdentity(
-        List<ValidationError> errors,
-        ICommand<PortfolioId> command)
-    {
-        if (command.EntityId is null)
-        {
-            return;
-        }
-        AddErrors(errors, command.EntityId.Validate(), command.CommandName);
-        if (!string.Equals(command.Subject.EntityId, command.EntityId.Format(), StringComparison.Ordinal))
-            errors.Add(new($"{command.CommandName}.EntityId does not match Subject.EntityId"));
-    }
 
-    static void ValidateCreate(List<ValidationError> errors, CreatePortfolioCommand command)
-    {
-        if (command.IdempotencyKey == Guid.Empty)
-            errors.Add(new($"{command.CommandName}.IdempotencyKey is empty"));
-        if (command.Portfolio is null)
-        {
-            errors.Add(new($"{command.CommandName}.Portfolio is null"));
-            return;
-        }
-        if (command.Portfolio.BrokerAccountRefs is null)
-            errors.Add(new($"{command.CommandName}.Portfolio.BrokerAccountRefs is null"));
-        else
-            AddErrors(errors, command.Portfolio.Validate(requireActivePolicy: false), command.CommandName);
-        if (command.Portfolio.PortfolioId != command.EntityId.Id)
-            errors.Add(new($"{command.CommandName}.Portfolio.PortfolioId does not match EntityId"));
-    }
-
-    static void ValidateVersion(List<ValidationError> errors, AddPortfolioVersionCommand command)
-    {
-        ValidateExpectedVersion(errors, command.ExpectedVersion, command.CommandName);
-        if (command.Portfolio is null)
-        {
-            errors.Add(new($"{command.CommandName}.Portfolio is null"));
-            return;
-        }
-        if (command.Portfolio.BrokerAccountRefs is null)
-            errors.Add(new($"{command.CommandName}.Portfolio.BrokerAccountRefs is null"));
-        else
-            AddErrors(errors, command.Portfolio.Validate(), command.CommandName);
-        if (command.Portfolio.PortfolioId != command.EntityId.Id)
-            errors.Add(new($"{command.CommandName}.Portfolio.PortfolioId does not match EntityId"));
-    }
-
-    static void ValidateStateChange(List<ValidationError> errors, ChangePortfolioOperatingStateCommand command)
-    {
-        ValidateExpectedVersion(errors, command.ExpectedVersion, command.CommandName);
-        if (command.State == PortfolioOperatingState.Unknown)
-            errors.Add(new($"{command.CommandName}.State is required"));
-        ValidateReason(errors, command.Reason, command.CommandName);
-    }
-
-    static void ValidateFund(List<ValidationError> errors, AddFundToPortfolioCommand command)
-    {
-        ValidateExpectedVersion(errors, command.ExpectedPortfolioVersion, command.CommandName);
-        if (command.FundId is null)
-            errors.Add(new($"{command.CommandName}.FundId is null"));
-        else
-        {
-            AddErrors(errors, command.FundId.Validate(), command.CommandName);
-            if (command.FundId.PortfolioId != command.EntityId.Id)
-                errors.Add(new($"{command.CommandName}.FundId.PortfolioId does not match EntityId"));
-        }
-    }
-
-    static void ValidateAllocation(List<ValidationError> errors, DelegateFundAllocationCommand command)
-    {
-        ValidateExpectedVersion(errors, command.ExpectedPortfolioVersion, command.CommandName);
-        if (command.Allocation is null)
-            errors.Add(new($"{command.CommandName}.Allocation is null"));
-        else
-        {
-            AddErrors(errors, command.Allocation.Validate(), command.CommandName);
-            if (command.Allocation.PortfolioId != command.EntityId.Id)
-                errors.Add(new($"{command.CommandName}.Allocation.PortfolioId does not match EntityId"));
-        }
-    }
-
-    static void ValidateRiskEnvelope(List<ValidationError> errors, DelegateFundRiskEnvelopeCommand command)
-    {
-        ValidateExpectedVersion(errors, command.ExpectedPortfolioVersion, command.CommandName);
-        if (command.Envelope is null)
-            errors.Add(new($"{command.CommandName}.Envelope is null"));
-        else
-        {
-            AddErrors(errors, command.Envelope.Validate(), command.CommandName);
-            if (command.Envelope.PortfolioId != command.EntityId.Id)
-                errors.Add(new($"{command.CommandName}.Envelope.PortfolioId does not match EntityId"));
-        }
-    }
-
-    static void ValidateRetire(List<ValidationError> errors, RetirePortfolioCommand command)
-    {
-        ValidateExpectedVersion(errors, command.ExpectedVersion, command.CommandName);
-        ValidateReason(errors, command.Reason, command.CommandName);
-    }
-
-    static void ValidateDelete(List<ValidationError> errors, DeleteDraftPortfolioCommand command)
-    {
-        ValidateExpectedVersion(errors, command.ExpectedVersion, command.CommandName);
-        ValidateReason(errors, command.Reason, command.CommandName);
-    }
-
-    static void ValidateExpectedVersion(List<ValidationError> errors, long expectedVersion, string commandName)
-    {
-        if (expectedVersion < 0)
-            errors.Add(new($"{commandName}.ExpectedVersion cannot be negative"));
-    }
-
-    static void ValidateReason(List<ValidationError> errors, string? reason, string commandName)
-    {
-        if (string.IsNullOrWhiteSpace(reason))
-            errors.Add(new($"{commandName}.Reason is required"));
-    }
-
-    static void AddErrors(List<ValidationError> errors, IEnumerable<string> messages, string commandName)
-    {
-        foreach (var message in messages)
-            errors.Add(new($"{commandName}.{message}"));
-    }
 
     static PortfolioEventMetadata Metadata(ICommand command, DateTime nowUtc)
     {

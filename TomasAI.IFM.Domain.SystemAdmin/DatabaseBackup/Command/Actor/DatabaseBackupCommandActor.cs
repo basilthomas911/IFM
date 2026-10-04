@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.Validation;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
@@ -75,224 +76,224 @@ public class DatabaseBackupCommandActor(
                 var typed = (RequestDatabaseBackupCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(CancelDatabaseBackupCommand)] = command =>
             {
                 var typed = (CancelDatabaseBackupCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(RequestDatabaseRestoreCommand)] = command =>
             {
                 var typed = (RequestDatabaseRestoreCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(ApproveDatabaseRestoreCommand)] = command =>
             {
                 var typed = (ApproveDatabaseRestoreCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(CancelDatabaseRestoreCommand)] = command =>
             {
                 var typed = (CancelDatabaseRestoreCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(ApproveDatabaseCutoverCommand)] = command =>
             {
                 var typed = (ApproveDatabaseCutoverCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(RequestDatabaseRestoreDrillCommand)] = command =>
             {
                 var typed = (RequestDatabaseRestoreDrillCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(UpdateDatabaseBackupPolicyCommand)] = command =>
             {
                 var typed = (UpdateDatabaseBackupPolicyCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(PlaceBackupLegalHoldCommand)] = command =>
             {
                 var typed = (PlaceBackupLegalHoldCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(ReleaseBackupLegalHoldCommand)] = command =>
             {
                 var typed = (ReleaseBackupLegalHoldCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(RequestBackupRetentionEvaluationCommand)] = command =>
             {
                 var typed = (RequestBackupRetentionEvaluationCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(ExecuteBackupRetentionPlanCommand)] = command =>
             {
                 var typed = (ExecuteBackupRetentionPlanCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(RecordDatabaseOperationAdmissionCommand)] = command =>
             {
                 var typed = (RecordDatabaseOperationAdmissionCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(RecordDatabaseOperationStartedCommand)] = command =>
             {
                 var typed = (RecordDatabaseOperationStartedCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(RecordDatabaseOperationProgressCommand)] = command =>
             {
                 var typed = (RecordDatabaseOperationProgressCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(RecordDatabaseBackupBoundaryCommand)] = command =>
             {
                 var typed = (RecordDatabaseBackupBoundaryCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(RecordDatabaseArtifactReplicaCommand)] = command =>
             {
                 var typed = (RecordDatabaseArtifactReplicaCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(RecordDatabaseOperationVerificationCommand)] = command =>
             {
                 var typed = (RecordDatabaseOperationVerificationCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(RecordDatabaseOperationErrorCommand)] = command =>
             {
                 var typed = (RecordDatabaseOperationErrorCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(RecordDatabaseRestoreReadyForCutoverCommand)] = command =>
             {
                 var typed = (RecordDatabaseRestoreReadyForCutoverCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(CompleteDatabaseOperationCommand)] = command =>
             {
                 var typed = (CompleteDatabaseOperationCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(FailDatabaseOperationCommand)] = command =>
             {
                 var typed = (FailDatabaseOperationCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(RecordDatabaseOperationCancelledCommand)] = command =>
             {
                 var typed = (RecordDatabaseOperationCancelledCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(RecordDatabaseBackupPolicyStatusCommand)] = command =>
             {
                 var typed = (RecordDatabaseBackupPolicyStatusCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(RecordDatabaseRetentionResultCommand)] = command =>
             {
                 var typed = (RecordDatabaseRetentionResultCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(ReconcileDatabaseBackupServiceStateCommand)] = command =>
             {
                 var typed = (ReconcileDatabaseBackupServiceStateCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(RecordDatabaseBackupServiceCapabilityCommand)] = command =>
             {
                 var typed = (RecordDatabaseBackupServiceCapabilityCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             },
             [typeof(RecordDatabaseRecoveryRunStatisticsCommand)] = command =>
             {
                 var typed = (RecordDatabaseRecoveryRunStatisticsCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed, typed.CommandName)
-                    .CaptureCommandValidation(() => typed.Validate());
+                    .ValidateRecoveryOperationId(typed.EntityId, typed.CommandName)
+                    .ValidateBackupCommand(typed);
             }
         };
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<DatabaseBackupCommandActor>, DatabaseBackupCommandState, ServiceResult<GuidResult>>> _receiveMap =

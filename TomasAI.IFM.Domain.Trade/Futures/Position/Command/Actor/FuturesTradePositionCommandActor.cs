@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Futures.Command.Validation;
 using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Command.State;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Position;
@@ -37,13 +38,62 @@ public sealed class FuturesTradePositionCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
-            [typeof(OpenFuturesPositionCommand)] = Validate,
-            [typeof(UpdateFuturesPositionMarketPriceCommand)] = Validate,
-            [typeof(ChangeTradeLegDataCommand)] = Validate,
-            [typeof(EndOfDayFuturesPositionCommand)] = Validate,
-            [typeof(CloseFuturesPositionCommand)] = Validate,
-            [typeof(CorrectFuturesPositionBasisCommand)] = Validate,
-            [typeof(SnapshotFuturesPositionCommand)] = Validate,
+            [typeof(OpenFuturesPositionCommand)] = static command =>
+            {
+                var typed = (OpenFuturesPositionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.Futures, TradeStrategyKind.FuturesOutright);
+            },
+            [typeof(UpdateFuturesPositionMarketPriceCommand)] = static command =>
+            {
+                var typed = (UpdateFuturesPositionMarketPriceCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.Futures, TradeStrategyKind.FuturesOutright);
+            },
+            [typeof(ChangeTradeLegDataCommand)] = static command =>
+            {
+                var typed = (ChangeTradeLegDataCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.Futures, TradeStrategyKind.FuturesOutright);
+            },
+            [typeof(EndOfDayFuturesPositionCommand)] = static command =>
+            {
+                var typed = (EndOfDayFuturesPositionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.Futures, TradeStrategyKind.FuturesOutright);
+            },
+            [typeof(CloseFuturesPositionCommand)] = static command =>
+            {
+                var typed = (CloseFuturesPositionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.Futures, TradeStrategyKind.FuturesOutright);
+            },
+            [typeof(CorrectFuturesPositionBasisCommand)] = static command =>
+            {
+                var typed = (CorrectFuturesPositionBasisCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.Futures, TradeStrategyKind.FuturesOutright);
+            },
+            [typeof(SnapshotFuturesPositionCommand)] = static command =>
+            {
+                var typed = (SnapshotFuturesPositionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.Futures, TradeStrategyKind.FuturesOutright);
+            },
         }.ToFrozenDictionary();
 
     static readonly IReadOnlyDictionary<Type,
@@ -128,22 +178,6 @@ public sealed class FuturesTradePositionCommandActor(
         ICommand command,
         Exception exception) => ValueTask.FromResult<ServiceResult<GuidResult>>(
             new ServiceFailed<GuidResult>(command.ErrorCode, exception.Message));
-
-    static List<ValidationError> Validate(ICommand command) =>
-        new List<ValidationError>().ValidateCommandId(command.CommandId, command.CommandName)
-            .CaptureCommandValidation(() =>
-            {
-                if (command is not ICommand<StrategyPositionId> typed ||
-                    !typed.EntityId.IsValid ||
-                    command.Subject.EntityId != typed.EntityId.Format() ||
-                    command is OpenFuturesPositionCommand open &&
-                    (open.Trade.AssetFamily != TradeAssetFamily.Futures ||
-                     open.Trade.StrategyKind != TradeStrategyKind.FuturesOutright) ||
-                    command is ChangeTradeLegDataCommand routed &&
-                    (routed.TradeType != TradeStrategyKind.FuturesOutright ||
-                     string.IsNullOrWhiteSpace(routed.ContractId)))
-                    throw new ArgumentException("Valid one-leg Futures position identity, type, and subject are required.");
-            });
 
     static IFuturesPositionCommandContext Typed(
         ICommandActorContext<FuturesTradePositionCommandActor> context) =>

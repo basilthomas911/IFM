@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Trade.Order.Broker.Command;
 using TomasAI.IFM.Domain.Trade.Order.Broker.Command.State;
@@ -29,11 +30,46 @@ public sealed class BrokerOrderCommandActor(ICommandActorContext<BrokerOrderComm
     private static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
-            [typeof(CreateBrokerOrderCommand)] = BrokerOrderCommandValidation.Validate,
-            [typeof(RecordBrokerDispatchCommand)] = BrokerOrderCommandValidation.Validate,
-            [typeof(RecordBrokerOrderObservationCommand)] = BrokerOrderCommandValidation.Validate,
-            [typeof(RequestBrokerOrderLimitUpdateCommand)] = BrokerOrderCommandValidation.Validate,
-            [typeof(RequestBrokerOrderCancelCommand)] = BrokerOrderCommandValidation.Validate
+            [typeof(CreateBrokerOrderCommand)] = static command =>
+            {
+                var typed = (CreateBrokerOrderCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateBrokerOrderId(typed.EntityId, typed.CommandName)
+                    .ValidateBrokerOrderCommand(typed);
+            },
+            [typeof(RecordBrokerDispatchCommand)] = static command =>
+            {
+                var typed = (RecordBrokerDispatchCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateBrokerOrderId(typed.EntityId, typed.CommandName)
+                    .ValidateBrokerOrderCommand(typed);
+            },
+            [typeof(RecordBrokerOrderObservationCommand)] = static command =>
+            {
+                var typed = (RecordBrokerOrderObservationCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateBrokerOrderId(typed.EntityId, typed.CommandName)
+                    .ValidateBrokerOrderCommand(typed);
+            },
+            [typeof(RequestBrokerOrderLimitUpdateCommand)] = static command =>
+            {
+                var typed = (RequestBrokerOrderLimitUpdateCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateBrokerOrderId(typed.EntityId, typed.CommandName)
+                    .ValidateBrokerOrderCommand(typed);
+            },
+            [typeof(RequestBrokerOrderCancelCommand)] = static command =>
+            {
+                var typed = (RequestBrokerOrderCancelCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateBrokerOrderId(typed.EntityId, typed.CommandName)
+                    .ValidateBrokerOrderCommand(typed);
+            }
         }.ToFrozenDictionary();
     private static readonly IReadOnlyDictionary<Type, Func<ICommand, IBrokerOrderCommandContext,
         BrokerOrderCommandState, ServiceResult<GuidResult>>> _receiveMap =

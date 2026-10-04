@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Validation;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -148,7 +149,7 @@ public class FuturesContractCommandActor(
 
         var refLookupService = Context.ReferenceLookupService;
         await refLookupService.EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
-        ValidateReferenceData(cmd, refLookupService)
+        cmd.ValidateReferenceData(refLookupService)
             .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
     }
 
@@ -181,20 +182,6 @@ public class FuturesContractCommandActor(
                     .ValidateEntityId(e.EntityId, e.CommandName)
                     .ValidateFuturesContractEntityId(e.ContractId);
             }
-        };
-
-    static List<ValidationError> ValidateReferenceData(
-        ICommand command,
-        IReferenceLookupService referenceLookupService)
-        => command switch
-        {
-            AddFuturesContractCommand add => new List<ValidationError>()
-                .ValidateFuturesContract(add.Contract, referenceLookupService),
-            ChangeFuturesContractCommand change => new List<ValidationError>()
-                .ValidateFuturesContract(change.Contract, referenceLookupService),
-            RemoveFuturesContractCommand => [],
-            _ => throw new InvalidOperationException(
-                $"Unable to validate {ActorName} reference data for command: {command.Subject}")
         };
 
     /// <summary>

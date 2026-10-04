@@ -16,3 +16,15 @@ public readonly record struct TradeOrderId(
 
     [IgnoreMember] public bool IsValid => PortfolioId > 0 && FundId > 0 && OrderId > 0;
 }
+
+/// <summary>Intrinsic TradeOrderId validation used by command actors.</summary>
+public static class TradeOrderIdValidationExtensions
+{
+    /// <summary>Checks the intrinsic business identity without accessing state.</summary>
+    public static List<TomasAI.IFM.Shared.Validation.ValidationError> ValidateTradeOrderId(this List<TomasAI.IFM.Shared.Validation.ValidationError> errors, TradeOrderId entityId, string commandName)
+    {
+        if (!entityId.IsValid) errors.Add(new($"{commandName}.EntityId is invalid."));
+        return errors;
+    }
+
+}

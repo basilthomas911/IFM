@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.TradeStrategyFamilies.Command.Validation;
 using TomasAI.IFM.Domain.Reference.StrategyCatalog;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Reference.Shared.Commands;
@@ -33,10 +34,38 @@ public sealed class TradeStrategyFamilyCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
-            [typeof(StrategyCatalogCommand)] = Validate,
-            [typeof(CreateTradeStrategyFamilyCommand)] = Validate,
-            [typeof(ChangeTradeStrategyFamilyCommand)] = Validate,
-            [typeof(RemoveTradeStrategyFamilyCommand)] = Validate
+            [typeof(StrategyCatalogCommand)] = static command =>
+            {
+                var typed = (StrategyCatalogCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateStrategyCatalogCommand(typed);
+            },
+            [typeof(CreateTradeStrategyFamilyCommand)] = static command =>
+            {
+                var typed = (CreateTradeStrategyFamilyCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateStrategyCatalogCommand(typed);
+            },
+            [typeof(ChangeTradeStrategyFamilyCommand)] = static command =>
+            {
+                var typed = (ChangeTradeStrategyFamilyCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateStrategyCatalogCommand(typed);
+            },
+            [typeof(RemoveTradeStrategyFamilyCommand)] = static command =>
+            {
+                var typed = (RemoveTradeStrategyFamilyCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateStrategyCatalogCommand(typed);
+            }
         };
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand, StrategyCatalogService?, CancellationToken, ValueTask<ServiceResult<GuidResult>>>> _receiveMap =
@@ -66,10 +95,6 @@ public sealed class TradeStrategyFamilyCommandActor(
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<TradeStrategyFamilyCommandActor> context, ActorThreadId threadId, ICommand command, Exception exception)
         => ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(command.ErrorCode, exception.Message));
 
-    static List<ValidationError> Validate(ICommand command)
-        => new List<ValidationError>()
-            .ValidateCommandId(command.CommandId, command.CommandName)
-            .ValidateEntityId(command, command.CommandName);
 }
 
 /// <summary>Provides the Trade Strategy Family command mailbox context.</summary>

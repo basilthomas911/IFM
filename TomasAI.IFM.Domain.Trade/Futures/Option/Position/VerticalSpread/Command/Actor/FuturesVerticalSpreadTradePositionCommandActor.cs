@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Futures.Command.Validation;
 using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Command;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Command.State;
@@ -38,13 +39,62 @@ public sealed class FuturesVerticalSpreadTradePositionCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
-            [typeof(OpenVerticalSpreadPositionCommand)] = Validate,
-            [typeof(UpdateVerticalSpreadPositionLegMarketPriceCommand)] = Validate,
-            [typeof(ChangeTradeLegDataCommand)] = Validate,
-            [typeof(EndOfDayVerticalSpreadPositionCommand)] = Validate,
-            [typeof(CloseVerticalSpreadPositionCommand)] = Validate,
-            [typeof(CorrectVerticalSpreadPositionBasisCommand)] = Validate,
-            [typeof(SnapshotVerticalSpreadPositionCommand)] = Validate,
+            [typeof(OpenVerticalSpreadPositionCommand)] = static command =>
+            {
+                var typed = (OpenVerticalSpreadPositionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.FuturesOption, TradeStrategyKind.VerticalSpread);
+            },
+            [typeof(UpdateVerticalSpreadPositionLegMarketPriceCommand)] = static command =>
+            {
+                var typed = (UpdateVerticalSpreadPositionLegMarketPriceCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.FuturesOption, TradeStrategyKind.VerticalSpread);
+            },
+            [typeof(ChangeTradeLegDataCommand)] = static command =>
+            {
+                var typed = (ChangeTradeLegDataCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.FuturesOption, TradeStrategyKind.VerticalSpread);
+            },
+            [typeof(EndOfDayVerticalSpreadPositionCommand)] = static command =>
+            {
+                var typed = (EndOfDayVerticalSpreadPositionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.FuturesOption, TradeStrategyKind.VerticalSpread);
+            },
+            [typeof(CloseVerticalSpreadPositionCommand)] = static command =>
+            {
+                var typed = (CloseVerticalSpreadPositionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.FuturesOption, TradeStrategyKind.VerticalSpread);
+            },
+            [typeof(CorrectVerticalSpreadPositionBasisCommand)] = static command =>
+            {
+                var typed = (CorrectVerticalSpreadPositionBasisCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.FuturesOption, TradeStrategyKind.VerticalSpread);
+            },
+            [typeof(SnapshotVerticalSpreadPositionCommand)] = static command =>
+            {
+                var typed = (SnapshotVerticalSpreadPositionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateStrategyPositionId(typed.EntityId, typed.CommandName)
+                    .ValidatePositionCommand(typed, TradeAssetFamily.FuturesOption, TradeStrategyKind.VerticalSpread);
+            },
         }.ToFrozenDictionary();
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand, VerticalSpreadPositionCommandState, ServiceResult<GuidResult>>> _receiveMap =
@@ -82,17 +132,6 @@ public sealed class FuturesVerticalSpreadTradePositionCommandActor(
     protected override ValueTask SaveStateToStoreAsync(ICommandActorContext<FuturesVerticalSpreadTradePositionCommandActor> context, ActorThreadId threadId, VerticalSpreadPositionCommandState state, ICommand command, CancellationToken cancellationToken) => services.StateRepository.SaveStateAsync(context, state, command, cancellationToken);
     protected override ValueTask PersistResidentEventsAsync(ICommandActorContext<FuturesVerticalSpreadTradePositionCommandActor> context, ICommand command, DomainEventCollection events, long expectedStreamVersion, CancellationToken cancellationToken) => services.StateRepository.SaveResidentEventsAsync(context, events, command, expectedStreamVersion, cancellationToken);
     protected override ValueTask<ServiceResult<GuidResult>> HandleCommandExceptionAsync(ICommandActorContext<FuturesVerticalSpreadTradePositionCommandActor> context, ActorThreadId threadId, ICommand command, Exception exception) => ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(command.ErrorCode, exception.Message));
-
-    static List<ValidationError> Validate(ICommand command) =>
-        new List<ValidationError>().ValidateCommandId(command.CommandId, command.CommandName).CaptureCommandValidation(() =>
-        {
-            if (command is not ICommand<StrategyPositionId> typed || !typed.EntityId.IsValid ||
-                command.Subject.EntityId != typed.EntityId.Format() ||
-                command is OpenVerticalSpreadPositionCommand { Trade.StrategyKind: not TradeStrategyKind.VerticalSpread } ||
-                command is ChangeTradeLegDataCommand routed &&
-                (routed.TradeType != TradeStrategyKind.VerticalSpread || string.IsNullOrWhiteSpace(routed.ContractId)))
-                throw new ArgumentException("Valid Vertical Spread position identity, type, ContractId, and subject are required.");
-        });
 
     static IVerticalSpreadPositionCommandContext Typed(ICommandActorContext<FuturesVerticalSpreadTradePositionCommandActor> context) =>
         context as IVerticalSpreadPositionCommandContext ?? throw new ArgumentException("Typed Vertical Spread position context required.");

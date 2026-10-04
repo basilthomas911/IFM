@@ -43,6 +43,7 @@ internal static class TypedActorContextFactory
         ILogger<TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor.FuturesEodDataRealtimeActor> logger)
     {
         var context = Substitute.For<TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor.IFuturesEodDataRealtimeContext>();
+        context.TradeDispatch.Returns(new TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor.FuturesEodTradeDispatchState());
         context.Supervisor.Returns(supervisor);
         context.Projector.Returns(projector);
         context.MarketDataApi.Returns(marketDataApi);

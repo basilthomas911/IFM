@@ -51,8 +51,12 @@ public sealed class MarketConditionAssessmentOnlyTests
             RegimeDiscoveryParameterPayloadSha256 = view.RegimeDiscoveryParameterPayloadSha256,
             AssessmentBinding = view.AssessmentBinding
         };
-        void Validate(ExecuteIntrinsicTimeStrategyWorkflowCommand command) => typeof(IntrinsicTimeStrategyWorkflowCommandActor)
-            .GetMethod("ValidateCommand", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [command]);
+        void Validate(ExecuteIntrinsicTimeStrategyWorkflowCommand command)
+        {
+            var map = (IReadOnlyDictionary<Type, Func<ICommand, List<TomasAI.IFM.Shared.Validation.ValidationError>>>)
+                typeof(IntrinsicTimeStrategyWorkflowCommandActor).GetField("_validationMap", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+            map[command.GetType()](command).Should().BeEmpty("pipeline readiness is checked after workflow admission");
+        }
         Action valid = () => Validate(start);
         valid.Should().NotThrow("pipeline readiness is checked only after workflow admission");
         Action missing = () => Validate(start with { AssessmentBinding = null });

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
@@ -20,11 +21,7 @@ public static class AuthorizeFundOrderRisk
             body.OrderId.OrderId <= 0 || body.Authorization.PortfolioId != command.EntityId.PortfolioId ||
             body.Authorization.FundId != command.EntityId.FundId || body.Authorization.OrderId != body.OrderId.OrderId)
             errors.Add(new("Exact Fund order identity and version are required."));
-        else
-        {
-            try { body.Authorization.Validate(); }
-            catch (ArgumentException ex) { errors.Add(new(ex.Message)); }
-        }
+        errors.ValidateFundRiskAuthorization(command.Authorization);
         return errors;
     }
 

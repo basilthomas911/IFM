@@ -46,6 +46,13 @@ foreach ($actorFile in $actorFiles) {
         $domainActorCount++
     }
     if ($isDomainActor -or $isTemplate) {
+        if ($source -match 'CaptureCommandValidation\s*\(') {
+            $violations.Add("$relativePath wraps domain validation in exception capture; use aggregate list extensions.")
+        }
+        if ($source -match 'static\s+void\s+Validate(?:Identity|Common|Create|Load|TradeEntityId)\s*\(') {
+            $violations.Add("$relativePath owns domain validation; move checks into Command/Validation extensions.")
+        }
+
         if ($compact -notmatch 'IReadOnlyDictionary<Type,Func<ICommand,List<ValidationError>>>_validationMap') {
             $violations.Add("$relativePath does not expose an exact-type read-only validation map.")
         }
@@ -82,8 +89,25 @@ foreach ($actorFile in $actorFiles) {
                 $violations.Add("$relativePath parse and receive command sets differ.")
             }
 
-            # Validation helpers may check identifiers for an entire command family.
-            # Per-entry validation belongs in focused tests, not a call-count regex.
+            # The map is a manifest: each entry must show its CommandId validation.
+            $mapAssignment = [regex]::Match($source, '_validationMap\s*=')
+            if ($mapAssignment.Success) {
+                $mapStart = $source.IndexOf('{', $mapAssignment.Index + $mapAssignment.Length)
+                $depth = 1
+                $mapEnd = $mapStart + 1
+                while ($depth -gt 0 -and $mapEnd -lt $source.Length) {
+                    if ($source[$mapEnd] -eq '{') { $depth++ }
+                    elseif ($source[$mapEnd] -eq '}') { $depth-- }
+                    $mapEnd++
+                }
+                $manifest = $source.Substring($mapStart, $mapEnd - $mapStart)
+                $entryCount = [regex]::Matches($manifest, '\[typeof\(').Count
+                $commandIdCount = [regex]::Matches($manifest, '\.ValidateCommandId\(').Count
+                if ($entryCount -ne $commandIdCount) {
+                    $violations.Add("$relativePath hides CommandId validation in one or more map entries.")
+                }
+            }
+            # Runtime regression tests verify aggregation and null payload behavior.
         }
     }
 }

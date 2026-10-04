@@ -23,8 +23,14 @@ public sealed class EmulatorExecutionCommandActor(ICommandActorContext<EmulatorE
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap = new Dictionary<Type, Func<ICommand, List<ValidationError>>>
     {
-        [typeof(SubmitEmulatorOrderCommand)] = command => new List<ValidationError>().ValidateEmulatorOrder((SubmitEmulatorOrderCommand)command),
-    }.ToFrozenDictionary();
+        [typeof(SubmitEmulatorOrderCommand)] = static command =>
+        {
+            var typed = (SubmitEmulatorOrderCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateFinancialEntityId(typed.EntityId, typed.CommandName)
+                .ValidateEmulatorOrder(typed);
+        },    }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, Func<ICommand, EmulatorExecutionCommandServices, CancellationToken, ValueTask<ServiceResult<GuidResult>>>> _receiveMap =
         new Dictionary<Type, Func<ICommand, EmulatorExecutionCommandServices, CancellationToken, ValueTask<ServiceResult<GuidResult>>>>
         {

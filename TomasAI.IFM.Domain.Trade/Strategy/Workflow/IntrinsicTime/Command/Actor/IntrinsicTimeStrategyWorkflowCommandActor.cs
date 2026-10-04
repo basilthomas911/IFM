@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Validation;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
@@ -71,169 +72,175 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
-            [typeof(AdvanceRiskFinancialHandoffCommand)] = command => new List<ValidationError>().ValidateRiskFinancialHandoff((AdvanceRiskFinancialHandoffCommand)command),
-            [typeof(PrepareRiskManagementCommand)] = command =>
+            [typeof(AdvanceRiskFinancialHandoffCommand)] = static command =>
+            {
+                var typed = (AdvanceRiskFinancialHandoffCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
+            },
+            [typeof(PrepareRiskManagementCommand)] = static command =>
             {
                 var typed = (PrepareRiskManagementCommand)command;
-                return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName).CaptureCommandValidation(() =>
-                    {
-                        if (typed.WorkflowId.Value == Guid.Empty || typed.InputWorkflowRevision < 1)
-                            throw new ArgumentException("Exact Risk preparation identity is required.");
-                    });
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
             },
-            [typeof(AcceptOrderCompositionPreparationCommand)] = command =>
+            [typeof(AcceptOrderCompositionPreparationCommand)] = static command =>
             {
                 var typed = (AcceptOrderCompositionPreparationCommand)command;
-                return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName).CaptureCommandValidation(() =>
-                    {
-                        if (typed.WorkflowId.Value == Guid.Empty || typed.InputWorkflowRevision < 1 || typed.Evidence is null
-                            || typed.Evidence.WorkflowId != typed.WorkflowId.Value || typed.Evidence.PreparationRevision != typed.InputWorkflowRevision)
-                            throw new ArgumentException("Exact preparation identity is required.");
-                    });
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
             },
-            [typeof(ExecuteIntrinsicTimeStrategyWorkflowCommand)] = command =>
+            [typeof(ExecuteIntrinsicTimeStrategyWorkflowCommand)] = static command =>
             {
                 var typed = (ExecuteIntrinsicTimeStrategyWorkflowCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName)
-                    .CaptureCommandValidation(() => ValidateCommand(typed));
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
             },
-            [typeof(CompleteRegimeDiscoveryCommand)] = command =>
+            [typeof(CompleteRegimeDiscoveryCommand)] = static command =>
             {
                 var typed = (CompleteRegimeDiscoveryCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName)
-                    .CaptureCommandValidation(() => ValidateCommand(typed));
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
             },
-            [typeof(CompleteMarketConditionCommand)] = command =>
+            [typeof(CompleteMarketConditionCommand)] = static command =>
             {
                 var typed = (CompleteMarketConditionCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName)
-                    .CaptureCommandValidation(() => ValidateCommand(typed));
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
             },
-            [typeof(RedispatchCurrentStrategyPipelineCommand)] = command =>
+            [typeof(RedispatchCurrentStrategyPipelineCommand)] = static command =>
             {
-                var c = (RedispatchCurrentStrategyPipelineCommand)command;
-                return new List<ValidationError>().ValidateCommandId(c.CommandId, c.CommandName).ValidateEntityId(c.EntityId, c.CommandName)
-                    .CaptureCommandValidation(() => { if (c.WorkflowId.Value == Guid.Empty || c.ExpectedWorkflowRevision <= 0 || !Enum.IsDefined(c.ExpectedStage) || c.RequestedAtUtc.Kind != DateTimeKind.Utc || string.IsNullOrWhiteSpace(c.RequestedBy)) throw new ArgumentException("Invalid recovery request."); });
+                var typed = (RedispatchCurrentStrategyPipelineCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
             },
-            [typeof(CompleteTradeSelectionReservationCommand)] = command =>
+            [typeof(CompleteTradeSelectionReservationCommand)] = static command =>
             {
                 var typed = (CompleteTradeSelectionReservationCommand)command;
-                return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateEntityId(typed.EntityId, typed.CommandName).CaptureCommandValidation(() => ValidateCommand(typed));
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
             },
-            [typeof(CompleteTradeSelectionCommand)] = command =>
+            [typeof(CompleteTradeSelectionCommand)] = static command =>
             {
                 var typed = (CompleteTradeSelectionCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName)
-                    .CaptureCommandValidation(() => ValidateCommand(typed));
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
             },
-            [typeof(CompleteOrderCompositionCommand)] = command =>
+            [typeof(CompleteOrderCompositionCommand)] = static command =>
             {
                 var typed = (CompleteOrderCompositionCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName)
-                    .CaptureCommandValidation(() => ValidateCommand(typed));
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
             },
-            [typeof(CompleteRiskManagementCommand)] = command =>
+            [typeof(CompleteRiskManagementCommand)] = static command =>
             {
                 var typed = (CompleteRiskManagementCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName)
-                    .CaptureCommandValidation(() => ValidateCommand(typed));
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
             },
-            [typeof(FailRegimeDiscoveryCommand)] = command =>
+            [typeof(FailRegimeDiscoveryCommand)] = static command =>
             {
                 var typed = (FailRegimeDiscoveryCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName)
-                    .CaptureCommandValidation(() => ValidateCommand(typed));
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
             },
-            [typeof(FailMarketConditionCommand)] = command =>
+            [typeof(FailMarketConditionCommand)] = static command =>
             {
                 var typed = (FailMarketConditionCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName)
-                    .CaptureCommandValidation(() => ValidateCommand(typed));
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
             },
-            [typeof(FailTradeSelectionCommand)] = command =>
+            [typeof(FailTradeSelectionCommand)] = static command =>
             {
                 var typed = (FailTradeSelectionCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName)
-                    .CaptureCommandValidation(() => ValidateCommand(typed));
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
             },
-            [typeof(FailOrderCompositionCommand)] = command =>
+            [typeof(FailOrderCompositionCommand)] = static command =>
             {
                 var typed = (FailOrderCompositionCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName)
-                    .CaptureCommandValidation(() => ValidateCommand(typed));
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
             },
-            [typeof(FailRiskManagementCommand)] = command =>
+            [typeof(FailRiskManagementCommand)] = static command =>
             {
                 var typed = (FailRiskManagementCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName)
-                    .CaptureCommandValidation(() => ValidateCommand(typed));
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
             },
-            [typeof(TimeoutMarketConditionCommand)] = command =>
+            [typeof(TimeoutMarketConditionCommand)] = static command =>
             {
                 var typed = (TimeoutMarketConditionCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName)
-                    .CaptureCommandValidation(() => ValidateCommand(typed));
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
             },
-            [typeof(TimeoutTradeSelectionCommand)] = command =>
+            [typeof(TimeoutTradeSelectionCommand)] = static command =>
             {
                 var typed = (TimeoutTradeSelectionCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName)
-                    .CaptureCommandValidation(() => ValidateCommand(typed));
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
             },
-            [typeof(TimeoutOrderCompositionCommand)] = command =>
+            [typeof(TimeoutOrderCompositionCommand)] = static command =>
             {
                 var typed = (TimeoutOrderCompositionCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName)
-                    .CaptureCommandValidation(() => ValidateCommand(typed));
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
             },
-            [typeof(TimeoutRiskManagementCommand)] = command =>
+            [typeof(TimeoutRiskManagementCommand)] = static command =>
             {
                 var typed = (TimeoutRiskManagementCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName)
-                    .CaptureCommandValidation(() => ValidateCommand(typed));
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
             },
-            [typeof(CancelIntrinsicTimeStrategyWorkflowCommand)] = command =>
+            [typeof(CancelIntrinsicTimeStrategyWorkflowCommand)] = static command =>
             {
                 var typed = (CancelIntrinsicTimeStrategyWorkflowCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName)
-                    .CaptureCommandValidation(() => ValidateCommand(typed));
-            }
+                    .ValidateWorkflowEntityId(typed.EntityId)
+                    .ValidateWorkflowCommand(typed);
+            },
         };
-
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand,
         ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor>,
@@ -376,40 +383,4 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
             new ServiceResult<GuidResult>(command?.ErrorCode ?? 21000, ex.Message));
     }
 
-    static void ValidateCommand(ICommand command)
-    {
-        if (command.CommandId == Guid.Empty)
-            throw new ArgumentException("Workflow commands require a non-empty command identity.", nameof(command));
-        if (string.IsNullOrWhiteSpace(command.Subject.EntityId))
-            throw new ArgumentException("Workflow commands require an entity routing identity.", nameof(command));
-        if (command is ICommand<IntrinsicTimeStrategyWorkflowEntityId> entityCommand &&
-            !string.Equals(command.Subject.EntityId, entityCommand.EntityId.Format(), StringComparison.Ordinal))
-            throw new ArgumentException("Workflow command subject must match its entity identity.", nameof(command));
-
-        if (command is ExecuteIntrinsicTimeStrategyWorkflowCommand execute)
-        {
-            if (execute.ProposedWorkflowId.Value == Guid.Empty || execute.TriggerEventId == Guid.Empty ||
-                execute.CorrelationId == Guid.Empty || execute.CausationId == Guid.Empty ||
-                execute.RequestedAtUtc.Kind != DateTimeKind.Utc || execute.WorkflowDefinitionVersion <= 0 ||
-                execute.TriggerEvent.EntityId != execute.EntityId.ItiSignalEntityId)
-                throw new ArgumentException("Workflow start requires valid workflow, trigger, trace, time, and routing identities.", nameof(command));
-        }
-
-        var completionResult = command switch
-        {
-            CompleteRegimeDiscoveryCommand value => value.Result,
-            CompleteMarketConditionCommand value => value.Result,
-            CompleteTradeSelectionCommand value => value.Result,
-            CompleteOrderCompositionCommand value => value.Result,
-            CompleteRiskManagementCommand value when value.PortfolioDecision is null => value.Result,
-            _ => null
-        };
-        if (completionResult is not null)
-        {
-            var errors = StrategyStageResultEnvelopeValidationRules.WithMaximumPayloadBytes(command is CompleteTradeSelectionCommand ? 524288 : StrategyStageResultEnvelope.DefaultMaximumPayloadBytes).Execute(completionResult);
-            if (errors.Length != 0)
-                throw new ArgumentException(string.Join("; ", errors.Select(value => value.ErrorMessage)),
-                    nameof(command));
-        }
-    }
 }

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Validation;
 using TomasAI.IFM.Domain.Trade.Shared;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
@@ -159,7 +160,6 @@ public class MarketDataFeedCommandActor(
                 var e = (StartMarketDataFeedCommand)cmd; return new List<ValidationError>()
                     .ValidateCommandId(e.CommandId, e.CommandName)
                     .ValidateEntityId(e.EntityId, e.CommandName)
-                    .ValidateEntityId(e.EntityId, e.CommandName)
                     .ValidateFuturesContracts(e.FuturesContracts)
                     .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
                     .ValidateResetStream(e.ResetStream, e.CommandName);
@@ -169,14 +169,12 @@ public class MarketDataFeedCommandActor(
                 var e = (StopMarketDataFeedCommand)cmd; return new List<ValidationError>()
                     .ValidateCommandId(e.CommandId, e.CommandName)
                     .ValidateEntityId(e.EntityId, e.CommandName)
-                    .ValidateEntityId(e.EntityId, e.CommandName)
                     .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
             },
             [typeof(ResetMarketDataFeedCommand)] = cmd =>
             {
                 var e = (ResetMarketDataFeedCommand)cmd; return new List<ValidationError>()
                     .ValidateCommandId(e.CommandId, e.CommandName)
-                    .ValidateEntityId(e.EntityId, e.CommandName)
                     .ValidateEntityId(e.EntityId, e.CommandName)
                     .ValidateFuturesContracts(e.FuturesContracts)
                     .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
@@ -186,7 +184,7 @@ public class MarketDataFeedCommandActor(
                 var e = (AddTradeLiveFeedCommand)cmd; return new List<ValidationError>()
                     .ValidateCommandId(e.CommandId, e.CommandName)
                     .ValidateEntityId(e.EntityId, e.CommandName)
-                    .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName))
+                    .ValidateTradeFeedIdentity(e.EntityId, e.Subject, e.CommandName)
                     .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
             },
             [typeof(RemoveTradeLiveFeedCommand)] = cmd =>
@@ -194,7 +192,7 @@ public class MarketDataFeedCommandActor(
                 var e = (RemoveTradeLiveFeedCommand)cmd; return new List<ValidationError>()
                     .ValidateCommandId(e.CommandId, e.CommandName)
                     .ValidateEntityId(e.EntityId, e.CommandName)
-                    .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName))
+                    .ValidateTradeFeedIdentity(e.EntityId, e.Subject, e.CommandName)
                     .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
             },
             [typeof(TurnTradeLiveFeedOnCommand)] = cmd =>
@@ -202,7 +200,7 @@ public class MarketDataFeedCommandActor(
                 var e = (TurnTradeLiveFeedOnCommand)cmd; return new List<ValidationError>()
                     .ValidateCommandId(e.CommandId, e.CommandName)
                     .ValidateEntityId(e.EntityId, e.CommandName)
-                    .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName))
+                    .ValidateTradeFeedIdentity(e.EntityId, e.Subject, e.CommandName)
                     .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
             },
             [typeof(TurnTradeLiveFeedOffCommand)] = cmd =>
@@ -210,14 +208,13 @@ public class MarketDataFeedCommandActor(
                 var e = (TurnTradeLiveFeedOffCommand)cmd; return new List<ValidationError>()
                     .ValidateCommandId(e.CommandId, e.CommandName)
                     .ValidateEntityId(e.EntityId, e.CommandName)
-                    .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName))
+                    .ValidateTradeFeedIdentity(e.EntityId, e.Subject, e.CommandName)
                     .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
             },
             [typeof(DeleteStreamingRequestIdCommand)] = cmd =>
             {
                 var e = (DeleteStreamingRequestIdCommand)cmd; return new List<ValidationError>()
                     .ValidateCommandId(e.CommandId, e.CommandName)
-                    .ValidateEntityId(e.EntityId, e.CommandName)
                     .ValidateEntityId(e.EntityId, e.CommandName)
                     .ValidateFeedId(e.FeedId);
             },
@@ -226,20 +223,9 @@ public class MarketDataFeedCommandActor(
                 var e = (HaltTradeLiveFeedCommand)cmd; return new List<ValidationError>()
                     .ValidateCommandId(e.CommandId, e.CommandName)
                     .ValidateEntityId(e.EntityId, e.CommandName)
-                    .CaptureCommandValidation(() => ValidateTradeEntityId(e.EntityId, e.Subject, e.CommandName));
+                    .ValidateTradeFeedIdentity(e.EntityId, e.Subject, e.CommandName);
             }
         };
-
-    static void ValidateTradeEntityId(
-        TomasAI.IFM.Domain.Trade.Shared.TradeEntityId entityId,
-        ActorSubject subject,
-        string commandName)
-    {
-        if (!entityId.IsValid)
-            throw new ArgumentException($"{commandName}.EntityId requires positive PortfolioId, FundId, OrderId, and TradeId.");
-        if (!StringComparer.Ordinal.Equals(subject.EntityId, entityId.Format()))
-            throw new ArgumentException($"{commandName}.Subject.EntityId must match EntityId.");
-    }
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.
