@@ -23,6 +23,8 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
     private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes the historical provider.</summary>
+    /// <param name="options">The configuration governing provider or feed operation.</param>
+    /// <param name="timeProvider">The clock used for timestamps and elapsed-time measurements.</param>
     public DatabentoHistoricalProvider(
         DatabentoHistoricalProviderOptions options,
         TimeProvider timeProvider)
@@ -300,6 +302,10 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
         private readonly GCHandle blobHandle;
         private readonly GCHandle symbolsHandle;
 
+        /// <summary>Initializes a new NativeHistoricalInput instance.</summary>
+        /// <param name="blob">The native request storage retained for the input's lifetime.</param>
+        /// <param name="symbols">The requested provider symbols.</param>
+        /// <param name="request">The parameters identifying the requested provider data or session.</param>
         private NativeHistoricalInput(
             byte[] blob,
             NativeUtf8Slice[] symbols,
@@ -366,6 +372,7 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
             return new NativeHistoricalInput(blob, offsets, native);
         }
 
+        /// <summary>Releases the resources owned by this instance.</summary>
         public void Dispose()
         {
             if (symbolsHandle.IsAllocated) symbolsHandle.Free();
@@ -379,6 +386,9 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
         private readonly int maximumBatchRecords;
         private bool finished;
 
+        /// <summary>Initializes a new NativeHistoricalRecordReader instance.</summary>
+        /// <param name="result">The native result or operation result wrapped by this instance.</param>
+        /// <param name="maximumBatchRecords">The maximum number of records returned per historical batch.</param>
         internal NativeHistoricalRecordReader(
             SafeHistoricalResultHandle result,
             int maximumBatchRecords)
@@ -387,6 +397,9 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
             this.maximumBatchRecords = maximumBatchRecords;
         }
 
+        /// <summary>Reads the next bounded batch of historical records asynchronously.</summary>
+        /// <param name="cancellationToken">The token used to cancel the operation.</param>
+        /// <returns>An awaitable containing the next historical batch, or null when the input is exhausted.</returns>
         public unsafe ValueTask<HistoricalProviderRecordBatch?> ReadNextAsync(
             CancellationToken cancellationToken)
         {
@@ -414,6 +427,8 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
                 records, checked((long)batch.BatchOrdinal), batch.BatchOrdinal.ToString(CultureInfo.InvariantCulture), finished));
         }
 
+        /// <summary>Asynchronously stops processing and releases the resources owned by this instance.</summary>
+        /// <returns>An awaitable that completes when the operation finishes.</returns>
         public ValueTask DisposeAsync()
         {
             result.Dispose();
@@ -429,6 +444,10 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
         private long batchOrdinal;
         private string? pendingLine;
 
+        /// <summary>Initializes a new CsvHistoricalRecordReader instance.</summary>
+        /// <param name="path">The path of the historical CSV file to read.</param>
+        /// <param name="schema">The provider schema or recovery baseline required for the operation.</param>
+        /// <param name="maximumBatchRecords">The maximum number of records returned per historical batch.</param>
         internal CsvHistoricalRecordReader(string path, HistoricalDataSchema schema, int maximumBatchRecords)
         {
             reader = new StreamReader(path, Encoding.UTF8, true);
@@ -436,6 +455,9 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
             this.maximumBatchRecords = maximumBatchRecords;
         }
 
+        /// <summary>Reads the next bounded batch of historical records asynchronously.</summary>
+        /// <param name="cancellationToken">The token used to cancel the operation.</param>
+        /// <returns>An awaitable containing the next historical batch, or null when the input is exhausted.</returns>
         public async ValueTask<HistoricalProviderRecordBatch?> ReadNextAsync(CancellationToken cancellationToken)
         {
             var records = new List<HistoricalProviderRecord>(maximumBatchRecords);
@@ -456,6 +478,8 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
             return new(records, batchOrdinal, (batchOrdinal++).ToString(CultureInfo.InvariantCulture), final);
         }
 
+        /// <summary>Asynchronously stops processing and releases the resources owned by this instance.</summary>
+        /// <returns>An awaitable that completes when the operation finishes.</returns>
         public ValueTask DisposeAsync()
         {
             reader.Dispose();

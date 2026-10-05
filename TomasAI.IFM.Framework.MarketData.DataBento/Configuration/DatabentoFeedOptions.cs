@@ -48,6 +48,9 @@ public enum FeedCoreIsolationMode : byte
     ExcludeFromProcessWorkers = 2
 }
 
+/// <summary>Initializes a new LogicalProcessorLocation instance.</summary>
+/// <param name="ProcessorGroup">The processor group.</param>
+/// <param name="LogicalProcessorIndex">The logical processor index.</param>
 public readonly record struct LogicalProcessorLocation(
     ushort ProcessorGroup,
     ushort LogicalProcessorIndex);
@@ -131,6 +134,7 @@ public sealed record SyntheticFeedOptions
 
 public sealed record DatabentoFeedOptions
 {
+    /// <summary>Initializes a new DatabentoFeedOptions instance.</summary>
     private DatabentoFeedOptions()
     {
     }
@@ -163,6 +167,10 @@ public sealed record DatabentoFeedOptions
     /// </summary>
     public ulong TradeReplayStartTimestampNanoseconds { get; init; }
 
+    /// <summary>Creates feed options for the specified capacity profile and dataset.</summary>
+    /// <param name="profile">The supported feed capacity profile.</param>
+    /// <param name="dataset">The Databento dataset identifier.</param>
+    /// <returns>The for profile result.</returns>
     public static DatabentoFeedOptions ForProfile(
         FeedDeploymentProfile profile,
         string dataset)

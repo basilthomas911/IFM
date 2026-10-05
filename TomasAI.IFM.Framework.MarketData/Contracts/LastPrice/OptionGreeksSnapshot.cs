@@ -44,6 +44,28 @@ public enum OptionGreeksFailureReason
 /// Missing or failed numeric inputs remain null and are never represented by
 /// zero sentinels.
 /// </remarks>
+/// <param name="IsValid">The is valid.</param>
+/// <param name="IsStale">The is stale.</param>
+/// <param name="FailureReason">The failure reason.</param>
+/// <param name="PriceSource">The price source.</param>
+/// <param name="FuturesContractId">The futures contract id.</param>
+/// <param name="FuturesPrice">The futures price.</param>
+/// <param name="OptionMarkPrice">The option mark price.</param>
+/// <param name="RiskFreeRate">The risk free rate.</param>
+/// <param name="TimeToExpiryYears">The time to expiry years.</param>
+/// <param name="ImpliedVolatility">The implied volatility.</param>
+/// <param name="TheoreticalPrice">The theoretical price.</param>
+/// <param name="Delta">The delta.</param>
+/// <param name="Gamma">The gamma.</param>
+/// <param name="Vega">The vega.</param>
+/// <param name="Theta">The theta.</param>
+/// <param name="Rho">The rho.</param>
+/// <param name="SolverIterations">The solver iterations.</param>
+/// <param name="FuturesPriceSourceSequence">The futures price source sequence.</param>
+/// <param name="OptionPriceSourceSequence">The option price source sequence.</param>
+/// <param name="FuturesPriceTimestamp">The futures price timestamp.</param>
+/// <param name="OptionPriceTimestamp">The option price timestamp.</param>
+/// <param name="CalculatedAtUtc">The calculated at utc.</param>
 public readonly record struct OptionGreeksSnapshot(
     bool IsValid,
     bool IsStale,
@@ -78,6 +100,8 @@ public readonly record struct OptionGreeksSnapshot(
 /// Atomically couples the latest option quote with the calculation produced
 /// for that exact quote observation.
 /// </summary>
+/// <param name="Tick">The tick.</param>
+/// <param name="Greeks">The calculated option sensitivities, when available.</param>
 public readonly record struct LastQuoteTickWithGreeksSnapshot(
     LastQuoteTickSnapshot Tick,
     OptionGreeksSnapshot Greeks);
@@ -86,6 +110,8 @@ public readonly record struct LastQuoteTickWithGreeksSnapshot(
 /// Atomically couples the latest option trade with the most recent
 /// quote-derived Greeks state available when that trade was processed.
 /// </summary>
+/// <param name="Tick">The tick.</param>
+/// <param name="Greeks">The calculated option sensitivities, when available.</param>
 public readonly record struct LastTradeTickWithGreeksSnapshot(
     LastTradeTickSnapshot Tick,
     OptionGreeksSnapshot Greeks);

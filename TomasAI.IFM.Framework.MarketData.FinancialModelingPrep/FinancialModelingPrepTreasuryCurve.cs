@@ -16,6 +16,10 @@ public sealed class FinancialModelingPrepTreasuryCurve : ITreasuryCurve, ITreasu
     private readonly FinancialModelingPrepHttpClient _client;
     private readonly TimeProvider _timeProvider;
 
+    /// <summary>Initializes a new FinancialModelingPrepTreasuryCurve instance.</summary>
+    /// <param name="httpClient">The HTTP client used for provider requests.</param>
+    /// <param name="options">The configuration governing provider or feed operation.</param>
+    /// <param name="timeProvider">The clock used for timestamps and elapsed-time measurements.</param>
     public FinancialModelingPrepTreasuryCurve(
         HttpClient httpClient,
         FinancialModelingPrepOptions options,
@@ -28,6 +32,11 @@ public sealed class FinancialModelingPrepTreasuryCurve : ITreasuryCurve, ITreasu
     {
     }
 
+    /// <summary>Initializes a new FinancialModelingPrepTreasuryCurve instance.</summary>
+    /// <param name="httpClient">The HTTP client used for provider requests.</param>
+    /// <param name="options">The configuration governing provider or feed operation.</param>
+    /// <param name="requestGate">The shared limiter controlling concurrent provider requests.</param>
+    /// <param name="timeProvider">The clock used for timestamps and elapsed-time measurements.</param>
     internal FinancialModelingPrepTreasuryCurve(
         HttpClient httpClient,
         FinancialModelingPrepOptions options,
@@ -39,6 +48,10 @@ public sealed class FinancialModelingPrepTreasuryCurve : ITreasuryCurve, ITreasu
         _client = new FinancialModelingPrepHttpClient(httpClient, options, requestGate, timeProvider);
     }
 
+    /// <summary>Retrieves the latest Treasury curve available on or before the specified date.</summary>
+    /// <param name="asOfDate">The latest date eligible for the requested snapshot.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public Task<TreasuryCurveSnapshot?> GetLatestAsync(
         DateOnly asOfDate,
         CancellationToken cancellationToken = default)
@@ -58,6 +71,11 @@ public sealed class FinancialModelingPrepTreasuryCurve : ITreasuryCurve, ITreasu
             });
     }
 
+    /// <summary>Retrieves Treasury curve snapshots within the inclusive date range.</summary>
+    /// <param name="fromInclusive">The first date to include.</param>
+    /// <param name="toInclusive">The last date to include.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public Task<IReadOnlyList<TreasuryCurveSnapshot>> GetRangeAsync(
         DateOnly fromInclusive,
         DateOnly toInclusive,

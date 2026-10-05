@@ -2,6 +2,9 @@ using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.OptionChain;
 
+/// <summary>Initializes a new OptionChainSessionKey instance.</summary>
+/// <param name="FuturesContractId">The futures contract id.</param>
+/// <param name="MaturityDate">The maturity date.</param>
 public readonly record struct OptionChainSessionKey(
     string FuturesContractId,
     DateOnly MaturityDate);
@@ -20,6 +23,14 @@ public sealed record DatabentoOptionChainSessionRequest
     public required IReadOnlyList<DatabentoOptionChainRoute> Routes { get; init; }
 }
 
+/// <summary>Initializes a new FuturesOptionChainQuoteChangedServiceEvent instance.</summary>
+/// <param name="EventId">The event id.</param>
+/// <param name="FuturesContractId">The futures contract id.</param>
+/// <param name="FuturesOptionContractId">The futures option contract id.</param>
+/// <param name="ValueDate">The trading value date associated with the data.</param>
+/// <param name="MaturityDate">The maturity date.</param>
+/// <param name="Tick">The tick.</param>
+/// <param name="Greeks">The calculated option sensitivities, when available.</param>
 public readonly record struct FuturesOptionChainQuoteChangedServiceEvent(
     Guid EventId,
     string FuturesContractId,
@@ -29,6 +40,14 @@ public readonly record struct FuturesOptionChainQuoteChangedServiceEvent(
     LastQuoteTickSnapshot Tick,
     OptionGreeksSnapshot Greeks);
 
+/// <summary>Initializes a new FuturesOptionChainTradeChangedServiceEvent instance.</summary>
+/// <param name="EventId">The event id.</param>
+/// <param name="FuturesContractId">The futures contract id.</param>
+/// <param name="FuturesOptionContractId">The futures option contract id.</param>
+/// <param name="ValueDate">The trading value date associated with the data.</param>
+/// <param name="MaturityDate">The maturity date.</param>
+/// <param name="Tick">The tick.</param>
+/// <param name="Greeks">The calculated option sensitivities, when available.</param>
 public readonly record struct FuturesOptionChainTradeChangedServiceEvent(
     Guid EventId,
     string FuturesContractId,
@@ -71,6 +90,14 @@ public interface IRetainedOptionTradeEnricher
         long eventNanoseconds, long receiveNanoseconds, CancellationToken cancellationToken);
 }
 
+/// <summary>Initializes a new OptionChainContractState instance.</summary>
+/// <param name="Route">The route.</param>
+/// <param name="Quote">The bid and ask snapshot, when available.</param>
+/// <param name="Trade">The last trade snapshot, when available.</param>
+/// <param name="SessionVolume">The session volume.</param>
+/// <param name="OpenInterest">The open interest.</param>
+/// <param name="StatisticsAtUtc">The statistics at utc.</param>
+/// <param name="SessionVolumeOfficial">The session volume official.</param>
 public readonly record struct OptionChainContractState(
     DatabentoOptionChainRoute Route,
     LastQuoteTickWithGreeksSnapshot? Quote,

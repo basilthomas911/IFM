@@ -115,6 +115,15 @@ public readonly struct MarketRecordHeader32
     public readonly ushort SourceSchema;
     public readonly ushort Reserved;
 
+    /// <summary>Initializes a new MarketRecordHeader32 instance.</summary>
+    /// <param name="instrumentId">The provider instrument identifier.</param>
+    /// <param name="publisherId">The provider publisher identifier.</param>
+    /// <param name="recordKind">The discriminant identifying the market record payload.</param>
+    /// <param name="flags">The flags.</param>
+    /// <param name="eventTimestampNanoseconds">The source event timestamp in nanoseconds since the Unix epoch.</param>
+    /// <param name="receiveTimestampNanoseconds">The receive timestamp in nanoseconds since the Unix epoch.</param>
+    /// <param name="sequence">The provider record sequence number.</param>
+    /// <param name="sourceSchema">The provider schema from which the record originated.</param>
     public MarketRecordHeader32(
         uint instrumentId, ushort publisherId, MarketRecordKind recordKind,
         byte flags, long eventTimestampNanoseconds, long receiveTimestampNanoseconds,
@@ -138,6 +147,14 @@ public readonly struct QuoteRecord64
     public readonly uint BidCount;
     public readonly uint AskCount;
 
+    /// <summary>Initializes a new QuoteRecord64 instance.</summary>
+    /// <param name="header">The common instrument, timestamp, and sequence header.</param>
+    /// <param name="bidPrice">The best bid price.</param>
+    /// <param name="askPrice">The best ask price.</param>
+    /// <param name="bidSize">The quantity available at the best bid.</param>
+    /// <param name="askSize">The quantity available at the best ask.</param>
+    /// <param name="bidCount">The number of orders at the best bid.</param>
+    /// <param name="askCount">The number of orders at the best ask.</param>
     public QuoteRecord64(
         MarketRecordHeader32 header, long bidPrice, long askPrice,
         uint bidSize, uint askSize, uint bidCount, uint askCount)
@@ -164,6 +181,13 @@ public readonly struct TradeRecord64
     private readonly byte _reserved2;
     public readonly long TimestampOutNanoseconds;
 
+    /// <summary>Initializes a new TradeRecord64 instance.</summary>
+    /// <param name="header">The common instrument, timestamp, and sequence header.</param>
+    /// <param name="price">The trade or statistics price.</param>
+    /// <param name="size">The trade quantity.</param>
+    /// <param name="action">The trade action identifying a new trade or correction.</param>
+    /// <param name="side">The side of the trade reported by the provider.</param>
+    /// <param name="dbnFlags">The original DBN record flags.</param>
     public TradeRecord64(
         MarketRecordHeader32 header, long price, uint size, byte action,
         byte side, byte dbnFlags)
@@ -203,6 +227,15 @@ public readonly struct StatisticsRecord64
     public readonly byte StatisticFlags;
     private readonly ushort _reserved16;
 
+    /// <summary>Initializes a new StatisticsRecord64 instance.</summary>
+    /// <param name="header">The common instrument, timestamp, and sequence header.</param>
+    /// <param name="price">The trade or statistics price.</param>
+    /// <param name="quantity">The record quantity.</param>
+    /// <param name="referenceTimestampNanoseconds">The statistics reference timestamp in nanoseconds since the Unix epoch.</param>
+    /// <param name="statisticType">The type of exchange statistic represented by this record.</param>
+    /// <param name="channelId">The channel id.</param>
+    /// <param name="updateAction">The action identifying how to apply the statistics update.</param>
+    /// <param name="statisticFlags">The provider statistics record flags.</param>
     public StatisticsRecord64(
         MarketRecordHeader32 header,
         long price,
@@ -234,18 +267,24 @@ public readonly struct MarketRecord64
     [FieldOffset(0)] public readonly MboRecord64 Mbo;
     [FieldOffset(0)] public readonly StatisticsRecord64 Statistics;
 
+    /// <summary>Initializes a new MarketRecord64 instance.</summary>
+    /// <param name="quote">The bid and ask snapshot, when available.</param>
     public MarketRecord64(QuoteRecord64 quote)
     {
         this = default;
         Quote = quote;
     }
 
+    /// <summary>Initializes a new MarketRecord64 instance.</summary>
+    /// <param name="trade">The last trade snapshot, when available.</param>
     public MarketRecord64(TradeRecord64 trade)
     {
         this = default;
         Trade = trade;
     }
 
+    /// <summary>Initializes a new MarketRecord64 instance.</summary>
+    /// <param name="statistics">The statistics.</param>
     public MarketRecord64(StatisticsRecord64 statistics)
     {
         this = default;
@@ -611,6 +650,19 @@ public readonly struct LatestPriceResult64
     public readonly uint BidSize;
     public readonly uint AskSize;
 
+    /// <summary>Initializes a new LatestPriceResult64 instance.</summary>
+    /// <param name="instrumentId">The provider instrument identifier.</param>
+    /// <param name="publisherId">The provider publisher identifier.</param>
+    /// <param name="selectedPolicy">The policy used to select the returned price.</param>
+    /// <param name="flags">The flags.</param>
+    /// <param name="selectedPrice">The price selected by the requested latest-price policy.</param>
+    /// <param name="bidPrice">The best bid price.</param>
+    /// <param name="askPrice">The best ask price.</param>
+    /// <param name="lastTradePrice">The most recent trade price reported by the provider.</param>
+    /// <param name="eventTimestampNanoseconds">The source event timestamp in nanoseconds since the Unix epoch.</param>
+    /// <param name="receiveTimestampNanoseconds">The receive timestamp in nanoseconds since the Unix epoch.</param>
+    /// <param name="bidSize">The quantity available at the best bid.</param>
+    /// <param name="askSize">The quantity available at the best ask.</param>
     internal LatestPriceResult64(
         uint instrumentId,
         ushort publisherId,

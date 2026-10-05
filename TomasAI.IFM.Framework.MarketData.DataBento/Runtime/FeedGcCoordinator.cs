@@ -49,6 +49,7 @@ internal static class FeedGcCoordinator
     {
         private int _disposed;
 
+        /// <summary>Releases the resources owned by this instance.</summary>
         public void Dispose()
         {
             if (Interlocked.Exchange(ref _disposed, 1) != 0)

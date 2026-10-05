@@ -10,6 +10,10 @@ internal static class FinancialModelingPrepProviderUtilities
         PropertyNameCaseInsensitive = true
     };
 
+    /// <summary>Validates date ordering and the configured maximum inclusive request range.</summary>
+    /// <param name="fromInclusive">The first date to include.</param>
+    /// <param name="toInclusive">The last date to include.</param>
+    /// <param name="options">The configuration governing provider or feed operation.</param>
     public static void ValidateRange(
         DateOnly fromInclusive,
         DateOnly toInclusive,
@@ -28,6 +32,11 @@ internal static class FinancialModelingPrepProviderUtilities
         }
     }
 
+    /// <summary>Partitions an inclusive date range into contiguous bounded request windows.</summary>
+    /// <param name="fromInclusive">The first date to include.</param>
+    /// <param name="toInclusive">The last date to include.</param>
+    /// <param name="maximumWindowDays">The maximum number of inclusive dates in each provider request window.</param>
+    /// <returns>The chunk range result.</returns>
     public static IEnumerable<(DateOnly From, DateOnly To)> ChunkRange(
         DateOnly fromInclusive,
         DateOnly toInclusive,
@@ -51,6 +60,11 @@ internal static class FinancialModelingPrepProviderUtilities
         }
     }
 
+    /// <summary>Deserializes a provider JSON array, reporting malformed or missing payloads as contract failures.</summary>
+    /// <param name="payload">The provider JSON response bytes.</param>
+    /// <param name="dataset">The Databento dataset identifier.</param>
+    /// <typeparam name="T">The type of the operation result or provider record.</typeparam>
+    /// <returns>The deserialize array result.</returns>
     public static IReadOnlyList<T> DeserializeArray<T>(byte[] payload, string dataset)
     {
         try
@@ -64,6 +78,12 @@ internal static class FinancialModelingPrepProviderUtilities
         }
     }
 
+    /// <summary>Runs the operation with caller cancellation and the configured overall provider timeout.</summary>
+    /// <param name="options">The configuration governing provider or feed operation.</param>
+    /// <param name="callerToken">The caller&apos;s cancellation token.</param>
+    /// <param name="operation">The provider operation to execute.</param>
+    /// <typeparam name="T">The type of the operation result or provider record.</typeparam>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public static async Task<T> RunBoundedAsync<T>(
         FinancialModelingPrepOptions options,
         CancellationToken callerToken,
@@ -82,6 +102,9 @@ internal static class FinancialModelingPrepProviderUtilities
         }
     }
 
+    /// <summary>Parses the provider event time into a UTC timestamp.</summary>
+    /// <param name="value">The source value used to construct or publish the result.</param>
+    /// <returns>The parse event time utc result.</returns>
     public static DateTimeOffset ParseEventTimeUtc(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)
@@ -97,6 +120,10 @@ internal static class FinancialModelingPrepProviderUtilities
         return parsed.ToUniversalTime();
     }
 
+    /// <summary>Preserves a JSON string, number, or Boolean as text, returning null for a missing value.</summary>
+    /// <param name="element">The JSON scalar value to preserve.</param>
+    /// <param name="fieldName">The provider field name used in validation errors.</param>
+    /// <returns>The preserve scalar result.</returns>
     public static string? PreserveScalar(JsonElement element, string fieldName)
     {
         return element.ValueKind switch

@@ -75,6 +75,20 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     private int _activeTickers;
     private int _outstandingQuoteBuffers;
 
+    /// <summary>Initializes a new TickAggregationService instance.</summary>
+    /// <param name="feed">The feed supplying market data batches.</param>
+    /// <param name="mappings">The store resolving provider instruments to domain contracts.</param>
+    /// <param name="publisher">The destination used to publish tick or option-chain events.</param>
+    /// <param name="quotePool">The pool supplying leased quote buffers.</param>
+    /// <param name="valueDates">The provider that resolves trading value dates from record timestamps.</param>
+    /// <param name="options">The configuration governing provider or feed operation.</param>
+    /// <param name="timeProvider">The clock used for timestamps and elapsed-time measurements.</param>
+    /// <param name="lastPrices">The value-date-specific cache of accepted trade and quote prices.</param>
+    /// <param name="liveRouter">The router controlling live publication for activated contracts.</param>
+    /// <param name="streamRoutes">The ownership routes controlling active contract streams.</param>
+    /// <param name="terminalFaultHandler">The callback notified when aggregation reaches a terminal failure.</param>
+    /// <param name="logger">The logger used for processing diagnostics.</param>
+    /// <param name="generationId">The identifier of the feed generation being initialized.</param>
     public TickAggregationService(
         IDatabentoTickerFeed feed,
         ITickContractMappingProvider mappings,
@@ -114,6 +128,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     /// Returns the native transport and managed-drain health snapshot, including terminal
     /// status and warning details when the dataset reader has completed.
     /// </summary>
+    /// <returns>The feed health result.</returns>
     public FeedHealthSnapshot GetFeedHealth() => _feed.GetHealth();
 
     /// <summary>
@@ -121,6 +136,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     /// both running. Expected lifecycle and interop failures are represented as
     /// <see langword="false"/>.
     /// </summary>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool IsFeedUp()
     {
         try
@@ -142,6 +158,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         }
     }
 
+    /// <summary>Gets tick aggregation status for the specified futures ticker.</summary>
+    /// <param name="futuresContractId">The underlying futures contract identifier.</param>
+    /// <returns>The ticker status result.</returns>
     public TickAggregationTickerStatus GetTickerStatus(string futuresContractId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(futuresContractId);
@@ -160,6 +179,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             serviceRunning && configured);
     }
 
+    /// <summary>Gets tick aggregation status for the specified contract.</summary>
+    /// <param name="contractId">The futures or option contract identifier.</param>
+    /// <returns>The contract status result.</returns>
     public TickAggregationContractStatus GetContractStatus(string contractId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
@@ -230,6 +252,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     }
 
     /// <summary>Reads the latest futures-option snapshot without consulting stream ownership.</summary>
+    /// <param name="contractId">The futures or option contract identifier.</param>
+    /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool TryGetLastOptionTickPrice(
         string contractId,
         out OptionTickerPriceSnapshot snapshot)
@@ -249,6 +274,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     }
 
     /// <summary>Reads the latest complete session statistics without consulting stream ownership.</summary>
+    /// <param name="contractId">The futures or option contract identifier.</param>
+    /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool TryGetFuturesSessionStatistics(
         string contractId,
         out FuturesSessionStatisticsSnapshot snapshot)
@@ -264,6 +292,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     }
 
     /// <summary>Returns whether at least one workflow owns the contract's transient stream.</summary>
+    /// <param name="contractId">The futures or option contract identifier.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool IsTickDataStreamActive(string contractId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
@@ -279,6 +309,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     }
 
     /// <summary>Adds an idempotent stream owner and activates routing for the first owner.</summary>
+    /// <param name="owner">The admission controller that receives the permit on disposal.</param>
+    /// <param name="contractId">The futures or option contract identifier.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool StartTickDataStream(TickerStreamOwner owner, string contractId)
     {
         owner.Validate();
@@ -314,6 +347,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     }
 
     /// <summary>Removes a stream owner and deactivates routing after the final owner leaves.</summary>
+    /// <param name="owner">The admission controller that receives the permit on disposal.</param>
+    /// <param name="contractId">The futures or option contract identifier.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool StopTickDataStream(TickerStreamOwner owner, string contractId)
     {
         owner.Validate();
@@ -390,6 +426,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             throw new AggregateException("One or more ticker stream routes could not be released.", failures);
     }
 
+    /// <summary>Captures the owners currently registered for each contract stream.</summary>
+    /// <returns>The capture stream owners result.</returns>
     public IReadOnlyDictionary<string, TickerStreamOwner[]> CaptureStreamOwners()
     {
         var result = new Dictionary<string, TickerStreamOwner[]>(StringComparer.Ordinal);
@@ -404,6 +442,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         return result;
     }
 
+    /// <summary>Restores the supplied ownership registrations to the contract streams.</summary>
+    /// <param name="ownersByContract">The stream ownership registrations indexed by contract identifier.</param>
     public void RestoreStreamOwners(
         IReadOnlyDictionary<string, TickerStreamOwner[]> ownersByContract)
     {
@@ -415,8 +455,13 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         }
     }
 
+    /// <summary>Starts the market data component asynchronously.</summary>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public ValueTask StartAsync() => StartAsync(CancellationToken.None);
 
+    /// <summary>Starts the market data component asynchronously.</summary>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public async ValueTask StartAsync(CancellationToken cancellationToken)
     {
         await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -498,8 +543,13 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         finally { _lifecycle.Release(); }
     }
 
+    /// <summary>Stops the market data component asynchronously.</summary>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public ValueTask StopAsync() => StopAsyncCore(CancellationToken.None, fenceGeneration: false);
 
+    /// <summary>Stops the market data component asynchronously.</summary>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public ValueTask StopAsync(CancellationToken cancellationToken) =>
         StopAsyncCore(cancellationToken, fenceGeneration: true);
 
@@ -1421,6 +1471,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         state.HighestSourceSequenceByPublisher[publisherId] = sequence;
     }
 
+    /// <summary>Captures the tick aggregation processing and publication metrics.</summary>
+    /// <returns>The metrics result.</returns>
     public TickAggregationMetricsSnapshot GetMetrics() => new(
         Interlocked.Read(ref _sourceQuoteRecords),
         Interlocked.Read(ref _sourceTradeRecords),
@@ -1571,6 +1623,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             throw new ArgumentOutOfRangeException(parameterName);
     }
 
+    /// <summary>Asynchronously stops processing and releases the resources owned by this instance.</summary>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public async ValueTask DisposeAsync()
     {
         await StopAsync().ConfigureAwait(false);
@@ -1588,6 +1642,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         _lifecycle.Dispose();
     }
 
+    /// <summary>Initializes a new TickerState instance.</summary>
+    /// <param name="mapping">The contract mapping to use or returned by a successful lookup.</param>
     private sealed class TickerState(TickContractMapping mapping)
     {
         public TickContractMapping Mapping { get; } = mapping;
@@ -1621,12 +1677,16 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     /// Provides one allocation-free writer and coherent lock-free readers for a contract snapshot.
     /// TickAggregation owns the single-writer invariant.
     /// </summary>
+    /// <param name="mapping">The contract mapping to use or returned by a successful lookup.</param>
     private sealed class MarketPriceCache(TickContractMapping mapping)
     {
         private int _version;
         private bool _hasValue;
         private FuturesMarketPriceSnapshot _snapshot;
 
+        /// <summary>Attempts to read the next available batch or current snapshot.</summary>
+        /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+        /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
         public bool TryRead(out FuturesMarketPriceSnapshot snapshot)
         {
             while (true)
@@ -1649,6 +1709,11 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             }
         }
 
+        /// <summary>Attempts to update the cached bid and ask prices with the supplied quote snapshot.</summary>
+        /// <param name="valueDate">The trading value date associated with the data.</param>
+        /// <param name="quote">The bid and ask snapshot, when available.</param>
+        /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+        /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
         public bool TryUpdateQuote(
             DateOnly valueDate,
             FuturesMarketQuoteSnapshot quote,
@@ -1678,6 +1743,11 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             return true;
         }
 
+        /// <summary>Attempts to update the cached trade price with the supplied trade snapshot.</summary>
+        /// <param name="valueDate">The trading value date associated with the data.</param>
+        /// <param name="trade">The last trade snapshot, when available.</param>
+        /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+        /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
         public bool TryUpdateTrade(
             DateOnly valueDate,
             FuturesMarketTradeSnapshot trade,
@@ -1707,6 +1777,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             return true;
         }
 
+        /// <summary>Resets accumulated state for a fresh feed or session generation.</summary>
         public void Reset()
         {
             var odd = Interlocked.Increment(ref _version);
@@ -1745,6 +1816,12 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 && candidateTimestamp <= currentTimestamp);
     }
 
+    /// <summary>Initializes a new PendingQuotePublication instance.</summary>
+    /// <param name="TickDataId">The tick data id.</param>
+    /// <param name="EventId">The event id.</param>
+    /// <param name="CommandId">The command id.</param>
+    /// <param name="TimestampUtc">The timestamp utc.</param>
+    /// <param name="Reason">The reason.</param>
     private sealed record PendingQuotePublication(
         TickDataId TickDataId,
         Guid EventId,
@@ -1752,6 +1829,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         DateTime TimestampUtc,
         QuoteEmissionReason Reason);
 
+    /// <summary>Initializes a new PendingTradePublication instance.</summary>
+    /// <param name="Event">The event.</param>
     private sealed record PendingTradePublication(FuturesTickTradeDataChangedEvent Event);
 
 }

@@ -17,6 +17,9 @@ public sealed class BoundedTickLiveEventPublisher :
     private readonly Task _worker;
     private int _disposed;
 
+    /// <summary>Initializes a new BoundedTickLiveEventPublisher instance.</summary>
+    /// <param name="sink">The destination receiving admitted live events.</param>
+    /// <param name="capacity">The maximum capacity of the buffer, store, or queue.</param>
     public BoundedTickLiveEventPublisher(ITickLiveEventSink sink, int capacity = 1024)
     {
         _sink = sink ?? throw new ArgumentNullException(nameof(sink));
@@ -31,9 +34,16 @@ public sealed class BoundedTickLiveEventPublisher :
         _worker = Task.Run(ProcessAsync);
     }
 
+    /// <summary>Admits the supplied event to the publication queue; completion does not imply downstream processing has finished.</summary>
+    /// <param name="event">The market data event to publish.</param>
+    /// <returns>An awaitable that completes when the event is admitted; downstream delivery and processing occur separately.</returns>
     public ValueTask PublishAsync(LiveTickQuoteServiceEvent @event)
         => PublishAsync(@event, CancellationToken.None);
 
+    /// <summary>Admits the supplied event to the publication queue; completion does not imply downstream processing has finished.</summary>
+    /// <param name="event">The market data event to publish.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>An awaitable that completes when the event is admitted; downstream delivery and processing occur separately.</returns>
     public ValueTask PublishAsync(
         LiveTickQuoteServiceEvent @event,
         CancellationToken cancellationToken)
@@ -42,9 +52,16 @@ public sealed class BoundedTickLiveEventPublisher :
         return _channel.Writer.WriteAsync(new Publication(@event, null, cancellationToken), cancellationToken);
     }
 
+    /// <summary>Admits the supplied event to the publication queue; completion does not imply downstream processing has finished.</summary>
+    /// <param name="event">The market data event to publish.</param>
+    /// <returns>An awaitable that completes when the event is admitted; downstream delivery and processing occur separately.</returns>
     public ValueTask PublishAsync(LiveTickTradeServiceEvent @event)
         => PublishAsync(@event, CancellationToken.None);
 
+    /// <summary>Admits the supplied event to the publication queue; completion does not imply downstream processing has finished.</summary>
+    /// <param name="event">The market data event to publish.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>An awaitable that completes when the event is admitted; downstream delivery and processing occur separately.</returns>
     public ValueTask PublishAsync(
         LiveTickTradeServiceEvent @event,
         CancellationToken cancellationToken)
@@ -67,6 +84,8 @@ public sealed class BoundedTickLiveEventPublisher :
         }
     }
 
+    /// <summary>Asynchronously stops processing and releases the resources owned by this instance.</summary>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
@@ -74,6 +93,10 @@ public sealed class BoundedTickLiveEventPublisher :
         await _worker.ConfigureAwait(false);
     }
 
+    /// <summary>Initializes a new Publication instance.</summary>
+    /// <param name="Quote">The bid and ask snapshot, when available.</param>
+    /// <param name="Trade">The last trade snapshot, when available.</param>
+    /// <param name="CancellationToken">The token used to cancel processing of this publication.</param>
     private readonly record struct Publication(
         LiveTickQuoteServiceEvent? Quote,
         LiveTickTradeServiceEvent? Trade,

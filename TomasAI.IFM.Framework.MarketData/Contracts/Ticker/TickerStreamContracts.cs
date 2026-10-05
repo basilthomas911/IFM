@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 
 namespace TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
@@ -6,6 +6,9 @@ namespace TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 /// <summary>
 /// Identifies one workflow-owned registration for a transient ticker-data stream.
 /// </summary>
+/// <param name="WorkflowType">The type of workflow that owns the stream.</param>
+/// <param name="WorkflowId">The identifier of the workflow that owns the stream.</param>
+/// <param name="LegId">The identifier of the strategy leg that owns the stream.</param>
 public readonly record struct TickerStreamOwner(
     string WorkflowType,
     string WorkflowId,
@@ -50,6 +53,11 @@ public sealed record TickerContractDetails
 /// <summary>
 /// Latest trade state for one ticker, expressed entirely in actor-domain values.
 /// </summary>
+/// <param name="LastPrice">The last accepted trade price.</param>
+/// <param name="LastSize">The quantity of the last accepted trade.</param>
+/// <param name="SourceSequence">The provider sequence number for the source record.</param>
+/// <param name="EventTimestamp">The timestamp of the source market event.</param>
+/// <param name="ReceiveTimestamp">The timestamp when the record was received.</param>
 public readonly record struct TickerTradeSnapshot(
     decimal LastPrice,
     uint LastSize,
@@ -60,6 +68,15 @@ public readonly record struct TickerTradeSnapshot(
 /// <summary>
 /// Latest quote state for one ticker, expressed entirely in actor-domain values.
 /// </summary>
+/// <param name="BidPrice">The best bid price.</param>
+/// <param name="BidSize">The quantity available at the best bid.</param>
+/// <param name="AskPrice">The best ask price.</param>
+/// <param name="AskSize">The quantity available at the best ask.</param>
+/// <param name="BidCount">The number of orders at the best bid.</param>
+/// <param name="AskCount">The number of orders at the best ask.</param>
+/// <param name="SourceSequence">The provider sequence number for the source record.</param>
+/// <param name="EventTimestamp">The timestamp of the source market event.</param>
+/// <param name="ReceiveTimestamp">The timestamp when the record was received.</param>
 public readonly record struct TickerQuoteSnapshot(
     decimal? BidPrice,
     uint BidSize,
@@ -74,6 +91,13 @@ public readonly record struct TickerQuoteSnapshot(
 /// <summary>
 /// Combines the independently advancing latest trade and quote state for one contract.
 /// </summary>
+/// <param name="ContractId">The futures or option contract identifier.</param>
+/// <param name="InstrumentId">The provider instrument identifier.</param>
+/// <param name="PublisherId">The provider publisher identifier.</param>
+/// <param name="AssetTypeId">The asset type identifying futures or futures options.</param>
+/// <param name="ValueDate">The trading value date associated with the data.</param>
+/// <param name="Quote">The bid and ask snapshot, when available.</param>
+/// <param name="Trade">The last trade snapshot, when available.</param>
 public readonly record struct TickerPriceSnapshot(
     string ContractId,
     uint InstrumentId,
@@ -86,8 +110,8 @@ public readonly record struct TickerPriceSnapshot(
 /// <summary>
 /// Adds optional option valuation state to the common ticker price snapshot.
 /// </summary>
+/// <param name="Price">The price snapshot or record price represented by this value.</param>
+/// <param name="Greeks">The calculated option sensitivities, when available.</param>
 public readonly record struct OptionTickerPriceSnapshot(
     TickerPriceSnapshot Price,
     OptionGreeksSnapshot? Greeks);
-
-/// <summary>

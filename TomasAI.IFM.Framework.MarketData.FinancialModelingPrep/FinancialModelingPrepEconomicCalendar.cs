@@ -9,6 +9,10 @@ public sealed class FinancialModelingPrepEconomicCalendar : IEconomicCalendar
     private readonly FinancialModelingPrepHttpClient _client;
     private readonly TimeProvider _timeProvider;
 
+    /// <summary>Initializes a new FinancialModelingPrepEconomicCalendar instance.</summary>
+    /// <param name="httpClient">The HTTP client used for provider requests.</param>
+    /// <param name="options">The configuration governing provider or feed operation.</param>
+    /// <param name="timeProvider">The clock used for timestamps and elapsed-time measurements.</param>
     public FinancialModelingPrepEconomicCalendar(
         HttpClient httpClient,
         FinancialModelingPrepOptions options,
@@ -21,6 +25,11 @@ public sealed class FinancialModelingPrepEconomicCalendar : IEconomicCalendar
     {
     }
 
+    /// <summary>Initializes a new FinancialModelingPrepEconomicCalendar instance.</summary>
+    /// <param name="httpClient">The HTTP client used for provider requests.</param>
+    /// <param name="options">The configuration governing provider or feed operation.</param>
+    /// <param name="requestGate">The shared limiter controlling concurrent provider requests.</param>
+    /// <param name="timeProvider">The clock used for timestamps and elapsed-time measurements.</param>
     internal FinancialModelingPrepEconomicCalendar(
         HttpClient httpClient,
         FinancialModelingPrepOptions options,
@@ -32,6 +41,12 @@ public sealed class FinancialModelingPrepEconomicCalendar : IEconomicCalendar
         _client = new FinancialModelingPrepHttpClient(httpClient, options, requestGate, timeProvider);
     }
 
+    /// <summary>Retrieves normalized economic events for the inclusive date range and optional country filter.</summary>
+    /// <param name="fromInclusive">The first date to include.</param>
+    /// <param name="toInclusive">The last date to include.</param>
+    /// <param name="countryCodes">The country codes to include, or null to include all countries.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A task containing the matching normalized economic events.</returns>
     public Task<IReadOnlyList<EconomicCalendarEntry>> GetAsync(
         DateOnly fromInclusive,
         DateOnly toInclusive,

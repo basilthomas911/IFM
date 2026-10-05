@@ -2,6 +2,10 @@ using System.Diagnostics;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento;
 
+/// <summary>Initializes a new MultiplexedTickerBatchReader instance.</summary>
+/// <param name="readers">The instrument readers combined by the multiplexed reader.</param>
+/// <param name="release">The callback releasing the multiplexed reader's registration.</param>
+/// <param name="ready">The signal notifying the reader of available data.</param>
 internal sealed class MultiplexedTickerBatchReader(
     IReadOnlyList<(InstrumentKey Instrument, ISynchronousBatchReader<MarketDataBatch64> Reader)> readers,
     Action release,
@@ -29,6 +33,9 @@ internal sealed class MultiplexedTickerBatchReader(
         }
     }
 
+    /// <summary>Attempts to read the next available batch or current snapshot.</summary>
+    /// <param name="batch">When a read succeeds, receives the next batch.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool TryRead(out InstrumentBatch64 batch)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
@@ -47,15 +54,27 @@ internal sealed class MultiplexedTickerBatchReader(
         return false;
     }
 
+    /// <summary>Attempts to read the next available batch or current snapshot.</summary>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
+    /// <param name="batch">When a read succeeds, receives the next batch.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool TryRead(TimeSpan timeout, out InstrumentBatch64 batch) =>
         TryReadCore(timeout, CancellationToken.None, out batch) == ReadResult.Success;
 
+    /// <summary>Attempts to read the next available batch or current snapshot.</summary>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <param name="batch">When a read succeeds, receives the next batch.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool TryRead(
         TimeSpan timeout,
         CancellationToken cancellationToken,
         out InstrumentBatch64 batch) =>
         TryReadCore(timeout, cancellationToken, out batch) == ReadResult.Success;
 
+    /// <summary>Reads the next batch or current native watchdog snapshot.</summary>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
+    /// <returns>The read result.</returns>
     public InstrumentBatch64 Read(TimeSpan timeout)
     {
         return TryReadCore(timeout, CancellationToken.None, out var batch) switch
@@ -111,6 +130,7 @@ internal sealed class MultiplexedTickerBatchReader(
         }
     }
 
+    /// <summary>Releases the resources owned by this instance.</summary>
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) == 0)

@@ -34,6 +34,18 @@ public sealed class DatabentoOptionChainSessionManager :
     private readonly Dictionary<OptionChainSessionKey, Session> _sessions = [];
     private int _disposed;
 
+    /// <summary>Initializes a new DatabentoOptionChainSessionManager instance.</summary>
+    /// <param name="feeds">The factory used to create option-chain feeds.</param>
+    /// <param name="feedOptions">The feed options.</param>
+    /// <param name="aggregation">The tick aggregation service used to integrate the option-chain session.</param>
+    /// <param name="lastPrices">The value-date-specific cache of accepted trade and quote prices.</param>
+    /// <param name="enricher">The component adding calculated Greeks to accepted option prices.</param>
+    /// <param name="publisher">The destination used to publish tick or option-chain events.</param>
+    /// <param name="state">The store holding the option-chain session state.</param>
+    /// <param name="capacity">The maximum capacity of the buffer, store, or queue.</param>
+    /// <param name="startTimeout">The maximum duration allowed to start a session.</param>
+    /// <param name="stopTimeout">The maximum duration allowed to stop and drain a session.</param>
+    /// <param name="pollTimeout">The maximum time spent waiting for the next feed batch.</param>
     public DatabentoOptionChainSessionManager(
         IDatabentoFeedFactory feeds,
         DatabentoFeedOptions feedOptions,
@@ -66,6 +78,10 @@ public sealed class DatabentoOptionChainSessionManager :
         get { lock (_sync) return _sessions.Count; }
     }
 
+    /// <summary>Starts the market data component asynchronously.</summary>
+    /// <param name="request">The parameters identifying the requested provider data or session.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public Task<bool> StartAsync(
         DatabentoOptionChainSessionRequest request,
         CancellationToken cancellationToken = default)
@@ -129,6 +145,10 @@ public sealed class DatabentoOptionChainSessionManager :
         }
     }
 
+    /// <summary>Stops the market data component asynchronously.</summary>
+    /// <param name="futuresContractId">The underlying futures contract identifier.</param>
+    /// <param name="maturityDate">The maturity date.</param>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public async Task<bool> StopAsync(
         string futuresContractId,
         DateOnly maturityDate)
@@ -270,6 +290,8 @@ public sealed class DatabentoOptionChainSessionManager :
         }
     }
 
+    /// <summary>Asynchronously stops processing and releases the resources owned by this instance.</summary>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
@@ -332,6 +354,11 @@ public sealed class DatabentoOptionChainSessionManager :
         }
     }
 
+    /// <summary>Initializes a new Session instance.</summary>
+    /// <param name="key">The identifier of the option-chain session.</param>
+    /// <param name="valueDate">The trading value date associated with the data.</param>
+    /// <param name="feed">The feed supplying market data batches.</param>
+    /// <param name="routes">The resolved instrument routes used by this option-chain session.</param>
     private sealed class Session(
         OptionChainSessionKey key,
         DateOnly valueDate,

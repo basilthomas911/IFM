@@ -46,6 +46,21 @@ public interface ITickAggregationService : IAsyncDisposable
     ValueTask StopAsync();
 }
 
+/// <summary>Initializes a new TickAggregationContractStatus instance.</summary>
+/// <param name="ContractId">The futures or option contract identifier.</param>
+/// <param name="AssetTypeId">The asset type identifying futures or futures options.</param>
+/// <param name="ServiceRunning">The service running.</param>
+/// <param name="ContractConfigured">The contract configured.</param>
+/// <param name="ContractRunning">The contract running.</param>
+/// <param name="StreamActive">Whether the contract stream is activated.</param>
+/// <param name="LastSourceRecordObservedAtUtc">The last source record observed at utc.</param>
+/// <param name="LastMarketPricePublishedAtUtc">The last market price published at utc.</param>
+/// <param name="LastDurableTickPublishedAtUtc">The last durable tick published at utc.</param>
+/// <param name="StreamActivatedAtUtc">The UTC instant when the stream was activated.</param>
+/// <param name="LastAcceptedCacheUpdateAtUtc">The UTC time of the latest accepted cache update.</param>
+/// <param name="LastAcceptedSourceEventAtUtc">The source event time of the latest accepted update.</param>
+/// <param name="AcceptedCacheUpdates">The accepted cache updates.</param>
+/// <param name="RejectedCacheUpdates">The rejected cache updates.</param>
 public readonly record struct TickAggregationContractStatus(
     string ContractId,
     AssetTypeId AssetTypeId,
@@ -63,6 +78,8 @@ public readonly record struct TickAggregationContractStatus(
     long RejectedCacheUpdates = 0)
 {
     /// <summary>Gets the route-level health of accepted Databento input.</summary>
+    /// <param name="utcNow">The current UTC instant used to evaluate freshness.</param>
+    /// <returns>The health at result.</returns>
     public DatabentoLiveFeedHealthState HealthAt(DateTimeOffset utcNow) =>
         DatabentoLiveFeedHealthPolicy.Evaluate(
             StreamActive,
@@ -90,6 +107,13 @@ public static class DatabentoLiveFeedHealthPolicy
     public static readonly TimeSpan GreenLimit = TimeSpan.FromMinutes(5);
     public static readonly TimeSpan YellowLimit = TimeSpan.FromMinutes(15);
 
+    /// <summary>Evaluates the supplied observations against the applicable feed health or qualification criteria.</summary>
+    /// <param name="streamActive">Whether the contract stream is activated.</param>
+    /// <param name="streamActivatedAtUtc">The UTC instant when the stream was activated.</param>
+    /// <param name="lastAcceptedCacheUpdateAtUtc">The UTC time of the latest accepted cache update.</param>
+    /// <param name="lastAcceptedSourceEventAtUtc">The source event time of the latest accepted update.</param>
+    /// <param name="utcNow">The current UTC instant used to evaluate freshness.</param>
+    /// <returns>The evaluate result.</returns>
     public static DatabentoLiveFeedHealthState Evaluate(
         bool streamActive,
         DateTimeOffset? streamActivatedAtUtc,
@@ -120,6 +144,11 @@ public static class DatabentoLiveFeedHealthPolicy
                 : utcNow - timestamp.Value;
 }
 
+/// <summary>Initializes a new TickAggregationTickerStatus instance.</summary>
+/// <param name="FuturesContractId">The futures contract id.</param>
+/// <param name="ServiceRunning">The service running.</param>
+/// <param name="TickerConfigured">The ticker configured.</param>
+/// <param name="TickerRunning">The ticker running.</param>
 public readonly record struct TickAggregationTickerStatus(
     string FuturesContractId,
     bool ServiceRunning,
@@ -151,6 +180,14 @@ public enum TickAggregationProcessingStage
     StatisticsPublish = 15
 }
 
+/// <summary>Initializes a new TickAggregationRecordProgress instance.</summary>
+/// <param name="Dataset">The dataset.</param>
+/// <param name="ContractId">The futures or option contract identifier.</param>
+/// <param name="RecordKind">The discriminant identifying the market record payload.</param>
+/// <param name="PublisherId">The provider publisher identifier.</param>
+/// <param name="InstrumentId">The provider instrument identifier.</param>
+/// <param name="SourceSequence">The provider sequence number for the source record.</param>
+/// <param name="StartedAtUtc">The started at utc.</param>
 public sealed record TickAggregationRecordProgress(
     string Dataset,
     string ContractId,
@@ -160,6 +197,18 @@ public sealed record TickAggregationRecordProgress(
     uint SourceSequence,
     DateTimeOffset StartedAtUtc);
 
+/// <summary>Initializes a new TickAggregationProcessingFailure instance.</summary>
+/// <param name="Dataset">The dataset.</param>
+/// <param name="ContractId">The futures or option contract identifier.</param>
+/// <param name="RecordKind">The discriminant identifying the market record payload.</param>
+/// <param name="PublisherId">The provider publisher identifier.</param>
+/// <param name="InstrumentId">The provider instrument identifier.</param>
+/// <param name="SourceSequence">The provider sequence number for the source record.</param>
+/// <param name="Stage">The stage.</param>
+/// <param name="FailedAtUtc">The failed at utc.</param>
+/// <param name="ProcessingDuration">The processing duration.</param>
+/// <param name="ExceptionType">The exception type.</param>
+/// <param name="ExceptionMessage">The exception message.</param>
 public sealed record TickAggregationProcessingFailure(
     string Dataset,
     string ContractId,
@@ -173,6 +222,21 @@ public sealed record TickAggregationProcessingFailure(
     string ExceptionType,
     string ExceptionMessage);
 
+/// <summary>Initializes a new TickAggregationMetricsSnapshot instance.</summary>
+/// <param name="SourceQuoteRecords">The source quote records.</param>
+/// <param name="SourceTradeRecords">The source trade records.</param>
+/// <param name="EmittedQuoteBatches">The emitted quote batches.</param>
+/// <param name="EmittedQuoteItems">The emitted quote items.</param>
+/// <param name="EmittedTradeEvents">The emitted trade events.</param>
+/// <param name="BufferFullFlushes">The buffer full flushes.</param>
+/// <param name="PartialQuoteFlushes">The partial quote flushes.</param>
+/// <param name="DuplicateSourceSequences">The duplicate source sequences.</param>
+/// <param name="OutOfOrderSourceSequences">The out of order source sequences.</param>
+/// <param name="SourceSequenceGaps">The source sequence gaps.</param>
+/// <param name="PublicationFailures">The publication failures.</param>
+/// <param name="ProcessingFailures">The processing failures.</param>
+/// <param name="ActiveTickers">The active tickers.</param>
+/// <param name="ServiceOwnedQuoteBuffers">The service owned quote buffers.</param>
 public readonly record struct TickAggregationMetricsSnapshot(
     long SourceQuoteRecords,
     long SourceTradeRecords,
@@ -207,6 +271,14 @@ public readonly record struct TickAggregationMetricsSnapshot(
     public TickAggregationProcessingFailure? LastFailure { get; init; }
 }
 
+/// <summary>Initializes a new TickContractMapping instance.</summary>
+/// <param name="Dataset">The dataset.</param>
+/// <param name="DefinitionDate">The definition date.</param>
+/// <param name="PublisherId">The provider publisher identifier.</param>
+/// <param name="InstrumentId">The provider instrument identifier.</param>
+/// <param name="ContractId">The futures or option contract identifier.</param>
+/// <param name="AssetTypeId">The asset type identifying futures or futures options.</param>
+/// <param name="ContractDetails">The reviewed reference details for the mapped contract.</param>
 public readonly record struct TickContractMapping(
     string Dataset,
     DateOnly DefinitionDate,
@@ -267,6 +339,9 @@ public interface ITickValueDateProvider
 
 public sealed class UtcTickValueDateProvider : ITickValueDateProvider
 {
+    /// <summary>Resolves the value date for the specified UTC timestamp.</summary>
+    /// <param name="timestampUtc">The timestamp utc.</param>
+    /// <returns>The value date result.</returns>
     public DateOnly GetValueDate(DateTime timestampUtc) => DateOnly.FromDateTime(timestampUtc.ToUniversalTime());
 }
 

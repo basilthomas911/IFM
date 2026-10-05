@@ -46,6 +46,12 @@ public sealed class DatabentoFeedMonitor : IDisposable
     private ulong _priorDrainLimitHits;
     private FeedMetricsSnapshot? _latest;
 
+    /// <summary>Initializes a new DatabentoFeedMonitor instance.</summary>
+    /// <param name="health">The feed health source to sample.</param>
+    /// <param name="options">The configuration governing provider or feed operation.</param>
+    /// <param name="exporter">The destination for sampled feed metrics.</param>
+    /// <param name="alerts">The destination for feed health alerts.</param>
+    /// <param name="timeProvider">The clock used for timestamps and elapsed-time measurements.</param>
     public DatabentoFeedMonitor(
         Func<FeedHealthSnapshot> health,
         FeedTransportHealthOptions options,
@@ -76,6 +82,7 @@ public sealed class DatabentoFeedMonitor : IDisposable
         }
     }
 
+    /// <summary>Starts feed processing or monitoring.</summary>
     public void Start()
     {
         lock (_gate)
@@ -95,6 +102,8 @@ public sealed class DatabentoFeedMonitor : IDisposable
         }
     }
 
+    /// <summary>Stops feed processing or monitoring within the specified timeout.</summary>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
     public void Stop(TimeSpan timeout)
     {
         Thread? thread;
@@ -114,6 +123,8 @@ public sealed class DatabentoFeedMonitor : IDisposable
         }
     }
 
+    /// <summary>Samples feed health, exports metrics, and evaluates alerts once.</summary>
+    /// <returns>The poll once result.</returns>
     public FeedMetricsSnapshot PollOnce()
     {
         var now = _timeProvider.GetUtcNow();
@@ -146,6 +157,7 @@ public sealed class DatabentoFeedMonitor : IDisposable
         return snapshot;
     }
 
+    /// <summary>Releases the resources owned by this instance.</summary>
     public void Dispose()
     {
         if (_thread is not null)

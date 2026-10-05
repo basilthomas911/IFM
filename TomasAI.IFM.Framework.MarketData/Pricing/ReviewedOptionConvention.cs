@@ -6,6 +6,9 @@ namespace TomasAI.IFM.Framework.MarketData.Pricing;
 /// <summary>The pricing convention is derived from the same reviewed reference version, never independently edited.</summary>
 public static class ReviewedOptionConvention
 {
+    /// <summary>Creates a pricing convention from qualified, reviewed option reference data.</summary>
+    /// <param name="value">The source value used to construct or publish the result.</param>
+    /// <returns>The from result.</returns>
     public static OptionPricingConvention From(FuturesOptionContractReadModel value)
     {
         var errors = FuturesReferenceQualification.Errors(value);

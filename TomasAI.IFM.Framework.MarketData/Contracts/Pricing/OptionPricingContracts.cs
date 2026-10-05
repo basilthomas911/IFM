@@ -12,6 +12,11 @@ public enum PricingUnderlyingKind { Unknown = 0, Futures = 1, Equity = 2 }
 public enum PricingOptionRight { Unknown = 0, Call = 1, Put = 2 }
 
 /// <summary>Safe diagnostic data; failed pricing never supplies usable numeric output.</summary>
+/// <param name="Code">The domain failure code.</param>
+/// <param name="Input">The pricing input associated with the failure.</param>
+/// <param name="ContractId">The futures or option contract identifier.</param>
+/// <param name="Detail">The diagnostic detail explaining the failure.</param>
+/// <param name="Retryable">Whether the failure can be retried.</param>
 [MessagePackObject]
 public sealed record OptionPricingFailure(
     [property: Key(0)] string Code,
@@ -68,6 +73,12 @@ public sealed record OptionPricingConvention
 }
 
 /// <summary>Explicit complete calendar coverage, including exchange value dates and pricing convention.</summary>
+/// <param name="Version">The version.</param>
+/// <param name="TimeZoneId">The time zone id.</param>
+/// <param name="CoverageFrom">The coverage from.</param>
+/// <param name="CoverageUntil">The coverage until.</param>
+/// <param name="ValueDateRollover">The value date rollover.</param>
+/// <param name="TradingDates">The trading dates.</param>
 [MessagePackObject]
 public sealed record OptionPricingCalendar(
     [property: Key(0)] string Version,
@@ -78,6 +89,15 @@ public sealed record OptionPricingCalendar(
     [property: Key(5)] ImmutableArray<DateOnly> TradingDates);
 
 /// <summary>Immutable source-time quote. A generation change fences all preceding readiness.</summary>
+/// <param name="ContractId">The futures or option contract identifier.</param>
+/// <param name="Bid">The bid.</param>
+/// <param name="Ask">The ask.</param>
+/// <param name="BidSize">The quantity available at the best bid.</param>
+/// <param name="AskSize">The quantity available at the best ask.</param>
+/// <param name="EventAtUtc">The event at utc.</param>
+/// <param name="ReceivedAtUtc">The received at utc.</param>
+/// <param name="Sequence">The sequence.</param>
+/// <param name="GenerationId">The generation id.</param>
 [MessagePackObject]
 public sealed record OptionPricingQuote(
     [property: Key(0)] string ContractId,
@@ -91,6 +111,15 @@ public sealed record OptionPricingQuote(
     [property: Key(8)] Guid GenerationId);
 
 /// <summary>Exact reference context prepared away from the tick path. T is computed for every pass.</summary>
+/// <param name="Contract">The contract.</param>
+/// <param name="Calendar">The calendar.</param>
+/// <param name="Rate">The rate.</param>
+/// <param name="ValidUntilUtc">The valid until utc.</param>
+/// <param name="GenerationId">The generation id.</param>
+/// <param name="PricerVersion">The pricer version.</param>
+/// <param name="MaximumQuoteAgeMilliseconds">The maximum quote age milliseconds.</param>
+/// <param name="MaximumQuoteSkewMilliseconds">The maximum quote skew milliseconds.</param>
+/// <param name="PublicationPolicyVersion">The publication policy version.</param>
 [MessagePackObject]
 public sealed record OptionPricingContext(
     [property: Key(0)] OptionPricingConvention Contract,

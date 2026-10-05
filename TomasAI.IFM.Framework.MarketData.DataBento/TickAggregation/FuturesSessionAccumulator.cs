@@ -20,6 +20,13 @@ internal sealed class FuturesSessionAccumulator
     private readonly Dictionary<DateOnly, SessionState> _sessions = [];
     private readonly object _sync = new();
 
+    /// <summary>Attempts to incorporate an eligible trade into the futures session statistics.</summary>
+    /// <param name="contractId">The futures or option contract identifier.</param>
+    /// <param name="valueDate">The trading value date associated with the data.</param>
+    /// <param name="record">The source trade or statistics record to apply.</param>
+    /// <param name="replay">Whether the record belongs to initialization replay.</param>
+    /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool TryAccumulateTrade(
         string contractId,
         DateOnly valueDate,
@@ -47,6 +54,10 @@ internal sealed class FuturesSessionAccumulator
         }
     }
 
+    /// <summary>Marks trade replay complete for the specified futures session.</summary>
+    /// <param name="contractId">The futures or option contract identifier.</param>
+    /// <param name="valueDate">The trading value date associated with the data.</param>
+    /// <returns>The complete trade replay result.</returns>
     public FuturesSessionStatisticsSnapshot CompleteTradeReplay(
         string contractId,
         DateOnly valueDate)
@@ -60,6 +71,12 @@ internal sealed class FuturesSessionAccumulator
         }
     }
 
+    /// <summary>Attempts to apply a provider statistics record to the futures session.</summary>
+    /// <param name="contractId">The futures or option contract identifier.</param>
+    /// <param name="currentValueDate">The currently active trading value date.</param>
+    /// <param name="record">The source trade or statistics record to apply.</param>
+    /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool TryApplyStatistic(
         string contractId,
         DateOnly currentValueDate,
@@ -113,6 +130,11 @@ internal sealed class FuturesSessionAccumulator
         }
     }
 
+    /// <summary>Attempts to read the next available batch or current snapshot.</summary>
+    /// <param name="contractId">The futures or option contract identifier.</param>
+    /// <param name="valueDate">The trading value date associated with the data.</param>
+    /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool TryRead(
         string contractId,
         DateOnly valueDate,
@@ -130,6 +152,9 @@ internal sealed class FuturesSessionAccumulator
         }
     }
 
+    /// <summary>Reads all accumulated session snapshots for the specified contract.</summary>
+    /// <param name="contractId">The futures or option contract identifier.</param>
+    /// <returns>The read all result.</returns>
     public FuturesSessionStatisticsSnapshot[] ReadAll(string contractId)
     {
         lock (_sync)
@@ -139,6 +164,7 @@ internal sealed class FuturesSessionAccumulator
                 .ToArray();
     }
 
+    /// <summary>Resets accumulated state for a fresh feed or session generation.</summary>
     public void Reset()
     {
         lock (_sync)

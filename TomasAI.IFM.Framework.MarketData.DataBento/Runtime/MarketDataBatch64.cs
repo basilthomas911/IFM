@@ -8,6 +8,8 @@ public sealed class MarketDataBatch64 : IDisposable
     private BoundedBatchChannel? _owner;
     private int _disposed = 1;
 
+    /// <summary>Initializes a new MarketDataBatch64 instance.</summary>
+    /// <param name="capacity">The maximum capacity of the buffer, store, or queue.</param>
     internal MarketDataBatch64(int capacity)
     {
         _records = new MarketRecord64[capacity];
@@ -56,6 +58,7 @@ public sealed class MarketDataBatch64 : IDisposable
         Count = 0;
     }
 
+    /// <summary>Releases the resources owned by this instance.</summary>
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)

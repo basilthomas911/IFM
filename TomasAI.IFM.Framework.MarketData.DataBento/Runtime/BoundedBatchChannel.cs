@@ -25,6 +25,10 @@ internal sealed class BoundedBatchChannel : ISynchronousBatchReader<MarketDataBa
     private ulong _fullCount;
     private long _maximumFullWaitTicks;
 
+    /// <summary>Initializes a new BoundedBatchChannel instance.</summary>
+    /// <param name="channelBatchSlots">The maximum number of batch references held by the channel.</param>
+    /// <param name="batchRecordCapacity">The record capacity of each admitted batch.</param>
+    /// <param name="signalReader">The callback notifying the reader that a batch is available.</param>
     internal BoundedBatchChannel(
         int channelBatchSlots,
         int batchRecordCapacity,
@@ -132,12 +136,22 @@ internal sealed class BoundedBatchChannel : ISynchronousBatchReader<MarketDataBa
         }
     }
 
+    /// <summary>Attempts to read the next available batch or current snapshot.</summary>
+    /// <param name="batch">When a read succeeds, receives the next batch.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool TryRead(out MarketDataBatch64? batch) =>
         TryReadCore(TimeSpan.Zero, out batch) == ReadResult.Success;
 
+    /// <summary>Attempts to read the next available batch or current snapshot.</summary>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
+    /// <param name="batch">When a read succeeds, receives the next batch.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool TryRead(TimeSpan timeout, out MarketDataBatch64? batch) =>
         TryReadCore(timeout, out batch) == ReadResult.Success;
 
+    /// <summary>Reads the next batch or current native watchdog snapshot.</summary>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
+    /// <returns>The read result.</returns>
     public MarketDataBatch64 Read(TimeSpan timeout)
     {
         return TryReadCore(timeout, out var batch) switch

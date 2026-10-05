@@ -7,6 +7,8 @@ internal sealed class FinancialModelingPrepRequestGate
     private int _consecutiveFailures;
     private DateTimeOffset? _breakUntilUtc;
 
+    /// <summary>Initializes a new FinancialModelingPrepRequestGate instance.</summary>
+    /// <param name="options">The configuration governing provider or feed operation.</param>
     public FinancialModelingPrepRequestGate(FinancialModelingPrepOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -57,8 +59,11 @@ internal sealed class FinancialModelingPrepRequestGate
         }
     }
 
+    /// <summary>Initializes a new Releaser instance.</summary>
+    /// <param name="semaphore">The concurrency permit returned when this lease is disposed.</param>
     private sealed class Releaser(SemaphoreSlim semaphore) : IDisposable
     {
+        /// <summary>Releases the resources owned by this instance.</summary>
         public void Dispose() => semaphore.Release();
     }
 }

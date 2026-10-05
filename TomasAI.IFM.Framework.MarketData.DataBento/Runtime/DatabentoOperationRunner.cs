@@ -21,6 +21,9 @@ public sealed class DatabentoOperationRunner : IDatabentoOperationRunner
     private readonly CancellationTokenSource _shutdown = new();
     private int _disposed;
 
+    /// <summary>Initializes a new DatabentoOperationRunner instance.</summary>
+    /// <param name="queries">The provider query clients, one for each fixed execution worker.</param>
+    /// <param name="queueCapacity">The maximum number of pending operations admitted to the worker queue.</param>
     public DatabentoOperationRunner(
         IReadOnlyList<IDatabentoMarketDataQueries> queries,
         int queueCapacity)
@@ -47,6 +50,11 @@ public sealed class DatabentoOperationRunner : IDatabentoOperationRunner
         }
     }
 
+    /// <summary>Queues the supplied provider operation for bounded execution asynchronously.</summary>
+    /// <param name="operation">The provider operation to execute.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <typeparam name="T">The type of the operation result or provider record.</typeparam>
+    /// <returns>A task containing the provider operation's result after execution.</returns>
     public Task<T> RunAsync<T>(
         Func<IDatabentoMarketDataQueries, T> operation,
         CancellationToken cancellationToken = default)
@@ -76,6 +84,8 @@ public sealed class DatabentoOperationRunner : IDatabentoOperationRunner
         }
     }
 
+    /// <summary>Asynchronously stops processing and releases the resources owned by this instance.</summary>
+    /// <returns>A task containing the provider operation's result after execution.</returns>
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -90,6 +100,10 @@ public sealed class DatabentoOperationRunner : IDatabentoOperationRunner
         internal abstract void Execute(IDatabentoMarketDataQueries queries);
     }
 
+    /// <summary>Initializes a new WorkItem instance.</summary>
+    /// <param name="operation">The provider operation to execute.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <typeparam name="T">The type of the operation result or provider record.</typeparam>
     private sealed class WorkItem<T>(
         Func<IDatabentoMarketDataQueries, T> operation,
         CancellationToken cancellationToken) : WorkItem

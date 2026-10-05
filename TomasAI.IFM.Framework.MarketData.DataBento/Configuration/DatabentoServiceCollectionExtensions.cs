@@ -13,6 +13,8 @@ public static class DatabentoServiceCollectionExtensions
     /// Registers DataBento framework services only. The application-level
     /// IMarketDataApi is intentionally not referenced or registered here.
     /// </summary>
+    /// <param name="services">The service collection to register the provider services in.</param>
+    /// <returns>The add databento market data services result.</returns>
     public static IServiceCollection AddDatabentoMarketDataServices(
         this IServiceCollection services)
     {
@@ -26,6 +28,9 @@ public static class DatabentoServiceCollectionExtensions
     /// Registers the provider-neutral Databento historical adapter. Credentials remain in the
     /// native Databento environment and are never copied into dependency-injection options.
     /// </summary>
+    /// <param name="services">The service collection to register the provider services in.</param>
+    /// <param name="options">The configuration governing provider or feed operation.</param>
+    /// <returns>The add databento historical market data services result.</returns>
     public static IServiceCollection AddDatabentoHistoricalMarketDataServices(
         this IServiceCollection services,
         DatabentoHistoricalProviderOptions options)

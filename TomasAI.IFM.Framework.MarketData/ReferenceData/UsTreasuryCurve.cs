@@ -7,6 +7,8 @@ using TomasAI.IFM.Framework.MarketData.Contracts;
 namespace TomasAI.IFM.Framework.MarketData.ReferenceData;
 
 /// <summary>Official daily Treasury par/CMT observations. Missing values are never synthesized.</summary>
+/// <param name="client">The client.</param>
+/// <param name="timeProvider">The clock used for timestamps and elapsed-time measurements.</param>
 public sealed class UsTreasuryCurve(HttpClient client, TimeProvider? timeProvider = null)
     : ITreasuryCurve, ITreasuryCurveIdentity, IDisposable
 {
@@ -131,5 +133,6 @@ public sealed class UsTreasuryCurve(HttpClient client, TimeProvider? timeProvide
         return rows.Values.ToImmutableArray();
     }
 
+    /// <summary>Releases the resources owned by this instance.</summary>
     public void Dispose() => gate.Dispose();
 }

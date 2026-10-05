@@ -22,14 +22,23 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
     private readonly ConcurrentDictionary<string, Lazy<IReadOnlyList<ContractDetail>>>
         _tickerDefinitions = new(StringComparer.Ordinal);
 
+    /// <summary>Initializes a new DatabentoMarketDataQueries instance.</summary>
+    /// <param name="dataset">The Databento dataset identifier.</param>
     internal DatabentoMarketDataQueries(string dataset)
     {
         _dataset = dataset;
     }
 
+    /// <summary>Retrieves contract definitions for the configured dataset.</summary>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
+    /// <returns>The dataset definitions result.</returns>
     public IReadOnlyList<ContractDetail> GetDatasetDefinitions(TimeSpan? timeout = null)
         => Query(["ALL_SYMBOLS"], NativeContractQueryKind.Dataset, timeout).Select(x => x!).ToArray();
 
+    /// <summary>Retrieves definitions for the requested option chain.</summary>
+    /// <param name="request">The parameters identifying the requested provider data or session.</param>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
+    /// <returns>The chain definitions result.</returns>
     public OptionChainDefinitions GetChainDefinitions(
         OptionChainDefinitionRequest request,
         TimeSpan? timeout = null)
@@ -79,6 +88,10 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
             details);
     }
 
+    /// <summary>Resolves a contract identifier to its Databento instrument identifier.</summary>
+    /// <param name="contractId">The futures or option contract identifier.</param>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
+    /// <returns>The contract id to instrument id result.</returns>
     public uint ContractIdToInstrumentId(
         string contractId,
         TimeSpan? timeout = null)
@@ -104,6 +117,10 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         return ResolveContractDetail(parsed, definitions, contractId).Instrument.InstrumentId;
     }
 
+    /// <summary>Resolves a Databento instrument identifier to its contract identifier.</summary>
+    /// <param name="instrumentId">The provider instrument identifier.</param>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
+    /// <returns>The instrument id to contract id result.</returns>
     public string InstrumentIdToContractId(
         uint instrumentId,
         TimeSpan? timeout = null)
@@ -208,6 +225,10 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         return contractId;
     }
 
+    /// <summary>Retrieves reference details for the specified contract.</summary>
+    /// <param name="contractName">The provider contract name to resolve.</param>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
+    /// <returns>The contract detail result.</returns>
     public ContractDetail? GetContractDetail(
         string contractName,
         TimeSpan? timeout = null)
@@ -216,6 +237,10 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         return Query([contractName], NativeContractQueryKind.Exact, timeout)[0];
     }
 
+    /// <summary>Retrieves reference details for the requested ticker or contracts.</summary>
+    /// <param name="ticker">The futures ticker whose contract definitions are requested.</param>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
+    /// <returns>The contract details result.</returns>
     public IReadOnlyList<ContractDetail> GetContractDetails(
         string ticker,
         TimeSpan? timeout = null)
@@ -274,6 +299,10 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         }
     }
 
+    /// <summary>Retrieves reference details for the requested ticker or contracts.</summary>
+    /// <param name="contractNames">The provider contract names to resolve in request order.</param>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
+    /// <returns>The contract details result.</returns>
     public IReadOnlyList<ContractDetail?> GetContractDetails(
         string[] contractNames,
         TimeSpan? timeout = null)
@@ -286,6 +315,10 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         return result.Details;
     }
 
+    /// <summary>Retrieves contract details while preserving provider failures in the query result.</summary>
+    /// <param name="contractNames">The provider contract names to resolve in request order.</param>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
+    /// <returns>The try get contract details result.</returns>
     public DatabentoContractDetailsQueryResult TryGetContractDetails(
         string[] contractNames,
         TimeSpan? timeout = null)
@@ -807,6 +840,11 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         Exception? innerException = null) =>
         new(direction, message, contractId, instrumentId, innerException);
 
+    /// <summary>Initializes a new ParsedContractId instance.</summary>
+    /// <param name="Ticker">The futures ticker whose contract definitions are requested.</param>
+    /// <param name="Expiration">The expiration.</param>
+    /// <param name="Kind">The kind.</param>
+    /// <param name="StrikePrice">The strike price.</param>
     private sealed record ParsedContractId(
         string Ticker,
         DateOnly Expiration,

@@ -26,6 +26,9 @@ public sealed record TreasuryCurveSnapshot(
     public string CurrencyCode { get; init; } = "USD";
 
     /// <summary>Attempts to read one tenor without allocating.</summary>
+    /// <param name="tenor">The tenor.</param>
+    /// <param name="rate">The rate returned by the operation.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool TryGetRate(
         TreasuryTenor tenor,
         out TreasuryRatePoint rate)

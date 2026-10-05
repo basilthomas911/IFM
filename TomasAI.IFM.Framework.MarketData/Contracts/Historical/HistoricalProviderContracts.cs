@@ -86,6 +86,10 @@ public sealed record HistoricalProviderRequest
 }
 
 /// <summary>Reports the non-billable estimate for a historical provider request.</summary>
+/// <param name="EstimatedCostUsd">The estimated cost usd.</param>
+/// <param name="EstimatedBytes">The estimated bytes.</param>
+/// <param name="EstimatedRecords">The estimated records.</param>
+/// <param name="EstimatedAtUtc">The estimated at utc.</param>
 public sealed record HistoricalProviderEstimate(
     decimal EstimatedCostUsd,
     long EstimatedBytes,
@@ -93,6 +97,13 @@ public sealed record HistoricalProviderEstimate(
     DateTimeOffset EstimatedAtUtc);
 
 /// <summary>Describes a resumable provider batch job.</summary>
+/// <param name="ProviderJobId">The provider job id.</param>
+/// <param name="State">The store holding the option-chain session state.</param>
+/// <param name="CostUsd">The cost usd.</param>
+/// <param name="RecordCount">The record count.</param>
+/// <param name="BilledBytes">The billed bytes.</param>
+/// <param name="ProgressPercent">The progress percent.</param>
+/// <param name="ErrorMessage">The error message.</param>
 public sealed record HistoricalProviderJob(
     string ProviderJobId,
     HistoricalProviderJobState State,
@@ -103,6 +114,11 @@ public sealed record HistoricalProviderJob(
     string ErrorMessage);
 
 /// <summary>Describes one immutable file produced by a provider batch job.</summary>
+/// <param name="ProviderFileId">The provider file id.</param>
+/// <param name="FileName">The file name.</param>
+/// <param name="Schema">The provider schema or recovery baseline required for the operation.</param>
+/// <param name="SizeBytes">The size bytes.</param>
+/// <param name="Sha256">The sha256.</param>
 public sealed record HistoricalProviderFile(
     string ProviderFileId,
     string FileName,
@@ -144,6 +160,10 @@ public sealed record HistoricalProviderRecord
 }
 
 /// <summary>Provides one bounded decoded historical batch.</summary>
+/// <param name="Records">The records.</param>
+/// <param name="BatchOrdinal">The batch ordinal.</param>
+/// <param name="SourcePosition">The source position.</param>
+/// <param name="IsFinal">The is final.</param>
 public sealed record HistoricalProviderRecordBatch(
     IReadOnlyList<HistoricalProviderRecord> Records,
     long BatchOrdinal,

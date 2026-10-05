@@ -10,6 +10,8 @@ namespace TomasAI.IFM.Framework.MarketData.ReferenceData;
 public static class TreasuryRateConversion
 {
     /// <summary>Selects the approved tenor from remaining exchange trading dates, not calendar DTE.</summary>
+    /// <param name="remainingTradingDays">The remaining trading days.</param>
+    /// <returns>The select tenor result.</returns>
     public static TreasuryTenor? SelectTenor(int remainingTradingDays) => remainingTradingDays switch
     {
         >= 0 and < 30 => TreasuryTenor.OneMonth,
@@ -19,6 +21,10 @@ public static class TreasuryRateConversion
     };
 
     /// <summary>Converts verified semiannual CMT percent units once and retains a canonical curve digest.</summary>
+    /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+    /// <param name="tenor">The tenor.</param>
+    /// <param name="policy">The publication or price-selection policy.</param>
+    /// <returns>The convert result.</returns>
     public static TreasuryContinuousRateResult Convert(
         TreasuryCurveSnapshot snapshot, TreasuryTenor tenor, TreasuryRateConversionPolicy policy)
     {
@@ -49,6 +55,8 @@ public static class TreasuryRateConversion
     }
 
     /// <summary>Semantic v1 digest; source corrections change identity while retrieval times do not.</summary>
+    /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+    /// <returns>The digest result.</returns>
     public static string Digest(TreasuryCurveSnapshot snapshot)
     {
         var canonical = JsonSerializer.Serialize(new

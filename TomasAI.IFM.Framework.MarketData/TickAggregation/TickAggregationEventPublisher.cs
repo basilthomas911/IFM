@@ -22,6 +22,11 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
     private long _pending;
     private readonly BoundedRealtimeTickPublisher? _bounded;
 
+    /// <summary>Creates an ordered realtime publisher with bounded queue admission.</summary>
+    /// <param name="supervisor">The actor supervisor providing the realtime producer.</param>
+    /// <param name="capacity">The legacy queue capacity; defaults to 1,024 events when no policy is supplied.</param>
+    /// <param name="policy">The optional bounded delivery policy; null selects the legacy waiting channel.</param>
+    /// <param name="timeProvider">The clock used by bounded delivery; null selects the system clock.</param>
     public TickAggregationEventPublisher(IActorSupervisor supervisor, int capacity = 1024,
         RealtimeTickPublisherPolicy? policy = null, TimeProvider? timeProvider = null)
     {
@@ -35,6 +40,8 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
 
     public bool IsRunning => _bounded?.IsRunning ?? Volatile.Read(ref _running) != 0;
 
+    /// <summary>Captures the current publisher state and admission diagnostics.</summary>
+    /// <returns>The current queue, delivery, and failure diagnostics.</returns>
     public RealtimeTickPublisherSnapshot GetSnapshot() => _bounded?.GetSnapshot()
         ?? new(false, IsRunning, false, false, false, _capacity,
             (int)Math.Min(int.MaxValue, Math.Max(0, Interlocked.Read(ref _pending))), 0,
@@ -42,8 +49,13 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             RealtimeTickPublisherFailure.None,
             "Live publisher has a bounded, waiting channel; Stage 3 policy is disabled.");
 
+    /// <summary>Resolves the realtime actor producer and starts the publication worker.</summary>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public ValueTask StartAsync() => StartAsync(CancellationToken.None);
 
+    /// <summary>Resolves the realtime actor producer and starts the publication worker.</summary>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public async ValueTask StartAsync(CancellationToken cancellationToken)
     {
         if (_bounded is not null) { await _bounded.StartAsync(cancellationToken).ConfigureAwait(false); return; }
@@ -64,9 +76,16 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         finally { _lifecycle.Release(); }
     }
 
+    /// <summary>Admits the supplied event to the publication queue; completion does not imply downstream processing has finished.</summary>
+    /// <param name="event">The market data event to publish.</param>
+    /// <returns>An awaitable that completes when the event is admitted; downstream delivery and processing occur separately.</returns>
     public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent @event)
         => PublishAsync(@event, CancellationToken.None);
 
+    /// <summary>Admits the supplied event to the publication queue; completion does not imply downstream processing has finished.</summary>
+    /// <param name="event">The market data event to publish.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>An awaitable that completes when the event is admitted; downstream delivery and processing occur separately.</returns>
     public ValueTask PublishAsync(
         FuturesTickTradeDataChangedEvent @event,
         CancellationToken cancellationToken)
@@ -77,9 +96,16 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             new Publication(@event, null, cancellationToken), cancellationToken);
     }
 
+    /// <summary>Admits the supplied event to the publication queue; completion does not imply downstream processing has finished.</summary>
+    /// <param name="event">The market data event to publish.</param>
+    /// <returns>An awaitable that completes when the event is admitted; downstream delivery and processing occur separately.</returns>
     public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent @event)
         => PublishAsync(@event, CancellationToken.None);
 
+    /// <summary>Admits the supplied event to the publication queue; completion does not imply downstream processing has finished.</summary>
+    /// <param name="event">The market data event to publish.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>An awaitable that completes when the event is admitted; downstream delivery and processing occur separately.</returns>
     public ValueTask PublishAsync(
         FuturesMarketPriceUpdatedRealtimeEvent @event,
         CancellationToken cancellationToken)
@@ -91,9 +117,16 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             new Publication(@event, null, cancellationToken), cancellationToken);
     }
 
+    /// <summary>Admits the supplied event to the publication queue; completion does not imply downstream processing has finished.</summary>
+    /// <param name="event">The market data event to publish.</param>
+    /// <returns>An awaitable that completes when the event is admitted; downstream delivery and processing occur separately.</returns>
     public ValueTask PublishAsync(FuturesTradeReplayBatchRealtimeEvent @event) =>
         PublishAsync(@event, CancellationToken.None);
 
+    /// <summary>Admits the supplied event to the publication queue; completion does not imply downstream processing has finished.</summary>
+    /// <param name="event">The market data event to publish.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>An awaitable that completes when the event is admitted; downstream delivery and processing occur separately.</returns>
     public ValueTask PublishAsync(
         FuturesTradeReplayBatchRealtimeEvent @event,
         CancellationToken cancellationToken)
@@ -104,9 +137,16 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         return EnqueueAsync(new Publication(@event, null, cancellationToken), cancellationToken);
     }
 
+    /// <summary>Admits the supplied event to the publication queue; completion does not imply downstream processing has finished.</summary>
+    /// <param name="event">The market data event to publish.</param>
+    /// <returns>An awaitable that completes when the event is admitted; downstream delivery and processing occur separately.</returns>
     public ValueTask PublishAsync(FuturesSessionStatisticsUpdatedRealtimeEvent @event)
         => PublishAsync(@event, CancellationToken.None);
 
+    /// <summary>Admits the supplied event to the publication queue; completion does not imply downstream processing has finished.</summary>
+    /// <param name="event">The market data event to publish.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>An awaitable that completes when the event is admitted; downstream delivery and processing occur separately.</returns>
     public ValueTask PublishAsync(
         FuturesSessionStatisticsUpdatedRealtimeEvent @event,
         CancellationToken cancellationToken)
@@ -118,9 +158,18 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             new Publication(@event, null, cancellationToken), cancellationToken);
     }
 
+    /// <summary>Admits the supplied event to the publication queue; completion does not imply downstream processing has finished.</summary>
+    /// <param name="event">The market data event to publish.</param>
+    /// <param name="lease">The buffer lease associated with the quote publication.</param>
+    /// <returns>An awaitable that completes when the event is admitted; downstream delivery and processing occur separately.</returns>
     public async ValueTask PublishAsync(FuturesTickQuoteDataChangedEvent @event, ITickQuoteBufferLease lease)
         => await PublishAsync(@event, lease, CancellationToken.None).ConfigureAwait(false);
 
+    /// <summary>Admits the supplied event to the publication queue; completion does not imply downstream processing has finished.</summary>
+    /// <param name="event">The market data event to publish.</param>
+    /// <param name="lease">The buffer lease associated with the quote publication.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>An awaitable that completes when the event is admitted; downstream delivery and processing occur separately.</returns>
     public async ValueTask PublishAsync(
         FuturesTickQuoteDataChangedEvent @event,
         ITickQuoteBufferLease lease,
@@ -142,8 +191,13 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             new Publication(@event, lease, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>Closes queue admission and waits for the publication worker to stop.</summary>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public ValueTask StopAsync() => StopAsync(CancellationToken.None);
 
+    /// <summary>Closes queue admission and waits for the publication worker to stop.</summary>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public async ValueTask StopAsync(CancellationToken cancellationToken)
     {
         if (_bounded is not null) { await _bounded.StopAsync(cancellationToken).ConfigureAwait(false); return; }
@@ -260,6 +314,8 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             AllowSynchronousContinuations = false
         });
 
+    /// <summary>Asynchronously stops processing and releases the resources owned by this instance.</summary>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public async ValueTask DisposeAsync()
     {
         if (_bounded is not null)
@@ -272,6 +328,10 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         _lifecycle.Dispose();
     }
 
+    /// <summary>Initializes a new Publication instance.</summary>
+    /// <param name="event">The market data event to publish.</param>
+    /// <param name="lease">The buffer lease associated with the quote publication.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
     private sealed class Publication(
         object @event,
         ITickQuoteBufferLease? lease,
@@ -280,6 +340,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         private ITickQuoteBufferLease? _lease = lease;
         public object Event { get; } = @event;
         public CancellationToken CancellationToken { get; } = cancellationToken;
+        /// <summary>Releases the publication&apos;s buffer lease once, preventing duplicate returns to the pool.</summary>
         public void DisposeLease() => Interlocked.Exchange(ref _lease, null)?.Dispose();
     }
 }

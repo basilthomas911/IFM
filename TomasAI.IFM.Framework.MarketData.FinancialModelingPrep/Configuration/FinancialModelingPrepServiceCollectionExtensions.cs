@@ -14,6 +14,9 @@ public static class FinancialModelingPrepServiceCollectionExtensions
     /// is read from FMP_API_KEY (or the configured environment-variable name)
     /// and is never added to a URI.
     /// </summary>
+    /// <param name="services">The service collection to register the provider services in.</param>
+    /// <param name="configure">The callback that configures the provider options.</param>
+    /// <returns>The add financial modeling prep market data result.</returns>
     public static IServiceCollection AddFinancialModelingPrepMarketData(
         this IServiceCollection services,
         Action<FinancialModelingPrepOptions>? configure = null)

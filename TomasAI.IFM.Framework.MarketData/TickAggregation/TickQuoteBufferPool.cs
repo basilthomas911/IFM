@@ -15,9 +15,11 @@ public sealed class TickQuoteBufferPool : ITickQuoteBufferPool
     private readonly IReadOnlyDictionary<ushort, FixedBucket>? _fixedBuckets;
     private int _disposed;
 
+    /// <summary>Initializes a new TickQuoteBufferPool instance.</summary>
     public TickQuoteBufferPool() { }
 
     /// <summary>Preallocates bounded, exact-size arrays for the generation lifetime.</summary>
+    /// <param name="reservations">The requested quote buffer capacities and number of reserved slots per capacity.</param>
     public TickQuoteBufferPool(IEnumerable<(ushort Capacity, int Slots)> reservations)
     {
         ArgumentNullException.ThrowIfNull(reservations);
@@ -43,6 +45,8 @@ public sealed class TickQuoteBufferPool : ITickQuoteBufferPool
     }
 
     /// <summary>Rents an immediately available slot, or uses the legacy shared pool.</summary>
+    /// <param name="capacity">The maximum capacity of the buffer, store, or queue.</param>
+    /// <returns>The rent result.</returns>
     public ITickQuoteBufferLease Rent(ushort capacity = 64)
     {
         ValidateCapacity(capacity);
@@ -57,6 +61,9 @@ public sealed class TickQuoteBufferPool : ITickQuoteBufferPool
     }
 
     /// <summary>Waits asynchronously for a fixed slot when all are in flight.</summary>
+    /// <param name="capacity">The maximum capacity of the buffer, store, or queue.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public async ValueTask<ITickQuoteBufferLease> RentAsync(
         ushort capacity,
         CancellationToken cancellationToken = default)
@@ -88,6 +95,9 @@ public sealed class TickQuoteBufferPool : ITickQuoteBufferPool
 
     private sealed class FixedBucket
     {
+        /// <summary>Initializes a new FixedBucket instance.</summary>
+        /// <param name="capacity">The maximum capacity of the buffer, store, or queue.</param>
+        /// <param name="slots">The number of buffers reserved in this capacity bucket.</param>
         public FixedBucket(ushort capacity, int slots)
         {
             Available = Channel.CreateBounded<FuturesTickQuoteData[]>(
@@ -106,12 +116,16 @@ public sealed class TickQuoteBufferPool : ITickQuoteBufferPool
         public Channel<FuturesTickQuoteData[]> Available { get; }
     }
 
+    /// <summary>Initializes a new Lease instance.</summary>
+    /// <param name="buffer">The backing storage for the batch or quote lease.</param>
     private abstract class Lease(FuturesTickQuoteData[] buffer) : ITickQuoteBufferLease
     {
         private int _returned;
         public FuturesTickQuoteData[] Buffer { get; } = buffer;
         public ushort Count { get; private set; }
 
+        /// <summary>Sets the number of valid quote entries in the leased buffer.</summary>
+        /// <param name="count">The number of valid entries in the buffer.</param>
         public void SetCount(ushort count)
         {
             ObjectDisposedException.ThrowIf(Volatile.Read(ref _returned) != 0, this);
@@ -120,6 +134,7 @@ public sealed class TickQuoteBufferPool : ITickQuoteBufferPool
             Count = count;
         }
 
+        /// <summary>Releases the resources owned by this instance.</summary>
         public void Dispose()
         {
             if (Interlocked.Exchange(ref _returned, 1) != 0) return;
@@ -131,12 +146,17 @@ public sealed class TickQuoteBufferPool : ITickQuoteBufferPool
         protected abstract void Return(FuturesTickQuoteData[] buffer);
     }
 
+    /// <summary>Initializes a new SharedLease instance.</summary>
+    /// <param name="buffer">The backing storage for the batch or quote lease.</param>
     private sealed class SharedLease(FuturesTickQuoteData[] buffer) : Lease(buffer)
     {
         protected override void Return(FuturesTickQuoteData[] buffer) =>
             ArrayPool<FuturesTickQuoteData>.Shared.Return(buffer);
     }
 
+    /// <summary>Initializes a new FixedLease instance.</summary>
+    /// <param name="bucket">The fixed-capacity pool that receives the buffer when the lease is disposed.</param>
+    /// <param name="buffer">The backing storage for the batch or quote lease.</param>
     private sealed class FixedLease(FixedBucket bucket, FuturesTickQuoteData[] buffer) : Lease(buffer)
     {
         protected override void Return(FuturesTickQuoteData[] buffer) =>

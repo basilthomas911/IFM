@@ -9,11 +9,14 @@ internal sealed class SafeHistoricalResultHandle : SafeHandleZeroOrMinusOneIsInv
 {
     private static int activeHandleCount;
 
+    /// <summary>Initializes a new SafeHistoricalResultHandle instance.</summary>
     private SafeHistoricalResultHandle()
         : base(ownsHandle: true)
     {
     }
 
+    /// <summary>Initializes a new SafeHistoricalResultHandle instance.</summary>
+    /// <param name="result">The native result or operation result wrapped by this instance.</param>
     internal SafeHistoricalResultHandle(nint result)
         : base(ownsHandle: true)
     {

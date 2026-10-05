@@ -16,6 +16,10 @@ internal sealed class DatabentoLatestPriceClient : IDatabentoLatestPriceClient
     private readonly LatestPriceAdmissionControl _admissionControl;
     private readonly LatestPriceQueryInvoker _query;
 
+    /// <summary>Initializes a new DatabentoLatestPriceClient instance.</summary>
+    /// <param name="dataset">The Databento dataset identifier.</param>
+    /// <param name="admissionControl">The admission control.</param>
+    /// <param name="query">The query.</param>
     internal DatabentoLatestPriceClient(
         string dataset,
         LatestPriceAdmissionControl admissionControl,
@@ -28,6 +32,10 @@ internal sealed class DatabentoLatestPriceClient : IDatabentoLatestPriceClient
         _query = query ?? QueryNative;
     }
 
+    /// <summary>Retrieves the latest price according to the requested price-selection policy and timeout.</summary>
+    /// <param name="request">The parameters identifying the requested provider data or session.</param>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
+    /// <returns>The latest price result.</returns>
     public LatestPriceResult64 GetLatestPrice(
         LatestPriceRequest request,
         TimeSpan timeout)
@@ -214,15 +222,25 @@ internal sealed class SystemLatestPriceAdmissionClock : ILatestPriceAdmissionClo
 {
     internal static SystemLatestPriceAdmissionClock Instance { get; } = new();
 
+    /// <summary>Initializes a new SystemLatestPriceAdmissionClock instance.</summary>
     private SystemLatestPriceAdmissionClock()
     {
     }
 
+    /// <summary>Reads the monotonic clock timestamp.</summary>
+    /// <returns>The timestamp result.</returns>
     public long GetTimestamp() => Stopwatch.GetTimestamp();
 
+    /// <summary>Converts two monotonic timestamps into an elapsed duration.</summary>
+    /// <param name="startingTimestamp">The monotonic timestamp at the beginning of the interval.</param>
+    /// <param name="endingTimestamp">The monotonic timestamp at the end of the interval.</param>
+    /// <returns>The elapsed time result.</returns>
     public TimeSpan GetElapsedTime(long startingTimestamp, long endingTimestamp) =>
         Stopwatch.GetElapsedTime(startingTimestamp, endingTimestamp);
 
+    /// <summary>Waits for the admission synchronization gate for the specified duration.</summary>
+    /// <param name="gate">The synchronization gate protecting the admission state.</param>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
     public void Wait(object gate, TimeSpan timeout) => Monitor.Wait(gate, timeout);
 }
 
@@ -240,6 +258,11 @@ internal sealed class LatestPriceAdmissionControl
     private readonly TimeSpan _startWindow;
     private readonly ILatestPriceAdmissionClock _clock;
 
+    /// <summary>Initializes a new LatestPriceAdmissionControl instance.</summary>
+    /// <param name="maximumTemporarySessionsPerDataset">The maximum concurrent temporary sessions admitted for each dataset.</param>
+    /// <param name="maximumStartsPerWindow">The maximum session starts permitted during each admission window.</param>
+    /// <param name="startWindow">The duration of the session-start admission window.</param>
+    /// <param name="clock">The monotonic clock used for admission rate and timeout accounting.</param>
     internal LatestPriceAdmissionControl(
         int maximumTemporarySessionsPerDataset = 1,
         int maximumStartsPerWindow = 5,
@@ -389,12 +412,16 @@ internal sealed class LatestPriceAdmissionControl
         }
     }
 
+    /// <summary>Initializes a new AdmissionLease instance.</summary>
+    /// <param name="owner">The admission controller that receives the permit on disposal.</param>
+    /// <param name="dataset">The Databento dataset identifier.</param>
     private sealed class AdmissionLease(
         LatestPriceAdmissionControl owner,
         string dataset) : IDisposable
     {
         private LatestPriceAdmissionControl? _owner = owner;
 
+        /// <summary>Releases the resources owned by this instance.</summary>
         public void Dispose()
         {
             Interlocked.Exchange(ref _owner, null)?.Release(dataset);

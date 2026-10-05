@@ -13,6 +13,14 @@ public sealed class DatabentoTickContractMappingStore : ITickContractMappingStor
     private readonly ConcurrentDictionary<MappingKey, TickContractMapping> _mappings = [];
     private readonly ConcurrentDictionary<SymbolMappingKey, TickContractMapping> _symbolMappings = [];
 
+    /// <summary>Stores the dataset and definition-date-specific mapping from instrument to contract.</summary>
+    /// <param name="dataset">The Databento dataset identifier.</param>
+    /// <param name="definitionDate">The date of the instrument definition mapping.</param>
+    /// <param name="publisherId">The provider publisher identifier.</param>
+    /// <param name="instrumentId">The provider instrument identifier.</param>
+    /// <param name="contractId">The futures or option contract identifier.</param>
+    /// <param name="assetTypeId">The asset type identifying futures or futures options.</param>
+    /// <param name="contractDetails">The reviewed reference details for the mapped contract.</param>
     public void SetTickMapping(
         string dataset,
         DateOnly definitionDate,
@@ -69,6 +77,12 @@ public sealed class DatabentoTickContractMappingStore : ITickContractMappingStor
         }
     }
 
+    /// <summary>Attempts to resolve the stored mapping for the specified instrument.</summary>
+    /// <param name="dataset">The Databento dataset identifier.</param>
+    /// <param name="definitionDate">The date of the instrument definition mapping.</param>
+    /// <param name="instrument">The instrument.</param>
+    /// <param name="mapping">The contract mapping to use or returned by a successful lookup.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool TryGetMapping(
         string dataset,
         DateOnly definitionDate,
@@ -78,6 +92,12 @@ public sealed class DatabentoTickContractMappingStore : ITickContractMappingStor
             new MappingKey(dataset, definitionDate, instrument.InstrumentId),
             out mapping);
 
+    /// <summary>Attempts to resolve a feed registration to its contract mapping.</summary>
+    /// <param name="dataset">The Databento dataset identifier.</param>
+    /// <param name="definitionDate">The date of the instrument definition mapping.</param>
+    /// <param name="registration">The feed instrument registration whose contract mapping is required.</param>
+    /// <param name="mapping">The contract mapping to use or returned by a successful lookup.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool TryResolveFeedMapping(
         string dataset,
         DateOnly definitionDate,
@@ -171,6 +191,10 @@ public sealed class DatabentoTickContractMappingStore : ITickContractMappingStor
         return false;
     }
 
+    /// <summary>Initializes a new MappingKey instance.</summary>
+    /// <param name="Dataset">The dataset.</param>
+    /// <param name="DefinitionDate">The definition date.</param>
+    /// <param name="InstrumentId">The provider instrument identifier.</param>
     private readonly record struct MappingKey(
         string Dataset,
         DateOnly DefinitionDate,
@@ -187,6 +211,10 @@ public sealed class DatabentoTickContractMappingStore : ITickContractMappingStor
                 InstrumentId = instrument.InstrumentId
             };
 
+    /// <summary>Initializes a new SymbolMappingKey instance.</summary>
+    /// <param name="Dataset">The dataset.</param>
+    /// <param name="DefinitionDate">The definition date.</param>
+    /// <param name="Symbol">The symbol.</param>
     private readonly record struct SymbolMappingKey(
         string Dataset,
         DateOnly DefinitionDate,

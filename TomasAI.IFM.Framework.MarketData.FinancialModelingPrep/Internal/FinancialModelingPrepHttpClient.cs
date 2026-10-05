@@ -28,6 +28,11 @@ internal sealed class FinancialModelingPrepHttpClient
     private readonly FinancialModelingPrepRequestGate _requestGate;
     private readonly TimeProvider _timeProvider;
 
+    /// <summary>Initializes a new FinancialModelingPrepHttpClient instance.</summary>
+    /// <param name="httpClient">The HTTP client used for provider requests.</param>
+    /// <param name="options">The configuration governing provider or feed operation.</param>
+    /// <param name="requestGate">The shared limiter controlling concurrent provider requests.</param>
+    /// <param name="timeProvider">The clock used for timestamps and elapsed-time measurements.</param>
     public FinancialModelingPrepHttpClient(
         HttpClient httpClient,
         FinancialModelingPrepOptions options,
@@ -44,6 +49,10 @@ internal sealed class FinancialModelingPrepHttpClient
         _httpClient.Timeout = Timeout.InfiniteTimeSpan;
     }
 
+    /// <summary>Retrieves a bounded provider response, applying authentication, request admission, and retry policy.</summary>
+    /// <param name="relativeUri">The provider-relative request URI.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A task containing the provider response bytes.</returns>
     public async Task<byte[]> GetAsync(string relativeUri, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(relativeUri);
@@ -217,6 +226,11 @@ internal sealed class FinancialModelingPrepHttpClient
             : "economic-calendar";
     }
 
+    /// <summary>Builds a provider request URI containing the inclusive date range.</summary>
+    /// <param name="endpoint">The provider endpoint path to include in the request URI.</param>
+    /// <param name="fromInclusive">The first date to include.</param>
+    /// <param name="toInclusive">The last date to include.</param>
+    /// <returns>The build date range uri result.</returns>
     public static string BuildDateRangeUri(string endpoint, DateOnly fromInclusive, DateOnly toInclusive) =>
         string.Create(
             CultureInfo.InvariantCulture,

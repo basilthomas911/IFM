@@ -5,6 +5,10 @@ namespace TomasAI.IFM.Framework.MarketData.Pricing;
 /// <summary>Validates explicit contract conventions; never infers style from root, symbol or horizon.</summary>
 public static class OptionPricingQualification
 {
+    /// <summary>Checks reviewed option conventions and their effective window, returning a failure when pricing is not qualified.</summary>
+    /// <param name="c">The option pricing convention to validate.</param>
+    /// <param name="at">The instant at which the convention or calendar is evaluated.</param>
+    /// <returns>The qualification failure, or null when the convention is qualified.</returns>
     public static OptionPricingFailure? Validate(OptionPricingConvention c, DateTimeOffset at)
     {
         ArgumentNullException.ThrowIfNull(c);
@@ -46,6 +50,9 @@ public static class OptionPricingQualification
     }
 
     /// <summary>Uses UTC elapsed time with the explicitly reviewed product denominator.</summary>
+    /// <param name="c">The option pricing convention to validate.</param>
+    /// <param name="valuation">The valuation instant used to calculate time to expiry.</param>
+    /// <returns>The year fraction result.</returns>
     public static double YearFraction(OptionPricingConvention c, DateTimeOffset valuation)
     {
         var failure = Validate(c, valuation);
@@ -54,6 +61,10 @@ public static class OptionPricingQualification
     }
 
     /// <summary>Counts exchange trading dates in (valuation value date, expiry value date].</summary>
+    /// <param name="calendar">The calendar.</param>
+    /// <param name="contract">The contract.</param>
+    /// <param name="at">The instant at which the convention or calendar is evaluated.</param>
+    /// <returns>The count trading days result.</returns>
     public static int CountTradingDays(OptionPricingCalendar calendar, OptionPricingConvention contract, DateTimeOffset at)
     {
         ArgumentNullException.ThrowIfNull(calendar);

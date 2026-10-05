@@ -20,6 +20,10 @@ public sealed record ExactInstrumentDefinition
     public required bool Deleted { get; init; }
     public required ContractDetail Summary { get; init; }
 
+    /// <summary>Parses the provider definition JSON into exact instrument reference data.</summary>
+    /// <param name="dataset">The Databento dataset identifier.</param>
+    /// <param name="json">The provider instrument definition JSON.</param>
+    /// <returns>The parse result.</returns>
     public static ExactInstrumentDefinition Parse(string dataset, string json)
     {
         using var document = JsonDocument.Parse(json);

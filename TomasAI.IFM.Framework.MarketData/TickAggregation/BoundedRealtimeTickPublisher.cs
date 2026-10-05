@@ -14,6 +14,9 @@ namespace TomasAI.IFM.Framework.MarketData.TickAggregation;
 /// synchronously, and every accepted event discarded after transport failure is accounted for.
 /// A stopped/faulted session is never replayed when its replacement starts.
 /// </summary>
+/// <param name="supervisor">The actor supervisor providing the realtime producer.</param>
+/// <param name="policy">The limits governing queue admission, quote storage, transport retries, and publication deadlines.</param>
+/// <param name="time">The clock used for publication deadlines and latency measurements.</param>
 internal sealed class BoundedRealtimeTickPublisher(
     IActorSupervisor supervisor, RealtimeTickPublisherPolicy policy, TimeProvider time) : IAsyncDisposable
 {
@@ -31,6 +34,8 @@ internal sealed class BoundedRealtimeTickPublisher(
 
     public bool IsRunning { get { lock (gate) return session?.Accepting == true; } }
 
+    /// <summary>Captures the current publisher state and admission diagnostics.</summary>
+    /// <returns>The snapshot result.</returns>
     public RealtimeTickPublisherSnapshot GetSnapshot()
     {
         lock (gate)
@@ -69,6 +74,9 @@ internal sealed class BoundedRealtimeTickPublisher(
         }
     }
 
+    /// <summary>Starts the market data component asynchronously.</summary>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public async ValueTask StartAsync(CancellationToken cancellationToken)
     {
         await lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -110,6 +118,10 @@ internal sealed class BoundedRealtimeTickPublisher(
     }
 
     /// <summary>Transfers the lease only on successful admission; all rejections leave it with the caller.</summary>
+    /// <param name="value">The source value used to construct or publish the result.</param>
+    /// <param name="lease">The buffer lease associated with the quote publication.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>An awaitable that completes when the event is admitted; downstream delivery and processing occur separately.</returns>
     public ValueTask PublishAsync(object value, ITickQuoteBufferLease? lease, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(value);
@@ -179,6 +191,9 @@ internal sealed class BoundedRealtimeTickPublisher(
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>Stops the market data component asynchronously.</summary>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public async ValueTask StopAsync(CancellationToken cancellationToken)
     {
         await lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -443,6 +458,8 @@ internal sealed class BoundedRealtimeTickPublisher(
         _ => throw new ArgumentException("Unsupported realtime publication.", nameof(value))
     };
 
+    /// <summary>Asynchronously stops processing and releases the resources owned by this instance.</summary>
+    /// <returns>An awaitable that completes when the operation finishes.</returns>
     public async ValueTask DisposeAsync()
     {
         await StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -450,6 +467,8 @@ internal sealed class BoundedRealtimeTickPublisher(
         lifecycle.Dispose();
     }
 
+    /// <summary>Initializes a new Session instance.</summary>
+    /// <param name="producer">The actor producer used to send admitted realtime events.</param>
     sealed class Session(IActorProducer producer)
     {
         public IActorProducer Producer { get; } = producer;
@@ -461,9 +480,17 @@ internal sealed class BoundedRealtimeTickPublisher(
         public int RetainedQuoteItems;
         public int CurrentAttempt;
         public bool Accepting = true;
+        /// <summary>Disposes the synchronization signals owned by the publisher session.</summary>
         public void DisposeSignals() { Available.Dispose(); Stopping.Dispose(); }
     }
 
+    /// <summary>Initializes a new Publication instance.</summary>
+    /// <param name="value">The source value used to construct or publish the result.</param>
+    /// <param name="lease">The buffer lease associated with the quote publication.</param>
+    /// <param name="token">The publication or operation cancellation token.</param>
+    /// <param name="enqueuedAt">The monotonic timestamp when the publication was admitted.</param>
+    /// <param name="enqueuedUtc">The UTC time when the publication was admitted.</param>
+    /// <param name="quoteItems">The number of quote entries charged to the admission budget.</param>
     sealed class Publication(
         object value, ITickQuoteBufferLease? lease, CancellationToken token, long enqueuedAt,
         DateTime enqueuedUtc, int quoteItems)
@@ -474,6 +501,7 @@ internal sealed class BoundedRealtimeTickPublisher(
         public long EnqueuedAt { get; } = enqueuedAt;
         public DateTime EnqueuedUtc { get; } = enqueuedUtc;
         public int QuoteItems { get; } = quoteItems;
+        /// <summary>Releases the publication&apos;s buffer lease once, preventing duplicate returns to the pool.</summary>
         public void DisposeLease() => Interlocked.Exchange(ref ownedLease, null)?.Dispose();
     }
 }

@@ -8,15 +8,26 @@ public enum DatabentoInputSymbology : byte
     InstrumentId = 2
 }
 
+/// <summary>Initializes a new InstrumentKey instance.</summary>
+/// <param name="PublisherId">The provider publisher identifier.</param>
+/// <param name="InstrumentId">The provider instrument identifier.</param>
 public readonly record struct InstrumentKey(
     ushort PublisherId,
     uint InstrumentId);
 
+/// <summary>Initializes a new TickerSubscription instance.</summary>
+/// <param name="Symbol">The symbol.</param>
+/// <param name="InputSymbology">The input symbology.</param>
+/// <param name="DataKinds">The data kinds.</param>
 public readonly record struct TickerSubscription(
     string Symbol,
     DatabentoInputSymbology InputSymbology,
     MarketDataKinds DataKinds);
 
+/// <summary>Initializes a new TickerInstrumentRegistration instance.</summary>
+/// <param name="RequestedSymbol">The requested symbol.</param>
+/// <param name="RawSymbol">The raw symbol.</param>
+/// <param name="Instrument">The instrument.</param>
 public sealed record TickerInstrumentRegistration(
     string RequestedSymbol,
     string RawSymbol,
@@ -31,10 +42,14 @@ public interface ISynchronousBatchReader<TBatch>
     bool IsCompleted { get; }
 }
 
+/// <summary>Initializes a new InstrumentBatch64 instance.</summary>
+/// <param name="Instrument">The instrument.</param>
+/// <param name="Batch">The batch.</param>
 public readonly record struct InstrumentBatch64(
     InstrumentKey Instrument,
     MarketDataBatch64 Batch) : IDisposable
 {
+    /// <summary>Releases the resources owned by this instance.</summary>
     public void Dispose() => Batch.Dispose();
 }
 
@@ -157,6 +172,10 @@ public sealed record ContractDetail
     public required string UnitOfMeasure { get; init; }
 }
 
+/// <summary>Initializes a new DatabentoContractDetailsQueryResult instance.</summary>
+/// <param name="Status">The status.</param>
+/// <param name="Details">The details.</param>
+/// <param name="ErrorMessage">The error message.</param>
 public sealed record DatabentoContractDetailsQueryResult(
     DatabentoFeedStatus Status,
     IReadOnlyList<ContractDetail?> Details,
@@ -164,10 +183,17 @@ public sealed record DatabentoContractDetailsQueryResult(
 {
     public bool IsSuccess => Status == DatabentoFeedStatus.Ok;
 
+    /// <summary>Creates a successful query result containing the retrieved contract details.</summary>
+    /// <param name="details">The details.</param>
+    /// <returns>The success result.</returns>
     public static DatabentoContractDetailsQueryResult Success(
         IReadOnlyList<ContractDetail?> details) =>
         new(DatabentoFeedStatus.Ok, details, null);
 
+    /// <summary>Creates an unsuccessful query result containing the provider status and error detail.</summary>
+    /// <param name="status">The native provider result status.</param>
+    /// <param name="errorMessage">The provider&apos;s diagnostic failure message.</param>
+    /// <returns>The failure result.</returns>
     public static DatabentoContractDetailsQueryResult Failure(
         DatabentoFeedStatus status,
         string errorMessage) =>
@@ -281,6 +307,10 @@ public sealed record OptionChainDefinitions
     public required IReadOnlyList<OptionContractDefinition> Contracts { get; init; }
 }
 
+/// <summary>Initializes a new OptionContractSelection instance.</summary>
+/// <param name="RawSymbol">The raw symbol.</param>
+/// <param name="Instrument">The instrument.</param>
+/// <param name="Right">The right.</param>
 public sealed record OptionContractSelection(
     string RawSymbol,
     InstrumentKey Instrument,
@@ -342,6 +372,19 @@ public sealed record FeedDrainDiagnostics
     public required uint ManagedBatchInstrumentId { get; init; }
 }
 
+/// <summary>Initializes a new FeedHealthSnapshot instance.</summary>
+/// <param name="State">The store holding the option-chain session state.</param>
+/// <param name="TerminalStatus">The terminal status.</param>
+/// <param name="RingCapacityRecords">The ring capacity records.</param>
+/// <param name="RingUsedRecords">The ring used records.</param>
+/// <param name="RingHighWaterRecords">The ring high water records.</param>
+/// <param name="RecordsProduced">The records produced.</param>
+/// <param name="RecordsConsumed">The records consumed.</param>
+/// <param name="BatchesPublished">The batches published.</param>
+/// <param name="ChannelFullCount">The channel full count.</param>
+/// <param name="PoolMissCount">The pool miss count.</param>
+/// <param name="DrainAllocatedBytes">The drain allocated bytes.</param>
+/// <param name="Warning">The warning.</param>
 public sealed record FeedHealthSnapshot(
     FeedState State,
     DatabentoFeedStatus TerminalStatus,

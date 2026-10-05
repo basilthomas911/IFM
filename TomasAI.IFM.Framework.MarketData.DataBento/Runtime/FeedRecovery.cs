@@ -32,6 +32,11 @@ public enum FeedRecoverySchema : byte
     Definitions = 4
 }
 
+/// <summary>Initializes a new FeedRecoveryAttempt instance.</summary>
+/// <param name="AttemptNumber">The attempt number.</param>
+/// <param name="Timeout">The timeout.</param>
+/// <param name="Fault">The feed fault that triggered recovery.</param>
+/// <param name="Schema">The provider schema or recovery baseline required for the operation.</param>
 public sealed record FeedRecoveryAttempt(
     int AttemptNumber,
     TimeSpan Timeout,
@@ -48,6 +53,9 @@ public sealed record FeedRecoveryResult
     public bool DefinitionsComplete { get; init; } = true;
     public string? Failure { get; init; }
 
+    /// <summary>Determines whether connection, replay, continuity, and schema-specific baselines permit feed admission.</summary>
+    /// <param name="schema">The provider schema or recovery baseline required for the operation.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool IsReady(FeedRecoverySchema schema) =>
         ConnectionAuthenticated
         && SubscriptionsAcknowledged
@@ -82,6 +90,9 @@ public sealed class DatabentoRecoveryOrchestrator
     private readonly IDatabentoRecoveryDelay _delay;
     private FeedReadinessState _state = FeedReadinessState.Closed;
 
+    /// <summary>Initializes a new DatabentoRecoveryOrchestrator instance.</summary>
+    /// <param name="executor">The component that recreates and restarts the feed for each recovery attempt.</param>
+    /// <param name="delay">The service applying recovery backoff delays.</param>
     public DatabentoRecoveryOrchestrator(
         IDatabentoRecoveryAttemptExecutor executor,
         IDatabentoRecoveryDelay delay)
@@ -96,6 +107,10 @@ public sealed class DatabentoRecoveryOrchestrator
 
     public event Action<FeedReadinessState>? StateChanged;
 
+    /// <summary>Attempts bounded feed recovery, opening admission only after readiness is verified.</summary>
+    /// <param name="fault">The feed fault that triggered recovery.</param>
+    /// <param name="schema">The provider schema or recovery baseline required for the operation.</param>
+    /// <returns>The recover result.</returns>
     public FeedRecoveryResult Recover(
         FeedRecoveryFaultKind fault,
         FeedRecoverySchema schema)
@@ -150,6 +165,9 @@ public sealed class DatabentoRecoveryOrchestrator
             lastException);
     }
 
+    /// <summary>Verifies initial feed readiness before opening the entry gate.</summary>
+    /// <param name="readiness">The observed feed readiness requirements to verify.</param>
+    /// <param name="schema">The provider schema or recovery baseline required for the operation.</param>
     public void EstablishInitialReadiness(
         FeedRecoveryResult readiness,
         FeedRecoverySchema schema)
@@ -183,6 +201,11 @@ public sealed class DatabentoRecoveryOrchestrator
 
 public sealed class DatabentoRecoveryException : Exception
 {
+    /// <summary>Initializes a new DatabentoRecoveryException instance.</summary>
+    /// <param name="fault">The feed fault that triggered recovery.</param>
+    /// <param name="attempts">The number of recovery attempts performed.</param>
+    /// <param name="message">The diagnostic message describing the failure.</param>
+    /// <param name="innerException">The underlying exception that caused this failure.</param>
     public DatabentoRecoveryException(
         FeedRecoveryFaultKind fault,
         int attempts,
@@ -204,12 +227,18 @@ public sealed class TimestampReplayCursor
     private readonly uint _savedCount;
     private uint _seenAtSavedTimestamp;
 
+    /// <summary>Initializes a new TimestampReplayCursor instance.</summary>
+    /// <param name="savedTimestamp">The timestamp of the saved replay cursor.</param>
+    /// <param name="savedCount">The number of records already accepted at the saved timestamp.</param>
     public TimestampReplayCursor(ulong savedTimestamp, uint savedCount)
     {
         _savedTimestamp = savedTimestamp;
         _savedCount = savedCount;
     }
 
+    /// <summary>Determines whether the timestamped replay record follows the saved replay cursor.</summary>
+    /// <param name="eventTimestamp">The timestamp of the source market event.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool ShouldAccept(ulong eventTimestamp)
     {
         if (eventTimestamp < _savedTimestamp)
@@ -234,6 +263,7 @@ public sealed class MboRecoveryBaseline
     public bool LiveBoundaryReached { get; private set; }
     public bool IsReady => SnapshotComplete && LiveBoundaryReached;
 
+    /// <summary>Resets accumulated state for a fresh feed or session generation.</summary>
     public void Reset()
     {
         _lastSequence = 0;
@@ -242,12 +272,15 @@ public sealed class MboRecoveryBaseline
         LiveBoundaryReached = false;
     }
 
+    /// <summary>Begins rebuilding the market-by-order snapshot baseline.</summary>
     public void BeginSnapshot()
     {
         Reset();
         SnapshotStarted = true;
     }
 
+    /// <summary>Applies a snapshot record&apos;s sequence to the market-by-order baseline.</summary>
+    /// <param name="sequence">The provider record sequence number.</param>
     public void ApplySnapshotRecord(ulong sequence)
     {
         if (!SnapshotStarted || SnapshotComplete)
@@ -257,6 +290,7 @@ public sealed class MboRecoveryBaseline
         RequireNext(sequence);
     }
 
+    /// <summary>Marks the market-by-order snapshot baseline complete.</summary>
     public void CompleteSnapshot()
     {
         if (!SnapshotStarted)
@@ -266,6 +300,8 @@ public sealed class MboRecoveryBaseline
         SnapshotComplete = true;
     }
 
+    /// <summary>Checks the live record sequence against the established market-by-order baseline.</summary>
+    /// <param name="sequence">The provider record sequence number.</param>
     public void ApplyLiveRecord(ulong sequence)
     {
         if (!SnapshotComplete)

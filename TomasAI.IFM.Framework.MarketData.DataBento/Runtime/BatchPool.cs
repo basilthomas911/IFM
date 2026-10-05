@@ -7,6 +7,9 @@ internal sealed class BatchPool
     private int _count;
     private ulong _misses;
 
+    /// <summary>Initializes a new BatchPool instance.</summary>
+    /// <param name="batchCount">The number of batch buffers reserved in the pool.</param>
+    /// <param name="recordsPerBatch">The maximum number of records stored in each batch.</param>
     internal BatchPool(int batchCount, int recordsPerBatch)
     {
         _available = new MarketDataBatch64[batchCount];

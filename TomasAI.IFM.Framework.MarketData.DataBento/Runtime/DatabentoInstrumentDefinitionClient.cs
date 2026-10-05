@@ -11,10 +11,17 @@ public interface IInstrumentDefinitionProvider
 }
 
 /// <summary>Streams the complete definition schema without price/timestamp rounding or field projection.</summary>
+/// <param name="http">The client used to execute provider HTTP requests.</param>
+/// <param name="getApiKey">The get api key.</param>
 public sealed class DatabentoInstrumentDefinitionClient(HttpClient http, Func<string?>? getApiKey = null) : IInstrumentDefinitionProvider, IDisposable
 {
+    /// <summary>Releases the resources owned by this instance.</summary>
     public void Dispose() => http.Dispose();
     static readonly Uri Endpoint = new("https://hist.databento.com/v0/");
+    /// <summary>Streams the latest exact instrument definitions for the specified dataset.</summary>
+    /// <param name="dataset">The Databento dataset identifier.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The read latest async result.</returns>
     public async IAsyncEnumerable<ExactInstrumentDefinition> ReadLatestAsync(string dataset, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataset);

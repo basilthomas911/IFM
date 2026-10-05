@@ -15,6 +15,8 @@ public interface IEconomicCalendar
     /// Optional normalized country-code filter. A <see langword="null"/> or
     /// empty set requests all countries permitted by host policy.
     /// </param>
+    /// <param name="cancellationToken">The token used to cancel the request.</param>
+    /// <returns>The normalized economic events in the requested date range.</returns>
     /// <remarks>
     /// Results are ordered by event time, country code, and event name. The
     /// logical event identity is event time UTC, country code, and event name.

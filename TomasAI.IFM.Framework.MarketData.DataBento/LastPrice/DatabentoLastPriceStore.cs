@@ -15,6 +15,9 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
     private readonly object _registrationSync = new();
     private int _active = 1;
 
+    /// <summary>Initializes a new DatabentoLastPriceStore instance.</summary>
+    /// <param name="valueDate">The trading value date associated with the data.</param>
+    /// <param name="capacity">The maximum capacity of the buffer, store, or queue.</param>
     public DatabentoLastPriceStore(DateOnly valueDate, int capacity)
     {
         if (valueDate == default)
@@ -31,6 +34,9 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
     public int Count => _slots.Count;
     public bool IsActive => Volatile.Read(ref _active) != 0;
 
+    /// <summary>Registers a contract in the value-date-specific last-price store.</summary>
+    /// <param name="contractId">The futures or option contract identifier.</param>
+    /// <param name="assetTypeId">The asset type identifying futures or futures options.</param>
     public void RegisterContract(
         string contractId,
         AssetTypeId assetTypeId)
@@ -60,22 +66,38 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
         }
     }
 
+    /// <summary>Attempts to update the cached trade price with the supplied trade snapshot.</summary>
+    /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool TryUpdateTrade(LastTradeTickSnapshot snapshot) =>
         TryGetWritableSlot(snapshot.ContractId, snapshot.ValueDate, out var slot)
         && slot.TryUpdateTrade(snapshot);
 
+    /// <summary>Attempts to update the cached bid and ask prices with the supplied quote snapshot.</summary>
+    /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool TryUpdateQuote(LastQuoteTickSnapshot snapshot) =>
         TryGetWritableSlot(snapshot.ContractId, snapshot.ValueDate, out var slot)
         && slot.TryUpdateQuote(snapshot);
 
+    /// <summary>Attempts to update the option trade snapshot and its Greeks.</summary>
+    /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool TryUpdateTradeWithGreeks(LastTradeTickWithGreeksSnapshot snapshot) =>
         TryGetOptionSlot(snapshot.Tick.ContractId, snapshot.Tick.ValueDate, out var slot)
         && slot.TryUpdateTradeWithGreeks(snapshot);
 
+    /// <summary>Attempts to update the option quote snapshot and its Greeks.</summary>
+    /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool TryUpdateQuoteWithGreeks(LastQuoteTickWithGreeksSnapshot snapshot) =>
         TryGetOptionSlot(snapshot.Tick.ContractId, snapshot.Tick.ValueDate, out var slot)
         && slot.TryUpdateQuoteWithGreeks(snapshot);
 
+    /// <summary>Creates a futures price reader for the specified contract and value date.</summary>
+    /// <param name="futuresContractId">The underlying futures contract identifier.</param>
+    /// <param name="valueDate">The trading value date associated with the data.</param>
+    /// <returns>The futures reader result.</returns>
     public IFuturesLastPriceReader GetFuturesReader(
         string futuresContractId,
         DateOnly valueDate)
@@ -87,6 +109,10 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
         return slot.FuturesReader;
     }
 
+    /// <summary>Creates an option price reader for the specified contract and value date.</summary>
+    /// <param name="futuresOptionContractId">The futures option contract identifier.</param>
+    /// <param name="valueDate">The trading value date associated with the data.</param>
+    /// <returns>The futures option reader result.</returns>
     public IFuturesOptionLastPriceReader GetFuturesOptionReader(
         string futuresOptionContractId,
         DateOnly valueDate)
@@ -98,6 +124,7 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
         return slot.OptionReader;
     }
 
+    /// <summary>Invalidates stored prices so existing readers cannot use them as current market data.</summary>
     public void Invalidate()
     {
         if (Interlocked.Exchange(ref _active, 0) == 0)
@@ -110,6 +137,7 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
     /// Clears the latest values for a replaced dataset generation while preserving the
     /// epoch-scoped reader handles registered for those contracts.
     /// </summary>
+    /// <param name="contractIds">The contract ids.</param>
     public void ResetContracts(IEnumerable<string> contractIds)
     {
         ArgumentNullException.ThrowIfNull(contractIds);
@@ -123,6 +151,7 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
         }
     }
 
+    /// <summary>Releases the resources owned by this instance.</summary>
     public void Dispose() => Invalidate();
 
     private Slot GetSlot(string contractId, DateOnly valueDate)
@@ -182,6 +211,10 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
         private LastTradeTickWithGreeksSnapshot _tradeWithGreeks;
         private LastQuoteTickWithGreeksSnapshot _quoteWithGreeks;
 
+        /// <summary>Initializes a new Slot instance.</summary>
+        /// <param name="contractId">The futures or option contract identifier.</param>
+        /// <param name="valueDate">The trading value date associated with the data.</param>
+        /// <param name="assetTypeId">The asset type identifying futures or futures options.</param>
         internal Slot(string contractId, DateOnly valueDate, AssetTypeId assetTypeId)
         {
             ContractId = contractId;
@@ -447,27 +480,49 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
                 || (candidateSequence == currentSequence
                     && candidateTimestamp < currentTimestamp));
 
+        /// <summary>Initializes a new FuturesReaderHandle instance.</summary>
+        /// <param name="slot">The contract cache slot read by this handle.</param>
         private sealed class FuturesReaderHandle(Slot slot) : IFuturesLastPriceReader
         {
             public string FuturesContractId => slot.ContractId;
             public DateOnly ValueDate => slot.ValueDate;
+            /// <summary>Attempts to read the most recent accepted trade snapshot.</summary>
+            /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+            /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
             public bool TryGetLastTrade(out LastTradeTickSnapshot snapshot) =>
                 slot.TryReadTrade(out snapshot);
+            /// <summary>Attempts to read the most recent accepted quote snapshot.</summary>
+            /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+            /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
             public bool TryGetLastQuote(out LastQuoteTickSnapshot snapshot) =>
                 slot.TryReadQuote(out snapshot);
         }
 
+        /// <summary>Initializes a new OptionReaderHandle instance.</summary>
+        /// <param name="slot">The contract cache slot read by this handle.</param>
         private sealed class OptionReaderHandle(Slot slot) : IFuturesOptionLastPriceReader
         {
             public string FuturesOptionContractId => slot.ContractId;
             public DateOnly ValueDate => slot.ValueDate;
+            /// <summary>Attempts to read the most recent accepted trade snapshot.</summary>
+            /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+            /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
             public bool TryGetLastTrade(out LastTradeTickSnapshot snapshot) =>
                 slot.TryReadTrade(out snapshot);
+            /// <summary>Attempts to read the most recent accepted quote snapshot.</summary>
+            /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+            /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
             public bool TryGetLastQuote(out LastQuoteTickSnapshot snapshot) =>
                 slot.TryReadQuote(out snapshot);
+            /// <summary>Attempts to read the most recent option trade snapshot including Greeks.</summary>
+            /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+            /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
             public bool TryGetLastTradeWithGreeks(
                 out LastTradeTickWithGreeksSnapshot snapshot) =>
                 slot.TryReadTradeWithGreeks(out snapshot);
+            /// <summary>Attempts to read the most recent option quote snapshot including Greeks.</summary>
+            /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
+            /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
             public bool TryGetLastQuoteWithGreeks(
                 out LastQuoteTickWithGreeksSnapshot snapshot) =>
                 slot.TryReadQuoteWithGreeks(out snapshot);

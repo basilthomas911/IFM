@@ -12,6 +12,10 @@ public static class OptionPremiumTicks
     /// allocated combination legs use 0.05. Signed combination premiums use their magnitude.
     /// This rule does not cover ClearPort, derived blocks or the separate box-spread exception.
     /// </summary>
+    /// <param name="contract">The contract.</param>
+    /// <param name="premium">The premium.</param>
+    /// <param name="combinationLeg">The combination leg.</param>
+    /// <returns>The increment result.</returns>
     public static decimal GetIncrement(OptionPricingConvention contract, decimal premium, bool combinationLeg = false)
     {
         if (contract.SchemaVersion == 1 && contract.PremiumTickRule == OptionPremiumTickRule.Unspecified)
@@ -27,6 +31,8 @@ public static class OptionPremiumTicks
     }
 
     /// <summary>Schema 1 preserves legacy fixed mappings. Schema 2 requires an explicit supported rule.</summary>
+    /// <param name="contract">The contract.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public static bool IsValid(OptionPricingConvention contract) => contract.SchemaVersion switch
     {
         1 => contract.PremiumTickRule == OptionPremiumTickRule.Unspecified && contract.TickSize > 0,

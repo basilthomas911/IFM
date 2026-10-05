@@ -75,6 +75,9 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     private bool _managedDrainUsingAlternate;
     private string? _platformWarning;
 
+    /// <summary>Initializes a new SyntheticTickerFeed instance.</summary>
+    /// <param name="options">The configuration governing provider or feed operation.</param>
+    /// <param name="singleChannel">Whether registered instruments share one batch channel.</param>
     internal SyntheticTickerFeed(DatabentoFeedOptions options, bool singleChannel = false)
     {
         _options = options;
@@ -85,6 +88,9 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
             : null;
     }
 
+    /// <summary>Registers the requested instruments before feed processing begins.</summary>
+    /// <param name="subscriptions">The ticker subscriptions identifying the instruments to stream.</param>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
     public void Subscribe(
         ReadOnlySpan<TickerSubscription> subscriptions,
         TimeSpan timeout)
@@ -185,6 +191,9 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         }
     }
 
+    /// <summary>Starts feed processing or monitoring.</summary>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
+    /// <param name="startConsumer">The callback that starts draining the feed after startup.</param>
     public void Start(TimeSpan timeout, Action<TimeSpan> startConsumer)
     {
         ValidateTimeout(timeout);
@@ -264,8 +273,13 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         }
     }
 
+    /// <summary>Stops feed processing or monitoring within the specified timeout.</summary>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
     public void Stop(TimeSpan timeout) => StopCore(timeout, CancellationToken.None, forceManagedUnblock: false);
 
+    /// <summary>Stops feed processing or monitoring within the specified timeout.</summary>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
     public void Stop(TimeSpan timeout, CancellationToken cancellationToken) =>
         StopCore(timeout, cancellationToken, forceManagedUnblock: true);
 
@@ -321,6 +335,9 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         _stopCompleted = true;
     }
 
+    /// <summary>Gets the batch reader for the specified registered instrument.</summary>
+    /// <param name="instrument">The instrument.</param>
+    /// <returns>The reader result.</returns>
     public ISynchronousBatchReader<MarketDataBatch64> GetReader(InstrumentKey instrument)
     {
         lock (_lifecycleGate)
@@ -337,6 +354,8 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         }
     }
 
+    /// <summary>Gets a batch reader combining the registered ticker instrument channels.</summary>
+    /// <returns>The multiplexed reader result.</returns>
     public IMultiplexedTickerBatchReader GetMultiplexedReader()
     {
         lock (_lifecycleGate)
@@ -378,6 +397,8 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         }
     }
 
+    /// <summary>Returns the feed&apos;s registered ticker instruments.</summary>
+    /// <returns>The instruments result.</returns>
     public IReadOnlyList<TickerInstrumentRegistration> GetInstruments()
     {
         lock (_lifecycleGate)
@@ -387,6 +408,8 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         }
     }
 
+    /// <summary>Captures the feed&apos;s current health and processing counters.</summary>
+    /// <returns>The health result.</returns>
     public FeedHealthSnapshot GetHealth()
     {
         var native = new NativeFeedStats
@@ -515,6 +538,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         };
     }
 
+    /// <summary>Releases the resources owned by this instance.</summary>
     public void Dispose()
     {
         lock (_lifecycleGate)
@@ -1286,6 +1310,8 @@ internal readonly struct MonotonicDeadline
     private readonly long _started;
     private readonly TimeSpan _timeout;
 
+    /// <summary>Initializes a new MonotonicDeadline instance.</summary>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
     internal MonotonicDeadline(TimeSpan timeout)
     {
         _started = Stopwatch.GetTimestamp();

@@ -9,6 +9,8 @@ internal sealed class SyntheticOptionChainFeed : IDatabentoOptionChainFeed
     private InstrumentKey? _firstInstrument;
     private bool _subscribed;
 
+    /// <summary>Initializes a new SyntheticOptionChainFeed instance.</summary>
+    /// <param name="options">The configuration governing provider or feed operation.</param>
     internal SyntheticOptionChainFeed(DatabentoFeedOptions options)
     {
         _options = options;
@@ -27,6 +29,9 @@ internal sealed class SyntheticOptionChainFeed : IDatabentoOptionChainFeed
         }
     }
 
+    /// <summary>Registers the requested instruments before feed processing begins.</summary>
+    /// <param name="subscription">The option-chain subscription identifying the instruments to stream.</param>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
     public void Subscribe(OptionChainSubscription subscription, TimeSpan timeout)
     {
         ArgumentNullException.ThrowIfNull(subscription);
@@ -153,6 +158,9 @@ internal sealed class SyntheticOptionChainFeed : IDatabentoOptionChainFeed
         _subscribed = true;
     }
 
+    /// <summary>Starts feed processing or monitoring.</summary>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
+    /// <param name="startConsumer">The callback that starts draining the feed after startup.</param>
     public void Start(TimeSpan timeout, Action<TimeSpan> startConsumer)
     {
         ArgumentNullException.ThrowIfNull(startConsumer);
@@ -163,9 +171,14 @@ internal sealed class SyntheticOptionChainFeed : IDatabentoOptionChainFeed
         });
     }
 
+    /// <summary>Stops feed processing or monitoring within the specified timeout.</summary>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
     public void Stop(TimeSpan timeout) => _inner.Stop(timeout);
 
+    /// <summary>Captures the feed&apos;s current health and processing counters.</summary>
+    /// <returns>The health result.</returns>
     public FeedHealthSnapshot GetHealth() => _inner.GetHealth();
 
+    /// <summary>Releases the resources owned by this instance.</summary>
     public void Dispose() => _inner.Dispose();
 }

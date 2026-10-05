@@ -32,6 +32,9 @@ public sealed record FeedQualificationObservation
     public ulong ManagedDrainOffAssignmentSamples { get; init; }
 }
 
+/// <summary>Initializes a new FeedQualificationBaseline instance.</summary>
+/// <param name="RecordsPerSecond">The records per second.</param>
+/// <param name="P99Latency">The p99 latency.</param>
 public sealed record FeedQualificationBaseline(
     double RecordsPerSecond,
     TimeSpan P99Latency);
@@ -44,6 +47,12 @@ public sealed record FeedQualificationResult
 
 public static class DatabentoQualificationGate
 {
+    /// <summary>Evaluates the supplied observations against the applicable feed health or qualification criteria.</summary>
+    /// <param name="observation">The measured feed performance or health observations.</param>
+    /// <param name="targetMillionsOfRecordsPerSecond">The qualification throughput target in millions of records per second.</param>
+    /// <param name="baseline">The previously accepted performance baseline, when available.</param>
+    /// <param name="requiredDuration">The minimum qualification run duration, when required.</param>
+    /// <returns>The evaluate result.</returns>
     public static FeedQualificationResult Evaluate(
         FeedQualificationObservation observation,
         int targetMillionsOfRecordsPerSecond,
@@ -117,6 +126,9 @@ public static class DatabentoQualificationGate
         };
     }
 
+    /// <summary>Returns the required endurance duration: 24 hours for production or 30 minutes otherwise.</summary>
+    /// <param name="production">Whether production endurance requirements apply.</param>
+    /// <returns>The required soak duration result.</returns>
     public static TimeSpan GetRequiredSoakDuration(bool production) =>
         production ? TimeSpan.FromHours(24) : TimeSpan.FromMinutes(30);
 
@@ -137,6 +149,10 @@ public static class DatabentoSyntheticQualificationProbe
 {
     private const int MaximumLatencyMicroseconds = 10_000;
 
+    /// <summary>Runs the synthetic feed qualification probe and collects its performance observations.</summary>
+    /// <param name="options">The configuration governing provider or feed operation.</param>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
+    /// <returns>The run result.</returns>
     public static FeedQualificationObservation Run(
         DatabentoFeedOptions options,
         TimeSpan timeout)

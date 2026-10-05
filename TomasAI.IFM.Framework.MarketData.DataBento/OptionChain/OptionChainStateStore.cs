@@ -72,6 +72,11 @@ public sealed class OptionChainStateStore : IOptionChainStateStore
         lock (_sync) _sessions.Remove(key);
     }
 
+    /// <summary>Attempts to retrieve the specified option contract&apos;s session state.</summary>
+    /// <param name="session">The session.</param>
+    /// <param name="futuresOptionContractId">The futures option contract identifier.</param>
+    /// <param name="state">The state returned by the operation.</param>
+    /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
     public bool TryGet(
         OptionChainSessionKey session,
         string futuresOptionContractId,
@@ -87,6 +92,9 @@ public sealed class OptionChainStateStore : IOptionChainStateStore
         }
     }
 
+    /// <summary>Retrieves the option-chain state for the specified session.</summary>
+    /// <param name="session">The session.</param>
+    /// <returns>The session result.</returns>
     public IReadOnlyList<OptionChainContractState> GetSession(
         OptionChainSessionKey session)
     {
