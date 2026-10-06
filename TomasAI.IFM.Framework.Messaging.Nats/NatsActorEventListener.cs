@@ -93,7 +93,7 @@ public class NatsActorEventListener(
             ActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
             if (_nc is not null)
             {
-                _logger.LogDebug(_serviceId, "NATS Event Listener: {eventListenerId} already started.", eventListenerId);
+                _logger.LogDebug(_serviceId,"{Component}.{Method} "+"NATS Event Listener: {eventListenerId} already started.",nameof(NatsActorEventListener),nameof(StartCoreAsync),eventListenerId);
                 return;
             }
 
@@ -112,7 +112,7 @@ public class NatsActorEventListener(
             };
             _state = EventListenerState.Started;
             Interlocked.Exchange(ref _messageCount, 0);
-            _logger.LogInformationEvent(_serviceId, "NATS Event Listener: {eventListenerId} started.", eventListenerId);
+            _logger.LogInformationEvent(_serviceId,"{Component}.{Method} "+"NATS Event Listener: {eventListenerId} started.",nameof(NatsActorEventListener),nameof(StartCoreAsync),eventListenerId);
             _subscriptions = new INatsSub<byte[]>?[_eventMap.Count];
             _subscriptionTasks = new Task[_eventMap.Count];
             var taskIndex = 0;
@@ -165,7 +165,7 @@ public class NatsActorEventListener(
         {
             if (_nc is null)
             {
-                _logger.LogDebug(_serviceId, "NATS Event Listener: {eventListenerId}  has not started.", _eventListenerId);
+                _logger.LogDebug(_serviceId,"{Component}.{Method} "+"NATS Event Listener: {eventListenerId}  has not started.",nameof(NatsActorEventListener),nameof(StopCoreAsync),_eventListenerId);
                 return;
             }
 
@@ -202,7 +202,7 @@ public class NatsActorEventListener(
             }
             _nc = default!;
             _state = EventListenerState.Stopped;
-            _logger.LogInformationEvent(_serviceId, "NATS Event Listener: {eventListenerId} stopped.", _eventListenerId);
+            _logger.LogInformationEvent(_serviceId,"{Component}.{Method} "+"NATS Event Listener: {eventListenerId} stopped.",nameof(NatsActorEventListener),nameof(StopCoreAsync),_eventListenerId);
         }
         catch (Exception ex)
         {
@@ -225,7 +225,7 @@ public class NatsActorEventListener(
         CancellationToken ctsRequestToken)
     {
         _state = EventListenerState.Running;
-        _logger.LogInformationEvent(_serviceId, "NATS Event Listener: {eventListenerId}  - {actorMailboxId} running.", _eventListenerId, actorMailboxId);
+        _logger.LogInformationEvent(_serviceId,"{Component}.{Method} "+"NATS Event Listener: {eventListenerId}  - {actorMailboxId} running.",nameof(NatsActorEventListener),nameof(PubSubMessageLoopAsync),_eventListenerId,actorMailboxId);
         var acceptedVerbs = new HashSet<string>(eventVerbs, StringComparer.OrdinalIgnoreCase);
         try
         {
@@ -243,7 +243,7 @@ public class NatsActorEventListener(
                     if (acceptedVerbs.Contains(msgSubject.Verb))
                     {
                         if (_logger.IsEnabled(LogLevel.Debug))
-                            _logger.LogDebug("NATS Event Listener: {EventListenerId} received event for subject={Subject}", _eventListenerId, msg.Subject);
+                            _logger.LogDebug("{Component}.{Method} "+"NATS Event Listener: {EventListenerId} received event for subject={Subject}",nameof(NatsActorEventListener),nameof(PubSubMessageLoopAsync),_eventListenerId,msg.Subject);
                         await _eventHandler(msgSubject.Verb, msg).ConfigureAwait(false);
                     }
 
@@ -251,7 +251,7 @@ public class NatsActorEventListener(
                 catch (Exception ex)
                 {
                     NatsMessagingMetrics.DispatchFailures.Add(1);
-                    _logger.LogErrorEvent(_serviceId, ex, "NATS Event Listener: {eventListenerId} failed to process message. ", _eventListenerId);
+                    _logger.LogErrorEvent(_serviceId,ex,"{Component}.{Method} "+"NATS Event Listener: {eventListenerId} failed to process message. ",nameof(NatsActorEventListener),nameof(PubSubMessageLoopAsync),_eventListenerId);
                 }
             }
         }
@@ -264,6 +264,6 @@ public class NatsActorEventListener(
             // Explicit unsubscribe completes the NATS channel and may surface its terminal
             // exception instead of OperationCanceledException. It is still expected shutdown.
         }
-        _logger.LogInformationEvent(_serviceId, "NATS Event Listener: {eventListenerId} read {MessagesRead} messages.", _eventListenerId, MessageCount);
+        _logger.LogInformationEvent(_serviceId,"{Component}.{Method} "+"NATS Event Listener: {eventListenerId} read {MessagesRead} messages.",nameof(NatsActorEventListener),nameof(PubSubMessageLoopAsync),_eventListenerId,MessageCount);
     }
 }

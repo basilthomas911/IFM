@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
@@ -8,7 +9,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Extensions;
 
-/// <summary>Realtime EOD query helpers. These query durable read models without creating replayable work.</summary>
+/// <summary>Current-session queries prefer the authoritative live cache; historical queries retain storage semantics.</summary>
 internal static class FuturesEodDataRealtimeQueryExtensions
 {
     internal static async ValueTask<FuturesEodDataV2ReadModel?> GetFuturesEodDataAsync(
@@ -16,6 +17,7 @@ internal static class FuturesEodDataRealtimeQueryExtensions
         string contractId,
         DateOnly valueDate)
     {
+        if (CurrentFuturesEodCache.Shared.TryGet(contractId, valueDate, out var current)) return current;
         var entityId = new GetFuturesEodDataParameter(contractId, valueDate);
         GetFuturesEodDataQuery query = new(contractId, valueDate)
         {
@@ -30,6 +32,7 @@ internal static class FuturesEodDataRealtimeQueryExtensions
         var result = await context.RequestAsync<
             FuturesEodDataV2ReadModel,
             GetFuturesEodDataQuery>(query).ConfigureAwait(false);
+        if (CurrentFuturesEodCache.Shared.TryGet(contractId, valueDate, out current)) return current;
         if (result is null || !result.Success)
             throw new InvalidOperationException(
                 $"Futures EOD current-row query failed for {contractId}:{valueDate:yyyy-MM-dd}: "
@@ -68,6 +71,7 @@ internal static class FuturesEodDataRealtimeQueryExtensions
         string contractId,
         DateOnly valueDate)
     {
+        if (CurrentVixEodCache.Shared.TryGet(contractId, valueDate, out var current)) return [current!];
         var entityId = new GetVixFuturesEodDataParameter(contractId, valueDate);
         GetVixFuturesEodDataQuery query = new(contractId, valueDate)
         {
@@ -82,6 +86,7 @@ internal static class FuturesEodDataRealtimeQueryExtensions
         var result = await context.RequestAsync<
             VixFuturesEodDataReadModel[],
             GetVixFuturesEodDataQuery>(query).ConfigureAwait(false);
+        if (CurrentVixEodCache.Shared.TryGet(contractId, valueDate, out current)) return [current!];
         return result?.Success == true && result.Value is not null ? result.Value : [];
     }
 

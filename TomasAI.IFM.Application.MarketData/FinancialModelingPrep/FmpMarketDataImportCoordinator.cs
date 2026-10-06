@@ -106,9 +106,7 @@ public sealed class FmpMarketDataImportCoordinator(
                     result.ErrorCode,
                     result.ErrorMessage));
                 _logger.LogError(
-                    "FMP import command failed for dataset {Dataset} with error code {ErrorCode}.",
-                    operation.Dataset,
-                    result.ErrorCode);
+                    "{Component}.{Method} "+"FMP import command failed for dataset {Dataset} with error code {ErrorCode}.",nameof(FmpMarketDataImportCoordinator),nameof(ImportCoreAsync),                    operation.Dataset,                    result.ErrorCode);
                 break;
             }
 

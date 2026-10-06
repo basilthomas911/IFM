@@ -47,7 +47,7 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
         ?? throw new InvalidOperationException(
             $"Realtime projector '{ProjectorName}' has not been started.");
 
-    public ValueTask StartAsync(
+    public virtual ValueTask StartAsync(
         IEventActorContext context,
         CancellationToken cancellationToken = default)
     {
@@ -71,14 +71,14 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask StopAsync(CancellationToken cancellationToken = default)
+    public virtual ValueTask StopAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         Interlocked.Exchange(ref _context, null);
         return ValueTask.CompletedTask;
     }
 
-    public async ValueTask<bool> ProcessRealtimeEventAsync(
+    public virtual async ValueTask<bool> ProcessRealtimeEventAsync(
         IEvent domainEvent,
         CancellationToken cancellationToken = default)
     {
@@ -122,12 +122,8 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
             await PublishFailureAsync(context, descriptor, domainEvent, exception)
                 .ConfigureAwait(false);
             Logger.LogError(
-                exception,
-                "Realtime projection {ProjectorName} failed for event {EventName} on "
-                + "{EntityId}; the observation will not be retried or replayed.",
-                ProjectorName,
-                domainEvent.EventName,
-                domainEvent.Subject.EntityId);
+                exception,                "{Component}.{Method} "+"Realtime projection {ProjectorName} failed for event {EventName} on "
+                + "{EntityId}; the observation will not be retried or replayed.",nameof(BaseRealtimeProjector<TActor>),nameof(ProcessRealtimeEventAsync),                ProjectorName,                domainEvent.EventName,                domainEvent.Subject.EntityId);
             return false;
         }
     }
@@ -137,9 +133,7 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
         var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         if (elapsed >= SlowStageLogThreshold.TotalMilliseconds)
             Logger.LogInformation(
-                "Realtime projection stage: {ProjectorName}; {EventName}; {EntityId}; SourceId={SourceId}; stage={Stage}; elapsed {ElapsedMilliseconds:F3} ms.",
-                ProjectorName, domainEvent.EventName, domainEvent.Subject.EntityId,
-                domainEvent.Id, stage, elapsed);
+                "{Component}.{Method} "+"Realtime projection stage: {ProjectorName}; {EventName}; {EntityId}; SourceId={SourceId}; stage={Stage}; elapsed {ElapsedMilliseconds:F3} ms.",nameof(BaseRealtimeProjector<TActor>),nameof(LogSlowStage),                ProjectorName,domainEvent.EventName,domainEvent.Subject.EntityId,                domainEvent.Id,stage,elapsed);
     }
 
     /// <summary>
@@ -216,11 +210,8 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
         catch (Exception publicationException)
         {
             Logger.LogError(
-                publicationException,
-                "Realtime projector {ProjectorName} could not publish the failure event "
-                + "for {EventName}; the observation will not be retried or replayed.",
-                ProjectorName,
-                sourceEvent.EventName);
+                publicationException,                "{Component}.{Method} "+"Realtime projector {ProjectorName} could not publish the failure event "
+                + "for {EventName}; the observation will not be retried or replayed.",nameof(BaseRealtimeProjector<TActor>),nameof(PublishFailureAsync),                ProjectorName,                sourceEvent.EventName);
         }
     }
 
@@ -275,7 +266,7 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
         }
     }
 
-    static async ValueTask PublishRealtimeEventAsync(
+    protected static async ValueTask PublishRealtimeEventAsync(
         IEventActorContext context,
         IEvent domainEvent,
         string actorName,

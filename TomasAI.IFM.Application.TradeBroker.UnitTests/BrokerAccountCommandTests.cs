@@ -17,19 +17,19 @@ public sealed class BrokerAccountCommandTests
         var state = new BrokerAccountCommandState();
         var snapshot = Snapshot();
         Assert.True(snapshot.Execute(state).Success);
-        Assert.Equal(BrokerAccountOperationalGate.Closed, state.Current!.Gate);
+        Assert.Equal(BrokerAccountOperationalGate.Closed, state.BrokerAccountDefinition!.Gate);
         state.AcceptChanges();
         var evidence = Evidence();
         Assert.True(evidence.Execute(state).Success);
-        Assert.Equal(BrokerAccountQualificationStatus.ReviewPending, state.Current!.QualificationStatus);
+        Assert.Equal(BrokerAccountQualificationStatus.ReviewPending, state.BrokerAccountDefinition!.QualificationStatus);
         state.AcceptChanges();
         var mismatch = Accept() with { ManifestHash = "different" };
         Assert.False(mismatch.Execute(state).Success);
         Assert.Empty(state.Events);
 
         Assert.True(Accept().Execute(state).Success);
-        Assert.Equal(BrokerAccountQualificationStatus.Accepted, state.Current!.QualificationStatus);
-        Assert.Equal(BrokerAccountOperationalGate.Open, state.Current.Gate);
+        Assert.Equal(BrokerAccountQualificationStatus.Accepted, state.BrokerAccountDefinition!.QualificationStatus);
+        Assert.Equal(BrokerAccountOperationalGate.Open, state.BrokerAccountDefinition.Gate);
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public sealed class BrokerAccountCommandTests
             Reason = "Operator investigation",
             EffectiveAtUtc = Now.AddMinutes(1)
         }.Execute(state).Success);
-        Assert.Equal(BrokerAccountOperationalGate.Closed, state.Current!.Gate);
+        Assert.Equal(BrokerAccountOperationalGate.Closed, state.BrokerAccountDefinition!.Gate);
         state.AcceptChanges();
         Assert.True(new ReleaseManualTradingHoldCommand
         {
@@ -55,7 +55,7 @@ public sealed class BrokerAccountCommandTests
             Reason = "Investigation complete",
             EffectiveAtUtc = Now.AddMinutes(2)
         }.Execute(state).Success);
-        Assert.Equal(BrokerAccountOperationalGate.Open, state.Current!.Gate);
+        Assert.Equal(BrokerAccountOperationalGate.Open, state.BrokerAccountDefinition!.Gate);
         state.AcceptChanges();
         Assert.True(new RevokeAccountQualificationCommand
         {
@@ -66,8 +66,8 @@ public sealed class BrokerAccountCommandTests
             AuthorizedBy = "operator",
             RevokedAtUtc = Now.AddMinutes(3)
         }.Execute(state).Success);
-        Assert.Equal(BrokerAccountOperationalGate.Closed, state.Current!.Gate);
-        Assert.Equal(BrokerAccountQualificationStatus.Revoked, state.Current.QualificationStatus);
+        Assert.Equal(BrokerAccountOperationalGate.Closed, state.BrokerAccountDefinition!.Gate);
+        Assert.Equal(BrokerAccountQualificationStatus.Revoked, state.BrokerAccountDefinition.QualificationStatus);
     }
 
     [Fact]
@@ -78,9 +78,49 @@ public sealed class BrokerAccountCommandTests
         state.AcceptChanges();
         Assert.True(Snapshot(1).Execute(state).Success);
         Assert.Empty(state.Events);
-        Assert.Equal(2, state.Current!.Snapshot!.Generation);
+        Assert.Equal(2, state.BrokerAccountDefinition!.Snapshot!.Generation);
     }
 
+    [Fact]
+    public void Rejected_change_does_not_mutate_account_or_append_events()
+    {
+        var state = AcceptedState();
+        state.AcceptChanges();
+        var account = state.BrokerAccountDefinition;
+        var result = new SetManualTradingHoldCommand
+        {
+            CommandId = Guid.NewGuid(), EntityId = new BrokerAccountId("OTHER"),
+            Subject = Subject(SetManualTradingHoldCommand.Verb), Reason = "Wrong account", EffectiveAtUtc = Now
+        }.Execute(state);
+        Assert.False(result.Success);
+        Assert.Same(account, state.BrokerAccountDefinition);
+        Assert.Empty(state.Events);
+    }
+
+    [Fact]
+    public void Duplicate_snapshot_preserves_revision_and_replay_restores_account()
+    {
+        var restored = new BrokerAccountCommandState();
+        var original = new BrokerAccountCommandState();
+        Snapshot().Execute(original);
+        Evidence().Execute(original);
+        Accept().Execute(original);
+        foreach (var accountEvent in original.Events) restored.Apply(accountEvent, false);
+        Assert.Equal(original.BrokerAccountDefinition, restored.BrokerAccountDefinition);
+        var account = original.BrokerAccountDefinition;
+        original.AcceptChanges();
+        Assert.True(Snapshot().Execute(original).Success);
+        Assert.Same(account, original.BrokerAccountDefinition);
+        Assert.Empty(original.Events);
+    }
+
+    [Fact]
+    public void Moved_contract_resolves_from_its_original_assembly_qualified_name()
+    {
+        Assert.Equal("TomasAI.IFM.Domain.BrokerAccount.Shared", typeof(BrokerAccountChangedEvent).Assembly.GetName().Name);
+        Assert.Equal(typeof(BrokerAccountChangedEvent), Type.GetType(
+            "TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountChangedEvent, TomasAI.IFM.Domain.BrokerAccount", throwOnError: true));
+    }
     private static BrokerAccountCommandState AcceptedState()
     {
         var state = new BrokerAccountCommandState();

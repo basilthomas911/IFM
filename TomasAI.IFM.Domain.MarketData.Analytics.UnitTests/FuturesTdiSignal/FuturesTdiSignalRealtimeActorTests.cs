@@ -52,6 +52,34 @@ public sealed class FuturesTdiSignalRealtimeActorTests
     }
 
     [Fact]
+    public async Task SeededWindow_AcrossTradingDateRollover_UsesPriorSessionRsiImmediately()
+    {
+        var actor = CreateActor(out var projector);
+        projector.ProcessRealtimeEventAsync(Arg.Any<IEvent>()).Returns(ValueTask.FromResult(true));
+        var original = RsiWindow(Guid.NewGuid());
+        var currentDate = original.EntityId.ValueDate.AddDays(1);
+        var source = original with
+        {
+            EntityId = new(original.EntityId.ContractId, currentDate, original.EntityId.TimePeriod, original.EntityId.PeriodLength),
+            FuturesRsiSignals = original.FuturesRsiSignals.Select((signal, index) => signal with
+            { ValueDate = index < original.FuturesRsiSignals.Length - 6 ? currentDate.AddDays(-1) : currentDate }).ToArray()
+        };
+        await actor.Receive(Substitute.For<IEventActorContext<FuturesTdiSignalRealtimeActor>>(), source);
+        await projector.Received(1).ProcessRealtimeEventAsync(Arg.Is<FuturesTdiSignalGeneratedEvent>(generated =>
+            generated.EntityId.ValueDate == currentDate && generated.FuturesTdiSignal != null));
+    }
+
+    [Fact]
+    public async Task Window_WithOnlyFutureTradingDateSamples_DoesNotGenerateTdi()
+    {
+        var actor = CreateActor(out var projector);
+        var source = RsiWindow(Guid.NewGuid());
+        source = source with { FuturesRsiSignals = source.FuturesRsiSignals.Select(signal => signal with { ValueDate = source.EntityId.ValueDate.AddDays(1) }).ToArray() };
+        await actor.Receive(Substitute.For<IEventActorContext<FuturesTdiSignalRealtimeActor>>(), source);
+        await projector.DidNotReceive().ProcessRealtimeEventAsync(Arg.Any<IEvent>());
+    }
+
+    [Fact]
     public async Task Lifecycle_RegistersRsiRouteAndControlsProjector()
     {
         var actor = CreateActor(out var projector);

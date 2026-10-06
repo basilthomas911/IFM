@@ -1,0 +1,69 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PrimaryExactFixtureRead",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObjectVersion",
+        "s3:GetObjectRetention",
+        "s3:GetObjectLegalHold"
+      ],
+      "Resource": [
+        "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/gate14/disposable/014a9d09a13d4621affbf2695173093c/candidate.json",
+        "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/gate14/disposable/014a9d09a13d4621affbf2695173093c/keep.json"
+      ]
+    },
+    {
+      "Sid": "PrimaryFixtureDecrypt",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt"
+      ],
+      "Resource": "arn:aws:kms:ca-central-1:107651266250:key/4772d4b1-82d9-49fc-acca-b97e73fe93df",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "s3.ca-central-1.amazonaws.com"
+        },
+        "StringLike": {
+          "kms:EncryptionContext:aws:s3:arn": [
+            "arn:aws:s3:::ifm-db-backup-development-primary-107651266250",
+            "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/gate14/disposable/014a9d09a13d4621affbf2695173093c/*"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "RecoveryExactFixtureRead",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObjectVersion",
+        "s3:GetObjectRetention",
+        "s3:GetObjectLegalHold"
+      ],
+      "Resource": [
+        "arn:aws:s3:::ifm-db-backup-development-recovery-107651266250/v1/environment/development/gate14/disposable/014a9d09a13d4621affbf2695173093c/candidate.json",
+        "arn:aws:s3:::ifm-db-backup-development-recovery-107651266250/v1/environment/development/gate14/disposable/014a9d09a13d4621affbf2695173093c/keep.json"
+      ]
+    },
+    {
+      "Sid": "RecoveryFixtureDecrypt",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt"
+      ],
+      "Resource": "arn:aws:kms:ca-west-1:107651266250:key/4277d9a7-5182-4299-a61a-19ca0c5cf404",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "s3.ca-west-1.amazonaws.com"
+        },
+        "StringLike": {
+          "kms:EncryptionContext:aws:s3:arn": [
+            "arn:aws:s3:::ifm-db-backup-development-recovery-107651266250",
+            "arn:aws:s3:::ifm-db-backup-development-recovery-107651266250/v1/environment/development/gate14/disposable/014a9d09a13d4621affbf2695173093c/*"
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -138,14 +138,12 @@ public static class CompleteRegimeDiscovery
     static void LogStale(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
         CompleteRegimeDiscoveryCommand command, IntrinsicTimeStrategyWorkflowView? current)
         => context.Logger.LogWarning(
-            "Stale or duplicate workflow terminal command {CommandName} ignored for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-            command.CommandName, command.Subject.EntityId, current?.WorkflowId, current?.WorkflowRevision);
+            "{Component}.{Method} "+"Stale or duplicate workflow terminal command {CommandName} ignored for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",nameof(CompleteRegimeDiscovery),nameof(LogStale),            command.CommandName,command.Subject.EntityId,current?.WorkflowId,current?.WorkflowRevision);
 
     static void LogDeadline(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
         CompleteRegimeDiscoveryCommand command, IntrinsicTimeStrategyWorkflowView view)
         => context.Logger.LogWarning(
-            "Workflow deadline took precedence for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-            command.Subject.EntityId, view.WorkflowId, view.WorkflowRevision);
+            "{Component}.{Method} "+"Workflow deadline took precedence for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",nameof(CompleteRegimeDiscovery),nameof(LogDeadline),            command.Subject.EntityId,view.WorkflowId,view.WorkflowRevision);
 
     static ServiceResult<GuidResult> Ok(CompleteRegimeDiscoveryCommand command)
         => new ServiceOk<GuidResult>(new GuidResult(command.CommandId));

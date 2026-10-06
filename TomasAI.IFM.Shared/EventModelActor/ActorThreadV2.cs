@@ -203,6 +203,7 @@ sealed class ActorThreadV2(
                        && !cancellationToken.IsCancellationRequested
                        && scheduled.TryRead(out var message))
                 {
+                    using var trace = ActorTrace.Start(message!);
                     var loggingStarted = System.Diagnostics.Stopwatch.GetTimestamp();
                     var handlerStarted = ActorRuntimeMetrics.StartHandler();
                     var verb = message!.Subject.Verb;
@@ -211,7 +212,7 @@ sealed class ActorThreadV2(
                     var informationEntryLogged = false;
                     if (!suppressRoutineInformation)
                     {
-                        ActorMessageProcessingLog.Entry(_logger, threadId, verb);
+                        ActorMessageProcessingLog.Entry(_logger, threadId, verb, message!.Subject, nameof(ProcessMailboxAsync));
                         informationEntryLogged = true;
                     }
                     var deliverySucceeded = false;
@@ -222,7 +223,6 @@ sealed class ActorThreadV2(
                     try
                     {
                         _state = ActorThreadState.ProcessingMessage;
-                        using var trace = ActorTrace.Start(message!);
                         IDisposable? generationLease = null;
                         var admitted = threadId.ActorType != ActorType.Realtime
                             || _realtimeSourceAdmission?.TryEnter(message!.SourceSubject,
@@ -249,7 +249,7 @@ sealed class ActorThreadV2(
                         outcome = "Cancelled";
                         if (!informationEntryLogged)
                         {
-                            ActorMessageProcessingLog.Entry(_logger, threadId, verb);
+                            ActorMessageProcessingLog.Entry(_logger, threadId, verb, message!.Subject, nameof(ProcessMailboxAsync));
                             informationEntryLogged = true;
                         }
                         ActorRuntimeMetrics.RecordCanceled(threadId.ActorType);
@@ -260,7 +260,7 @@ sealed class ActorThreadV2(
                         outcome = "Failed";
                         if (!informationEntryLogged)
                         {
-                            ActorMessageProcessingLog.Entry(_logger, threadId, verb);
+                            ActorMessageProcessingLog.Entry(_logger, threadId, verb, message!.Subject, nameof(ProcessMailboxAsync));
                             informationEntryLogged = true;
                         }
                         ActorRuntimeMetrics.RecordFailed(threadId.ActorType);
@@ -271,7 +271,7 @@ sealed class ActorThreadV2(
                             escapedFailureId = _supervisor.RuntimeContext?.RecordFailure(
                                 threadId.MailboxId, threadId, message!.Subject.Verb,
                                 ActorFailureStage.Execution, exception);
-                        ActorMessageProcessingLog.Failed(_logger, threadId, verb, loggingStarted, exception);
+                        ActorMessageProcessingLog.Failed(_logger, threadId, verb, loggingStarted, exception, message!.Subject, nameof(ProcessMailboxAsync));
                     }
                     finally
                     {
@@ -286,7 +286,7 @@ sealed class ActorThreadV2(
                                 outcome = "Failed";
                                 if (!informationEntryLogged)
                                 {
-                                    ActorMessageProcessingLog.Entry(_logger, threadId, verb);
+                                    ActorMessageProcessingLog.Entry(_logger, threadId, verb, message!.Subject, nameof(ProcessMailboxAsync));
                                     informationEntryLogged = true;
                                 }
                                 _supervisor.RuntimeContext?.RecordFailure(
@@ -307,7 +307,7 @@ sealed class ActorThreadV2(
                             outcome = "Failed";
                             if (!informationEntryLogged)
                             {
-                                ActorMessageProcessingLog.Entry(_logger, threadId, verb);
+                                ActorMessageProcessingLog.Entry(_logger, threadId, verb, message!.Subject, nameof(ProcessMailboxAsync));
                                 informationEntryLogged = true;
                             }
                             _supervisor.RuntimeContext?.RecordFailure(
@@ -324,7 +324,7 @@ sealed class ActorThreadV2(
                         _metricsState.RecordMessageCompleted();
                         ActorRuntimeMetrics.RecordHandler(handlerStarted, threadId.ActorType);
                         if (!suppressRoutineInformation || outcome != "Succeeded")
-                            ActorMessageProcessingLog.Exit(_logger, threadId, verb, outcome, loggingStarted);
+                            ActorMessageProcessingLog.Exit(_logger, threadId, verb, outcome, loggingStarted, message!.Subject, nameof(ProcessMailboxAsync));
                     }
 
                     processed++;

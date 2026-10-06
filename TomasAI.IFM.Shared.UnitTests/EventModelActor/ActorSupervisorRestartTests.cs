@@ -84,6 +84,33 @@ public sealed class ActorSupervisorRestartTests
         fixture.Actor.Mailbox.ThreadQueues.IsAdmissionOpen(fixture.ThreadId).Should().BeFalse();
     }
 
+    [Fact]
+    public async Task Cancellation_keeps_accepted_work_and_requires_explicit_resume()
+    {
+        await using var fixture = new Fixture(TimeSpan.FromMilliseconds(250));
+        (await fixture.Actor.Mailbox.ThreadQueues.WriteAsync(new Message(1))).Should().BeTrue();
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(25));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await fixture.Supervisor.RestartAsync(fixture.ThreadId, 1, TimeSpan.FromSeconds(2), cancellation.Token));
+        fixture.Actor.Mailbox.ThreadQueues.IsAdmissionOpen(fixture.ThreadId).Should().BeFalse();
+        await fixture.Actor.Completed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await fixture.Supervisor.ResumeAsync(fixture.ThreadId);
+        fixture.Actor.Mailbox.ThreadQueues.IsAdmissionOpen(fixture.ThreadId).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Stopping_rejections_are_excluded_from_capacity_rejections()
+    {
+        await using var fixture = new Fixture(TimeSpan.Zero);
+        fixture.Actor.Mailbox.ThreadQueues.GetThreadQueue(fixture.ThreadId);
+        fixture.Actor.Mailbox.ThreadQueues.PauseAdmission(fixture.ThreadId);
+        var result = fixture.Actor.Mailbox.ThreadQueues.TryAdmit(new Message(1), new Message(1).Subject);
+        result.Reason.Should().Be(ActorAdmissionReason.Stopping);
+        fixture.Actor.Mailbox.Metrics.TryGetMailboxSnapshot(fixture.ThreadId, out var snapshot).Should().BeTrue();
+        snapshot!.Rejected.Should().Be(1);
+        snapshot.CapacityRejected.Should().Be(0);
+    }
+
     sealed class Fixture : IAsyncDisposable
     {
         public ActorSupervisor Supervisor { get; }

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.Model;
 using System.Security.Cryptography;
 using System.Text;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -35,17 +36,20 @@ public static class FuturesRsiSignalsGenerated
         var signals = e.FuturesRsiSignals
             .Where(signal =>
                 StringComparer.Ordinal.Equals(signal.ContractId, e.EntityId.ContractId)
-                && signal.ValueDate == e.EntityId.ValueDate
+                && signal.ValueDate <= e.EntityId.ValueDate
                 && signal.TimePeriod == e.EntityId.TimePeriod
                 && signal.PeriodLength == configuration.RsiPeriod
                 && signal.RSI >= 0d)
-            .OrderBy(static signal => signal.ValueDate)
-            .ThenBy(static signal => signal.Timestamp)
+            .OrderBy(FuturesTdiSignalCompute.SampleTime)
             .TakeLast(configuration.RequiredRsiSamples)
             .ToArray();
 
         if (signals.Length < configuration.RequiredRsiSamples)
+        {
+            logger.LogWarning("{Method} cannot initialize TDI for {ContractId}, {ValueDate}, {TimePeriod}: {AvailableSamples}/{RequiredSamples} RSI samples.",
+                nameof(ExecuteAsync), e.EntityId.ContractId, e.EntityId.ValueDate, e.EntityId.TimePeriod, signals.Length, configuration.RequiredRsiSamples);
             return true;
+        }
 
         var latest = signals[^1];
         var signalId = new FuturesTdiSignalId(

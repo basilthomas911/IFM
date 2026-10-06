@@ -39,8 +39,7 @@ public sealed class FuturesTradePositionRealtimeActor(
     protected override ValueTask OnExceptionAsync(IEventActorContext<FuturesTradePositionRealtimeActor> context,
         ActorThreadId threadId, IEvent domainEvent, Exception exception)
     {
-        _context.Logger.LogError(exception, "Futures Trade Plan routing failed for {PositionId}.",
-            domainEvent.AggregateId);
+        _context.Logger.LogError(exception,"{Component}.{Method} "+"Futures Trade Plan routing failed for {PositionId}.",nameof(FuturesTradePositionRealtimeActor),nameof(OnExceptionAsync),            domainEvent.AggregateId);
         return ValueTask.CompletedTask;
     }
 

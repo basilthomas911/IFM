@@ -94,6 +94,9 @@ public sealed record TradeOrderDefinition
     private string timeInForce = "Day";
     [Key(27)] public string AlgorithmPace { get => algorithmPace; init => algorithmPace = string.IsNullOrEmpty(value) ? "Normal" : value; }
     private string algorithmPace = "Normal";
+    /// <summary>Exact immutable market inputs accepted for this financial decision.</summary>
+    [Key(28)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketDecisionEvidence? DecisionEvidence { get; init; }
 }
 
 /// <summary>Normalized immutable fill evidence accepted by OrderExecution.</summary>

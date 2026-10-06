@@ -1,4 +1,5 @@
 using MessagePack;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -165,8 +166,10 @@ public sealed record FuturesMarketPriceUpdatedRealtimeEvent : IEvent<TickDataEnt
     /// <param name="schemaVersion">The SchemaVersion field.</param>
     /// <param name="price">The Price field.</param>
     /// <param name="updateSource">The UpdateSource field.</param>
+    /// <param name="vwapCheckpoint">The optional cumulative VWAP checkpoint.</param>
+    /// <param name="sourceTrade">The original qualifying trade payload, or null for quote, checkpoint, or legacy events.</param>
     [SerializationConstructor]
-    public FuturesMarketPriceUpdatedRealtimeEvent(ActorSubject subject, Guid id, TickDataEntityId entityId, long eventId, Guid commandId, string aggregateId, string eventSource, DateTime receivedOn, ushort schemaVersion, FuturesMarketPriceSnapshot price, FuturesMarketPriceUpdateSource updateSource, FuturesVwapSourceCheckpoint? vwapCheckpoint)
+    public FuturesMarketPriceUpdatedRealtimeEvent(ActorSubject subject, Guid id, TickDataEntityId entityId, long eventId, Guid commandId, string aggregateId, string eventSource, DateTime receivedOn, ushort schemaVersion, FuturesMarketPriceSnapshot price, FuturesMarketPriceUpdateSource updateSource, FuturesVwapSourceCheckpoint? vwapCheckpoint, FuturesTickTradeDataChangedEvent? sourceTrade = null)
     {
         Subject = subject;
         Id = id;
@@ -180,6 +183,7 @@ public sealed record FuturesMarketPriceUpdatedRealtimeEvent : IEvent<TickDataEnt
         Price = price;
         UpdateSource = updateSource;
         VwapCheckpoint = vwapCheckpoint;
+        SourceTrade = sourceTrade;
     }
     /// <summary>The primary actor mailbox name used by the realtime subject.</summary>
     public const string Actor = "FuturesMarketPrice";
@@ -202,6 +206,9 @@ public sealed record FuturesMarketPriceUpdatedRealtimeEvent : IEvent<TickDataEnt
     [Key(10)] public FuturesMarketPriceUpdateSource UpdateSource { get; init; }
     /// <summary>Optional cumulative ES VWAP state on the dedicated VWAP subject.</summary>
     [Key(11)] public FuturesVwapSourceCheckpoint? VwapCheckpoint { get; init; }
+
+    /// <summary>The original qualifying trade to forward to tick storage and EOD; absent for quotes and VWAP checkpoints.</summary>
+    [Key(12)] public FuturesTickTradeDataChangedEvent? SourceTrade { get; init; }
 
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesMarketPriceUpdatedRealtimeEvent);

@@ -72,8 +72,7 @@ internal sealed class EventProjectorMetricsObserver(
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex,
-                    "Unable to sample operational metrics for projector {ProjectorName}.", _projectorName);
+                _logger.LogWarning(ex,                    "{Component}.{Method} "+"Unable to sample operational metrics for projector {ProjectorName}.",nameof(EventProjectorMetricsObserver),nameof(RunAsync),_projectorName);
             }
         }
         while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false));

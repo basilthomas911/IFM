@@ -43,12 +43,14 @@ public static class IfmMetricsServiceCollectionExtensions
         var endpointText = section.GetValue<string>("OtlpEndpoint");
         var protocolText = section.GetValue<string>("OtlpProtocol");
 
-        services
+        var telemetry = services
             .AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddService(serviceName))
             .WithMetrics(metrics =>
             {
                 metrics
+                    .AddMeter("TomasAI.IFM.MarketData.Eod")
+                .AddMeter("TomasAI.IFM.Logging")
                     .AddMeter(ActorMeterName)
                     .AddMeter(NatsMeterName)
                     .AddMeter(EventProjectorMeterName)
@@ -83,8 +85,10 @@ public static class IfmMetricsServiceCollectionExtensions
                             ? OtlpExportProtocol.HttpProtobuf
                             : OtlpExportProtocol.Grpc;
                     });
-            })
-            .WithTracing(tracing =>
+            });
+
+        if (configuration.GetValue("Telemetry:Traces:Enabled", false))
+            telemetry.WithTracing(tracing =>
             {
                 tracing.AddSource("TomasAI.IFM.ActorTracing").AddSource("TomasAI.IFM.StrategyWorkflow").AddSource(MarketConditionInstrumentationName)
                     .AddSource(PortfolioInstrumentationName)

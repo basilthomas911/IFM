@@ -36,9 +36,7 @@ public static class OptionTradeEndOfDayProcessed
         }
         catch (Exception exception)
         {
-            logger.LogError(exception,
-                "Option trade end-of-day valuation failed for {EventId}, {CommandId}, {EntityId}.",
-                source.Id, source.CommandId, source.EntityId);
+            logger.LogError(exception,                "{Component}.{Method} "+"Option trade end-of-day valuation failed for {EventId}, {CommandId}, {EntityId}.",nameof(OptionTradeEndOfDayProcessed),nameof(ExecuteAsync),                source.Id,source.CommandId,source.EntityId);
             throw;
         }
     }

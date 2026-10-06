@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using Microsoft.Extensions.Logging;
 
 namespace TomasAI.IFM.Shared.Extensions
@@ -12,7 +11,10 @@ namespace TomasAI.IFM.Shared.Extensions
             string messageTemplate,
             params object[] propertyValues)
         {
-            var props = new object[] { serviceId }.Concat(propertyValues).ToArray();
+            if (!logger.IsEnabled(LogLevel.Information)) return;
+            var props = new object[propertyValues.Length + 1];
+            props[0] = serviceId;
+            Array.Copy(propertyValues, 0, props, 1, propertyValues.Length);
             logger.LogInformation("{ServiceId:l}:  " + messageTemplate, props);
         }
 
@@ -22,6 +24,7 @@ namespace TomasAI.IFM.Shared.Extensions
             string messageTemplate,
             T0 arg0)
         {
+            if (!logger.IsEnabled(LogLevel.Information)) return;
             logger.LogInformation("{ServiceId:l}:  " + messageTemplate, serviceId, arg0);
         }
 
@@ -32,6 +35,7 @@ namespace TomasAI.IFM.Shared.Extensions
             T0 arg0,
             T1 arg1)
         {
+            if (!logger.IsEnabled(LogLevel.Information)) return;
             logger.LogInformation("{ServiceId:l}:  " + messageTemplate, serviceId, arg0, arg1);
         }
 
@@ -42,7 +46,10 @@ namespace TomasAI.IFM.Shared.Extensions
            string messageTemplate,
            params object[] propertyValues)
         {
-            var props = new object[] { serviceId }.Concat(propertyValues).ToArray();
+            if (!logger.IsEnabled(LogLevel.Error)) return;
+            var props = new object[propertyValues.Length + 1];
+            props[0] = serviceId;
+            Array.Copy(propertyValues, 0, props, 1, propertyValues.Length);
             logger.LogError(errorException, "{ServiceId:l}:  " + messageTemplate, props);
         }
 
@@ -53,6 +60,7 @@ namespace TomasAI.IFM.Shared.Extensions
            string messageTemplate,
            T0 arg0)
         {
+            if (!logger.IsEnabled(LogLevel.Error)) return;
             logger.LogError(errorException, "{ServiceId:l}:  " + messageTemplate, serviceId, arg0);
         }
 
@@ -62,7 +70,10 @@ namespace TomasAI.IFM.Shared.Extensions
            string messageTemplate,
            params object[] propertyValues)
         {
-            var props = new object[] { serviceId }.Concat(propertyValues).ToArray();
+            if (!logger.IsEnabled(LogLevel.Error)) return;
+            var props = new object[propertyValues.Length + 1];
+            props[0] = serviceId;
+            Array.Copy(propertyValues, 0, props, 1, propertyValues.Length);
             logger.LogError("{ServiceId:l}:  " + messageTemplate, props);
         }
 
@@ -72,6 +83,7 @@ namespace TomasAI.IFM.Shared.Extensions
            string messageTemplate,
            T0 arg0)
         {
+            if (!logger.IsEnabled(LogLevel.Error)) return;
             logger.LogError("{ServiceId:l}:  " + messageTemplate, serviceId, arg0);
         }
     }

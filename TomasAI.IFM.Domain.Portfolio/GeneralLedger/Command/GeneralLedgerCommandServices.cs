@@ -20,7 +20,7 @@ public static class NotifyFinancialCompletion
         IEventProjector<TActor> projector, ILogger logger) where TActor : ICommandActor<TActor>
     {
         try { await projector.DomainEventsProjectionAsync(new DomainEventCollection([completed])); }
-        catch (Exception error) { logger.LogError(error, "Financial operation {OperationId} committed; durable history notification is pending.", completed.OperationId); }
+        catch (Exception error) { logger.LogError(error,"{Component}.{Method} "+"Financial operation {OperationId} committed; durable history notification is pending.",nameof(NotifyFinancialCompletion),nameof(NotifyAsync),completed.OperationId); }
         return new ServiceOk<GuidResult>(new(completed.OperationId));
     }
 }

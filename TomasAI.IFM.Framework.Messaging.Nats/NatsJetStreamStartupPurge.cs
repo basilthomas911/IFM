@@ -32,8 +32,8 @@ public sealed class NatsJetStreamStartupPurge
                     name, checked(snapshot.LastSequence + 1), cancellationToken)
                 .ConfigureAwait(false);
             _logger.LogInformation(
-                "Startup purged {PurgedMessages} JetStream messages from {StreamName} through sequence {LastSequence}.",
-                purged, name, snapshot.LastSequence);
+                "{Component}.{Method} purged {PurgedMessages} JetStream messages from {StreamName} through sequence {LastSequence}.",
+                nameof(NatsJetStreamStartupPurge), nameof(PurgeAsync), purged, name, snapshot.LastSequence);
         }
     }
 }

@@ -31,6 +31,8 @@ public interface IActorThreadQueues
     bool IsAdmissionOpen(ActorThreadId threadId) => true;
     void PauseAdmission(ActorThreadId threadId) { }
     void ResumeAdmission(ActorThreadId threadId) { }
+    /// <summary>Closes admission and exposes a failed lifecycle operation as quarantined.</summary>
+    void QuarantineAdmission(ActorThreadId threadId) => PauseAdmission(threadId);
     ValueTask<bool> WaitForIdleAsync(ActorThreadId threadId, TimeSpan timeout, CancellationToken cancellationToken = default)
         => ValueTask.FromResult(true);
     bool Retire(ActorThreadId threadId) => false;

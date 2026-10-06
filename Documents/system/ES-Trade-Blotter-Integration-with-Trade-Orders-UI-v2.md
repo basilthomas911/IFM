@@ -446,3 +446,8 @@ Context explicitly carries Portfolio/Fund/Order/Trade IDs, composition origin, w
 ## 19. Final outcome
 
 The Trade Orders form remains the Portfolio/Fund/Order/Trade lifecycle workspace. Its embedded blotter becomes a unified strategy, composition, and execution surface. Manual operators use it to select and submit eligible orders; automated workflows use the same visual model as an immutable audit and monitoring view. Domain policy, Risk Manager, broker state, and accounting remain authoritative outside the UI.
+
+
+## Broker Trade initialization query boundary
+
+`UI.Net.ViewModels/Trade/BrokerTradeInitializationQuery.cs` is an explicit backend DTO boundary for New Trade initialization. It concurrently reads fund balances and capacity, the risk envelope, broker account, order and reservation, stored trade, underlying definition, and stored underlying price through the typed service catalog. It returns one initialization result. Selected legs and quantity edits remain local draft inputs; this query does not submit orders or mutate backend state. All task results are awaited without blocking the UI thread. Backend quote instants are displayed using Eastern time, independent of the workstation timezone.

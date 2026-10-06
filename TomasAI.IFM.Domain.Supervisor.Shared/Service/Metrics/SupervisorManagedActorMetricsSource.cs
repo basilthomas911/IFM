@@ -44,13 +44,13 @@ public sealed class SupervisorManagedActorMetricsSource(
                 var evaluation = healthEvaluator.Evaluate(
                     mailbox.ThreadId,
                     new SupervisorActorThreadHealthObservation(
-                        mailbox.QueueDepth, mailbox.QueueCapacity, mailbox.Rejected, mailbox.Dequeued,
+                        mailbox.QueueDepth, mailbox.QueueCapacity, mailbox.CapacityRejected, mailbox.Dequeued,
                         mailbox.Succeeded + mailbox.HandledFailures + mailbox.EscapedFailures + mailbox.Cancelled,
                         mailbox.IsProcessing,
                         mailbox.IsProcessing && mailbox.LastStartedUtc.HasValue
                             ? now - mailbox.LastStartedUtc.Value
                             : TimeSpan.Zero,
-                        mailbox.Generation));
+                        mailbox.Generation, mailbox.IsAdmissionOpen));
                 if (evaluation.LogWarning)
                     SupervisorActorHealthLog.ActorThreadAtLimit(
                         logger,

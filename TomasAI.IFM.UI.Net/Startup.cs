@@ -52,6 +52,7 @@ namespace TomasAI.IFM.UI.Net
 {
     public class Startup : IAppRoot
     {
+        public Microsoft.Extensions.Logging.ILogger DiagnosticLogger => _container?.GetInstance<Microsoft.Extensions.Logging.ILogger>() ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
         static Container? _container;
         static IConfiguration? _config;
         static int _shutdownStarted;
@@ -79,17 +80,22 @@ namespace TomasAI.IFM.UI.Net
 
         static void RegisterLogger()
         {
-            Log.Logger = new LoggerConfiguration()
-              .Enrich.FromLogContext()
-              .MinimumLevel.Debug()
-              .WriteTo.Console()
-              .WriteTo.Debug()
-              .WriteTo.File(
-                  Path.Combine(AppContext.BaseDirectory, "Logs", "ifm-ui-.log"),
-                  rollingInterval: RollingInterval.Day,
-                  shared: true,
-                  flushToDiskInterval: TimeSpan.FromSeconds(1))
-              .CreateLogger();
+            var logging = new LoggerConfiguration()
+                .Enrich.FromLogContext()
+                .MinimumLevel.Debug()
+                .WriteTo.Console()
+                .WriteTo.Debug()
+                .WriteTo.Async(sink => sink.File(
+                    new Serilog.Formatting.Json.JsonFormatter(renderMessage: true),
+                    Path.Combine(AppContext.BaseDirectory, "Logs", "ifm-ui-.log"),
+                    rollingInterval: RollingInterval.Day,
+                    shared: true,
+                    flushToDiskInterval: TimeSpan.FromSeconds(1)),
+                    bufferSize: 4096, blockWhenFull: false,
+                    monitor: new TomasAI.IFM.Framework.Telemetry.Logging.AsyncLogBufferMonitor());
+            if (_config?.GetValue<bool>("Telemetry:Logs:Enabled") == true)
+                logging.WriteTo.Sink(new TomasAI.IFM.Framework.Telemetry.Logging.OtlpStructuredLogSink(_config, "TomasAI.IFM.UI"));
+            Log.Logger = logging.CreateLogger();
             var loggerFactory = new SerilogLoggerFactory(Log.Logger);
             var uiLogger = loggerFactory.CreateLogger("IFM.UI");
             _container!.RegisterInstance(uiLogger);

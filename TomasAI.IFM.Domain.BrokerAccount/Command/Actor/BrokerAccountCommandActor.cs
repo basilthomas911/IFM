@@ -111,11 +111,17 @@ public sealed class BrokerAccountCommandActor(ICommandActorContext<BrokerAccount
                 ((RequestBrokerAccountResynchronizationCommand)command).ExecuteAsync(owner, state)
         }.ToFrozenDictionary();
 
-    protected override ValueTask OnStartup(ICommandActorContext<BrokerAccountCommandActor> context) =>
-        _services.ObservationBridge.StartAsync();
+    protected override async ValueTask OnStartup(ICommandActorContext<BrokerAccountCommandActor> context)
+    {
+        await _services.EventProjector.StartAsync(context).ConfigureAwait(false);
+        await _services.ObservationBridge.StartAsync().ConfigureAwait(false);
+    }
 
-    protected override ValueTask OnShutdown(ICommandActorContext<BrokerAccountCommandActor> context) =>
-        _services.ObservationBridge.StopAsync();
+    protected override async ValueTask OnShutdown(ICommandActorContext<BrokerAccountCommandActor> context)
+    {
+        await _services.ObservationBridge.StopAsync().ConfigureAwait(false);
+        await _services.EventProjector.StopAsync().ConfigureAwait(false);
+    }
 
     protected override ICommand ParseMessage(ICommandActorContext<BrokerAccountCommandActor> context,
         IActorMessage message) => ParseMappedCommand(context, message, _parseMap);

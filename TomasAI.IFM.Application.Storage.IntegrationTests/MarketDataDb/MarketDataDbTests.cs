@@ -153,6 +153,43 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     MarketDataFixture TestFixture { get; } = testFixture;
 
     [Fact]
+    public async Task RealtimeEodBatch_RetryPreservesEveryHistoryRow_AndLatestSnapshot()
+    {
+        var db = TestFixture.DevDatabase;
+        var row = SampleData.FuturesEodData with
+        {
+            ContractId = "MINUTE-BATCH-" + Guid.NewGuid().ToString("N"),
+            ValueDate = new DateOnly(2049, 6, 1), ClosePrice = 100m
+        };
+        var rows = new[]
+        {
+            new BufferedFuturesEodRow(row, true),
+            new BufferedFuturesEodRow(row with { ClosePrice = 101m }, true),
+            new BufferedFuturesEodRow(row with { ClosePrice = 102m }, false)
+        };
+        try
+        {
+            await db.PersistRealtimeFuturesEodBatchAsync(rows);
+            var ids = rows.Take(2).Select(value => value.HistorySequenceId).ToArray();
+            await db.PersistRealtimeFuturesEodBatchAsync(rows);
+            rows.Take(2).Select(value => value.HistorySequenceId).Should().Equal(ids);
+            // The production helper intentionally returns only the latest history row.
+            var history = await db.Use("MinuteBatchHistoryVerification",
+                    "SELECT sequenceId, closePrice FROM futures_intra_day_data WHERE contractId = :contractId AND valueDate = :valueDate;")
+                .SetParameters(new GetFuturesIntraDayData(row.ContractId, row.ValueDate))
+                .ExecuteQueryAsync(record => (SequenceId: record.GetLong(0), ClosePrice: record.GetDecimal(1)));
+            history.Should().HaveCount(2);
+            history.Select(value => value.ClosePrice).Order().Should().Equal(100m, 101m);
+            var stored = await db.GetFuturesEodDataAsync(row.ContractId, row.ValueDate);
+            stored!.ClosePrice.Should().Be(102m);
+        }
+        finally
+        {
+            await db.DeleteFuturesEodDataAsync(row.ContractId, row.ValueDate);
+        }
+    }
+
+    [Fact]
     public async Task MarketOutlookSnapshot_UpsertsAndReturnsLatestValidRowFromScylla()
     {
         const string deleteCql = "DELETE FROM market_outlook_snapshot WHERE contractId = :contractId;";

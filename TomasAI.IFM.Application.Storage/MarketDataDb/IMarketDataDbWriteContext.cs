@@ -20,6 +20,14 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 public interface IMarketDataDbWriteContext
 {
+    /// <summary>Preserves every buffered history row and coalesces current EOD snapshots.</summary>
+    /// <summary>Allocates stable retry IDs before the history outbox is submitted to storage.</summary>
+    Task PrepareRealtimeFuturesEodBatchAsync(IReadOnlyList<BufferedFuturesEodRow> rows);
+
+    Task PersistRealtimeFuturesEodBatchAsync(IReadOnlyList<BufferedFuturesEodRow> rows);
+    /// <summary>Persists the latest immutable VX snapshot per contract/date.</summary>
+    Task PersistRealtimeVixEodBatchAsync(IReadOnlyList<VixFuturesEodDataReadModel> rows);
+
     Task<CompositionPreparation> CommitAsync(
         CompositionPreparation proposed,
         CancellationToken cancellationToken);

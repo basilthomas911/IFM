@@ -118,7 +118,7 @@ public class NatsJetStreamActorConsumer(
             _actorType = actorType;
             if (_nc is not null)
             {
-                _logger.LogDebug("NATS JetStream {ActorType} consumer already started.", _actorType);
+                _logger.LogDebug("{Component}.{Method} "+"NATS JetStream {ActorType} consumer already started.",nameof(NatsJetStreamActorConsumer),nameof(StartCoreAsync),_actorType);
                 return;
             }
 
@@ -225,7 +225,7 @@ public class NatsJetStreamActorConsumer(
             else
             {
                 _logger.LogWarning(
-                    "NATS JetStream event consumer is using the legacy byte[] payload path for diagnostics.");
+                    "{Component}.{Method} "+"NATS JetStream event consumer is using the legacy byte[] payload path for diagnostics.",nameof(NatsJetStreamActorConsumer),nameof(StartCoreAsync));
                 _stripeChannels =
                     new Channel<(NatsMsg<byte[]>, ActorSubject, INatsJSMsg<byte[]>?, bool)>[dispatcherCount];
                 for (var i = 0; i < dispatcherCount; i++)
@@ -247,11 +247,11 @@ public class NatsJetStreamActorConsumer(
 
             _isRunning = true;
             _loopTask = RunMessageLoopAsync(consumer, ctsRequestToken);
-            _logger.LogInformationEvent(_serviceId, "NATS JetStream {ActorType} consumer started with {DispatcherCount} dispatch stripes.", _actorType, dispatcherCount);
+            _logger.LogInformationEvent(_serviceId,"{Component}.{Method} "+"NATS JetStream {ActorType} consumer started with {DispatcherCount} dispatch stripes.",nameof(NatsJetStreamActorConsumer),nameof(StartCoreAsync),_actorType,dispatcherCount);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "NATS JetStream {ActorType} failed during consumer startup.", _actorType);
+            _logger.LogError(ex,"{Component}.{Method} "+"NATS JetStream {ActorType} failed during consumer startup.",nameof(NatsJetStreamActorConsumer),nameof(StartCoreAsync),_actorType);
             throw;
         }
     }
@@ -379,7 +379,7 @@ public class NatsJetStreamActorConsumer(
         {
             if (_nc is null)
             {
-                _logger.LogDebug("NATS JetStream {ActorType} consumer has not started.", _actorType);
+                _logger.LogDebug("{Component}.{Method} "+"NATS JetStream {ActorType} consumer has not started.",nameof(NatsJetStreamActorConsumer),nameof(StopCoreAsync),_actorType);
                 return;
             }
 
@@ -429,11 +429,11 @@ public class NatsJetStreamActorConsumer(
                 await _connectionManager.DisposeAsync().ConfigureAwait(false);
             _nc = null;
             _isRunning = false;
-            _logger.LogInformation("NATS JetStream {ActorType} consumer has stopped.", _actorType);
+            _logger.LogInformation("{Component}.{Method} "+"NATS JetStream {ActorType} consumer has stopped.",nameof(NatsJetStreamActorConsumer),nameof(StopCoreAsync),_actorType);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to stop NATS JetStream {ActorType} consumer.", _actorType);
+            _logger.LogError(ex,"{Component}.{Method} "+"Failed to stop NATS JetStream {ActorType} consumer.",nameof(NatsJetStreamActorConsumer),nameof(StopCoreAsync),_actorType);
             throw;
         }
     }
@@ -480,11 +480,11 @@ public class NatsJetStreamActorConsumer(
     {
         var stripes = _stripeChannels!;
         var stripeCount = stripes.Length;
-        _logger.LogInformationEvent(_serviceId, "JetStream {ActorType} consumer started", _actorType);
+        _logger.LogInformationEvent(_serviceId,"{Component}.{Method} "+"JetStream {ActorType} consumer started",nameof(NatsJetStreamActorConsumer),nameof(JetStreamMessageLoopAsync),_actorType);
         while (!ctsRequestToken.IsCancellationRequested)
         {
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("NATS JetStream {ActorType} consumer waiting for messages...", _actorType);
+                _logger.LogDebug("{Component}.{Method} "+"NATS JetStream {ActorType} consumer waiting for messages...",nameof(NatsJetStreamActorConsumer),nameof(JetStreamMessageLoopAsync),_actorType);
             var messagesRead = 0;
             await foreach (var msg in consumer.ConsumeAsync(opts: _consumerOpts, serializer: _deserializer, cancellationToken: ctsRequestToken))
             {
@@ -501,7 +501,7 @@ public class NatsJetStreamActorConsumer(
                     if (msg.Metadata?.NumDelivered > 1)
                         NatsMessagingMetrics.RecordJetStreamRedelivery(_actorType);
                     if (_logger.IsEnabled(LogLevel.Debug))
-                        _logger.LogDebug("NATS JetStream {ActorType} consumer received message for subject={Subject}", _actorType, msg.Subject);
+                        _logger.LogDebug("{Component}.{Method} "+"NATS JetStream {ActorType} consumer received message for subject={Subject}",nameof(NatsJetStreamActorConsumer),nameof(JetStreamMessageLoopAsync),_actorType,msg.Subject);
 
                     // parse subject and route to a dispatch stripe by entity hash.
                     // Same entity always maps to the same stripe, preserving per-entity FIFO ordering.
@@ -543,11 +543,11 @@ public class NatsJetStreamActorConsumer(
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogErrorEvent(_serviceId, ex, "NATS JetStream consumer failed to process message for {Subject}.", msg.Subject);
+                    _logger.LogErrorEvent(_serviceId,ex,"{Component}.{Method} "+"NATS JetStream consumer failed to process message for {Subject}.",nameof(NatsJetStreamActorConsumer),nameof(JetStreamMessageLoopAsync),msg.Subject);
                 }
             }
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("NATS JetStream {ActorType} consumer read {MessagesRead} messages.", _actorType, messagesRead);
+                _logger.LogDebug("{Component}.{Method} "+"NATS JetStream {ActorType} consumer read {MessagesRead} messages.",nameof(NatsJetStreamActorConsumer),nameof(JetStreamMessageLoopAsync),_actorType,messagesRead);
         }
     }
 
@@ -558,9 +558,7 @@ public class NatsJetStreamActorConsumer(
         var stripes = _ownedStripeChannels!;
         var stripeCount = stripes.Length;
         _logger.LogInformationEvent(
-            _serviceId,
-            "JetStream {ActorType} consumer started with shared owned event payloads",
-            _actorType);
+            _serviceId,            "{Component}.{Method} "+"JetStream {ActorType} consumer started with shared owned event payloads",nameof(NatsJetStreamActorConsumer),nameof(OwnedJetStreamMessageLoopAsync),            _actorType);
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -612,7 +610,8 @@ public class NatsJetStreamActorConsumer(
                         msg,
                         destinations.Count,
                         _negativeAcknowledgeDelay,
-                        _actorType);
+                        _actorType,
+                        _logger);
                     foreach (var destination in destinations)
                     {
                         await ScheduleOwnedBranchAsync(
@@ -632,10 +631,7 @@ public class NatsJetStreamActorConsumer(
                 {
                     NatsMessagingMetrics.DispatchFailures.Add(1);
                     _logger.LogErrorEvent(
-                        _serviceId,
-                        ex,
-                        "NATS JetStream {ActorType} owned event ingress failed.",
-                        _actorType);
+                        _serviceId,                        ex,                        "{Component}.{Method} "+"NATS JetStream {ActorType} owned event ingress failed.",nameof(NatsJetStreamActorConsumer),nameof(OwnedJetStreamMessageLoopAsync),                        _actorType);
                 }
                 finally
                 {
@@ -648,9 +644,7 @@ public class NatsJetStreamActorConsumer(
 
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug(
-                    "NATS JetStream {ActorType} owned consumer read {MessagesRead} messages.",
-                    _actorType,
-                    messagesRead);
+                    "{Component}.{Method} "+"NATS JetStream {ActorType} owned consumer read {MessagesRead} messages.",nameof(NatsJetStreamActorConsumer),nameof(OwnedJetStreamMessageLoopAsync),                    _actorType,                    messagesRead);
         }
     }
 
@@ -679,10 +673,7 @@ public class NatsJetStreamActorConsumer(
                 branch?.Dispose();
             NatsMessagingMetrics.DispatchFailures.Add(1);
             _logger.LogErrorEvent(
-                _serviceId,
-                ex,
-                "Failed to schedule owned event branch for {ActorId}.",
-                destination.ActorId);
+                _serviceId,                ex,                "{Component}.{Method} "+"Failed to schedule owned event branch for {ActorId}.",nameof(NatsJetStreamActorConsumer),nameof(ScheduleOwnedBranchAsync),                destination.ActorId);
             try
             {
                 await delivery.CompleteHandoffAsync(false).ConfigureAwait(false);
@@ -690,10 +681,7 @@ public class NatsJetStreamActorConsumer(
             catch (Exception acknowledgementException)
             {
                 _logger.LogErrorEvent(
-                    _serviceId,
-                    acknowledgementException,
-                    "Failed to negatively acknowledge event after scheduling failure for {ActorId}.",
-                    destination.ActorId);
+                    _serviceId,                    acknowledgementException,                    "{Component}.{Method} "+"Failed to negatively acknowledge event after scheduling failure for {ActorId}.",nameof(NatsJetStreamActorConsumer),nameof(ScheduleOwnedBranchAsync),                    destination.ActorId);
             }
         }
     }
@@ -718,10 +706,8 @@ public class NatsJetStreamActorConsumer(
             1,
             new KeyValuePair<string, object?>("actor.type", _actorType.ToStringFast()));
         _logger.LogWarning(
-            "NATS JetStream {ActorType} permanently terminated malformed actor subject {Subject}; " +
-            "expected ActorType.Name.Verb.EntityId.",
-            _actorType,
-            subject);
+            "{Component}.{Method} "+"NATS JetStream {ActorType} permanently terminated malformed actor subject {Subject}; " +
+            "expected ActorType.Name.Verb.EntityId.",nameof(NatsJetStreamActorConsumer),nameof(TerminateMalformedSubjectAsync),            _actorType,            subject);
         await message.AckTerminateAsync(
             new AckOpts { TerminateReason = "invalid-actor-subject" },
             CancellationToken.None).ConfigureAwait(false);
@@ -754,10 +740,7 @@ public class NatsJetStreamActorConsumer(
                     message.Dispose();
                 NatsMessagingMetrics.DispatchFailures.Add(1);
                 _logger.LogErrorEvent(
-                    _serviceId,
-                    ex,
-                    "Owned event dispatch failed for {ActorId}.",
-                    subject.ActorId);
+                    _serviceId,                    ex,                    "{Component}.{Method} "+"Owned event dispatch failed for {ActorId}.",nameof(NatsJetStreamActorConsumer),nameof(OwnedDispatchLoopAsync),                    subject.ActorId);
             }
 
             if (!accepted)
@@ -770,10 +753,7 @@ public class NatsJetStreamActorConsumer(
                 {
                     NatsMessagingMetrics.DispatchFailures.Add(1);
                     _logger.LogErrorEvent(
-                        _serviceId,
-                        ex,
-                        "JetStream NAK finalization failed for {ActorId}.",
-                        subject.ActorId);
+                        _serviceId,                        ex,                        "{Component}.{Method} "+"JetStream NAK finalization failed for {ActorId}.",nameof(NatsJetStreamActorConsumer),nameof(OwnedDispatchLoopAsync),                        subject.ActorId);
                 }
             }
         }
@@ -815,7 +795,7 @@ public class NatsJetStreamActorConsumer(
             catch (Exception ex)
             {
                 NatsMessagingMetrics.DispatchFailures.Add(1);
-                _logger.LogErrorEvent(_serviceId, ex, "Dispatch stripe failed to deliver JetStream message for {ActorId}.", msgSubject.ActorId);
+                _logger.LogErrorEvent(_serviceId,ex,"{Component}.{Method} "+"Dispatch stripe failed to deliver JetStream message for {ActorId}.",nameof(NatsJetStreamActorConsumer),nameof(DispatchLoopAsync),msgSubject.ActorId);
             }
         }
     }
@@ -835,7 +815,7 @@ public class NatsJetStreamActorConsumer(
         }
         catch (Exception ex)
         {
-            _logger.LogErrorEvent(_serviceId, ex, "NATS JetStream {Subject} routed event failed to process. ", routeToSubject);
+            _logger.LogErrorEvent(_serviceId,ex,"{Component}.{Method} "+"NATS JetStream {Subject} routed event failed to process. ",nameof(NatsJetStreamActorConsumer),nameof(RouteEventToAsync),routeToSubject);
         }
     }
 

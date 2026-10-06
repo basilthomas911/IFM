@@ -1,0 +1,64 @@
+name: ifm-greptimedb
+
+services:
+  greptimedb:
+    image: greptime/greptimedb:v1.2.1
+    container_name: ifm-greptimedb
+    command:
+      - standalone
+      - start
+      - --http-addr
+      - 0.0.0.0:4000
+      - --grpc-bind-addr
+      - 0.0.0.0:4001
+      - --mysql-addr
+      - 0.0.0.0:4002
+      - --postgres-addr
+      - 0.0.0.0:4003
+    ports:
+      - "127.0.0.1:4000:4000" # HTTP API, dashboard, and OTLP/HTTP ingestion
+      - "127.0.0.1:4001:4001" # GreptimeDB gRPC API (not the Collector OTLP port)
+      - "127.0.0.1:4002:4002" # MySQL-compatible SQL interface
+      - "127.0.0.1:4003:4003" # PostgreSQL-compatible SQL interface
+    volumes:
+      - greptimedb-data:/greptimedb_data
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  retention-init:
+    image: curlimages/curl:8.12.1
+    depends_on:
+      greptimedb:
+        condition: service_started
+    entrypoint: ["/bin/sh", "/config/init-retention.sh"]
+    volumes:
+      - ./init-retention.sh:/config/init-retention.sh:ro
+    restart: "no"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.147.0
+    container_name: ifm-otel-collector
+    command: ["--config=/etc/otelcol/config.yaml"]
+    depends_on:
+      retention-init:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+      - "127.0.0.1:13133:13133"
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  greptimedb-data:
+

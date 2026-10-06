@@ -25,8 +25,7 @@ public static class ExecuteRiskManagementPipeline
         var now = context.TimeProvider.GetUtcNow().UtcDateTime;
         if (now >= c.ExpiresAtUtc) throw new TimeoutException();
         var latency = RiskLatency.Measure(c);
-        context.Logger.LogInformation("Risk latency observation trace {TraceId} for {WorkflowId}/{InvocationId}: environment {Environment}, candidate age {CandidateAgeMilliseconds} ms, oldest quote age {OldestQuoteAgeMilliseconds} ms, age enforcement {AgeLimitEnforced}",
-            System.Diagnostics.Activity.Current?.TraceId.ToString(), c.WorkflowId, c.CommandId, c.SizingAuthority.Environment, latency.CandidateAgeMilliseconds, latency.OldestQuoteAgeMilliseconds, latency.AgeLimitEnforced);
+        context.Logger.LogInformation("{Component}.{Method} "+"Risk latency observation trace {TraceId} for {WorkflowId}/{InvocationId}: environment {Environment}, candidate age {CandidateAgeMilliseconds} ms, oldest quote age {OldestQuoteAgeMilliseconds} ms, age enforcement {AgeLimitEnforced}",nameof(ExecuteRiskManagementPipeline),nameof(ExecuteAsync),            System.Diagnostics.Activity.Current?.TraceId.ToString(),c.WorkflowId,c.CommandId,c.SizingAuthority.Environment,latency.CandidateAgeMilliseconds,latency.OldestQuoteAgeMilliseconds,latency.AgeLimitEnforced);
         RiskLatency.Record(c, latency);
         TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskAssessmentResult result;
         using (var trace = WorkflowTrace.Source.StartActivity("risk.calculate"))

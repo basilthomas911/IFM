@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Reflection;
@@ -249,7 +249,7 @@ public abstract class BaseEventProjector<TActor>(
                 }
                 catch (Exception stopException)
                 {
-                    Logger.LogWarning(stopException, "Unable to roll back projector metrics startup for {ProjectorName}.", ProjectorName);
+                    Logger.LogWarning(stopException,"{Component}.{Method} "+"Unable to roll back projector metrics startup for {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(StartAsync),ProjectorName);
                 }
             }
             if (_outboxDispatcher is not null)
@@ -260,7 +260,7 @@ public abstract class BaseEventProjector<TActor>(
                 }
                 catch (Exception stopException)
                 {
-                    Logger.LogWarning(stopException, "Unable to roll back projector outbox startup for {ProjectorName}.", ProjectorName);
+                    Logger.LogWarning(stopException,"{Component}.{Method} "+"Unable to roll back projector outbox startup for {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(StartAsync),ProjectorName);
                 }
             }
             if (hasTransientDescriptors && _transientQueue is not null)
@@ -271,7 +271,7 @@ public abstract class BaseEventProjector<TActor>(
                 }
                 catch (Exception stopException)
                 {
-                    Logger.LogWarning(stopException, "Unable to roll back projector transient queue startup for {ProjectorName}.", ProjectorName);
+                    Logger.LogWarning(stopException,"{Component}.{Method} "+"Unable to roll back projector transient queue startup for {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(StartAsync),ProjectorName);
                 }
             }
             if (hasDurableDescriptors)
@@ -282,7 +282,7 @@ public abstract class BaseEventProjector<TActor>(
                 }
                 catch (Exception stopException)
                 {
-                    Logger.LogWarning(stopException, "Unable to roll back projector queue startup for {ProjectorName}.", ProjectorName);
+                    Logger.LogWarning(stopException,"{Component}.{Method} "+"Unable to roll back projector queue startup for {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(StartAsync),ProjectorName);
                 }
             }
             _context = null;
@@ -413,10 +413,7 @@ public abstract class BaseEventProjector<TActor>(
             && !descriptor.UseDurableReplay)
         {
             Logger.LogWarning(
-                "Ignoring durable delivery for non-durable event {EventId} ({EventType}) in projector {ProjectorName}.",
-                domainEvent.EventId,
-                domainEvent.GetType().Name,
-                ProjectorName);
+                "{Component}.{Method} "+"Ignoring durable delivery for non-durable event {EventId} ({EventType}) in projector {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(ProcessQueuedDomainEventAsync),                domainEvent.EventId,                domainEvent.GetType().Name,                ProjectorName);
             return EventProjectorDeliveryResult.Completed;
         }
 
@@ -453,20 +450,14 @@ public abstract class BaseEventProjector<TActor>(
         {
             EventProjectorMetrics.RecordEvent(ProjectorName, "unregistered", "transient");
             Logger.LogError(
-                "Dropping unregistered non-durable event {EventId} ({EventType}) for projector {ProjectorName}.",
-                domainEvent.EventId,
-                domainEvent.GetType().FullName,
-                ProjectorName);
+                "{Component}.{Method} "+"Dropping unregistered non-durable event {EventId} ({EventType}) for projector {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(ProcessTransientQueuedDomainEventAsync),                domainEvent.EventId,                domainEvent.GetType().FullName,                ProjectorName);
             return;
         }
         if (descriptor.UseDurableReplay)
         {
             EventProjectorMetrics.RecordEvent(ProjectorName, "misrouted", "transient");
             Logger.LogError(
-                "Dropping durable event {EventId} ({EventType}) routed to the non-durable queue for projector {ProjectorName}.",
-                domainEvent.EventId,
-                domainEvent.GetType().FullName,
-                ProjectorName);
+                "{Component}.{Method} "+"Dropping durable event {EventId} ({EventType}) routed to the non-durable queue for projector {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(ProcessTransientQueuedDomainEventAsync),                domainEvent.EventId,                domainEvent.GetType().FullName,                ProjectorName);
             return;
         }
 
@@ -498,10 +489,7 @@ public abstract class BaseEventProjector<TActor>(
                         "processing-publication-failed",
                         "transient");
                     Logger.LogWarning(
-                        ex,
-                        "Non-durable processing publication failed for event {EventId} in projector {ProjectorName}; the target action will still run.",
-                        domainEvent.EventId,
-                        ProjectorName);
+                        ex,                        "{Component}.{Method} "+"Non-durable processing publication failed for event {EventId} in projector {ProjectorName}; the target action will still run.",nameof(BaseEventProjector<TActor>),nameof(ExecuteTransientDescriptorAsync),                        domainEvent.EventId,                        ProjectorName);
                 }
             }
 
@@ -538,11 +526,7 @@ public abstract class BaseEventProjector<TActor>(
             {
                 EventProjectorMetrics.RecordEvent(ProjectorName, "apply-failed", "transient");
                 Logger.LogError(
-                    ex,
-                    "Non-durable projection apply failed for event {EventId} ({EventType}) in projector {ProjectorName}.",
-                    domainEvent.EventId,
-                    domainEvent.GetType().FullName,
-                    ProjectorName);
+                    ex,                    "{Component}.{Method} "+"Non-durable projection apply failed for event {EventId} ({EventType}) in projector {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(ExecuteTransientDescriptorAsync),                    domainEvent.EventId,                    domainEvent.GetType().FullName,                    ProjectorName);
                 if (descriptor.PublishTerminalEvent)
                 {
                     await PublishTransientFailureAsync(
@@ -650,10 +634,7 @@ public abstract class BaseEventProjector<TActor>(
                 "terminal-publication-failed",
                 "transient");
             Logger.LogWarning(
-                ex,
-                "Non-durable completion publication failed for event {EventId} in projector {ProjectorName}; it will not be replayed.",
-                domainEvent.EventId,
-                ProjectorName);
+                ex,                "{Component}.{Method} "+"Non-durable completion publication failed for event {EventId} in projector {ProjectorName}; it will not be replayed.",nameof(BaseEventProjector<TActor>),nameof(PublishTransientCompletionAsync),                domainEvent.EventId,                ProjectorName);
         }
     }
 
@@ -681,10 +662,7 @@ public abstract class BaseEventProjector<TActor>(
                 "terminal-publication-failed",
                 "transient");
             Logger.LogWarning(
-                ex,
-                "Non-durable failure publication failed for event {EventId} in projector {ProjectorName}; it will not be replayed.",
-                domainEvent.EventId,
-                ProjectorName);
+                ex,                "{Component}.{Method} "+"Non-durable failure publication failed for event {EventId} in projector {ProjectorName}; it will not be replayed.",nameof(BaseEventProjector<TActor>),nameof(PublishTransientFailureAsync),                domainEvent.EventId,                ProjectorName);
         }
     }
 
@@ -910,10 +888,7 @@ public abstract class BaseEventProjector<TActor>(
                     cancellationToken);
                 terminalFailures++;
                 Logger.LogError(
-                    "Unable to recover event {EventId} ({EventName}) for projector {ProjectorName}.",
-                    eventLog.EventVersion,
-                    eventLog.EventName,
-                    ProjectorName);
+                    "{Component}.{Method} "+"Unable to recover event {EventId} ({EventName}) for projector {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(RecoverUncompletedEventsAsync),                    eventLog.EventVersion,                    eventLog.EventName,                    ProjectorName);
                 continue;
             }
 
@@ -924,9 +899,7 @@ public abstract class BaseEventProjector<TActor>(
             if (currentState is null)
             {
                 Logger.LogWarning(
-                    "Skipping event-log recovery for event {EventId} because projector {ProjectorName} has no explicit durable state.",
-                    eventLog.EventVersion,
-                    ProjectorName);
+                    "{Component}.{Method} "+"Skipping event-log recovery for event {EventId} because projector {ProjectorName} has no explicit durable state.",nameof(BaseEventProjector<TActor>),nameof(RecoverUncompletedEventsAsync),                    eventLog.EventVersion,                    ProjectorName);
                 continue;
             }
             if (IsTerminal(currentState))
@@ -946,9 +919,7 @@ public abstract class BaseEventProjector<TActor>(
         if (eventLogs.Count > 0)
         {
             Logger.LogInformation(
-                "Recovered {EventCount} event-log entries for projector {ProjectorName}.",
-                eventLogs.Count,
-                ProjectorName);
+                "{Component}.{Method} "+"Recovered {EventCount} event-log entries for projector {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(RecoverUncompletedEventsAsync),                eventLogs.Count,                ProjectorName);
         }
         return new EventProjectorRecoveryResult(eventLogs.Count, queued, 0, terminalFailures);
     }

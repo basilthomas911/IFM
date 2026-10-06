@@ -45,8 +45,7 @@ public sealed class CommittedCompositionSubscriptionProjector(ICommittedBusiness
                 await journal.RejectAsync(eventId, "InvalidCommittedSource", error.Message, cancellationToken)
                     .ConfigureAwait(false);
                 logger.LogError(
-                    "Committed business source was quarantined. EventId={EventId} EventName={EventName} Reason={Reason}",
-                    eventId, committedEvent.GetType().Name, error.Message);
+                    "{Component}.{Method} "+"Committed business source was quarantined. EventId={EventId} EventName={EventName} Reason={Reason}",nameof(CommittedCompositionSubscriptionProjector),nameof(ProjectCommittedAsync),                    eventId,committedEvent.GetType().Name,error.Message);
             }
         }
         finally { serial.Release(); }
@@ -69,8 +68,7 @@ public sealed class CommittedCompositionSubscriptionProjector(ICommittedBusiness
                 catch (InvalidDataException error)
                 {
                     await journal.RejectAsync(row.EventVersion, "InvalidCommittedSource", error.Message, cancellationToken).ConfigureAwait(false);
-                    logger.LogError("Committed business source was quarantined. EventId={EventId} EventName={EventName} Reason={Reason}",
-                        row.EventVersion, row.EventName, error.Message);
+                    logger.LogError("{Component}.{Method} "+"Committed business source was quarantined. EventId={EventId} EventName={EventName} Reason={Reason}",nameof(CommittedCompositionSubscriptionProjector),nameof(ProjectPendingAsync),                        row.EventVersion,row.EventName,error.Message);
                     continue;
                 }
                 await journal.AcknowledgeAsync(row.EventVersion, cancellationToken).ConfigureAwait(false);

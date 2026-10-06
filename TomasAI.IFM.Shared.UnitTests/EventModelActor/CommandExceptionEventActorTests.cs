@@ -38,6 +38,7 @@ public sealed class CommandExceptionEventActorTests
             .Returns(producer.Object);
 
         var logger = new Mock<ILogger<CommandExceptionEventActor>>();
+        logger.Setup(value => value.IsEnabled(It.IsAny<LogLevel>())).Returns(true);
         var actor = new CommandExceptionEventActor(supervisor.Object, logger.Object);
         var errorEvent = new ActorCommandExceptionEvent
         {

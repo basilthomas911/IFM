@@ -51,9 +51,7 @@ public sealed class FmpMarketDataImportHostedService(
                             CountryCodes: options.CountryCodes),
                         stoppingToken).ConfigureAwait(false);
                     logger.LogInformation(
-                        "Scheduled FMP import submitted {SubmittedCommands} commands; {RejectedSubmissions} submissions were rejected. Terminal import outcomes are recorded by their correlated events.",
-                        result.SubmittedCommands,
-                        result.RejectedSubmissions);
+                        "{Component}.{Method} "+"Scheduled FMP import submitted {SubmittedCommands} commands; {RejectedSubmissions} submissions were rejected. Terminal import outcomes are recorded by their correlated events.",nameof(FmpMarketDataImportHostedService),nameof(ExecuteAsync),                        result.SubmittedCommands,                        result.RejectedSubmissions);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
@@ -61,19 +59,18 @@ public sealed class FmpMarketDataImportHostedService(
                 }
                 catch (Exception exception)
                 {
-                    logger.LogError(exception, "Scheduled FMP market-data import failed; scheduling continues.");
+                    logger.LogError(exception,"{Component}.{Method} "+"Scheduled FMP market-data import failed; scheduling continues.",nameof(FmpMarketDataImportHostedService),nameof(ExecuteAsync));
                 }
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            logger.LogInformation("Scheduled FMP market-data import stopped during API shutdown.");
+            logger.LogInformation("{Component}.{Method} "+"Scheduled FMP market-data import stopped during API shutdown.",nameof(FmpMarketDataImportHostedService),nameof(ExecuteAsync));
         }
         catch (Exception exception)
         {
             logger.LogError(
-                exception,
-                "Scheduled FMP market-data import worker failed unexpectedly; the API host will remain running.");
+                exception,                "{Component}.{Method} "+"Scheduled FMP market-data import worker failed unexpectedly; the API host will remain running.",nameof(FmpMarketDataImportHostedService),nameof(ExecuteAsync));
         }
     }
 }

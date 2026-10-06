@@ -1,0 +1,54 @@
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+  batch:
+    timeout: 1s
+    send_batch_size: 256
+    send_batch_max_size: 512
+exporters:
+  otlp_http/logs:
+    endpoint: http://greptimedb:4000/v1/otlp
+    headers:
+      x-greptime-db-name: ifm_logs
+      x-greptime-log-table-name: ifm_logs
+      x-greptime-hints: ttl=5d
+    sending_queue:
+      enabled: true
+      queue_size: 1024
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 300s
+  otlp_http/metrics:
+    endpoint: http://greptimedb:4000/v1/otlp
+    headers:
+      x-greptime-db-name: ifm_metrics
+      x-greptime-hints: ttl=30d
+    sending_queue:
+      enabled: true
+      queue_size: 1024
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 300s
+service:
+  extensions: [health_check]
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp_http/logs]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp_http/metrics]

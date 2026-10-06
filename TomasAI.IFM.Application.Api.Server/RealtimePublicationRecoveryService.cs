@@ -41,8 +41,7 @@ public sealed class RealtimePublicationRecoveryService(
             }
             catch (Exception exception)
             {
-                logger.LogCritical(exception,
-                    "Realtime publication recovery observation failed; the service will continue polling.");
+                logger.LogCritical(exception,                    "{Component}.{Method} "+"Realtime publication recovery observation failed; the service will continue polling.",nameof(RealtimePublicationRecoveryService),nameof(ExecuteAsync));
             }
             await Task.Delay(PollInterval, time, stoppingToken).ConfigureAwait(false);
         }
@@ -81,18 +80,14 @@ public sealed class RealtimePublicationRecoveryService(
         attemptedFailureUtc = snapshot.FirstFailureUtc;
         lastAttemptUtc = now;
         logger.LogCritical(
-            "Realtime NATS publication made no progress for {NoProgressMs} ms. Resetting the complete Databento dataset. CorrelationId={CorrelationId}; Failure={Failure}; FirstFailureUtc={FirstFailureUtc}; EventType={EventType}; Subject={Subject}; Attempt={Attempt}; Depth={Depth}; InFlight={InFlight}; ExceptionType={ExceptionType}; Exception={ExceptionMessage}",
-            snapshot.NoProgressAge.TotalMilliseconds, correlationId, snapshot.Failure,
-            snapshot.FirstFailureUtc, snapshot.InFlightEventType, snapshot.InFlightSubject,
-            snapshot.CurrentAttempt, snapshot.Depth, snapshot.InFlight,
-            snapshot.LastExceptionType, snapshot.LastExceptionMessage);
+            "{Component}.{Method} "+"Realtime NATS publication made no progress for {NoProgressMs} ms. Resetting the complete Databento dataset. CorrelationId={CorrelationId}; Failure={Failure}; FirstFailureUtc={FirstFailureUtc}; EventType={EventType}; Subject={Subject}; Attempt={Attempt}; Depth={Depth}; InFlight={InFlight}; ExceptionType={ExceptionType}; Exception={ExceptionMessage}",nameof(RealtimePublicationRecoveryService),nameof(ObserveAsync),            snapshot.NoProgressAge.TotalMilliseconds,correlationId,snapshot.Failure,            snapshot.FirstFailureUtc,snapshot.InFlightEventType,snapshot.InFlightSubject,            snapshot.CurrentAttempt,snapshot.Depth,snapshot.InFlight,            snapshot.LastExceptionType,snapshot.LastExceptionMessage);
         try
         {
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
             deadline.CancelAfter(TimeSpan.FromMinutes(1));
             episodeFailureUtc = snapshot.FirstFailureUtc;
             episodeSubmittedForFailure = true;
-            logger.LogWarning("Requesting hard reset recovery after publication stall. CorrelationId={CorrelationId}; ValueDate={ValueDate}", correlationId, valueDate);
+            logger.LogWarning("{Component}.{Method} "+"Requesting hard reset recovery after publication stall. CorrelationId={CorrelationId}; ValueDate={ValueDate}",nameof(RealtimePublicationRecoveryService),nameof(ObserveAsync),correlationId,valueDate);
             var episode = await (recoveryRequester ?? throw new InvalidOperationException("Hard reset recovery pipeline is not configured."))
                 .HardResetRecoveryAsync(new DatabentoHardRecoveryRequest(correlationId, valueDate,
                     watchdog.Current.NativeGeneration, nameof(RealtimePublicationRecoveryService),
@@ -103,17 +98,13 @@ public sealed class RealtimePublicationRecoveryService(
             if (episode.Outcome == DatabentoRecoveryRequestOutcome.AlreadyInProgress)
                 return;
             if (episode.Outcome == DatabentoRecoveryRequestOutcome.FullyHealthy)
-                logger.LogWarning("Databento recovery episode fully qualified after publication stall. CorrelationId={CorrelationId}; ValueDate={ValueDate}",
-                    episode.CorrelationId, valueDate);
+                logger.LogWarning("{Component}.{Method} "+"Databento recovery episode fully qualified after publication stall. CorrelationId={CorrelationId}; ValueDate={ValueDate}",nameof(RealtimePublicationRecoveryService),nameof(ObserveAsync),                    episode.CorrelationId,valueDate);
             else
-                logger.LogCritical("Databento recovery episode did not restore the complete pipeline. CorrelationId={CorrelationId}; ValueDate={ValueDate}; Outcome={Outcome}; Detail={Detail}",
-                    episode.CorrelationId, valueDate, episode.Outcome, episode.Detail);
+                logger.LogCritical("{Component}.{Method} "+"Databento recovery episode did not restore the complete pipeline. CorrelationId={CorrelationId}; ValueDate={ValueDate}; Outcome={Outcome}; Detail={Detail}",nameof(RealtimePublicationRecoveryService),nameof(ObserveAsync),                    episode.CorrelationId,valueDate,episode.Outcome,episode.Detail);
         }
         catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
         {
-            logger.LogCritical(exception,
-                "Complete Databento dataset reset failed after the downstream publication stall. CorrelationId={CorrelationId}; ValueDate={ValueDate}",
-                correlationId, valueDate);
+            logger.LogCritical(exception,                "{Component}.{Method} "+"Complete Databento dataset reset failed after the downstream publication stall. CorrelationId={CorrelationId}; ValueDate={ValueDate}",nameof(RealtimePublicationRecoveryService),nameof(ObserveAsync),                correlationId,valueDate);
         }
     }
 }

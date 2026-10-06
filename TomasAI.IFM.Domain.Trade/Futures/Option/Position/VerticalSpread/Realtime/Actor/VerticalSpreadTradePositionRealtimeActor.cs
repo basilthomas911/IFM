@@ -39,8 +39,7 @@ public sealed class VerticalSpreadTradePositionRealtimeActor(
     protected override ValueTask OnExceptionAsync(IEventActorContext<VerticalSpreadTradePositionRealtimeActor> context,
         ActorThreadId threadId, IEvent domainEvent, Exception exception)
     {
-        _context.Logger.LogError(exception, "Vertical Spread Trade Plan routing failed for {PositionId}.",
-            domainEvent.AggregateId);
+        _context.Logger.LogError(exception,"{Component}.{Method} "+"Vertical Spread Trade Plan routing failed for {PositionId}.",nameof(VerticalSpreadTradePositionRealtimeActor),nameof(OnExceptionAsync),            domainEvent.AggregateId);
         return ValueTask.CompletedTask;
     }
 

@@ -23,7 +23,7 @@ using Xunit.Abstractions;
 
 namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.IntegrationTests;
 
-public sealed class LiveAwsPublicationAndSigningIntegrationTests(ITestOutputHelper output)
+public sealed partial class LiveAwsPublicationAndSigningIntegrationTests(ITestOutputHelper output)
 {
     [Fact]
     [Trait("Category", "LiveAwsMutation")]

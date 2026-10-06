@@ -81,13 +81,11 @@ public static class FailTradeSelection
 
     static void LogStale(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
         FailTradeSelectionCommand command, IntrinsicTimeStrategyWorkflowView? current)
-        => context.Logger.LogWarning("Stale or duplicate workflow terminal command {CommandName} ignored for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-            command.CommandName, command.Subject.EntityId, current?.WorkflowId, current?.WorkflowRevision);
+        => context.Logger.LogWarning("{Component}.{Method} "+"Stale or duplicate workflow terminal command {CommandName} ignored for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",nameof(FailTradeSelection),nameof(LogStale),            command.CommandName,command.Subject.EntityId,current?.WorkflowId,current?.WorkflowRevision);
 
     static void LogDeadline(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
         FailTradeSelectionCommand command, IntrinsicTimeStrategyWorkflowView view)
-        => context.Logger.LogWarning("Workflow deadline took precedence for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-            command.Subject.EntityId, view.WorkflowId, view.WorkflowRevision);
+        => context.Logger.LogWarning("{Component}.{Method} "+"Workflow deadline took precedence for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",nameof(FailTradeSelection),nameof(LogDeadline),            command.Subject.EntityId,view.WorkflowId,view.WorkflowRevision);
 
     static ServiceResult<GuidResult> Ok(FailTradeSelectionCommand command)
         => new ServiceOk<GuidResult>(new GuidResult(command.CommandId));

@@ -45,7 +45,7 @@ public static class ExecuteMarketConditionAssessment
         catch (TimeoutException) { throw; }
         catch (Exception exception)
         {
-            context.Logger.LogError(exception, "Assessment execution failed at {Stage}, Workflow={WorkflowId}", stage, c.WorkflowId);
+            context.Logger.LogError(exception,"{Component}.{Method} "+"Assessment execution failed at {Stage}, Workflow={WorkflowId}",nameof(ExecuteMarketConditionAssessment),nameof(ExecuteAsync),stage,c.WorkflowId);
             return dispatchEvent(new(typeof(MarketConditionAssessmentFailedEvent), c,
                 new MarketConditionExecutionFailed(stage, $"MC.ASSESSMENT.{stage.ToString().ToUpperInvariant()}")));
         }

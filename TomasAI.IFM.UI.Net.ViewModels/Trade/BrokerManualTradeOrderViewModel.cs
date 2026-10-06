@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 ﻿using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -80,6 +81,7 @@ public sealed class BrokerManualTradeOrderViewModel
     }
 
     TradeLegDefinition[]? _screenLegs;
+    string? _selectedQuoteInputs;
 
     /// <summary>Captures the actual Broker Trade draft without depending on a hidden legacy editor.</summary>
     public void SetScreenLegSelection(DateOnly expiry, IReadOnlyList<BrokerTradeLegData> legs,
@@ -104,6 +106,7 @@ public sealed class BrokerManualTradeOrderViewModel
             && (legs.Select(x => x.IsCall).Distinct().Count() != 1 || legs.Sum(x => x.Sign) != 0
                 || legs[0].IsCall != _trade.TradeType.ToString().StartsWith("Call", StringComparison.Ordinal)))
             throw new InvalidOperationException("A vertical spread requires one long and one short contract on the same side.");
+        _selectedQuoteInputs = System.Text.Json.JsonSerializer.Serialize(legs);
         SelectedOptionExpiry = expiry;
         _screenLegs = legs.Select(x => NewLeg(x.ContractId, x.Sign * quantities[x.ContractId],
             x.IsFuture ? TradeAssetFamily.Futures : TradeAssetFamily.FuturesOption,
@@ -187,6 +190,28 @@ public sealed class BrokerManualTradeOrderViewModel
 
     /// <summary>Confirms and submits one opening order through Portfolio and the Trade Order lifecycle.</summary>
     public async Task<Guid> SubmitAsync(int quantity, decimal signedNetDebitLimit,
+        ITradeOrderConfirmationService confirmationService, CancellationToken cancellationToken = default)
+    {
+        var logger = _appRoot.DiagnosticLogger;
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
+        {
+            var commandId = await SubmitCoreAsync(quantity, signedNetDebitLimit, confirmationService, cancellationToken).ConfigureAwait(false);
+            logger.LogInformation("{Component}.{Method} completed; PortfolioId={PortfolioId}; FundId={FundId}; OrderId={OrderId}; TradeId={TradeId}; Quantity={Quantity}; OrderPrice={OrderPrice}; Strategy={Strategy}; CommandId={CommandId}; Outcome={Outcome}; ElapsedMilliseconds={ElapsedMilliseconds}",
+                nameof(BrokerManualTradeOrderViewModel), nameof(SubmitAsync), _portfolioId, _trade.FundId,
+                _trade.OrderId, _trade.TradeId, quantity, signedNetDebitLimit, StrategyKind, commandId,
+                commandId == Guid.Empty ? "NotSubmitted" : "Submitted", System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            return commandId;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "{Component}.{Method} failed; PortfolioId={PortfolioId}; TradeId={TradeId}; Quantity={Quantity}; OrderPrice={OrderPrice}",
+                nameof(BrokerManualTradeOrderViewModel), nameof(SubmitAsync), _portfolioId, _trade.TradeId, quantity, signedNetDebitLimit);
+            throw;
+        }
+    }
+
+    async Task<Guid> SubmitCoreAsync(int quantity, decimal signedNetDebitLimit,
         ITradeOrderConfirmationService confirmationService, CancellationToken cancellationToken = default)
     {
         if (_portfolioId <= 0)
@@ -313,6 +338,14 @@ public sealed class BrokerManualTradeOrderViewModel
                 }.ToPortfolioComponent()
             ],
             RequiredCapital = maximumLoss,
+            DecisionEvidence = TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketDecisionEvidence.CaptureJson("BrokerTradeScreen/v1", new
+            {
+                UnderlyingContract = _baseContract, TradeType = _trade.TradeType, SelectedLegs = legs,
+                SelectedQuoteInputsJson = _selectedQuoteInputs, Quantity = quantity, OrderPrice = limit,
+                RequiredCapital = maximumLoss, MaximumLoss = maximumLoss, Notional = notional,
+                Deployment = assignment.TradeStrategyFamily!.CatalogDeployment, BrokerOrderType = _brokerOrderType,
+                BrokerAlgorithm = _brokerAlgorithm, TimeInForce = _timeInForce, AlgorithmPace = _algorithmPace
+            }, now),
             EvidenceHash = hash,
             DeploymentKey = assignment.TradeStrategyFamily!.CatalogDeployment!,
             MaximumLoss = maximumLoss,

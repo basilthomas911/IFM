@@ -198,7 +198,7 @@ public sealed class FuturesEodDataBaselineContractTests
     /// while its nested trade snapshot evolves.
     /// </summary>
     [Fact]
-    public void FuturesMarketPriceUpdatedEvent_MessagePackKeys_AreFrozenAtZeroThroughEleven()
+    public void FuturesMarketPriceUpdatedEvent_MessagePackKeys_PreserveExistingKeysAndAppendSourceTrade()
     {
         MessagePackKeys<FuturesMarketPriceUpdatedRealtimeEvent>().Should().BeEquivalentTo(
             new Dictionary<string, int>
@@ -214,7 +214,8 @@ public sealed class FuturesEodDataBaselineContractTests
                 [nameof(FuturesMarketPriceUpdatedRealtimeEvent.SchemaVersion)] = 8,
                 [nameof(FuturesMarketPriceUpdatedRealtimeEvent.Price)] = 9,
                 [nameof(FuturesMarketPriceUpdatedRealtimeEvent.UpdateSource)] = 10,
-                [nameof(FuturesMarketPriceUpdatedRealtimeEvent.VwapCheckpoint)] = 11
+                [nameof(FuturesMarketPriceUpdatedRealtimeEvent.VwapCheckpoint)] = 11,
+                [nameof(FuturesMarketPriceUpdatedRealtimeEvent.SourceTrade)] = 12
             });
     }
 

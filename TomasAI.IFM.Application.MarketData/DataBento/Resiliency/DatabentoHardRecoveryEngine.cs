@@ -70,14 +70,14 @@ public sealed class DatabentoHardRecoveryEngine
             var attemptId = Guid.NewGuid();
             var startedUtc = time.GetUtcNow();
             var started = time.GetTimestamp();
-            logger.LogWarning("Databento hard recovery attempt starting. CorrelationId={CorrelationId}; AttemptId={AttemptId}; Attempt={Attempt}", request.CorrelationId, attemptId, number);
+            logger.LogWarning("{Component}.{Method} "+"Databento hard recovery attempt starting. CorrelationId={CorrelationId}; AttemptId={AttemptId}; Attempt={Attempt}",nameof(DatabentoHardRecoveryEngine),nameof(ExecuteAsync),request.CorrelationId,attemptId,number);
             try
             {
                 operation = attempt(number, deadline.Token);
                 var outcome = await operation.WaitAsync(deadline.Token).ConfigureAwait(false);
                 evidence.Add(ToEvidence(number, attemptId, startedUtc,
                     time.GetElapsedTime(started), outcome));
-                logger.LogWarning("Databento hard recovery attempt completed. CorrelationId={CorrelationId}; AttemptId={AttemptId}; Attempt={Attempt}; Succeeded={Succeeded}; SafeToRetry={SafeToRetry}; Stage={Stage}; ElapsedMs={ElapsedMs}", request.CorrelationId, attemptId, number, outcome.Succeeded, outcome.SafeToRetry, outcome.Stage, time.GetElapsedTime(started).TotalMilliseconds);
+                logger.LogWarning("{Component}.{Method} "+"Databento hard recovery attempt completed. CorrelationId={CorrelationId}; AttemptId={AttemptId}; Attempt={Attempt}; Succeeded={Succeeded}; SafeToRetry={SafeToRetry}; Stage={Stage}; ElapsedMs={ElapsedMs}",nameof(DatabentoHardRecoveryEngine),nameof(ExecuteAsync),request.CorrelationId,attemptId,number,outcome.Succeeded,outcome.SafeToRetry,outcome.Stage,time.GetElapsedTime(started).TotalMilliseconds);
                 if (outcome.Succeeded)
                 {
                     if (outcome.Workers.Count == 0
@@ -105,7 +105,7 @@ public sealed class DatabentoHardRecoveryEngine
             }
             catch (Exception exception)
             {
-                logger.LogCritical(exception, "Databento hard recovery attempt threw. CorrelationId={CorrelationId}; AttemptId={AttemptId}; Attempt={Attempt}", request.CorrelationId, attemptId, number);
+                logger.LogCritical(exception,"{Component}.{Method} "+"Databento hard recovery attempt threw. CorrelationId={CorrelationId}; AttemptId={AttemptId}; Attempt={Attempt}",nameof(DatabentoHardRecoveryEngine),nameof(ExecuteAsync),request.CorrelationId,attemptId,number);
                 ObserveLateFailure(operation);
                 // A throwing or non-cooperative attempt has not proved worker isolation.
                 evidence.Add(new DatabentoHardAttemptEvidence(number, false, "AttemptBoundary",

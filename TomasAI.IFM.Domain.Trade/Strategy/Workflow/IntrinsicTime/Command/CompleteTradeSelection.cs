@@ -30,8 +30,7 @@ public static class CompleteTradeSelection
             current.CurrentStage != StrategyWorkflowStage.TradeSelection ||
             current.TradeSelection.SourceEventId == command.SourceEventId)
         {
-            context.Logger.LogWarning("Stale or duplicate workflow terminal command {CommandName} ignored for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-                command.CommandName, command.Subject.EntityId, current?.WorkflowId, current?.WorkflowRevision);
+            context.Logger.LogWarning("{Component}.{Method} "+"Stale or duplicate workflow terminal command {CommandName} ignored for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",nameof(CompleteTradeSelection),nameof(Execute),                command.CommandName,command.Subject.EntityId,current?.WorkflowId,current?.WorkflowRevision);
             return Ok(command);
         }
         var now = context.TimeProvider.GetUtcNow().UtcDateTime;
@@ -56,8 +55,7 @@ public static class CompleteTradeSelection
                 }
             };
             AppendSnapshot(state, command, current.Status, timedOut, now);
-            context.Logger.LogWarning("Workflow deadline took precedence for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-                command.Subject.EntityId, timedOut.WorkflowId, timedOut.WorkflowRevision);
+            context.Logger.LogWarning("{Component}.{Method} "+"Workflow deadline took precedence for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",nameof(CompleteTradeSelection),nameof(Execute),                command.Subject.EntityId,timedOut.WorkflowId,timedOut.WorkflowRevision);
             return Ok(command);
         }
         TradeSelectionResult result;

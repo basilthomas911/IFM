@@ -35,8 +35,7 @@ public sealed class FuturesRolloverPreparationHostedService(
             }
             catch (Exception exception)
             {
-                logger.LogError(exception,
-                    "Futures rollover preparation failed; the previous coherent assignment remains active and preparation will retry.");
+                logger.LogError(exception,                    "{Component}.{Method} "+"Futures rollover preparation failed; the previous coherent assignment remains active and preparation will retry.",nameof(FuturesRolloverPreparationHostedService),nameof(ExecuteAsync));
                 await ReportAsync(
                     $"Futures rollover preparation failed and will retry: {Bound(exception.Message)}",
                     errorCode: 10031).ConfigureAwait(false);
@@ -64,8 +63,7 @@ public sealed class FuturesRolloverPreparationHostedService(
         await rolloverCheck.ExecuteAsync(target, cancellationToken).ConfigureAwait(false);
         _completedTarget = target;
         logger.LogInformation(
-            "Futures rollover preparation qualified for effective value date {ValueDate}.",
-            target);
+            "{Component}.{Method} "+"Futures rollover preparation qualified for effective value date {ValueDate}.",nameof(FuturesRolloverPreparationHostedService),nameof(EvaluateAsync),            target);
         await ReportAsync(
             $"Futures rollover preparation qualified for effective value date {target:yyyy-MM-dd}.",
             errorCode: null).ConfigureAwait(false);
@@ -84,8 +82,7 @@ public sealed class FuturesRolloverPreparationHostedService(
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception,
-                "Unable to publish futures rollover preparation status to the System Console.");
+            logger.LogWarning(exception,                "{Component}.{Method} "+"Unable to publish futures rollover preparation status to the System Console.",nameof(FuturesRolloverPreparationHostedService),nameof(ReportAsync));
         }
     }
 

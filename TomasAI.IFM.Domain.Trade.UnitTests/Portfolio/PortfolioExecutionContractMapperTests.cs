@@ -14,6 +14,7 @@ public sealed class PortfolioExecutionContractMapperTests
         {
             Id = new(11, 17, 23),
             Revision = 4,
+            DecisionEvidence = TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketDecisionEvidence.CaptureJson("test", new { LastPrice = 6400.25m, Quantity = 2 }, DateTime.UtcNow),
             Status = PortfolioExecutionOrderStatus.Approved,
             ValueDate = new(2026, 9, 21),
             ValidUntilUtc = new(2026, 9, 21, 18, 0, 0, DateTimeKind.Utc),
@@ -60,7 +61,10 @@ public sealed class PortfolioExecutionContractMapperTests
         };
 
         var tradeOrder = instruction.ToTradeOrder();
-        var roundTrip = tradeOrder.ToPortfolioInstruction();
+        var restored = MessagePack.MessagePackSerializer.Deserialize<TradeOrderDefinition>(MessagePack.MessagePackSerializer.Serialize(tradeOrder));
+        restored.DecisionEvidence.Should().Be(instruction.DecisionEvidence);
+        restored.DecisionEvidence!.IsValid.Should().BeTrue();
+        var roundTrip = restored.ToPortfolioInstruction();
 
         tradeOrder.Id.Should().Be(new TradeOrderId(11, 17, 23));
         tradeOrder.TargetPositionId!.Value.Trade.TradeId.Should().Be(29);

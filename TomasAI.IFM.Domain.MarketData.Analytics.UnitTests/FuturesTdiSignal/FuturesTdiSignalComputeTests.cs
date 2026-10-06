@@ -8,6 +8,22 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesTdiSignal;
 public sealed class FuturesTdiSignalComputeTests
 {
     [Fact]
+    public void Create_OvernightWindow_UsesSourceChronologyInsteadOfTimeOfDay()
+    {
+        var start = new DateTime(2026, 10, 5, 22, 30, 0, DateTimeKind.Utc);
+        var signals = CreateRsiSeries(40d, 34).Select((signal, index) => signal with
+        {
+            ValueDate = new(2026, 10, 6),
+            SourceEventTimestamp = start.AddMinutes(5 * index),
+            Timestamp = TimeOnly.FromDateTime(start.AddMinutes(5 * index))
+        }).Reverse().ToArray();
+        FuturesTdiSignalCompute.Create(signals, null, FuturesTdiConfiguration.Standard, out var result).Should().BeTrue();
+        result!.CurrentRsiSignal.RSI.Should().Be(73d);
+        result.PriceLine.Should().BeApproximately(72.5d, 1e-12);
+        result.MarketBaseLine.Should().BeApproximately(56.5d, 1e-12);
+    }
+
+    [Fact]
     public void Create_StandardConfiguration_ComputesOriginalTdiLinesAndBands()
     {
         var signals = CreateRsiSeries(40d, 34);

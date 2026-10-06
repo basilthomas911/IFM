@@ -157,8 +157,7 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
         workflow.PortfolioId = portfolioId;
         workflow.Activations = [.. activationReferences];
 
-        logger.LogInformation("Development paper Portfolio {PortfolioId} is ready with {FundCount} Funds, {DeploymentCount} published deployments and {Capital} {Currency} separately posted capital",
-            portfolioId, fundMap.Count, catalog.Deployments.Length, options.DevelopmentCapital, options.Currency);
+        logger.LogInformation("{Component}.{Method} "+"Development paper Portfolio {PortfolioId} is ready with {FundCount} Funds, {DeploymentCount} published deployments and {Capital} {Currency} separately posted capital",nameof(DevelopmentTradingPortfolioProvisioner),nameof(EnsureAsync),            portfolioId,fundMap.Count,catalog.Deployments.Length,options.DevelopmentCapital,options.Currency);
         return new(portfolioId, policy.PolicyId, fundMap, options.DevelopmentCapital, catalog.Deployments.Length, created, true);
     }
 

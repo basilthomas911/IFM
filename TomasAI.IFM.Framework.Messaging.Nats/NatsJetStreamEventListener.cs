@@ -85,10 +85,7 @@ public sealed class NatsJetStreamEventListener(
 
             _state = EventListenerState.Running;
             _logger.LogInformationEvent(
-                ServiceId,
-                "JetStream event listener {EventListenerId} started with {MailboxCount} durable consumers.",
-                eventListenerId,
-                _mailboxes.Count);
+                ServiceId,                "{Component}.{Method} "+"JetStream event listener {EventListenerId} started with {MailboxCount} durable consumers.",nameof(NatsJetStreamEventListener),nameof(StartAsync),                eventListenerId,                _mailboxes.Count);
         }
         catch
         {
@@ -127,10 +124,7 @@ public sealed class NatsJetStreamEventListener(
             }
             _state = EventListenerState.Stopped;
             _logger.LogInformationEvent(
-                ServiceId,
-                "JetStream event listener {EventListenerId} stopped after {MessageCount} deliveries.",
-                _eventListenerId,
-                MessageCount);
+                ServiceId,                "{Component}.{Method} "+"JetStream event listener {EventListenerId} stopped after {MessageCount} deliveries.",nameof(NatsJetStreamEventListener),nameof(StopAsync),                _eventListenerId,                MessageCount);
         }
         finally
         {
@@ -261,10 +255,7 @@ public sealed class NatsJetStreamEventListener(
                 {
                     NatsMessagingMetrics.DispatchFailures.Add(1);
                     _logger.LogErrorEvent(
-                        ServiceId,
-                        exception,
-                        "JetStream event listener {EventListenerId} failed before handler admission.",
-                        _eventListenerId);
+                        ServiceId,                        exception,                        "{Component}.{Method} "+"JetStream event listener {EventListenerId} failed before handler admission.",nameof(NatsJetStreamEventListener),nameof(ConsumeAsync),                        _eventListenerId);
                     await TryNegativeAcknowledgeAsync(message).ConfigureAwait(false);
                 }
             }
@@ -279,10 +270,7 @@ public sealed class NatsJetStreamEventListener(
         {
             NatsMessagingMetrics.DispatchFailures.Add(1);
             _logger.LogErrorEvent(
-                ServiceId,
-                exception,
-                "JetStream event listener {EventListenerId} consumer loop stopped unexpectedly.",
-                _eventListenerId);
+                ServiceId,                exception,                "{Component}.{Method} "+"JetStream event listener {EventListenerId} consumer loop stopped unexpectedly.",nameof(NatsJetStreamEventListener),nameof(ConsumeAsync),                _eventListenerId);
         }
     }
 
@@ -308,10 +296,7 @@ public sealed class NatsJetStreamEventListener(
             {
                 NatsMessagingMetrics.DispatchFailures.Add(1);
                 _logger.LogErrorEvent(
-                    ServiceId,
-                    exception,
-                    "JetStream event listener {EventListenerId} handler failed; delivery will be retried.",
-                    _eventListenerId);
+                    ServiceId,                    exception,                    "{Component}.{Method} "+"JetStream event listener {EventListenerId} handler failed; delivery will be retried.",nameof(NatsJetStreamEventListener),nameof(DispatchLoopAsync),                    _eventListenerId);
                 await TryNegativeAcknowledgeAsync(delivery.Message).ConfigureAwait(false);
             }
             finally
@@ -396,9 +381,7 @@ public sealed class NatsJetStreamEventListener(
         catch (Exception exception)
         {
             _logger.LogWarning(
-                exception,
-                "JetStream event listener {EventListenerId} could not send a negative acknowledgement; the ACK timeout will preserve redelivery.",
-                _eventListenerId);
+                exception,                "{Component}.{Method} "+"JetStream event listener {EventListenerId} could not send a negative acknowledgement; the ACK timeout will preserve redelivery.",nameof(NatsJetStreamEventListener),nameof(TryNegativeAcknowledgeAsync),                _eventListenerId);
         }
     }
 

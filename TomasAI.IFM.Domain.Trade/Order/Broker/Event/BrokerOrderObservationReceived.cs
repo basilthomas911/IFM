@@ -33,9 +33,7 @@ public static class BrokerOrderObservationReceived
         }
         catch (Exception exception)
         {
-            logger.LogError(exception,
-                "Broker order observation handoff failed for {EventId}, {CommandId}, {EntityId}.",
-                received.Id, received.CommandId, received.EntityId);
+            logger.LogError(exception,                "{Component}.{Method} "+"Broker order observation handoff failed for {EventId}, {CommandId}, {EntityId}.",nameof(BrokerOrderObservationReceived),nameof(ExecuteAsync),                received.Id,received.CommandId,received.EntityId);
             throw;
         }
     }

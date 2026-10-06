@@ -29,8 +29,7 @@ public static class CancelIntrinsicTimeStrategyWorkflow
             current.WorkflowRevision != command.ExpectedWorkflowRevision)
         {
             context.Logger.LogWarning(
-                "Stale or duplicate workflow terminal command {CommandName} ignored for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-                command.CommandName, command.Subject.EntityId, current?.WorkflowId, current?.WorkflowRevision);
+                "{Component}.{Method} "+"Stale or duplicate workflow terminal command {CommandName} ignored for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",nameof(CancelIntrinsicTimeStrategyWorkflow),nameof(Execute),                command.CommandName,command.Subject.EntityId,current?.WorkflowId,current?.WorkflowRevision);
             return Ok(command);
         }
 

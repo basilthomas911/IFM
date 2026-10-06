@@ -10,6 +10,7 @@ public sealed class TradeSchemaDb(IDbConnectionSettings connectionSettings, ILog
 {
     static readonly SchemaObjectDefinition[] Objects =
     [
+        new("broker_account_read_model", "CREATE TABLE IF NOT EXISTS broker_account_read_model (account_alias text, revision bigint, account_definition blob, PRIMARY KEY (account_alias, revision)) WITH CLUSTERING ORDER BY (revision DESC);", "DROP TABLE IF EXISTS broker_account_read_model;"),
         new("trade_order", TradeFlowSchemaCql.TradeOrder, "DROP TABLE IF EXISTS trade_order;"),
         new("order_execution", TradeFlowSchemaCql.OrderExecution, "DROP TABLE IF EXISTS order_execution;"),
         new("order_execution_fill", TradeFlowSchemaCql.ExecutionFill, "DROP TABLE IF EXISTS order_execution_fill;"),

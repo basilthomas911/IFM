@@ -28,7 +28,9 @@ public sealed class UiServiceBoundaryTests
         "MarketData/YieldCurveRateEditorViewModel.cs",
         "Operations/FuturesItiSignalEventRow.cs", "Operations/StrategyWorkflowPresentation.cs",
         "Portfolio/PortfolioAdministrationViewModel.cs",
-        "Trade/BrokerManualTradeOrderViewModel.cs", "Trade/EndOfDayProcessViewModel.cs",
+        "Trade/BrokerManualTradeOrderViewModel.cs",
+        // Aggregates backend reads for the New Trade draft; selection and quantity edits remain local.
+        "Trade/BrokerTradeInitializationQuery.cs", "Trade/EndOfDayProcessViewModel.cs",
         "Trade/IronCondor/IronCondorTradeInfoViewModel.cs",
         "Trade/IronCondor/IronCondorTradeOrderViewModel.cs",
         "Trade/IronCondor/IronCondorViewModel.cs", "Trade/TradeOrderConfirmationViewModel.cs",

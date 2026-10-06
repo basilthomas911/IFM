@@ -268,6 +268,14 @@ public sealed class ActorThreadQueues(
         }
     }
 
+    /// <summary>Preserves accepted work while preventing new admission after lifecycle failure.</summary>
+    public void QuarantineAdmission(ActorThreadId threadId)
+    {
+        PauseAdmission(threadId);
+        if (_metrics is not null && _threadQueues.TryGetValue(threadId, out var queue))
+            _metrics.GetOrRegister(threadId, queue).SetLifecycle(ActorMailboxLifecycleState.Quarantined);
+    }
+
     public void ResumeAdmission(ActorThreadId threadId)
     {
         _paused.TryRemove(threadId, out _);

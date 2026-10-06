@@ -175,6 +175,7 @@ public abstract class BaseEventSourceCommandActor<TActor>(
         ActorThreadId threadId,
         CancellationToken cancellationToken)
     {
+        var operationStarted = System.Diagnostics.Stopwatch.GetTimestamp();
         ICommand command = default!;
         int errorCode = 9998;
         ServiceResult<GuidResult> result;
@@ -365,6 +366,17 @@ public abstract class BaseEventSourceCommandActor<TActor>(
         }
 
     Reply:
+        if (!result.Success)
+            TomasAI.IFM.Shared.Telemetry.StructuredOperationLogging.CommandRejected(_logger,
+                Id.Name, nameof(HandleMessageAsync), command?.CommandId ?? Guid.Empty,
+                command?.CommandName ?? "Unparsed", message.Subject, result.ErrorCode,
+                result.ErrorMessage, activeStage,
+                System.Diagnostics.Stopwatch.GetElapsedTime(operationStarted).TotalMilliseconds);
+        else if (System.Diagnostics.Stopwatch.GetElapsedTime(operationStarted).TotalMilliseconds >= 250)
+            TomasAI.IFM.Shared.Telemetry.StructuredOperationLogging.CommandResult(_logger,
+                Id.Name, nameof(HandleMessageAsync), command.CommandId, command.CommandName,
+                message.Subject, "Succeeded", result.ErrorCode, activeStage,
+                System.Diagnostics.Stopwatch.GetElapsedTime(operationStarted).TotalMilliseconds);
         /// reply with the result...
         activeStage = ActorRuntimeMetrics.ReplyStage;
         var replyStarted = ActorRuntimeMetrics.StartStage();

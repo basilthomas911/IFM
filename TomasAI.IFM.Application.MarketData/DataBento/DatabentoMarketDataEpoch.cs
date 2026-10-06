@@ -1,4 +1,4 @@
-﻿using System.Collections.Frozen;
+using System.Collections.Frozen;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Contracts;
@@ -835,6 +835,9 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                         detail.Ticker)),
             Exchange = detail.Exchange,
             ContractMultiplier = detail.ContractMultiplier ?? 1,
+            TickSize = detail.MinimumPriceIncrement is > 0 and < long.MaxValue
+                ? detail.MinimumPriceIncrement.Value / 1_000_000_000m
+                : null,
             MaturityDate = detail.MaturityDate ?? ValueDate,
             IsOnTheRun = resolved.Futures?.OnTheRun ?? true,
             StrikePrice = detail.StrikePrice is { } strike

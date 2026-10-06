@@ -8,6 +8,7 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 /// <summary>Settles rejected Core NATS deliveries without inspecting their payload type.</summary>
 internal static class NatsTransportOverload
 {
+    static readonly TomasAI.IFM.Shared.Telemetry.RepeatedLogGate<(ActorSubject, ActorAdmissionReason)> OptionalDropLogs = new(TimeSpan.FromSeconds(5));
     internal const string RetryableMessage =
         "Actor capacity is temporarily unavailable. Retry the request.";
 
@@ -41,10 +42,7 @@ internal static class NatsTransportOverload
                     NatsMessagingMetrics.RecordOverloadReply(actorType, "failed");
                     NatsMessagingMetrics.DispatchFailures.Add(1);
                     logger.LogError(
-                        exception,
-                        "Failed to reply to rejected Core NATS request for {Subject}; reason={Reason}.",
-                        message.Subject.ToString(),
-                        reason.ToStringFast());
+                        exception,                        "{Component}.{Method} "+"Component=NatsTransportOverload Method=SettleCoreRejectionAsync Failed to reply to rejected Core NATS request for {Subject}; reason={Reason}.",nameof(NatsTransportOverload),nameof(SettleCoreRejectionAsync),                        message.Subject.ToString(),                        reason.ToStringFast());
                 }
                 return;
             }
@@ -52,21 +50,15 @@ internal static class NatsTransportOverload
             if (trafficClass == CoreNatsTrafficClass.Optional)
             {
                 NatsMessagingMetrics.RecordOptionalDrop(actorType, trafficClass);
-                logger.LogWarning(
-                    "Dropped explicitly classified Core NATS traffic for {Subject}; class={TrafficClass}, reason={Reason}.",
-                    message.Subject.ToString(),
-                    trafficClass,
-                    reason.ToStringFast());
+                if (logger.IsEnabled(LogLevel.Warning) && OptionalDropLogs.ShouldLog((message.Subject, reason), out var suppressedCount))
+                    NatsTransportLogging.OptionalDrop(logger, message.Subject, trafficClass, reason, suppressedCount);
                 return;
             }
 
             NatsMessagingMetrics.DispatchFailures.Add(1);
             logger.LogError(
-                "Rejected Core NATS traffic for {Subject} without a reply subject; class={TrafficClass}, reason={Reason}. "
-                + "Enforcement configuration must prevent this required or unknown traffic path.",
-                message.Subject.ToString(),
-                trafficClass,
-                reason.ToStringFast());
+                "{Component}.{Method} "+"Component=NatsTransportOverload Method=SettleCoreRejectionAsync Rejected Core NATS traffic for {Subject} without a reply subject; class={TrafficClass}, reason={Reason}. "
+                + "Enforcement configuration must prevent this required or unknown traffic path.",nameof(NatsTransportOverload),nameof(SettleCoreRejectionAsync),                message.Subject.ToString(),                trafficClass,                reason.ToStringFast());
         }
         finally
         {

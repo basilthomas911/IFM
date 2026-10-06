@@ -119,4 +119,7 @@ public sealed record PortfolioExecutionOrderInstruction
     private string timeInForce = "Day";
     [Key(24)] public string AlgorithmPace { get => algorithmPace; init => algorithmPace = string.IsNullOrEmpty(value) ? "Normal" : value; }
     private string algorithmPace = "Normal";
+    /// <summary>Exact immutable market inputs accepted for this financial decision.</summary>
+    [Key(25)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketDecisionEvidence? DecisionEvidence { get; init; }
 }

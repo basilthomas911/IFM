@@ -199,7 +199,17 @@ public sealed class AwsImmutablePublicationTests
                 ChecksumSHA256 = call.Arg<UploadPartRequest>().ChecksumSHA256
             });
         s3.CompleteMultipartUploadAsync(Arg.Any<CompleteMultipartUploadRequest>(), Arg.Any<CancellationToken>())
-            .Returns(new CompleteMultipartUploadResponse { VersionId = "version-multipart", ChecksumSHA256 = Convert.ToBase64String(hash) });
+            .Returns(call =>
+            {
+                var request = call.Arg<CompleteMultipartUploadRequest>();
+                var wire = Amazon.S3.Model.Internal.MarshallTransformations.CompleteMultipartUploadRequestMarshaller.Instance.Marshall(request);
+                wire.ContentStream.Position = 0;
+                var xml = System.Xml.Linq.XDocument.Load(wire.ContentStream);
+                var checksums = xml.Descendants().Where(element => element.Name.LocalName == "ChecksumSHA256").Select(element => element.Value).ToArray();
+                checksums.Should().Equal(request.PartETags.Select(part => part.ChecksumSHA256));
+                checksums.Should().HaveCount(2).And.NotContainNulls().And.OnlyContain(value => !string.IsNullOrWhiteSpace(value));
+                return new CompleteMultipartUploadResponse { VersionId = "version-multipart", ChecksumSHA256 = Convert.ToBase64String(hash) };
+            });
         ConfigureReadBack(s3, options, content, "version-multipart", DateTimeOffset.UtcNow.AddDays(35));
         var store = new S3ImmutableObjectStore(s3, options, TimeProvider.System);
 
@@ -234,6 +244,68 @@ public sealed class AwsImmutablePublicationTests
         s3.ReceivedCalls().Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Retry_reuses_exact_verified_version_and_rejects_changed_source(bool changed)
+    {
+        var original = "retained backup artifact"u8.ToArray();
+        var source = original.ToArray();
+        if (changed) source[0] ^= 0xff;
+        var options = Options();
+        var key = new AwsGeneratedObjectKey("v1/environment/development/test/retry");
+        var s3 = Substitute.For<IAmazonS3>();
+        s3.ListVersionsAsync(Arg.Any<ListVersionsRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new ListVersionsResponse { Versions = [new S3ObjectVersion { Key = key.Value, VersionId = "retained-version" }] });
+        ConfigureReadBack(s3, options, original, "retained-version", DateTimeOffset.UtcNow.AddDays(35));
+        var store = new S3ImmutableObjectStore(s3, options, TimeProvider.System);
+        var retry = () => store.UploadAsync(key,
+            _ => ValueTask.FromResult<Stream>(new MemoryStream(source, writable: false)), source.LongLength,
+            DateTimeOffset.UtcNow.AddDays(35), new Dictionary<string, string>(), CancellationToken.None).AsTask();
+        if (changed) await retry.Should().ThrowAsync<InvalidDataException>();
+        else (await retry()).VersionId.Should().Be("retained-version");
+        await s3.DidNotReceive().PutObjectAsync(Arg.Any<PutObjectRequest>(), Arg.Any<CancellationToken>());
+        await s3.DidNotReceive().InitiateMultipartUploadAsync(Arg.Any<InitiateMultipartUploadRequest>(), Arg.Any<CancellationToken>());
+    }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Publication_retry_preserves_original_policy_clock_and_rejects_short_retention(bool shortened)
+    {
+        var options = Options();
+        var originalStart = DateTimeOffset.UtcNow.AddHours(-1);
+        var originalDeadline = originalStart.AddDays(options.DefaultRetentionDays);
+        var content = "first verified artifact"u8.ToArray();
+        var key = new AwsGeneratedObjectKey("v1/environment/development/test/retention-retry");
+        var s3 = Substitute.For<IAmazonS3>();
+        s3.ListVersionsAsync(Arg.Any<ListVersionsRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new ListVersionsResponse { Versions = [new S3ObjectVersion { Key = key.Value, VersionId = "original-version" }] });
+        ConfigureReadBack(s3, options, content, "original-version", originalDeadline);
+        s3.GetObjectMetadataAsync(Arg.Any<GetObjectMetadataRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new GetObjectMetadataResponse
+            {
+                VersionId = "original-version", ContentLength = content.LongLength, LastModified = originalStart.UtcDateTime,
+                ServerSideEncryptionMethod = ServerSideEncryptionMethod.AWSKMS,
+                ServerSideEncryptionKeyManagementServiceKeyId = options.PrimaryEncryptionKeyArn,
+                ObjectLockMode = ObjectLockMode.Governance,
+                ObjectLockRetainUntilDate = (shortened ? originalStart.AddDays(1) : originalDeadline).UtcDateTime,
+                ChecksumSHA256 = Convert.ToBase64String(SHA256.HashData(content))
+            });
+        var store = new S3ImmutableObjectStore(s3, options, TimeProvider.System);
+        var resolve = () => store.ResolvePublicationRetentionAsync(key, CancellationToken.None).AsTask();
+        if (shortened) await resolve.Should().ThrowAsync<InvalidDataException>();
+        else
+        {
+            var retention = await resolve();
+            retention.RetainUntilUtc.Should().Be(originalDeadline);
+            var result = await store.UploadAsync(key,
+                _ => ValueTask.FromResult<Stream>(new MemoryStream(content)), content.LongLength,
+                retention.RetainUntilUtc, new Dictionary<string, string>(), CancellationToken.None, retention.StartedUtc);
+            result.RetainUntilUtc.Should().Be(originalDeadline);
+            result.VersionId.Should().Be("original-version");
+        }
+        await s3.DidNotReceive().PutObjectAsync(Arg.Any<PutObjectRequest>(), Arg.Any<CancellationToken>());
+    }
     static void ConfigureReadBack(
         IAmazonS3 s3, AwsCloudDatabaseBackupOptions options, byte[] content,
         string versionId, DateTimeOffset retainUntil)
@@ -242,6 +314,7 @@ public sealed class AwsImmutablePublicationTests
             .Returns(new GetObjectMetadataResponse
             {
                 ContentLength = content.LongLength,
+                LastModified = DateTime.UtcNow,
                 VersionId = versionId,
                 ServerSideEncryptionMethod = ServerSideEncryptionMethod.AWSKMS,
                 ServerSideEncryptionKeyManagementServiceKeyId = options.PrimaryEncryptionKeyArn,
@@ -254,6 +327,7 @@ public sealed class AwsImmutablePublicationTests
             {
                 ResponseStream = new MemoryStream(content, writable: false),
                 ContentLength = content.LongLength,
+                LastModified = DateTime.UtcNow,
                 VersionId = versionId
             });
     }

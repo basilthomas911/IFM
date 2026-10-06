@@ -19,19 +19,40 @@ public sealed class S3ImmutableObjectStore(
         long length,
         DateTimeOffset retainUntilUtc,
         IReadOnlyDictionary<string, string> encryptionContext,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        DateTimeOffset? policyStartedUtc = null)
     {
         if (length < 0) throw new ArgumentOutOfRangeException(nameof(length));
-        if (retainUntilUtc < timeProvider.GetUtcNow().AddDays(options.DefaultRetentionDays).AddMinutes(-5))
+        if (retainUntilUtc <= timeProvider.GetUtcNow() || retainUntilUtc < (policyStartedUtc ?? timeProvider.GetUtcNow()).AddDays(options.DefaultRetentionDays).AddMinutes(-5))
             throw new InvalidOperationException("The immutable object retention is shorter than configured policy.");
         var context = Convert.ToBase64String(Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(
             encryptionContext.OrderBy(static value => value.Key, StringComparer.Ordinal).ToDictionary())));
-        await RejectExistingKeyAsync(key, cancellationToken).ConfigureAwait(false);
+        var existingVersion = await FindExistingVersionAsync(key, cancellationToken).ConfigureAwait(false);
         await using var source = await openSource(cancellationToken).ConfigureAwait(false);
         if (!source.CanRead) throw new InvalidOperationException("The immutable object source stream is unreadable.");
         var sha256 = await HashAsync(source, cancellationToken).ConfigureAwait(false);
         if (source.CanSeek) source.Position = 0;
         else throw new InvalidOperationException("The immutable upload source must be seekable for read-back-safe publication.");
+
+        if (existingVersion is not null)
+        {
+            var metadata = await s3.GetObjectMetadataAsync(new GetObjectMetadataRequest
+            {
+                BucketName = options.PrimaryBucketName, Key = key.Value, VersionId = existingVersion.VersionId,
+                ChecksumMode = ChecksumMode.ENABLED
+            }, cancellationToken).ConfigureAwait(false);
+            if (metadata.ObjectLockRetainUntilDate is not { } retainedUntil || metadata.LastModified is not { } createdUtc
+                || retainedUntil.ToUniversalTime() <= timeProvider.GetUtcNow().UtcDateTime
+                || retainedUntil.ToUniversalTime() < retainUntilUtc.UtcDateTime.AddSeconds(-1))
+                throw new InvalidDataException("The existing immutable version does not satisfy its original retention policy.");
+            var recovered = Descriptor(key, existingVersion.VersionId, length, sha256, metadata.ChecksumSHA256,
+                new DateTimeOffset(retainedUntil.ToUniversalTime()), context) with
+            { PublishedUtc = new DateTimeOffset(createdUtc.ToUniversalTime()) };
+            // Verify the exact version against the current source bytes, KMS key, checksum and lock policy.
+            // An exact retry reuses that version; conflicting content never creates another version.
+            await VerifyAsync(recovered, cancellationToken).ConfigureAwait(false);
+            return recovered;
+        }
 
         var result = length < options.MultipartThresholdBytes
             ? await UploadSingleAsync(key, source, length, sha256, retainUntilUtc, context, cancellationToken).ConfigureAwait(false)
@@ -40,6 +61,27 @@ public sealed class S3ImmutableObjectStore(
         return result;
     }
 
+    /// <summary>Recovers the original publication policy clock from its first immutable artifact.</summary>
+    public async ValueTask<(DateTimeOffset StartedUtc, DateTimeOffset RetainUntilUtc)> ResolvePublicationRetentionAsync(
+        AwsGeneratedObjectKey firstArtifactKey, CancellationToken cancellationToken)
+    {
+        var existing = await FindExistingVersionAsync(firstArtifactKey, cancellationToken).ConfigureAwait(false);
+        var now = timeProvider.GetUtcNow();
+        if (existing is null) return (now, now.AddDays(options.DefaultRetentionDays));
+        var metadata = await s3.GetObjectMetadataAsync(new GetObjectMetadataRequest
+        {
+            BucketName = options.PrimaryBucketName, Key = firstArtifactKey.Value, VersionId = existing.VersionId,
+            ChecksumMode = ChecksumMode.ENABLED
+        }, cancellationToken).ConfigureAwait(false);
+        if (metadata.LastModified is not { } created || metadata.ObjectLockRetainUntilDate is not { } retained
+            || metadata.ServerSideEncryptionKeyManagementServiceKeyId != options.PrimaryEncryptionKeyArn
+            || metadata.ServerSideEncryptionMethod != ServerSideEncryptionMethod.AWSKMS
+            || !StringComparer.OrdinalIgnoreCase.Equals(metadata.ObjectLockMode?.Value, options.ObjectLockMode)
+            || retained.ToUniversalTime() <= now.UtcDateTime
+            || retained.ToUniversalTime() < created.ToUniversalTime().AddDays(options.DefaultRetentionDays).AddMinutes(-5))
+            throw new InvalidDataException("The first immutable artifact cannot establish the original retention policy.");
+        return (new DateTimeOffset(created.ToUniversalTime()), new DateTimeOffset(retained.ToUniversalTime()));
+    }
     public async ValueTask VerifyAsync(AwsImmutableObjectVersion expected, CancellationToken cancellationToken)
     {
         var metadata = await s3.GetObjectMetadataAsync(new GetObjectMetadataRequest
@@ -282,7 +324,7 @@ public sealed class S3ImmutableObjectStore(
         return result;
     }
 
-    async Task RejectExistingKeyAsync(AwsGeneratedObjectKey key, CancellationToken cancellationToken)
+    async Task<S3ObjectVersion?> FindExistingVersionAsync(AwsGeneratedObjectKey key, CancellationToken cancellationToken)
     {
         var response = await s3.ListVersionsAsync(new ListVersionsRequest
         {
@@ -290,8 +332,10 @@ public sealed class S3ImmutableObjectStore(
             Prefix = key.Value,
             MaxKeys = 2
         }, cancellationToken).ConfigureAwait(false);
-        if ((response.Versions ?? []).Any(version => StringComparer.Ordinal.Equals(version.Key, key.Value)))
-            throw new InvalidOperationException("Immutable AWS publication rejects reuse of an existing object key.");
+        var exact = (response.Versions ?? []).Where(version => StringComparer.Ordinal.Equals(version.Key, key.Value)).ToArray();
+        if (exact.Length > 1 || exact.Any(static version => version.IsDeleteMarker == true))
+            throw new InvalidDataException("Immutable AWS publication requires one unambiguous retained object version.");
+        return exact.SingleOrDefault();
     }
 
     async Task<string?> ResolveAmbiguousCompletionAsync(

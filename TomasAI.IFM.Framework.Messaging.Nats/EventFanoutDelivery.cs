@@ -1,4 +1,6 @@
 using NATS.Client.JetStream;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
@@ -36,12 +38,36 @@ internal sealed class EventFanoutDelivery
         INatsJSMsg<T> message,
         int destinationCount,
         TimeSpan negativeAcknowledgeDelay,
-        ActorType actorType)
+        ActorType actorType,
+        ILogger? logger = null)
         => new(
             destinationCount,
-            () => message.AckAsync(cancellationToken: CancellationToken.None),
-            () => NegativeAcknowledgeAsync(message, negativeAcknowledgeDelay, actorType),
+            () => SettleAsync(message, false, negativeAcknowledgeDelay, actorType, logger),
+            () => SettleAsync(message, true, negativeAcknowledgeDelay, actorType, logger),
             negativeAcknowledgeDelay);
+
+    static async ValueTask SettleAsync<T>(INatsJSMsg<T> message, bool negative, TimeSpan delay, ActorType actorType, ILogger? logger)
+    {
+        var started = Stopwatch.GetTimestamp();
+        try
+        {
+            if (negative) await NegativeAcknowledgeAsync(message, delay, actorType).ConfigureAwait(false);
+            else await message.AckAsync(cancellationToken: CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            if (logger is not null)
+            {
+                var metadata = message.Metadata;
+                logger.LogError(exception,
+                    "{Component}.{Method} settlement failed; Subject={Subject}; Action={Action}; Stream={Stream}; Consumer={Consumer}; StreamSequence={StreamSequence}; ConsumerSequence={ConsumerSequence}; DeliveryAttempt={DeliveryAttempt}; ElapsedMilliseconds={ElapsedMilliseconds}",
+                    nameof(EventFanoutDelivery), nameof(SettleAsync), message.Subject, negative ? "NAK" : "ACK",
+                    metadata?.Stream, metadata?.Consumer, metadata?.Sequence.Stream, metadata?.Sequence.Consumer,
+                    metadata?.NumDelivered, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            }
+            throw;
+        }
+    }
 
     static async ValueTask NegativeAcknowledgeAsync<T>(
         INatsJSMsg<T> message,

@@ -126,10 +126,7 @@ public sealed class NatsJetStreamEndOfDayMaintenance : INatsJetStreamEndOfDayMai
                 .PurgeBeforeSequenceAsync(name, checked(captured.LastSequence + 1), cancellationToken)
                 .ConfigureAwait(false);
             _logger.LogInformation(
-                "Purged {PurgedMessages} completed JetStream messages from {StreamName} through sequence {LastSequence}; stream and consumers were retained.",
-                purged,
-                name,
-                captured.LastSequence);
+                "{Component}.{Method} "+"Purged {PurgedMessages} completed JetStream messages from {StreamName} through sequence {LastSequence}; stream and consumers were retained.",nameof(NatsJetStreamEndOfDayMaintenance),nameof(PurgeCompletedMessagesAsync),                purged,                name,                captured.LastSequence);
             results.Add(new(name, captured.LastSequence, captured.Messages, purged));
         }
 

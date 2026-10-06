@@ -38,9 +38,7 @@ public sealed class RecoveryFatalOpenTelemetry : IRecoveryFatalTelemetry, IDispo
     {
         cancellationToken.ThrowIfCancellationRequested();
         logger.LogCritical(
-            "Unrecoverable Databento recovery: {Reason}; CorrelationId={CorrelationId}; ValueDate={ValueDate}; Attempts={Attempts}; FailedStage={FailedStage}; Detail={Detail}",
-            report.Reason, report.Request.CorrelationId, report.Request.ValueDate,
-            report.Result.Attempts, report.Result.FailedStage, report.Result.Detail);
+            "{Component}.{Method} "+"Unrecoverable Databento recovery: {Reason}; CorrelationId={CorrelationId}; ValueDate={ValueDate}; Attempts={Attempts}; FailedStage={FailedStage}; Detail={Detail}",nameof(RecoveryFatalOpenTelemetry),nameof(EmitAsync),            report.Reason,report.Request.CorrelationId,report.Request.ValueDate,            report.Result.Attempts,report.Result.FailedStage,report.Result.Detail);
         return Task.CompletedTask;
     }
 

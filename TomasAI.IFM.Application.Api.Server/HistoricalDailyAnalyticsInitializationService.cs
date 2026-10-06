@@ -84,11 +84,7 @@ public sealed class HistoricalDailyAnalyticsInitializationService(
                             "Market Outlook did not apply the historical EMA/Bollinger initialization.");
 
                     logger.LogInformation(
-                        "Daily EMA and Bollinger initialization completed from historical EOD data. Outcome={Outcome}; ValueDate={ValueDate}; ContractId={ContractId}; ValidSessions={ValidSessions}.",
-                        result.Outcome,
-                        valueDate,
-                        contractId,
-                        result.ValidSessionCount);
+                        "{Component}.{Method} "+"Daily EMA and Bollinger initialization completed from historical EOD data. Outcome={Outcome}; ValueDate={ValueDate}; ContractId={ContractId}; ValidSessions={ValidSessions}.",nameof(HistoricalDailyAnalyticsInitializationService),nameof(ExecuteAsync),                        result.Outcome,                        valueDate,                        contractId,                        result.ValidSessionCount);
                     initializedValueDate = valueDate;
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -98,8 +94,7 @@ public sealed class HistoricalDailyAnalyticsInitializationService(
                 catch (Exception exception)
                 {
                     logger.LogError(
-                        exception,
-                        "Daily EMA and Bollinger initialization failed; retrying in one minute.");
+                        exception,                        "{Component}.{Method} "+"Daily EMA and Bollinger initialization failed; retrying in one minute.",nameof(HistoricalDailyAnalyticsInitializationService),nameof(ExecuteAsync));
                     await Task.Delay(TimeSpan.FromMinutes(1), timeProvider, stoppingToken)
                         .ConfigureAwait(false);
                 }

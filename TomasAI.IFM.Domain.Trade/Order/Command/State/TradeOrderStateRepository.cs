@@ -15,7 +15,8 @@ public sealed class TradeOrderStateRepository(IEventSourceActorStateFactory stat
     : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger),
       IEventSourceActorStateRepository<TradeOrderCommandState>
 {
-    public ValueTask<TradeOrderCommandState> LoadStateAsync(ICommand command) => new(LoadStateAsync<TradeOrderCommandState>(command));
+    public ValueTask<TradeOrderCommandState> LoadStateAsync(ICommand command)
+        => new(LoadStateAsync<TradeOrderCommandState>(command));
     public async ValueTask SaveStateAsync(ICommandActorContext context, TradeOrderCommandState state, ICommand command) =>
         await SaveStateAndDenormalizeEventsAsync(context, state, command).ConfigureAwait(false);
     protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection events) =>

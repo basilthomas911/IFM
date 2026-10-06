@@ -892,6 +892,14 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
                 }.ToPortfolioComponent()
             ],
             RequiredCapital = risk,
+            DecisionEvidence = TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketDecisionEvidence.CaptureJson("IronCondorTradeScreen/v1", new
+            {
+                UnderlyingContract = _baseContract, Order = tradeOrder, SelectedLegs = legs,
+                OptionQuotes = _ironCondorTrade.OptionLegs, TradeLimit = _ironCondorTrade.TradeLimit,
+                RequiredCapital = risk, MaximumLoss = maximumLoss, Deployment = deployment,
+                BrokerOrderType = _brokerOrderType, BrokerAlgorithm = _brokerAlgorithm,
+                TimeInForce = _timeInForce, AlgorithmPace = _algorithmPace
+            }, now),
             EvidenceHash = evidenceHash,
             DeploymentKey = deployment,
             MaximumLoss = maximumLoss,

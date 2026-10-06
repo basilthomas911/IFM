@@ -48,8 +48,7 @@ public static class TimeoutMarketCondition
             }
         };
         AppendSnapshot(state, command, current.Status, updated, now);
-        context.Logger.LogWarning("Workflow deadline took precedence for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-            command.Subject.EntityId, updated.WorkflowId, updated.WorkflowRevision);
+        context.Logger.LogWarning("{Component}.{Method} "+"Workflow deadline took precedence for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",nameof(TimeoutMarketCondition),nameof(Execute),            command.Subject.EntityId,updated.WorkflowId,updated.WorkflowRevision);
         return Ok(command);
     }
 
@@ -85,8 +84,7 @@ public static class TimeoutMarketCondition
 
     static void LogStale(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
         TimeoutMarketConditionCommand command, IntrinsicTimeStrategyWorkflowView? current)
-        => context.Logger.LogWarning("Stale or duplicate workflow terminal command {CommandName} ignored for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-            command.CommandName, command.Subject.EntityId, current?.WorkflowId, current?.WorkflowRevision);
+        => context.Logger.LogWarning("{Component}.{Method} "+"Stale or duplicate workflow terminal command {CommandName} ignored for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",nameof(TimeoutMarketCondition),nameof(LogStale),            command.CommandName,command.Subject.EntityId,current?.WorkflowId,current?.WorkflowRevision);
 
     static ServiceResult<GuidResult> Ok(TimeoutMarketConditionCommand command)
         => new ServiceOk<GuidResult>(new GuidResult(command.CommandId));

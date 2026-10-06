@@ -120,7 +120,7 @@ public sealed class EmulatorActorWorkflowIntegrationTests
         public TradeOrderCommandState Trade { get; } = new();
         public OrderExecutionCommandState Execution { get; } = new();
         public BrokerOrderCommandState Broker { get; } = new();
-        private readonly BrokerAccountReadStore _accounts = new();
+        private readonly TestBrokerAccountReadStore _accounts = new();
         private readonly Guid _accountApproval = Guid.NewGuid();
         public InMemoryEmulatorLedgerStore Store { get; } = new();
         public InteractiveBrokersEmulatorTradeBroker BrokerPort { get; }

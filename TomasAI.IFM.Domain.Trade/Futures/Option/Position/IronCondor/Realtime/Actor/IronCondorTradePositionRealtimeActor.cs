@@ -39,8 +39,7 @@ public sealed class IronCondorTradePositionRealtimeActor(
     protected override ValueTask OnExceptionAsync(IEventActorContext<IronCondorTradePositionRealtimeActor> context,
         ActorThreadId threadId, IEvent domainEvent, Exception exception)
     {
-        _context.Logger.LogError(exception, "Iron Condor Trade Plan routing failed for {PositionId}.",
-            domainEvent.AggregateId);
+        _context.Logger.LogError(exception,"{Component}.{Method} "+"Iron Condor Trade Plan routing failed for {PositionId}.",nameof(IronCondorTradePositionRealtimeActor),nameof(OnExceptionAsync),            domainEvent.AggregateId);
         return ValueTask.CompletedTask;
     }
 

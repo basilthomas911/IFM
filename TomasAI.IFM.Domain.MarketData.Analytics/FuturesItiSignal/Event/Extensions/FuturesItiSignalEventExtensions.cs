@@ -44,6 +44,7 @@ public static class FuturesItiSignalEventExtensions
         where TActor : IActor
     {
         var futuresEodData = default(FuturesEodDataV2ReadModel);
+        if (TomasAI.IFM.Domain.MarketData.Feed.Shared.CurrentFuturesEodCache.Shared.TryGet(contractId, valueDate, out var current)) return current;
         var entityId = new GetLastFuturesEodDataParameter(contractId, valueDate);
         GetLastFuturesEodDataQuery query = new(contractId, valueDate)
         {

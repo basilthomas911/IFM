@@ -27,7 +27,11 @@ public class FuturesMarketPriceRealtimeActor(IRealtimeActorContext<FuturesMarket
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
             [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
-            message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!
+            message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()! with
+            {
+                SourceDataset = message.SourceDataset ?? string.Empty,
+                SourceGenerationId = message.SourceGenerationId
+            }
         };
 
     /// <summary>Maps supported realtime event types to their extension handlers.</summary>

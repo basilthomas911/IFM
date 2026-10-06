@@ -64,8 +64,7 @@ public class DevelopmentTradingPortfolioIdentityRecovery(
                 $"Development Portfolio {book.PortfolioId} owns financial book {book.BookId}, but its projection could not be restored.");
 
         logger.LogWarning(
-            "Restored missing projections for development Portfolio {PortfolioId} from {EventCount} authoritative events through source event {SourceEventId}",
-            book.PortfolioId, rebuilt.EventCount, rebuilt.LastSourceEventId);
+            "{Component}.{Method} "+"Restored missing projections for development Portfolio {PortfolioId} from {EventCount} authoritative events through source event {SourceEventId}",nameof(DevelopmentTradingPortfolioIdentityRecovery),nameof(ResolveAsync),            book.PortfolioId,rebuilt.EventCount,rebuilt.LastSourceEventId);
         return portfolio;
     }
 }

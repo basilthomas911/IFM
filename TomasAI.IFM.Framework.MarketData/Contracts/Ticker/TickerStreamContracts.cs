@@ -43,6 +43,8 @@ public sealed record TickerContractDetails
     public string Currency { get; init; } = string.Empty;
     public string Exchange { get; init; } = string.Empty;
     public decimal ContractMultiplier { get; init; } = 1m;
+    /// <summary>The minimum trade-price increment in price units, when supplied by the provider.</summary>
+    public decimal? TickSize { get; init; }
     public DateOnly MaturityDate { get; init; }
     public bool IsOnTheRun { get; init; }
     public decimal? StrikePrice { get; init; }

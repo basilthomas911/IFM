@@ -155,7 +155,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
             var reply = await operation.ConfigureAwait(false);
             if (reply.Success && reply.Value is not null) await CompleteReservationAsync(context, snapshot, reply.Value).ConfigureAwait(false);
         }
-        catch (Exception ex) { RequireEventContext(context).Logger.LogError(ex, "Late selection reservation requires redispatch reconciliation for workflow {WorkflowId}", snapshot.WorkflowId); }
+        catch (Exception ex) { RequireEventContext(context).Logger.LogError(ex,"{Component}.{Method} "+"Late selection reservation requires redispatch reconciliation for workflow {WorkflowId}",nameof(IntrinsicTimeStrategyWorkflowRealtimeActor),nameof(ObserveLateReservationAsync),snapshot.WorkflowId); }
     }
     static async ValueTask TimeoutReservationAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent snapshot)
     {

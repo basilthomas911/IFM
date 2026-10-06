@@ -70,11 +70,11 @@ internal static class FuturesTdiSignalValidation
         foreach (var signal in futuresRsiSignals)
         {
             if (!string.Equals(signal.ContractId, entityId.ContractId, StringComparison.Ordinal)
-                || signal.ValueDate != entityId.ValueDate
+                || signal.ValueDate > entityId.ValueDate
                 || signal.TimePeriod != entityId.TimePeriod
                 || signal.PeriodLength != configuration.RsiPeriod)
             {
-                validationErrors.Add(new ValidationError("Every RSI sample must match the TDI contract, value date, time period, and RSI period"));
+                validationErrors.Add(new ValidationError("Every RSI sample must match the TDI contract, time period, and RSI period; historical value dates may precede the target date but cannot be in the future"));
                 break;
             }
         }

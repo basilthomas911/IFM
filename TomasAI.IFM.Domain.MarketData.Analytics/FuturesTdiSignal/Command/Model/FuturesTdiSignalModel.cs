@@ -51,7 +51,7 @@ internal sealed class FuturesTdiSignalCompute
 
         var ordered = IsAscending(futuresRsiSignals)
             ? futuresRsiSignals
-            : [.. futuresRsiSignals.OrderBy(static x => x.ValueDate).ThenBy(static x => x.Timestamp)];
+            : [.. futuresRsiSignals.OrderBy(SampleTime)];
 
         CurrentRsiSignal = ordered[^1];
         PriceLine = AverageLast(ordered, configuration.PriceLinePeriod);
@@ -115,13 +115,15 @@ internal sealed class FuturesTdiSignalCompute
         return sum / span.Length;
     }
 
+    /// <summary>Orders timestamped samples by actual source UTC time, including overnight trading-date boundaries.</summary>
+    internal static DateTime SampleTime(FuturesRsiSignalReadModel signal)
+        => signal.SourceEventTimestamp == default ? signal.ValueDate.ToDateTime(signal.Timestamp) : signal.SourceEventTimestamp;
+
     static bool IsAscending(FuturesRsiSignalReadModel[] signals)
     {
         for (var index = 1; index < signals.Length; index++)
         {
-            if (signals[index - 1].ValueDate > signals[index].ValueDate
-                || signals[index - 1].ValueDate == signals[index].ValueDate
-                && signals[index - 1].Timestamp > signals[index].Timestamp)
+            if (SampleTime(signals[index - 1]) > SampleTime(signals[index]))
                 return false;
         }
         return true;

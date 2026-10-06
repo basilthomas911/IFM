@@ -24,9 +24,7 @@ internal static class DatabaseBackupServiceEventHandler
         }
         catch (Exception exception)
         {
-            logger.LogError(exception,
-                "Database backup service event handoff failed for {EventType}, {EventId}, {CommandId}, {EntityId}.",
-                eventValue.GetType().Name, eventValue.Id, eventValue.CommandId, eventValue.EntityId);
+            logger.LogError(exception,                "{Component}.{Method} "+"Database backup service event handoff failed for {EventType}, {EventId}, {CommandId}, {EntityId}.",nameof(DatabaseBackupServiceEventHandler),nameof(ExecuteAsync),                eventValue.GetType().Name,eventValue.Id,eventValue.CommandId,eventValue.EntityId);
             exception.Data[DatabaseBackupEventActor.HandlerErrorLoggedKey] = true;
             throw;
         }

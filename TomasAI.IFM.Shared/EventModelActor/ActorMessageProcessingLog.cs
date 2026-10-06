@@ -2,22 +2,20 @@ using Microsoft.Extensions.Logging;
 
 namespace TomasAI.IFM.Shared.EventModelActor;
 
-/// <summary>Compiled structured log messages shared by every actor execution path.</summary>
-static class ActorMessageProcessingLog
+/// <summary>Compiled actor diagnostics; routine realtime messages remain controlled by the suppression policy.</summary>
+static partial class ActorMessageProcessingLog
 {
-    static readonly Action<ILogger, ActorThreadId, string, Exception?> EntryMessage =
-        LoggerMessage.Define<ActorThreadId, string>(LogLevel.Information, new(7001, nameof(Entry)),
-            "Actor message entry: {ActorThreadId}; verb {Verb}.");
-    static readonly Action<ILogger, ActorThreadId, string, string, double, Exception?> ExitMessage =
-        LoggerMessage.Define<ActorThreadId, string, string, double>(LogLevel.Information, new(7002, nameof(Exit)),
-            "Actor message exit: {ActorThreadId}; verb {Verb}; outcome {Outcome}; elapsed {ElapsedMilliseconds} ms.");
-    static readonly Action<ILogger, ActorThreadId, string, double, Exception?> ExceptionMessage =
-        LoggerMessage.Define<ActorThreadId, string, double>(LogLevel.Error, new(7003, nameof(Failed)),
-            "Actor message exception: {ActorThreadId}; verb {Verb}; elapsed {ElapsedMilliseconds} ms.");
+    [LoggerMessage(7001, LogLevel.Information, "{Component}.{Method} entry; ActorThreadId={ActorThreadId}; Verb={Verb}; Subject={Subject}")]
+    internal static partial void Entry(ILogger logger, ActorThreadId actorThreadId, string verb, ActorSubject subject, string method, string component = "ActorRuntime");
 
-    internal static void Entry(ILogger logger, ActorThreadId id, string verb) => EntryMessage(logger, id, verb, null);
-    internal static void Exit(ILogger logger, ActorThreadId id, string verb, string outcome, long started) =>
-        ExitMessage(logger, id, verb, outcome, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds, null);
-    internal static void Failed(ILogger logger, ActorThreadId id, string verb, long started, Exception exception) =>
-        ExceptionMessage(logger, id, verb, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds, exception);
+    [LoggerMessage(7002, LogLevel.Information, "{Component}.{Method} exit; ActorThreadId={ActorThreadId}; Verb={Verb}; Subject={Subject}; Outcome={Outcome}; ElapsedMilliseconds={ElapsedMilliseconds}")]
+    static partial void ExitMessage(ILogger logger, ActorThreadId actorThreadId, string verb, ActorSubject subject, string method, string outcome, double elapsedMilliseconds, string component = "ActorRuntime");
+
+    [LoggerMessage(7003, LogLevel.Error, "{Component}.{Method} exception; ActorThreadId={ActorThreadId}; Verb={Verb}; Subject={Subject}; ElapsedMilliseconds={ElapsedMilliseconds}")]
+    static partial void ExceptionMessage(ILogger logger, ActorThreadId actorThreadId, string verb, ActorSubject subject, string method, double elapsedMilliseconds, Exception exception, string component = "ActorRuntime");
+
+    internal static void Exit(ILogger logger, ActorThreadId id, string verb, string outcome, long started, ActorSubject subject, string method) =>
+        ExitMessage(logger, id, verb, subject, method, outcome, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+    internal static void Failed(ILogger logger, ActorThreadId id, string verb, long started, Exception exception, ActorSubject subject, string method) =>
+        ExceptionMessage(logger, id, verb, subject, method, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds, exception);
 }

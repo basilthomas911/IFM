@@ -108,9 +108,7 @@ internal sealed class EventProjectorTransientQueue(
                 var abandoned = channel.Reader.CanCount ? channel.Reader.Count : 0;
                 EventProjectorMetrics.RecordEvent(_projectorName, "abandoned-on-shutdown", "transient");
                 _logger.LogWarning(
-                    "Abandoned {EventCount} queued non-durable events while stopping projector {ProjectorName}.",
-                    abandoned,
-                    _projectorName);
+                    "{Component}.{Method} "+"Abandoned {EventCount} queued non-durable events while stopping projector {ProjectorName}.",nameof(EventProjectorTransientQueue),nameof(StopAsync),                    abandoned,                    _projectorName);
                 throw;
             }
 
@@ -151,10 +149,7 @@ internal sealed class EventProjectorTransientQueue(
                 {
                     EventProjectorMetrics.RecordEvent(_projectorName, "worker-failed", "transient");
                     _logger.LogError(
-                        ex,
-                        "Unhandled non-durable projection failure for event {EventId} in projector {ProjectorName}.",
-                        domainEvent.EventId,
-                        _projectorName);
+                        ex,                        "{Component}.{Method} "+"Unhandled non-durable projection failure for event {EventId} in projector {ProjectorName}.",nameof(EventProjectorTransientQueue),nameof(RunAsync),                        domainEvent.EventId,                        _projectorName);
                 }
             }
         }

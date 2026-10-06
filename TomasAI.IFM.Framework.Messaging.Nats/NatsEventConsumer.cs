@@ -66,7 +66,7 @@ public abstract class NatsEventConsumer : NatsActorEventListener, IEventConsumer
 
             if (_registrations.Count == 0)
             {
-                _logger.LogWarning("{ConsumerName} did not register any NATS events.", GetType().Name);
+                _logger.LogWarning("{Component}.{Method} "+"{ConsumerName} did not register any NATS events.",nameof(NatsEventConsumer),nameof(StartAsync),GetType().Name);
                 return;
             }
 
@@ -86,9 +86,7 @@ public abstract class NatsEventConsumer : NatsActorEventListener, IEventConsumer
         catch (Exception ex)
         {
             _logger.LogErrorEvent(
-                GetType().Name,
-                ex,
-                "StartAsync: failed to start NATS event subscriptions");
+                GetType().Name,                ex,                "{Component}.{Method} "+"StartAsync: failed to start NATS event subscriptions",nameof(NatsEventConsumer),nameof(StartAsync));
         }
     }
 
@@ -105,9 +103,7 @@ public abstract class NatsEventConsumer : NatsActorEventListener, IEventConsumer
         catch (Exception ex)
         {
             _logger.LogErrorEvent(
-                GetType().Name,
-                ex,
-                "StopAsync: failed to stop NATS event subscriptions");
+                GetType().Name,                ex,                "{Component}.{Method} "+"StopAsync: failed to stop NATS event subscriptions",nameof(NatsEventConsumer),nameof(StopAsync));
         }
     }
 
@@ -157,10 +153,7 @@ public abstract class NatsEventConsumer : NatsActorEventListener, IEventConsumer
         if (!string.Equals(_listenerId, siteName, StringComparison.Ordinal))
         {
             _logger.LogDebug(
-                "{ConsumerName} combines subscription site {SiteName} into listener {ListenerId}.",
-                GetType().Name,
-                siteName,
-                _listenerId);
+                "{Component}.{Method} "+"{ConsumerName} combines subscription site {SiteName} into listener {ListenerId}.",nameof(NatsEventConsumer),nameof(Subscribe),                GetType().Name,                siteName,                _listenerId);
         }
 
         foreach (var prototype in consumeEvents)

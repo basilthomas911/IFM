@@ -234,7 +234,7 @@ public sealed class MarketDataOperationsHealthObserver(
         while (!stoppingToken.IsCancellationRequested)
         {
             try { ObserveOnce(); }
-            catch (Exception exception) { logger.LogWarning(exception, "Central market-data observation failed; last snapshot retained."); }
+            catch (Exception exception) { logger.LogWarning(exception,"{Component}.{Method} "+"Central market-data observation failed; last snapshot retained.",nameof(MarketDataOperationsHealthObserver),nameof(ExecuteAsync)); }
             await Task.Delay(TimeSpan.FromSeconds(15), time, stoppingToken).ConfigureAwait(false);
         }
     }

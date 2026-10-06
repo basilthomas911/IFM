@@ -82,6 +82,7 @@ public static class PortfolioOrderCompositionMapper
             Gamma = candidate.Greeks.Gamma,
             Vega = candidate.Greeks.Vega,
             PositionType = PortfolioExecutionPositionType.Opening,
+            DecisionEvidence = candidate.DecisionEvidence,
             VolatilityEvidence = result.DecisionContext.VolatilityEvidence
         };
         var operationId = StableId(view.WorkflowId.Value, $"portfolio-order-composition/{view.WorkflowRevision}");
@@ -131,6 +132,7 @@ public static class PortfolioOrderCompositionMapper
             || receipt.TradeOrders.Any(order => !order.Id.IsValid || order.Id.PortfolioId != expectedPortfolioId
                 || order.Revision != 1 || order.Status != PortfolioExecutionOrderStatus.Approved
                 || order.PositionType != PortfolioExecutionPositionType.Opening
+                || order.DecisionEvidence != composition.Candidate!.DecisionEvidence
                 || order.VolatilityEvidence != composition.DecisionContext.VolatilityEvidence
                 || order.DefinitionHash != candidate.CandidateHash || order.Components.Length != 1
                 || order.Components[0].ReservedTradeId <= 0

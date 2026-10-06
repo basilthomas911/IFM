@@ -15,7 +15,8 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal;
 internal static class FuturesTradeSignalPrerequisites
 {
     internal const TimeFrameType TriggerTimePeriod = TimeFrameType.Daily;
-    internal const TimeFrameType SignalTimePeriod = TimeFrameType.FifteenSeconds;
+    /// <summary>Canonical RSI/TDI timeframe, matching the four-hour initialization bars.</summary>
+    internal const TimeFrameType SignalTimePeriod = TimeFrameType.FiveMinutes;
 
     internal static bool ShouldGenerate(FuturesItiSignalGeneratedCompleteEvent source)
         => source.EntityId.TimePeriod == TriggerTimePeriod;

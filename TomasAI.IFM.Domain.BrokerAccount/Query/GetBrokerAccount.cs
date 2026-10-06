@@ -13,7 +13,7 @@ public static class GetBrokerAccount
     {
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-            new ServiceResult<BrokerAccountDefinition?>(context.Store.Get(query.BrokerAccountId)))
+            new ServiceResult<BrokerAccountDefinition?>(await context.Store.GetAsync(query.BrokerAccountId, cancellationToken).ConfigureAwait(false)))
             .ConfigureAwait(false);
     }
 }

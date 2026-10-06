@@ -163,8 +163,7 @@ public sealed class OptionContractExpiryCalendarRefreshService(
                             StringComparison.OrdinalIgnoreCase))
                     {
                         logger.LogInformation(
-                            "Databento option root {Root}.OPT is not listed for the active horizon; skipping it.",
-                            root);
+                            "{Component}.{Method} "+"Databento option root {Root}.OPT is not listed for the active horizon; skipping it.",nameof(OptionContractExpiryCalendarRefreshService),nameof(RefreshAsync),                            root);
                         definitionsByRoot[index] = [];
                     }
                 }).ConfigureAwait(false);
@@ -203,23 +202,17 @@ public sealed class OptionContractExpiryCalendarRefreshService(
                 .ConfigureAwait(false);
             verificationTimer.Stop();
             logger.LogInformation(
-                "Option cache benchmark phases {Symbol}: Databento={ProviderMs:F1} ms; ScyllaSave={SaveMs:F1} ms; ReadBack={ReadMs:F1} ms.",
-                symbol, providerTimer.Elapsed.TotalMilliseconds, saveTimer.Elapsed.TotalMilliseconds,
-                verificationTimer.Elapsed.TotalMilliseconds);
+                "{Component}.{Method} "+"Option cache benchmark phases {Symbol}: Databento={ProviderMs:F1} ms; ScyllaSave={SaveMs:F1} ms; ReadBack={ReadMs:F1} ms.",nameof(OptionContractExpiryCalendarRefreshService),nameof(RefreshAsync),                symbol,providerTimer.Elapsed.TotalMilliseconds,saveTimer.Elapsed.TotalMilliseconds,                verificationTimer.Elapsed.TotalMilliseconds);
             totalTimer.Stop();
             if (options.EnableDiagnosticWindowBenchmark)
             {
                 var window = await BenchmarkWindowAsync(symbol, valueDate, cached, cancellationToken)
                     .ConfigureAwait(false);
                 logger.LogInformation(
-                    "Option cache diagnostic {Symbol}: WindowQuery={WindowMs:F1} ms; WindowContracts={WindowContracts}; WindowStrikes={WindowStrikes}; Underlying={Underlying}; StdDev={StdDev}.",
-                    symbol, window.Elapsed.TotalMilliseconds, window.ContractCount,
-                    window.StrikeCount, window.UnderlyingPrice, window.StandardDeviationAmount);
+                    "{Component}.{Method} "+"Option cache diagnostic {Symbol}: WindowQuery={WindowMs:F1} ms; WindowContracts={WindowContracts}; WindowStrikes={WindowStrikes}; Underlying={Underlying}; StdDev={StdDev}.",nameof(OptionContractExpiryCalendarRefreshService),nameof(RefreshAsync),                    symbol,window.Elapsed.TotalMilliseconds,window.ContractCount,                    window.StrikeCount,window.UnderlyingPrice,window.StandardDeviationAmount);
             }
             logger.LogInformation(
-                "Published {DefinitionCount} option definitions across {ExpiryCount} expiry mappings for {Symbol}, coverage {From:yyyy-MM-dd} through {Through:yyyy-MM-dd}, in {TotalMs:F1} ms.",
-                cached.Count, expiryMappings.Count, symbol, valueDate, horizon,
-                totalTimer.Elapsed.TotalMilliseconds);
+                "{Component}.{Method} "+"Published {DefinitionCount} option definitions across {ExpiryCount} expiry mappings for {Symbol}, coverage {From:yyyy-MM-dd} through {Through:yyyy-MM-dd}, in {TotalMs:F1} ms.",nameof(OptionContractExpiryCalendarRefreshService),nameof(RefreshAsync),                cached.Count,expiryMappings.Count,symbol,valueDate,horizon,                totalTimer.Elapsed.TotalMilliseconds);
             return cached.Count;
         }
         finally
@@ -261,7 +254,7 @@ public sealed class OptionContractExpiryCalendarRefreshService(
         var price = useDesignInput ? 5420.50m : livePrice!.Value;
         var deviation = useDesignInput ? 45m : (decimal)eod!.DailyStdDevAmount;
         if (useDesignInput)
-            logger.LogWarning("No current futures price and EOD Bollinger deviation are both available for {ContractId}; window timing uses the documented design benchmark input price 5420.50 and sigma 45.00.", first.UnderlyingContractId);
+            logger.LogWarning("{Component}.{Method} "+"No current futures price and EOD Bollinger deviation are both available for {ContractId}; window timing uses the documented design benchmark input price 5420.50 and sigma 45.00.",nameof(OptionContractExpiryCalendarRefreshService),nameof(BenchmarkWindowAsync),first.UnderlyingContractId);
         var lower = price - 2.5m * deviation;
         var upper = price + 2.5m * deviation;
         var timer = Stopwatch.StartNew();
@@ -328,8 +321,7 @@ public sealed class OptionContractExpiryCalendarRefreshService(
                 Interlocked.Add(ref readCount, rows.Count);
             }).ConfigureAwait(false);
         logger.LogInformation(
-            "Verified {DefinitionCount} cached option definitions by deserializing {MappingCount} published expiry/root mappings for {Symbol}.",
-            readCount, expectedGroups.Length, symbol);
+            "{Component}.{Method} "+"Verified {DefinitionCount} cached option definitions by deserializing {MappingCount} published expiry/root mappings for {Symbol}.",nameof(OptionContractExpiryCalendarRefreshService),nameof(VerifyPublishedCacheAsync),            readCount,expectedGroups.Length,symbol);
     }
 }
 
@@ -356,7 +348,7 @@ public sealed class OptionContractExpiryCalendarStartupService(
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { throw; }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Option-expiry startup refresh failed for {Symbol}; the prior published cache remains active.", symbol);
+                logger.LogError(exception,"{Component}.{Method} "+"Option-expiry startup refresh failed for {Symbol}; the prior published cache remains active.",nameof(OptionContractExpiryCalendarStartupService),nameof(ExecuteAsync),symbol);
             }
         }
     }

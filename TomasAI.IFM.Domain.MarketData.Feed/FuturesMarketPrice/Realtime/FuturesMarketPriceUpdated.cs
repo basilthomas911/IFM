@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesMarketPrice.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -22,14 +24,14 @@ public static class FuturesMarketPriceUpdated
     static string ServiceId { get; }
 
     /// <summary>
-    /// Accepts a futures market-price realtime update. Domain behavior will be added when downstream
-    /// signal realtime actors are introduced.
+    /// Forwards a qualifying trade-driven market-price update to tick storage and EOD. Quote and VWAP
+    /// checkpoint notifications do not generate trade changes.
     /// </summary>
     /// <param name="event">The normalized realtime futures market-price update.</param>
     /// <param name="context">The realtime actor context processing the event.</param>
     /// <param name="logger">The typed primary-actor logger.</param>
-    /// <returns><see langword="true"/> when the placeholder handler accepts the event.</returns>
-    public static ValueTask<bool> ExecuteAsync(
+    /// <returns><see langword="true"/> when the event has been handled.</returns>
+    public static async ValueTask<bool> ExecuteAsync(
         this FuturesMarketPriceUpdatedRealtimeEvent @event,
         IEventActorContext context,
         ILogger<FuturesMarketPriceRealtimeActor> logger)
@@ -39,7 +41,19 @@ public static class FuturesMarketPriceUpdated
         {
             IsArgumentNull.Check(@event);
             IsArgumentNull.Check(context);
-            return ValueTask.FromResult(true);
+            if (@event.UpdateSource == FuturesMarketPriceUpdateSource.Trade
+                && @event.VwapCheckpoint is null
+                && @event.Subject.Name == FuturesMarketPriceUpdatedRealtimeEvent.Actor
+                && @event.SourceTrade is { } trade)
+            {
+                await context.SendAsync<FuturesTickTradeDataChangedEvent, TickDataEntityId>(
+                    trade with
+                    {
+                        SourceDataset = @event.SourceDataset,
+                        SourceGenerationId = @event.SourceGenerationId
+                    }).ConfigureAwait(false);
+            }
+            return true;
         }
         catch (Exception exception)
         {

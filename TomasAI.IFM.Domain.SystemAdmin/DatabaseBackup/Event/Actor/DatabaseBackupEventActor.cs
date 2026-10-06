@@ -116,7 +116,7 @@ public class DatabaseBackupEventActor(
     protected override ValueTask OnExceptionAsync(IEventActorContext<DatabaseBackupEventActor> context, ActorThreadId threadId, IEvent @event, Exception exception)
     {
         if (!exception.Data.Contains(HandlerErrorLoggedKey))
-            Context.Logger.LogError(exception, "DatabaseBackup service event {EventName} failed.", @event?.EventName);
+            Context.Logger.LogError(exception,"{Component}.{Method} "+"DatabaseBackup service event {EventName} failed.",nameof(DatabaseBackupEventActor),nameof(OnExceptionAsync),@event?.EventName);
         return ValueTask.CompletedTask;
     }
 }

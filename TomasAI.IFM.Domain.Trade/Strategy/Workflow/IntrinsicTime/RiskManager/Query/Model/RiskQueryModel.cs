@@ -35,10 +35,10 @@ internal static class RiskQueryModel
         try { projected = await s.DbFactory.TradeDb.GetRiskInvocationAsync(workflow.Value, invocation, t); }
         catch (OperationCanceledException) when (t.IsCancellationRequested) { throw; }
         catch (Exception e) when (e is InvalidDataException || e.InnerException is InvalidDataException) { throw; }
-        catch (Exception e) { s.Logger.LogWarning(e, "Risk history unavailable; reading committed invocation {Invocation}", invocation); }
+        catch (Exception e) { s.Logger.LogWarning(e,"{Component}.{Method} "+"Risk history unavailable; reading committed invocation {Invocation}",nameof(RiskQueryModel),nameof(ExactAsync),invocation); }
         try { source = await s.Journal.ByCommandAsync(invocation, t); }
         catch (OperationCanceledException) when (t.IsCancellationRequested) { throw; }
-        catch (Exception e) when (projected is not null) { authoritativeUnavailable = true; s.Logger.LogWarning(e, "Risk committed source unavailable for {Invocation}", invocation); }
+        catch (Exception e) when (projected is not null) { authoritativeUnavailable = true; s.Logger.LogWarning(e,"{Component}.{Method} "+"Risk committed source unavailable for {Invocation}",nameof(RiskQueryModel),nameof(ExactAsync),invocation); }
         var snapshot = projected ?? source as WorkflowStrategyStateUpdatedEvent;
         var completion = source as RiskManagementFunctionCompletedEvent;
         var entity = snapshot?.EntityId ?? completion?.EntityId ?? throw new KeyNotFoundException("Risk invocation not found.");
@@ -46,7 +46,7 @@ internal static class RiskQueryModel
         TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.IntrinsicTimeStrategyWorkflowView? current = null;
         try { current = (await s.WorkflowRepository.LoadStateAsync(read, t)).CurrentView; }
         catch (OperationCanceledException) when (t.IsCancellationRequested) { throw; }
-        catch (Exception e) when (snapshot is not null) { authoritativeUnavailable = true; s.Logger.LogWarning(e, "Risk current workflow unavailable for {Invocation}", invocation); }
+        catch (Exception e) when (snapshot is not null) { authoritativeUnavailable = true; s.Logger.LogWarning(e,"{Component}.{Method} "+"Risk current workflow unavailable for {Invocation}",nameof(RiskQueryModel),nameof(ExactAsync),invocation); }
         var behind = false;
         if (current?.WorkflowId == workflow && current.RiskExecution?.CommandId == invocation && (snapshot is null || current.WorkflowRevision > snapshot.WorkflowRevision))
         {
@@ -63,7 +63,7 @@ internal static class RiskQueryModel
         TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderProjectionReadModel order;
         try { order = (await s.Funds.LoadFundAsync(new PortfolioFundId(row.PortfolioId, row.FundId), t)).Composition(checked((int)row.OrderId)).Order; }
         catch (OperationCanceledException) when (t.IsCancellationRequested) { throw; }
-        catch (Exception e) { s.Logger.LogWarning(e, "Current Fund state unavailable for {Invocation}", invocation); return new(snapshot, calculation, "Unavailable", "Unavailable", DateTime.UtcNow, null, behind, accepted); }
+        catch (Exception e) { s.Logger.LogWarning(e,"{Component}.{Method} "+"Current Fund state unavailable for {Invocation}",nameof(RiskQueryModel),nameof(ExactAsync),invocation); return new(snapshot, calculation, "Unavailable", "Unavailable", DateTime.UtcNow, null, behind, accepted); }
         try
         {
             var sync = snapshot.TerminalRisk is { } terminal ? order.TerminalRisk == terminal ? "Synchronized" : order.RiskAuthorization is null ? "Pending" : "Reconciliation required" : order.Status;
@@ -98,6 +98,6 @@ internal static class RiskQueryModel
             return new(snapshot, calculation, authority, sync, now, order, behind, accepted);
         }
         catch (OperationCanceledException) when (t.IsCancellationRequested) { throw; }
-        catch (Exception e) { s.Logger.LogWarning(e, "Current financial authority unavailable for {Invocation}", invocation); return new(snapshot, calculation, "Unavailable", "Pending: financial state unavailable", DateTime.UtcNow, order, behind, accepted); }
+        catch (Exception e) { s.Logger.LogWarning(e,"{Component}.{Method} "+"Current financial authority unavailable for {Invocation}",nameof(RiskQueryModel),nameof(ExactAsync),invocation); return new(snapshot, calculation, "Unavailable", "Pending: financial state unavailable", DateTime.UtcNow, order, behind, accepted); }
     }
 }

@@ -1,4 +1,4 @@
-﻿# Actor Event Modeling Conventions
+# Actor Event Modeling Conventions
 
 **Status:** Initial high-level convention  
 **Applies to:** Command, query, and event extension handlers; domain command actors, their event-sourced states, event projectors, and public lifecycle events
@@ -62,11 +62,35 @@ Use `AddFuturesContract` for command/event application ownership and `GenerateFu
 2. `Compute` is a command extension accepting business data from state and returning a computation through a business-named `out` parameter. A stateless implementation may live in `Command/Model`. Computation must not mutate its inputs, actor state, pending events, storage, or external services.
 3. Check the computation result and, where required, a guard such as `tradeOrderChange.IsValidFor(command.EntityId)` before event creation or state application. Guards check acceptance, required domain data, ownership, and business validity. A rejected computation or guard must not create pending events or modify current state. Preserve the business rejection reason.
 4. Prefer a switch expression in `Execute`. Put all failure checks in `_ when` arms first; the final default `_` arm is the single event/state update expression. Capture its boolean result in `updated`.
-5. The command's event factory receives the computed business model. The event carries its accepted business data under an explicit domain property such as `TradeOrderDefinition`. Do not persist a transient calculation wrapper merely to follow this pattern.
+5. The command's event factory receives the computed business model. The event carries its accepted business data under an explicit domain property such as `TradeOrderDefinition`. Set `CommandId = command.CommandId` explicitly in every event factory so the created event carries its originating command identity before state application. Do not persist a transient calculation wrapper merely to follow this pattern.
 6. Call `state.Update(event, command)`, as in `AddFuturesContract`. This framework entry point records command metadata and pending events and invokes the State object's `Apply` method. Do not bypass it with a direct assignment or direct call to the protected event dispatcher.
 7. Authoritative variables live in State with controlled setters. State's `Apply` dispatches with a switch and mutates the domain variables in the corresponding event case. Model code computes proposed values; it does not own a second mutable aggregate.
 8. Return `updated ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId)) : command.UpdateFailed(...)`.
 9. Every command-handler method, including `Compute`, guard helpers, and event factories, has XML documentation explaining purpose, parameters, results, state effects, and deliberately propagated exceptions where applicable.
+
+### Required event identity and business payload names
+
+Both rules are mandatory when creating command, event, or query extension handlers, together with [Actor Implementation Conventions](Actor-Implementation-Conventions.md):
+
+1. **Preserve the originating command identity.** Every event factory in a command extension handler explicitly sets `CommandId = command.CommandId`. Do this when constructing the event, before `state.Update(event, command)`. Do not depend on state application or persistence to populate it, and do not substitute the event ID or a newly generated GUID.
+2. **Name business payloads for their domain meaning.** Command, event, and query properties that carry business data must use the business domain name, such as `BrokerAccountDefinition`, `TradeOrderDefinition`, or `FuturesRsiSignal`. Do not use generic properties such as `State`, `Data`, `Value`, or `Model` for those payloads. Apply the same naming to computation outputs and authoritative state properties. Framework envelope properties such as `CommandId`, `Subject`, and `EntityId` retain their established names.
+
+For example, a BrokerAccount command extension creates its event as follows:
+
+```csharp
+internal static BrokerAccountChangedEvent CreateBrokerAccountChangedEvent(
+    this RequestBrokerAccountResynchronizationCommand command,
+    BrokerAccountChange brokerAccountChange) => new()
+{
+    CommandId = command.CommandId,
+    Subject = new(ActorType.Event, BrokerAccountChangedEvent.Actor,
+        BrokerAccountChangedEvent.Verb, command.EntityId.Format()),
+    EntityId = command.EntityId,
+    BrokerAccountDefinition = brokerAccountChange.BrokerAccountDefinition!
+};
+```
+
+The event declares `BrokerAccountDefinition` as its business payload property, and the owning state applies that definition in its event dispatcher. When renaming an existing MessagePack payload property, preserve its numeric field key so stored events remain readable.
 
 ### Business naming examples
 
@@ -77,7 +101,7 @@ Use `AddFuturesContract` for command/event application ownership and `GenerateFu
 | `model` / `value` | `tradeOrderChange`, `tradeOrderAmendment`, or `TradeOrderDefinition` |
 | `errors` / `code` / `detail` | `tradeOrderErrors`, `RejectionCode`, `RejectionReason` |
 
-Use names that identify the actual domain object or decision, including event payload properties. Framework concepts such as `command`, `state`, and `updated` retain their established meaning.
+Use names that identify the actual domain object or decision, including command, event, and query payload properties. For example, `BrokerAccountChangedEvent.BrokerAccountDefinition` must carry the account definition; do not name that business payload `State`, `Data`, or `Value`. Framework concepts such as `command`, `state`, and `updated` retain their established meaning.
 
 ```csharp
 var errorMsg = $"{command.CommandName}: unable to apply Trade Order change event";
@@ -97,3 +121,21 @@ return updated
 Query extensions read domain-named data and return query results; they do not mutate authoritative command state. Event extensions requiring an authoritative change send a concrete command to its owner. Read-model projection remains the projector's responsibility. Apply these responsibilities together with the [actor handler boundaries](Actor-Implementation-Conventions.md).
 
 Failure guard arms use `command.UpdateFailed(ref errorMsg, businessReason)` to capture their reason and return false. Initialize `errorMsg` with the event-application failure reason before computation; return `command.UpdateFailed(errorMsg)` when `updated` is false.
+
+
+## Persisted read models and query ownership
+
+Command state is authoritative for command processing and event replay. It is not a query read model.
+
+- Command handlers apply created domain events to their owning command state.
+- The command repository commits those events and submits the committed event collection to the event projector. Loading or saving command state must not populate a query store directly.
+- Event projectors persist read models to ScyllaDB from the committed event payload. Projection failure must remain observable and eligible for durable retry; command success does not establish that projection has completed.
+- Query actors read current read models from ScyllaDB asynchronously. Do not answer a query from command state, a singleton in-memory read store, or a cache populated by a command repository.
+- Idempotent projections must preserve the newest account revision when events are retried or delivered out of order.
+- Test doubles may isolate persistence in unit tests, but production composition must bind the query to ScyllaDB. Integration tests must verify committed-event projection, persistence, restart reads, and revision ordering.
+
+For BrokerAccount, the required path is `BrokerAccountChangedEvent.BrokerAccountDefinition` ? event projector ? ScyllaDB account read model ? `GetBrokerAccountQuery`. `BrokerAccountStateRepository.LoadStateAsync` and `SaveStateAsync` must not call an in-memory account store's `Set` method.
+
+## Structured operation logging
+
+Follow [Structured logging conventions](Structured-Logging-Conventions.md) for selected boundaries, method/argument fields, performance gating and OTLP correlation. Do not instrument every command compute/state application or every realtime event.

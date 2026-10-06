@@ -29,7 +29,7 @@ public sealed class RsiHistoricalPilotStartup(IMarketDataAnalyticsCommandApi com
         var cutoff = clock.GetUtcNow(); var count = entityId.PeriodLength + 2;
         FuturesTradeSessionBarReadModel[] bars = []; var reason = "RSI.SEED_HISTORY_UNAVAILABLE";
         try { bars = await ReadAsync(entityId, count, cutoff, token); reason = bars.Length == count ? "RSI.SEED_CONTIGUOUS" : "RSI.SEED_HISTORY_INCOMPLETE"; }
-        catch (Exception error) when (!token.IsCancellationRequested) { logger.LogWarning(error, "RSI historical seed unavailable for {EntityId}; starting empty.", entityId); }
+        catch (Exception error) when (!token.IsCancellationRequested) { logger.LogWarning(error,"{Component}.{Method} "+"RSI historical seed unavailable for {EntityId}; starting empty.",nameof(RsiHistoricalPilotStartup),nameof(StartAsync),entityId); }
         var id = Guid.NewGuid(); var command = new StartFuturesRsiSignalCommand(entityId)
         {
             CommandId = id,

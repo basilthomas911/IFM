@@ -34,4 +34,21 @@ public static class RsiHistoricalSeedWindowModel
         if (result.Count != count) return [];
         result.Reverse(); return result.ToArray();
     }
+    /// <summary>Finds a real trading interval without counting closed-market gaps as bars.</summary>
+    /// <param name="windows">Chronologically ordered completed trading intervals.</param>
+    /// <param name="timestamp">The source trade timestamp.</param>
+    /// <returns>The containing interval index, or minus one outside an interval.</returns>
+    public static int FindIntervalIndex(IReadOnlyList<MarketSessionBounds> windows, DateTimeOffset timestamp)
+    {
+        var low = 0;
+        var high = windows.Count - 1;
+        while (low <= high)
+        {
+            var middle = low + (high - low) / 2;
+            if (timestamp < windows[middle].StartUtc) high = middle - 1;
+            else if (timestamp >= windows[middle].EndUtc) low = middle + 1;
+            else return middle;
+        }
+        return -1;
+    }
 }

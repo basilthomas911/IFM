@@ -57,7 +57,7 @@ public sealed class DurableCompositionRuntime(IDurableSubscriptionIntentStore st
                 {
                     var failure = $"{error.GetType().Name}: {error.Message}";
                     if (failure != lastFailure)
-                        logger.LogWarning("Durable composition reconciliation retained pending intent: {Failure}", failure);
+                        logger.LogWarning("{Component}.{Method} "+"Durable composition reconciliation retained pending intent: {Failure}",nameof(DurableCompositionRuntime),nameof(ExecuteAsync),failure);
                     lastFailure = failure;
                 }
             }

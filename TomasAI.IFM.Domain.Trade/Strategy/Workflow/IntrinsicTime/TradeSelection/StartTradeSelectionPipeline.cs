@@ -39,7 +39,7 @@ public static class StartTradeSelectionPipeline
         }
         catch (Exception exception)
         {
-            context.Logger.LogError(exception, "Trade Selection initialization failed for workflow {WorkflowId}", view.WorkflowId);
+            context.Logger.LogError(exception,"{Component}.{Method} "+"Trade Selection initialization failed for workflow {WorkflowId}",nameof(StartTradeSelectionPipeline),nameof(StartPipelineAsync),view.WorkflowId);
             return PipelineStartResult<TradeSelectionPipelineInitialization>.Failed("TS.INIT.EXCEPTION", "InitializationFailed",
                 PipelineExceptionDiagnostics.Summary("Trade Selection initialization failed", exception),
                 PipelineExceptionDiagnostics.Create(exception, new Dictionary<string, string>

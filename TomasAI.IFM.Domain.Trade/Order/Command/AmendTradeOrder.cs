@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Trade.Order.Command.Model;
+using TomasAI.IFM.Domain.Trade.Order.Command.Model;
 using TomasAI.IFM.Domain.Trade.Order.Command.State;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Order;
@@ -7,51 +7,49 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Order.Command;
 
-/// <summary>Handles AmendTradeOrder through computation, guards, and state-owned event application.</summary>
+/// <summary>Amends a draft order by creating an event and applying it through actor state.</summary>
 public static class AmendTradeOrder
 {
-    /// <summary>Computes the proposed order change and applies its event only when valid.</summary>
-    /// <param name="command">The concrete AmendTradeOrder business intent.</param>
-    /// <param name="state">The authoritative state owning the Trade Order definition.</param>
-    /// <returns>The command ID on success, or its computation/application failure.</returns>
+    /// <summary>Computes an amendment without mutation, then applies its event to the supplied state.</summary>
+    /// <param name="command">The replacement order with the same identity and next revision.</param>
+    /// <param name="state">The actor state that owns the current order and pending events.</param>
+    /// <returns>The command ID on success, or a failed result when amendment or event application is rejected.</returns>
     public static ServiceResult<GuidResult> Execute(this AmendTradeOrderCommand command, TradeOrderCommandState state)
     {
-        var errorMsg = $"{command.CommandName}: unable to apply valid Trade Order change event";
-        var updated = command.Compute(state.TradeOrderDefinition, out var tradeOrderChange) switch
+        var errorMsg = "unable to apply amended Trade Order event";
+        var updated = command.Compute(state.TradeOrderDefinition, out var model) switch
         {
-            _ when !tradeOrderChange.Accepted
-                => command.UpdateFailed(ref errorMsg, $"{tradeOrderChange.RejectionCode};{tradeOrderChange.RejectionReason}"),
-            _ when !tradeOrderChange.IsValidFor(command.EntityId)
-                => command.UpdateFailed(ref errorMsg, $"{command.CommandName}: computed Trade Order definition is invalid for this order"),
-            _ => state.Update(command.CreateTradeOrderChangedEvent(tradeOrderChange), command)
+            _ when !model.Accepted => command.UpdateFailed(ref errorMsg, $"{model.RejectionCode};{model.RejectionReason}"),
+            _ when !model.IsValidFor(command.EntityId) => command.UpdateFailed(ref errorMsg, "computed Trade Order definition is invalid for this order"),
+            _ => state.Update(command.CreateTradeOrderChangedEvent(model), command)
         };
         return updated
             ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
-            : command.UpdateFailed(errorMsg);
+            : command.UpdateFailed($"{command.CommandName}: {errorMsg}");
     }
 
-    /// <summary>Computes domain data without changing the supplied definition or actor state.</summary>
-    /// <param name="command">The concrete command containing the proposed business change.</param>
-    /// <param name="tradeOrderDefinition">The definition currently owned by actor state.</param>
-    /// <param name="tradeOrderChange">The computed definition or the domain rejection reason.</param>
-    /// <returns>True when computation accepted the proposed change.</returns>
-    internal static bool Compute(this AmendTradeOrderCommand command, TradeOrderDefinition? tradeOrderDefinition,
-        out TradeOrderCompute tradeOrderChange)
+    /// <summary>Computes the amendment model without changing actor state.</summary>
+    /// <param name="command">The command containing the proposed replacement order.</param>
+    /// <param name="current">The current order owned by actor state, or null when absent.</param>
+    /// <param name="model">The computed replacement or the reason the amendment was rejected.</param>
+    /// <returns>True when the model contains a valid replacement; otherwise, false.</returns>
+    internal static bool Compute(this AmendTradeOrderCommand command, TradeOrderDefinition? current,
+        out TradeOrderCompute model)
     {
-        tradeOrderChange = TradeOrderComputation.Amend(tradeOrderDefinition, command.Order);
-        return tradeOrderChange.Accepted;
+        model = TradeOrderComputation.Amend(current, command.Order);
+        return model.Accepted;
     }
 
-    /// <summary>Creates an event carrying the guarded business definition; does not mutate state.</summary>
-    /// <param name="command">The originating command and its actor identity.</param>
-    /// <param name="tradeOrderChange">The accepted and guarded computation.</param>
-    /// <returns>The private source event to apply and persist through command state.</returns>
+    /// <summary>Creates the amendment event without changing actor state.</summary>
+    /// <param name="command">The originating amendment command.</param>
+    /// <param name="model">The successfully computed amendment model containing the replacement.</param>
+    /// <returns>The event to apply and persist through the command state.</returns>
     internal static TradeOrderChangedEvent CreateTradeOrderChangedEvent(this AmendTradeOrderCommand command,
-        TradeOrderCompute tradeOrderChange) => new()
+        TradeOrderCompute model) => new()
     {
         CommandId = command.CommandId,
         Subject = new(ActorType.Event, TradeOrderChangedEvent.Actor, TradeOrderChangedEvent.Verb, command.EntityId.Format()),
         EntityId = command.EntityId,
-        TradeOrderDefinition = tradeOrderChange.TradeOrderDefinition!
+        TradeOrderDefinition = model.TradeOrderDefinition!
     };
 }

@@ -1,0 +1,11 @@
+﻿{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AssumeDevelopmentBackupUpload",
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": "arn:aws:iam::107651266250:role/ifm-database-backup-upload-development"
+    }
+  ]
+}

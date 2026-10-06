@@ -46,6 +46,9 @@ public sealed record CompositionCandidate
     [Key(29)] public string ApprovalState { get; init; } = "Unapproved";
     [Key(30)] public string CandidateHash { get; init; } = "";
     [Key(31)] public VolatilityWorkflowInput? VolatilityEvidence { get; init; }
+    /// <summary>Exact immutable market inputs accepted for this financial decision.</summary>
+    [Key(32)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketDecisionEvidence? DecisionEvidence { get; init; }
 }
 
 [MessagePackObject]

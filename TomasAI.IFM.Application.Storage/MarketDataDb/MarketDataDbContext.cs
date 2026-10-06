@@ -49,6 +49,7 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 /// <param name = "logger"></param>
 public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, IBlackboardService blackboardService, ISequenceIdGenerator sequenceIdGenerator, ILogger<DbProvider> logger) : ObjectDataRepository<MarketDataDbContext>(connectionSettings[MarketDataDbConnection], logger), IMarketDataDbContext
 {
+    readonly ILogger _diagnosticLogger = logger;
     public const string MarketDataDbConnection = "MarketDataDbConnection";
     internal const string FuturesTickByTimeProjection = "futures_tick_data_by_time";
     internal const string FuturesEodProjection = "futures_eod_data_by_month";
@@ -633,11 +634,27 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
         .ExecuteSingleAsync(MapToFuturesOptionTickData!);
 
     public async Task<ICollection<FuturesOptionTickDataV2ReadModel>> GetFuturesOptionChainQuoteDataAsync(
-        string underlyingContractId, DateOnly expiryDate, DateOnly valueDate, CancellationToken cancellationToken = default) =>
-        await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesOptionChainQuoteData)}",
-                MarketDataDbCql.GetFuturesOptionChainQuoteData)
-            .SetParameters(new GetFuturesOptionChainQuoteData(underlyingContractId, expiryDate, valueDate))
-            .ExecuteQueryAsync(MapToOptionChainQuote!, cancellationToken);
+        string underlyingContractId, DateOnly expiryDate, DateOnly valueDate, CancellationToken cancellationToken = default)
+    {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
+        {
+            var rows = await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesOptionChainQuoteData)}",
+                    MarketDataDbCql.GetFuturesOptionChainQuoteData)
+                .SetParameters(new GetFuturesOptionChainQuoteData(underlyingContractId, expiryDate, valueDate))
+                .ExecuteQueryAsync(MapToOptionChainQuote!, cancellationToken);
+            _diagnosticLogger.LogInformation("{Component}.{Method} completed; UnderlyingContractId={UnderlyingContractId}; ExpiryDate={ExpiryDate}; ValueDate={ValueDate}; RowCount={RowCount}; ElapsedMilliseconds={ElapsedMilliseconds}",
+                nameof(MarketDataDbContext), nameof(GetFuturesOptionChainQuoteDataAsync), underlyingContractId,
+                expiryDate, valueDate, rows.Count, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            return rows;
+        }
+        catch (Exception exception)
+        {
+            _diagnosticLogger.LogError(exception, "{Component}.{Method} failed; UnderlyingContractId={UnderlyingContractId}; ExpiryDate={ExpiryDate}; ValueDate={ValueDate}",
+                nameof(MarketDataDbContext), nameof(GetFuturesOptionChainQuoteDataAsync), underlyingContractId, expiryDate, valueDate);
+            throw;
+        }
+    }
     /// <summary>
     /// Asynchronously retrieves the most recent tick price data for a specified futures option contract on a given
     /// date.
@@ -1097,7 +1114,11 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     /// <param name = "contractId">The contract identifier.</param>
     /// <param name = "valueDate">The value date.</param>
     /// <returns>A task representing the asynchronous operation, containing the FuturesEodDataV2ReadModel.</returns>
-    public async Task<FuturesEodDataV2ReadModel?> GetFuturesEodDataAsync(string contractId, DateOnly valueDate)
+    public Task<FuturesEodDataV2ReadModel?> GetFuturesEodDataAsync(string contractId, DateOnly valueDate)
+        => CurrentFuturesEodCache.Shared.ReadAsync(contractId, valueDate,
+            () => ReadStoredFuturesEodDataAsync(contractId, valueDate));
+
+    async Task<FuturesEodDataV2ReadModel?> ReadStoredFuturesEodDataAsync(string contractId, DateOnly valueDate)
     {
         var db = _dbFactory.MarketDataDb;
         var futuresEodData = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesEodData)}", MarketDataDbCql.GetFuturesEodData)
@@ -1546,11 +1567,46 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
         return MarketDataDbContextExtensions.CalculateStatistics(sourceSignals.Select(e => e.TrendDelta));
     }
 
-    /// <summary>
-    /// Upserts a FuturesEodDataV2ReadModel into the database.
-    /// </summary>
-    /// <param name = "e">The futures EOD data to upsert.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <summary>Allocates stable history IDs before records are durably spooled and submitted to storage.</summary>
+    public async Task PrepareRealtimeFuturesEodBatchAsync(IReadOnlyList<BufferedFuturesEodRow> rows)
+    {
+        foreach (var row in rows.Where(row => row.AppendHistory && row.HistorySequenceId is null))
+            row.HistorySequenceId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId);
+    }
+
+    /// <summary>Writes every admitted history row and coalesces current snapshots per contract/date.</summary>
+    public async Task PersistRealtimeFuturesEodBatchAsync(IReadOnlyList<BufferedFuturesEodRow> rows)
+    {
+        if (rows.Count == 0) return;
+        await PrepareRealtimeFuturesEodBatchAsync(rows);
+        var latest = rows.GroupBy(row => (row.Snapshot.ContractId, row.Snapshot.ValueDate))
+            .Select(group => group.Last().Snapshot).ToArray();
+        await this.ExecuteMaintainedProjectionMutationAsync(FuturesEodProjection,
+            latest.Select(e => MarketDataDbContextExtensions.GetFuturesEodScopeKey(e.ValueDate)), async () =>
+        {
+            var db = _dbFactory.MarketDataDb;
+            var history = rows.Where(row => row.AppendHistory).Select(row =>
+            {
+                var e = row.Snapshot;
+                return new InsertFuturesIntraDayData(e.ContractId, e.ValueDate, row.HistorySequenceId!.Value,
+                    e.Symbol, e.OpenPrice, e.HighPrice, e.LowPrice, e.ClosePrice, e.Volume,
+                    e.DailyPercentChange, e.DailyStdDev, e.DailyStdDevAmount, e.UpperBand, e.Mean,
+                    e.LowerBand, e.MarketDirection.ToStringFast(), e.MarketVolatility.ToStringFast(),
+                    e.PriceDirection.ToStringFast(), e.PriceVolatility.ToStringFast(), e.MarketDirectionIndicator, e.WindowSize);
+            }).ToArray();
+            if (history.Length > 0)
+                await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesIntraDayData)}", MarketDataDbCql.InsertFuturesIntraDayData)
+                    .SetParameters(history).ExecuteCommandAsync();
+            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEodData)}", MarketDataDbCql.InsertFuturesEodData)
+                .SetParameters(latest.Select(e => MarketDataDbContextExtensions.CreateFuturesEodDataParameters(e, e.OpenPrice))).ExecuteCommandAsync();
+            foreach (var e in latest)
+            {
+                await InsertFuturesEodDataIndexAsync(new FuturesEodDataIndexReadModel(e.ValueDate, e.ContractId));
+                await this.UpsertFuturesEodProjectionAsync(e, e.OpenPrice);
+            }
+        });
+    }
+
     public async Task InsertFuturesEodDataAsync(FuturesEodDataV2ReadModel e)
     {
         // check if the data already exists...
@@ -1652,6 +1708,21 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     /// </summary>
     /// <param name = "e"></param>
     /// <returns></returns>
+    /// <summary>Persists coalesced VX snapshots without reapplying additive trade volume on retries.</summary>
+    public async Task PersistRealtimeVixEodBatchAsync(IReadOnlyList<VixFuturesEodDataReadModel> rows)
+    {
+        if (rows.Count == 0) return;
+        await this.ExecuteMaintainedProjectionMutationAsync(VixFuturesContractIndexProjection,
+            rows.Select(row => MarketDataDbContextExtensions.GetVixContractIndexScopeKey(row.ContractId)), async () =>
+        {
+            await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertVixFuturesEodData)}", MarketDataDbCql.InsertVixFuturesEodData)
+                .SetParameters(rows.Select(e => new InsertVixFuturesEodData(e.ContractId, e.ValueDate, e.OpenPrice, e.HighPrice, e.LowPrice, e.ClosePrice, e.Volume)))
+                .ExecuteCommandAsync();
+            foreach (var contract in rows.Select(row => row.ContractId).Distinct())
+                await this.UpsertVixFuturesContractIndexAsync(contract);
+        });
+    }
+
     public async Task InsertVixFuturesEodDataAsync(FuturesTickDataV2ReadModel e, FuturesSessionStatisticsSnapshot? sessionStatistics = null)
     {
         // check if the data already exists...
@@ -2036,7 +2107,10 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     /// </summary>
     /// <param name = "contractId">The entity ID containing the contract ID and value date.</param>
     /// <param name = "valueDate"></param>
-    public async Task<VixFuturesEodDataReadModel?> GetVixFuturesEodDataAsync(string contractId, DateOnly valueDate) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetVixFuturesEodData)}", MarketDataDbCql.GetVixFuturesEodData)
+    public Task<VixFuturesEodDataReadModel?> GetVixFuturesEodDataAsync(string contractId, DateOnly valueDate)
+        => CurrentVixEodCache.Shared.ReadAsync(contractId, valueDate, () => ReadStoredVixFuturesEodDataAsync(contractId, valueDate));
+
+    async Task<VixFuturesEodDataReadModel?> ReadStoredVixFuturesEodDataAsync(string contractId, DateOnly valueDate) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetVixFuturesEodData)}", MarketDataDbCql.GetVixFuturesEodData)
         .SetParameters(new GetVixFuturesEodData(contractId, valueDate))
         .ExecuteSingleAsync(MapToVixFuturesEodData);
     /// <summary>

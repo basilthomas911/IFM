@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
@@ -138,6 +138,42 @@ public sealed class TickAggregationServiceTests
         await service.StopAsync();
     }
 
+    [Fact]
+    public async Task Trade_price_notifications_require_one_tick_but_all_trades_keep_their_lineage()
+    {
+        var valueDate = new DateOnly(2026, 8, 25);
+        var instrument = new InstrumentKey(7, 42);
+        using var feed = new FakeFeed(
+            instrument,
+            NormalizedTrade(instrument, 1, 5_000_000_000, 1, (byte)'T', (byte)'B', 0),
+            NormalizedTrade(instrument, 2, 5_000_000_000, 1, (byte)'T', (byte)'B', 0),
+            NormalizedTrade(instrument, 3, 5_100_000_000, 1, (byte)'T', (byte)'B', 0),
+            NormalizedTrade(instrument, 4, 5_250_000_000, 1, (byte)'T', (byte)'B', 0),
+            NormalizedTrade(instrument, 5, 5_000_000_000, 1, (byte)'T', (byte)'B', 0));
+        var publisher = new CapturingPublisher();
+        await using var service = new TickAggregationService(
+            feed,
+            new MappingProvider(instrument, CreateDetails(valueDate, instrument) with { TickSize = 0.25m }),
+            publisher,
+            new TickQuoteBufferPool(),
+            new FixedValueDateProvider(valueDate),
+            new TickAggregationOptions { Dataset = "GLBX.MDP3", DefinitionDate = valueDate });
+
+        await service.StartAsync();
+        Assert.True(SpinWait.SpinUntil(
+            () => service.GetMetrics().RecordsCompleted == 5,
+            TimeSpan.FromSeconds(2)));
+        await service.StopAsync();
+
+        Assert.Equal(new[] { 5m, 5.25m, 5m },
+            publisher.MarketPrices.Select(e => e.Price.Trade!.Value.LastPrice));
+        Assert.Equal(new long[] { 1, 4, 5 },
+            publisher.MarketPrices.Select(e => e.Price.Trade!.Value.TradeOrdinal));
+        Assert.Equal(0, service.GetContractStatus("ESU6").RejectedCacheUpdates);
+        Assert.Equal(3, service.GetMetrics().EmittedTradeEvents);
+        Assert.Equal(0, publisher.DirectTradePublications);
+        Assert.Equal(new uint[] { 1, 4, 5 }, publisher.Trades.Select(e => e.TradeData.SourceSequence));
+    }
     [Fact]
     public async Task Market_price_trade_maps_provider_semantics_and_assigns_gap_free_lineage()
     {
@@ -498,7 +534,7 @@ public sealed class TickAggregationServiceTests
     }
 
     [Fact]
-    public async Task Realtime_publication_failure_does_not_stop_cache_or_durable_ingestion()
+    public async Task Realtime_publication_failure_keeps_cache_current_without_bypassing_price_event()
     {
         var valueDate = new DateOnly(2026, 8, 10);
         var instrument = new InstrumentKey(7, 42);
@@ -528,7 +564,7 @@ public sealed class TickAggregationServiceTests
 
         Assert.True(service.TryGetLastTickPrice("ESU6", out var snapshot));
         Assert.Equal(5.1m, snapshot.Trade!.Value.LastPrice);
-        Assert.Equal(2, publisher.DurableTradeCount);
+        Assert.Equal(0, publisher.DurableTradeCount);
         Assert.Equal(2, service.GetMetrics().PublicationFailures);
         Assert.Equal(2, service.GetMetrics().RecordsCompleted);
         Assert.Equal(0, service.GetMetrics().ProcessingFailures);
@@ -1350,6 +1386,7 @@ public sealed class TickAggregationServiceTests
 
     private sealed class CapturingPublisher : ITickAggregationEventPublisher
     {
+        public int DirectTradePublications { get; private set; }
         public List<string> Order { get; } = [];
         public List<long> Sequences { get; } = [];
         public List<FuturesMarketPriceUpdatedRealtimeEvent> MarketPrices { get; } = [];
@@ -1374,6 +1411,7 @@ public sealed class TickAggregationServiceTests
                 VwapCheckpoints.Add(e);
                 return ValueTask.CompletedTask;
             }
+            if (e.SourceTrade is { } trade) RecordTrade(trade);
             MarketPrices.Add(e);
             MarketPrice.TrySetResult(e);
             return ValueTask.CompletedTask;
@@ -1390,6 +1428,11 @@ public sealed class TickAggregationServiceTests
             return ValueTask.CompletedTask;
         }
         public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent e)
+        {
+            DirectTradePublications++;
+            return RecordTrade(e);
+        }
+        private ValueTask RecordTrade(FuturesTickTradeDataChangedEvent e)
         {
             Order.Add("trade");
             Sequences.Add(e.TickDataId.SequenceId);
@@ -1433,8 +1476,11 @@ public sealed class TickAggregationServiceTests
         public int DurableTradeCount { get; private set; }
         public bool IsRunning { get; private set; }
         public ValueTask StartAsync() { IsRunning = true; return ValueTask.CompletedTask; }
-        public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent e) =>
-            ValueTask.CompletedTask;
+        public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent e)
+        {
+            if (e.SourceTrade is not null) DurableTradeCount++;
+            return ValueTask.CompletedTask;
+        }
         public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent e)
         {
             DurableTradeCount++;

@@ -353,6 +353,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             async () =>
             {
                 actor.Mailbox.ThreadQueues.PauseAdmission();
+                _logger.LogInformation("Actor admission closed; ActorMailboxId={ActorMailboxId}; Method={Method}", mailboxId, nameof(StopAsync));
                 if (!await actor.Mailbox.ThreadQueues
                     .WaitForIdleAsync(ShutdownDrainTimeout, cancellationToken)
                     .ConfigureAwait(false))
@@ -375,6 +376,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             async () =>
             {
                 actor.Mailbox.ThreadQueues.PauseAdmission();
+                _logger.LogInformation("Actor admission closed; ActorMailboxId={ActorMailboxId}; Method={Method}", mailboxId, nameof(RestartAsync));
                 if (!await actor.Mailbox.ThreadQueues
                     .WaitForIdleAsync(ShutdownDrainTimeout, cancellationToken)
                     .ConfigureAwait(false))
@@ -401,6 +403,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             async () =>
             {
                 actor.Mailbox.ThreadQueues.PauseAdmission(threadId);
+                _logger.LogInformation("PauseAsync admission closed; ActorThreadId={ActorThreadId}; Timeout={Timeout}", threadId, timeout);
                 return await actor.Mailbox.ThreadQueues
                     .WaitForIdleAsync(threadId, timeout, cancellationToken)
                     .ConfigureAwait(false);
@@ -419,6 +422,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             () =>
             {
                 actor.Mailbox.ThreadQueues.ResumeAdmission(threadId);
+                _logger.LogInformation("ResumeAsync admission resumed; ActorThreadId={ActorThreadId}; Generation={Generation}", threadId, actor.Mailbox.ThreadQueues.GetGeneration(threadId));
                 return ValueTask.FromResult(true);
             },
             cancellationToken).ConfigureAwait(false);
@@ -445,17 +449,44 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
                 if (expectedGeneration >= 0
                     && actor.Mailbox.ThreadQueues.GetGeneration(threadId) != expectedGeneration)
                     return false;
+                var operationId = Guid.NewGuid();
+                var started = Stopwatch.GetTimestamp();
                 actor.Mailbox.ThreadQueues.PauseAdmission(threadId);
-                if (!await actor.Mailbox.ThreadQueues
-                    .WaitForIdleAsync(threadId, timeout, cancellationToken)
-                    .ConfigureAwait(false))
-                    return false;
-                if (!actor.Mailbox.ThreadQueues.Retire(threadId))
-                    return false;
-                if (_threadState.TryGetValue(threadId, out var state))
-                    RemoveThreadState(state);
-                actor.Mailbox.ThreadQueues.ResumeAdmission(threadId);
-                return true;
+                _logger.LogInformation("{Method} admission paused; ActorThreadId={ActorThreadId}; OperationId={OperationId}; ExpectedGeneration={ExpectedGeneration}; Timeout={Timeout}",
+                    nameof(RestartAsync), threadId, operationId, expectedGeneration, timeout);
+                try
+                {
+                    if (!await actor.Mailbox.ThreadQueues
+                        .WaitForIdleAsync(threadId, timeout, cancellationToken)
+                        .ConfigureAwait(false))
+                    {
+                        actor.Mailbox.ThreadQueues.QuarantineAdmission(threadId);
+                        _logger.LogWarning("{Method} quarantined after drain timeout; ActorThreadId={ActorThreadId}; OperationId={OperationId}; Timeout={Timeout}", nameof(RestartAsync), threadId, operationId, timeout);
+                        return false;
+                    }
+                    if (!actor.Mailbox.ThreadQueues.Retire(threadId))
+                    {
+                        actor.Mailbox.ThreadQueues.QuarantineAdmission(threadId);
+                        _logger.LogWarning("{Method} admission remains closed after retirement failure; ActorThreadId={ActorThreadId}; OperationId={OperationId}", nameof(RestartAsync), threadId, operationId);
+                        return false;
+                    }
+                    if (_threadState.TryGetValue(threadId, out var state))
+                        RemoveThreadState(state);
+                    actor.Mailbox.ThreadQueues.ResumeAdmission(threadId);
+                    _logger.LogInformation("Mailbox admission resumed; ActorThreadId={ActorThreadId}; Generation={Generation}", threadId, actor.Mailbox.ThreadQueues.GetGeneration(threadId));
+                    return true;
+                }
+                catch (Exception exception)
+                {
+                    actor.Mailbox.ThreadQueues.QuarantineAdmission(threadId);
+                    _logger.LogError(exception, "{Method} failed with admission closed; ActorThreadId={ActorThreadId}; OperationId={OperationId}", nameof(RestartAsync), threadId, operationId);
+                    throw;
+                }
+                finally
+                {
+                    _logger.LogInformation("{Method} exit; ActorThreadId={ActorThreadId}; OperationId={OperationId}; AdmissionOpen={AdmissionOpen}; Generation={Generation}; ElapsedMilliseconds={ElapsedMilliseconds}",
+                        nameof(RestartAsync), threadId, operationId, actor.Mailbox.ThreadQueues.IsAdmissionOpen(threadId), actor.Mailbox.ThreadQueues.GetGeneration(threadId), Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                }
             },
             cancellationToken);
     }
@@ -474,6 +505,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             {
                 if (actor.Mailbox.ThreadQueues.GetGeneration(threadId) != expectedGeneration) return false;
                 actor.Mailbox.ThreadQueues.PauseAdmission(threadId);
+                _logger.LogInformation("RetireAsync admission closed; ActorThreadId={ActorThreadId}; Timeout={Timeout}", threadId, timeout);
                 if (!await actor.Mailbox.ThreadQueues.WaitForIdleAsync(threadId, timeout, cancellationToken).ConfigureAwait(false))
                     return false;
                 if (!actor.Mailbox.ThreadQueues.Retire(threadId)) return false;

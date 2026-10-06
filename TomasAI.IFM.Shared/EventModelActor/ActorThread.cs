@@ -157,7 +157,7 @@ sealed class ActorThread : IActorThread
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         var verb = message.Subject.Verb;
         var outcome = "Succeeded";
-        ActorMessageProcessingLog.Entry(_logger!, _threadId, verb);
+        ActorMessageProcessingLog.Entry(_logger!, _threadId, verb, message!.Subject, nameof(OnMessageAsync));
         _state = ActorThreadState.ProcessingMessage;
         ResetTimer();
 
@@ -170,12 +170,12 @@ sealed class ActorThread : IActorThread
         catch (Exception ex)
         {
             outcome = "Failed";
-            ActorMessageProcessingLog.Failed(_logger!, _threadId, verb, started, ex);
+            ActorMessageProcessingLog.Failed(_logger!, _threadId, verb, started, ex, message!.Subject, nameof(OnMessageAsync));
             SetFaulted(ex);
         }
         finally
         {
-            ActorMessageProcessingLog.Exit(_logger!, _threadId, verb, outcome, started);
+            ActorMessageProcessingLog.Exit(_logger!, _threadId, verb, outcome, started, message!.Subject, nameof(OnMessageAsync));
             message.Dispose();
         }
     }

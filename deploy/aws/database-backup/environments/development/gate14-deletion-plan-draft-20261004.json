@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "status": "DraftNotExecutable",
+  "fixtureRunId": "014a9d09a13d4621affbf2695173093c",
+  "signature": null,
+  "approvalReference": null,
+  "policyRevision": null,
+  "candidateRole": "candidate",
+  "preserveRoles": [
+    "keep"
+  ],
+  "preserveExistingQualificationEvidence": true,
+  "candidateObjects": [
+    {
+      "role": "candidate",
+      "bucketName": "ifm-db-backup-development-primary-107651266250",
+      "region": "ca-central-1",
+      "objectKey": "v1/environment/development/gate14/disposable/014a9d09a13d4621affbf2695173093c/candidate.json",
+      "length": 165,
+      "sha256": "2990b49183322566222c67810501417155e912d8bfec7c5e141d7f7c44412c36",
+      "versionId": "rQeNDPiTOAC0iMcFEGTmVUOXquFj.qpL",
+      "observedRetainUntilUtc": "2026-11-08T19:50:25.661000+00:00"
+    }
+  ],
+  "earliestEligibilityUtc": "2026-11-08T19:50:25.661000+00:00",
+  "remainingRequirements": [
+    "Verify legal hold OFF explicitly; current status not established",
+    "Reconcile verified catalog/newest/dependency policy; synthetic fixture is not a database restore point",
+    "Reobserve retention and replica state at execution time",
+    "Build canonical AwsRetentionPlanDocument using established policy revision",
+    "Sign immutable canonical plan using approved KMS signature service",
+    "Independent approval binds exact plan ID/revision and each bucket/key/version",
+    "Execute constrained MFA-gated deletion role and retain reconciliation evidence"
+  ],
+  "readbackVerified": true,
+  "readbackObservedUtc": "2026-10-04T22:40:01.4175354+00:00",
+  "planningBlocker": "Current retention planner requires a verified database restore-point catalog; these synthetic fixtures are not database restore points. No canonical plan may be fabricated from them.",
+  "qualificationPreflight": {
+    "date": "2026-10-04",
+    "gate14Tests": {
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0
+    },
+    "signingKeyDescribe": "AccessDenied; metadata operation is not required by the tested signing workflow",
+    "realBackupQualificationComplete": false,
+    "requiredPath": "Dedicated non-evidence database backup plus newer restore-verified backup in signed catalog; existing evidence excluded",
+    "signingVerification": {
+      "result": "Passed",
+      "liveAwsEnabled": true,
+      "operationId": "b5c765cdaf0840d9b53b76b7c91cdb36",
+      "signingKeyArn": "arn:aws:kms:ca-central-1:107651266250:key/2edd60e5-be19-483d-b4df-88df45aa2fb2",
+      "publicKeySha256": "705F75DDB510986F565B97B9329996EF6B9786E27CBE21E0FE796301908107CB",
+      "checks": [
+        "KMS signing",
+        "KMS verification",
+        "public-key export",
+        "offline verification",
+        "tampered payload rejected"
+      ]
+    }
+  }
+}

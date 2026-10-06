@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
@@ -13,15 +15,16 @@ public sealed record OfflineFillSimulationOptions
 public sealed class OfflineFillSimulation : IDisposable
 {
     readonly EmulatorLedger ledger;
+    readonly ILogger logger;
     readonly OfflineFillSimulationOptions options;
     readonly Func<bool> marketClosed;
     readonly CancellationTokenSource lifetime = new();
     readonly ConcurrentDictionary<string, Lazy<Task>> runs = new(StringComparer.Ordinal);
-    public OfflineFillSimulation(EmulatorLedger ledger, OfflineFillSimulationOptions options, Func<bool> marketClosed)
+    public OfflineFillSimulation(EmulatorLedger ledger, OfflineFillSimulationOptions options, Func<bool> marketClosed, ILogger? logger = null)
     {
         if (options.CompletionTime <= TimeSpan.Zero || options.MaximumUnitsPerFill <= 0)
             throw new ArgumentOutOfRangeException(nameof(options));
-        this.ledger = ledger; this.options = options; this.marketClosed = marketClosed;
+        this.logger = logger ?? NullLogger.Instance; this.ledger = ledger; this.options = options; this.marketClosed = marketClosed;
     }
     public bool Enabled => options.Enabled;
     public void Start(string id)
@@ -42,6 +45,7 @@ public sealed class OfflineFillSimulation : IDisposable
                 quantities.Add(quantity); remaining -= quantity;
             }
             if (quantities.Count == 0) return;
+            OfflineSimulationLogging.Started(logger, id, options.RandomSeed, quantities.Sum(), quantities.Count, options.CompletionTime.TotalMilliseconds);
             var times = Enumerable.Range(0, quantities.Count - 1)
                 .Select(_ => options.CompletionTime.TotalMilliseconds * (0.1 + random.NextDouble() * 0.8))
                 .Append(options.CompletionTime.TotalMilliseconds).Order().ToArray();
@@ -57,11 +61,12 @@ public sealed class OfflineFillSimulation : IDisposable
                 do
                 {
                     if (!ledger.SimulateOfflineFill(id, quantity)) break;
+                    OfflineSimulationLogging.FillBatch(logger, id, quantity, ledger.RemainingStrategyUnits(id));
                 } while (i == times.Length - 1 && ledger.RemainingStrategyUnits(id) > 0);
             }
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
-        catch (Exception exception) { System.Diagnostics.Trace.TraceError("Offline emulator fill failed for {0}: {1}", id, exception); }
+        catch (Exception exception) { OfflineSimulationLogging.Failed(logger, id, exception); }
     }
     public void Dispose() => lifetime.Cancel();
 }

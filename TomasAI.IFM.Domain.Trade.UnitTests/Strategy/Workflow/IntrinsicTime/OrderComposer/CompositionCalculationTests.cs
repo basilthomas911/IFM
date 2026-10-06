@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model;
@@ -29,6 +30,10 @@ public sealed class CompositionCalculationTests
         if (candidate.PremiumMode == "Credit") Assert.True(candidate.Pricing.LimitDebit < 0);
         if (candidate.PremiumMode == "Debit") Assert.True(candidate.Pricing.LimitDebit > 0);
         Assert.Equal(CompositionHash.Candidate(candidate), candidate.CandidateHash);
+        Assert.NotNull(candidate.DecisionEvidence);
+        Assert.True(candidate.DecisionEvidence.IsValid);
+        var savedInputs = candidate.DecisionEvidence.Read<ExecuteOrderCompositionPipelineCommand>();
+        Assert.Equal(c.Fingerprint(), savedInputs.Fingerprint());
     }
     [Theory]
     [InlineData(2, 1, 105, 395)]

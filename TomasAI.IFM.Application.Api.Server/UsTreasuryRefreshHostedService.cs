@@ -29,14 +29,13 @@ public sealed class UsTreasuryRefreshHostedService(
                     // durable projector path records acquisition and persistence, including provider failure.
                     var submitted = await imports.ImportAsync(new(required, required, IncludeEconomicCalendar: false),
                         stoppingToken).ConfigureAwait(false);
-                    logger.LogInformation("Official Treasury import for {ValueDate}: {Submitted} submitted, {Rejected} rejected. Completion is recorded in DownloadLog under USTreasury.",
-                        required, submitted.SubmittedCommands, submitted.RejectedSubmissions);
+                    logger.LogInformation("{Component}.{Method} "+"Official Treasury import for {ValueDate}: {Submitted} submitted, {Rejected} rejected. Completion is recorded in DownloadLog under USTreasury.",nameof(UsTreasuryRefreshHostedService),nameof(ExecuteAsync),                        required,submitted.SubmittedCommands,submitted.RejectedSubmissions);
                     var warmed = await pricing.GetAsync(clock.GetUtcNow(), 0, publication, UsTreasuryCurve.ConversionPolicy, stoppingToken).ConfigureAwait(false);
                     // A response first observed after the frozen valuation is usable on the next valuation.
                     if (warmed.Error == "TreasuryStale")
                         warmed = await pricing.GetAsync(clock.GetUtcNow(), 0, publication, UsTreasuryCurve.ConversionPolicy, stoppingToken).ConfigureAwait(false);
                     if (!warmed.Succeeded)
-                        logger.LogWarning("Official Treasury pricing warm-up is unavailable: {Reason}.", warmed.Error);
+                        logger.LogWarning("{Component}.{Method} "+"Official Treasury pricing warm-up is unavailable: {Reason}.",nameof(UsTreasuryRefreshHostedService),nameof(ExecuteAsync),warmed.Error);
                     else if (submitted.RejectedSubmissions == 0)
                         delay = TimeSpan.FromMinutes(30);
                 }
@@ -44,7 +43,7 @@ public sealed class UsTreasuryRefreshHostedService(
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
             catch (Exception error)
             {
-                logger.LogWarning(error, "Official Treasury refresh failed; the worker will retry and pricing retains its freshness checks.");
+                logger.LogWarning(error,"{Component}.{Method} "+"Official Treasury refresh failed; the worker will retry and pricing retains its freshness checks.",nameof(UsTreasuryRefreshHostedService),nameof(ExecuteAsync));
             }
             try { await Task.Delay(delay, clock, stoppingToken).ConfigureAwait(false); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }

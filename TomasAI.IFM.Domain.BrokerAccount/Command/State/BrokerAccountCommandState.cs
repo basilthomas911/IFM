@@ -7,16 +7,25 @@ namespace TomasAI.IFM.Domain.BrokerAccount.Command.State;
 /// <summary>Reconstructs the latest durable account, gate, hold, and qualification state.</summary>
 public sealed class BrokerAccountCommandState : BaseEventSourceActorState<BrokerAccountCommandState>
 {
+    /// <inheritdoc />
     public override ActorThreadId Id { get; set; } = default!;
-    public BrokerAccountDefinition? Current { get; private set; }
+    /// <summary>Gets the authoritative account reconstructed exclusively from account events.</summary>
+    public BrokerAccountDefinition? BrokerAccountDefinition { get; private set; }
 
-    protected override bool Apply(IEvent domainEvent)
+    /// <summary>Dispatches account events and mutates only the owning account definition.</summary>
+    protected override bool Apply(IEvent domainEvent) => domainEvent switch
     {
-        if (domainEvent is not BrokerAccountChangedEvent changed || !changed.EntityId.IsValid ||
-            changed.State.Id != changed.EntityId ||
-            Current is not null && changed.State.Revision != Current.Revision + 1)
+        BrokerAccountChangedEvent changed => ApplyAccountChange(changed),
+        _ => false
+    };
+
+    /// <summary>Applies an account event only when its identity and next revision are valid.</summary>
+    private bool ApplyAccountChange(BrokerAccountChangedEvent changed)
+    {
+        if (!changed.EntityId.IsValid || changed.BrokerAccountDefinition.Id != changed.EntityId ||
+            BrokerAccountDefinition is not null && changed.BrokerAccountDefinition.Revision != BrokerAccountDefinition.Revision + 1)
             return false;
-        Current = changed.State;
+        BrokerAccountDefinition = changed.BrokerAccountDefinition;
         return true;
     }
 }

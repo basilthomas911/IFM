@@ -2,7 +2,8 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.BrokerAccount.Contracts;
-using TomasAI.IFM.Domain.BrokerAccount.Query.Model;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.BrokerAccount.Command.Actor;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -14,7 +15,7 @@ public sealed class BrokerAccountStateRepository(
     IEventSourceActorStateFactory stateFactory,
     IEventSourceActorDbContext eventSource,
     IActorService actorService,
-    IBrokerAccountReadStore readStore,
+    IEventProjector<BrokerAccountCommandActor> eventProjector,
     ILogger<BrokerAccountStateRepository> logger)
     : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger),
       IEventSourceActorStateRepository<BrokerAccountCommandState>
@@ -29,7 +30,6 @@ public sealed class BrokerAccountStateRepository(
     {
         var state = await LoadStateFromSnapshotAsync<BrokerAccountCommandState, BrokerAccountChangedEvent>(
             command, cancellationToken).ConfigureAwait(false);
-        if (state.Current is { } current) readStore.Set(current);
         return state;
     }
 
@@ -44,10 +44,9 @@ public sealed class BrokerAccountStateRepository(
     {
         await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken)
             .ConfigureAwait(false);
-        if (state.Current is { } current) readStore.Set(current);
     }
 
     /// <inheritdoc />
     protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context,
-        DomainEventCollection domainEvents) => ValueTask.CompletedTask;
+        DomainEventCollection domainEvents) => eventProjector.DomainEventsProjectionAsync(domainEvents);
 }

@@ -145,7 +145,7 @@ public sealed class DatabentoCandidateTickStorageProof
             deadline.CancelAfter(policy.ProofTimeout);
             foreach (var identity in session.Identities)
             {
-                logger.LogInformation("Candidate downstream proof starting. CorrelationId={CorrelationId}; Dataset={Dataset}; GenerationId={GenerationId}", result.CorrelationId, identity.Dataset, identity.GenerationId);
+                logger.LogInformation("{Component}.{Method} "+"Candidate downstream proof starting. CorrelationId={CorrelationId}; Dataset={Dataset}; GenerationId={GenerationId}",nameof(DatabentoCandidateTickStorageProof),nameof(QualifyAsync),result.CorrelationId,identity.Dataset,identity.GenerationId);
                 evidence.Arm(new TickStorageGenerationTarget(identity.Dataset, identity.GenerationId));
                 var armed = false;
                 var published = false;
@@ -158,8 +158,7 @@ public sealed class DatabentoCandidateTickStorageProof
                     if (!published)
                     {
                         logger.LogInformation(
-                            "Candidate has no held trade or quote; downstream tick proof is inactive. CorrelationId={CorrelationId}; Dataset={Dataset}; GenerationId={GenerationId}",
-                            result.CorrelationId, identity.Dataset, identity.GenerationId);
+                            "{Component}.{Method} "+"Candidate has no held trade or quote; downstream tick proof is inactive. CorrelationId={CorrelationId}; Dataset={Dataset}; GenerationId={GenerationId}",nameof(DatabentoCandidateTickStorageProof),nameof(QualifyAsync),                            result.CorrelationId,identity.Dataset,identity.GenerationId);
                         continue;
                     }
                     while (!deadline.IsCancellationRequested)
@@ -173,7 +172,7 @@ public sealed class DatabentoCandidateTickStorageProof
                         throw new TimeoutException(
                             $"Candidate downstream proof timed out: dataset={identity.Dataset}; generation={identity.GenerationId:D}; heldTickPublished={published}; completedWrites={evidence.Capture().CompletedWrites}; timeout={policy.ProofTimeout}.");
                     }
-                    logger.LogInformation("Candidate downstream proof completed. CorrelationId={CorrelationId}; Dataset={Dataset}; GenerationId={GenerationId}; CompletedWrites={CompletedWrites}", result.CorrelationId, identity.Dataset, identity.GenerationId, evidence.Capture().CompletedWrites);
+                    logger.LogInformation("{Component}.{Method} "+"Candidate downstream proof completed. CorrelationId={CorrelationId}; Dataset={Dataset}; GenerationId={GenerationId}; CompletedWrites={CompletedWrites}",nameof(DatabentoCandidateTickStorageProof),nameof(QualifyAsync),result.CorrelationId,identity.Dataset,identity.GenerationId,evidence.Capture().CompletedWrites);
                 }
                 catch (OperationCanceledException error) when (deadline.IsCancellationRequested
                     && !cancellationToken.IsCancellationRequested)

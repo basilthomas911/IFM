@@ -326,6 +326,20 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
             .WithMessage($"Unable to resolve {FuturesTdiSignalCommandActor.ActorName} command from message: *");
     }
 
+    [Fact]
+    public async Task OnValidateAsync_FutureRsiSample_ThrowsCommandValidationException()
+    {
+        var scenario = CreateScenario();
+        var original = SampleData.TdiGenerateCommandFor(TimeFrameType.FiveMinutes);
+        var command = original with
+        {
+            FuturesRsiSignals = original.FuturesRsiSignals.Select((signal, index) => index == 0
+                ? signal with { ValueDate = original.EntityId.ValueDate.AddDays(1) }
+                : signal).ToArray()
+        };
+        var act = async () => await scenario.Actor.InvokeOnValidateAsync(scenario.Context, command.Subject.ThreadId, command);
+        await act.Should().ThrowAsync<CommandValidationException>();
+    }
     // OnValidateAsync
 
     [Theory]

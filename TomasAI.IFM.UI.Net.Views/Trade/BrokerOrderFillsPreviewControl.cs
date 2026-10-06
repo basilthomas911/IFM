@@ -4,6 +4,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Order.Execution;
 using TomasAI.IFM.UI.Net.Services.Subscriptions;
 using TomasAI.IFM.UI.Net.Contracts;
 using System.Globalization;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.UI.Net.Models.Portfolio;
@@ -858,7 +859,7 @@ public sealed class BrokerTradePreviewControl : BrokerOrderFillsPreviewControl
             else _legQuantity.Visible = false;
             SetField("Value source", _legs.Any(x => x.Frozen) ? "Frozen quotes / stored fund" : "Market Selection / stored fund");
             var asOf = _legs.Where(x => x.QuoteAtUtc.HasValue).Select(x => x.QuoteAtUtc!.Value).ToArray();
-            SetField("As of", asOf.Length > 0 ? asOf.Min().ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") : "Quote timestamp unavailable");
+            SetField("As of", asOf.Length > 0 ? EasternTime.FromUtc(asOf.Min()).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) : "Quote timestamp unavailable");
             SetField("Risk approval", _data?.Order?.RiskAuthorization is null ? "Not requested" : "Stored approval - requires revalidation");
             SetField("Available funds", _data?.Balances?.Value?.AvailableCash);
             SetField("Fund capacity", _data?.RiskEnvelope?.AvailableCapital);

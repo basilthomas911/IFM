@@ -2,24 +2,19 @@
 
 public static class CommandExtensions
 {
-    public static ServiceResult<GuidResult> UpdateFailed(this ICommand e, string errorMessage)
-      => new ServiceFailed<GuidResult>(e.ErrorCode, errorMessage, new GuidResult(e.CommandId));
-
-    /// <summary>Captures a command guard failure and returns false for a boolean switch arm.</summary>
-    /// <param name="command">The command whose handler is evaluating the guard.</param>
-    /// <param name="errorMsg">The handler's failure message, replaced with the guard reason.</param>
-    /// <param name="errorMessage">The business failure reason to return in the command acknowledgement.</param>
-    /// <returns>False, indicating that no state update should occur.</returns>
-    public static bool UpdateFailed(this ICommand command, ref string errorMsg, string errorMessage)
-    {
-        errorMsg = errorMessage;
-        return false;
-    }
-
     public static ServiceResult<GuidResult> UpdatedOk(this ICommand e, Action updateAction)
     {
         updateAction?.Invoke();
         return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
+    }
+
+    public static ServiceResult<GuidResult> UpdateFailed(this ICommand e, string errorMessage)
+      => new ServiceFailed<GuidResult>(e.ErrorCode, errorMessage, new GuidResult(e.CommandId));
+
+    public static bool UpdateFailed(this ICommand e, ref string errorMessage, string newErrorMsg)
+    {
+        errorMessage = newErrorMsg;
+        return false;
     }
 
     /// <summary>

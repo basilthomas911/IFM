@@ -42,10 +42,7 @@ public static class OptionTradeLegDataChanged
         catch (Exception exception)
         {
             logger.LogErrorEvent(
-                ServiceId,
-                exception,
-                "{Operation}: option trade leg data change failed",
-                operation);
+                ServiceId,                exception,                "{Component}.{Method} "+"{Operation}: option trade leg data change failed",nameof(OptionTradeLegDataChanged),nameof(ExecuteAsync),                operation);
             await context.StatusConsoleWriter.WriteConsoleAsync(
                 LogSourceType.OptionTradeEvent,
                 OptionTradeLegDataChangedEvent.ErrorCode,

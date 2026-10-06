@@ -121,7 +121,7 @@ public static class StartRegimeDiscoveryPipeline
         }
         catch (Exception exception)
         {
-            context.Logger.LogError(exception, "Regime Discovery initialization failed for workflow {WorkflowId}", command.WorkflowId);
+            context.Logger.LogError(exception,"{Component}.{Method} "+"Regime Discovery initialization failed for workflow {WorkflowId}",nameof(StartRegimeDiscoveryPipeline),nameof(StartPipelineAsync),command.WorkflowId);
             var diagnosticContext = new Dictionary<string, string>
             {
                 ["WorkflowId"] = command.WorkflowId.ToString(),

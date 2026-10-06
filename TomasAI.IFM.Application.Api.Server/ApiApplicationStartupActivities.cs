@@ -75,7 +75,7 @@ public sealed class ApiApplicationStartupActivities(
         if (!selected.Success) throw new InvalidOperationException(selected.ErrorMessage);
         var run = selected.Value ?? throw new InvalidOperationException("Applied parameter generation is unavailable.");
         parameterRuntime.Apply(run);
-        logger.LogInformation("Parameter generation applied. RunId={RunId}; Fingerprint={Fingerprint}; Assignments={Assignments}", run.RunId, run.Plan.Fingerprint, run.Scopes.Length);
+        logger.LogInformation("{Component}.{Method} "+"Parameter generation applied. RunId={RunId}; Fingerprint={Fingerprint}; Assignments={Assignments}",nameof(ApiApplicationStartupActivities),nameof(ApplyParameterSetsAsync),run.RunId,run.Plan.Fingerprint,run.Scopes.Length);
         return ApplicationStartupActivityOutcome.Started;
     }
 
@@ -147,7 +147,7 @@ public sealed class ApiApplicationStartupActivities(
         if (marketSessionAuthority.Current.ActiveValueDate is null)
         {
             logger.LogInformation(
-                "Futures market is closed; live feed health is inactive and core services remain ready.");
+                "{Component}.{Method} "+"Futures market is closed; live feed health is inactive and core services remain ready.",nameof(ApiApplicationStartupActivities),nameof(StartMarketDataAsync));
             return ApplicationStartupActivityOutcome.ScheduledStopped;
         }
 
@@ -297,9 +297,7 @@ public sealed class ApiApplicationStartupActivities(
             }
             catch (Exception exception)
             {
-                logger.LogWarning(exception,
-                    "Four-hour Databento Live seed failed for {ContractId}; indicators will use retained or live observations.",
-                    es.ContractId);
+                logger.LogWarning(exception,                    "{Component}.{Method} "+"Four-hour Databento Live seed failed for {ContractId}; indicators will use retained or live observations.",nameof(ApiApplicationStartupActivities),nameof(StartRealtimeAnalyticsAsync),                    es.ContractId);
             }
         }
         await Task.WhenAll(activations.SelectMany(activation => new[]
@@ -337,8 +335,7 @@ public sealed class ApiApplicationStartupActivities(
                 .ConfigureAwait(false);
         else
             logger.LogInformation(
-                "Submitted five-minute RSI and TDI window plus ADX, ATR, and MACD initialization from {BarCount} Databento replay bars for {ContractId}.",
-                liveSeedBars.Length, es.ContractId);
+                "{Component}.{Method} "+"Submitted five-minute RSI and TDI window plus ADX, ATR, and MACD initialization from {BarCount} Databento replay bars for {ContractId}.",nameof(ApiApplicationStartupActivities),nameof(StartRealtimeAnalyticsAsync),                liveSeedBars.Length,es.ContractId);
         return ApplicationStartupActivityOutcome.Started;
     }
 
@@ -396,7 +393,7 @@ public sealed class ApiApplicationStartupActivities(
         if (marketSessionCalendar is null || actorService is null)
         {
             logger.LogWarning(
-                "Market Outlook five-minute historical seed is unavailable because its startup dependencies are not registered.");
+                "{Component}.{Method} "+"Market Outlook five-minute historical seed is unavailable because its startup dependencies are not registered.",nameof(ApiApplicationStartupActivities),nameof(SeedMarketOutlookIndicatorsAsync));
             return;
         }
 
@@ -422,17 +419,14 @@ public sealed class ApiApplicationStartupActivities(
         catch (Exception exception)
         {
             logger.LogWarning(
-                exception,
-                "Market Outlook five-minute historical seed failed for {ContractId}; live signals will warm from empty state.",
-                contractId);
+                exception,                "{Component}.{Method} "+"Market Outlook five-minute historical seed failed for {ContractId}; live signals will warm from empty state.",nameof(ApiApplicationStartupActivities),nameof(SeedMarketOutlookIndicatorsAsync),                contractId);
             return;
         }
 
         if (bars.Length != requestedBars)
         {
             logger.LogInformation(
-                "Market Outlook five-minute historical seed is incomplete for {ContractId}; ADX, ATR, and MACD will warm from live bars.",
-                contractId);
+                "{Component}.{Method} "+"Market Outlook five-minute historical seed is incomplete for {ContractId}; ADX, ATR, and MACD will warm from live bars.",nameof(ApiApplicationStartupActivities),nameof(SeedMarketOutlookIndicatorsAsync),                contractId);
             return;
         }
 
@@ -476,17 +470,13 @@ public sealed class ApiApplicationStartupActivities(
             if (!adxAccepted || !atrAccepted || !macdAccepted)
             {
                 logger.LogWarning(
-                    "Market Outlook five-minute historical seed was rejected for {ContractId}; live bars will continue warming the indicators.",
-                    contractId);
+                    "{Component}.{Method} "+"Market Outlook five-minute historical seed was rejected for {ContractId}; live bars will continue warming the indicators.",nameof(ApiApplicationStartupActivities),nameof(SeedMarketOutlookIndicatorsAsync),                    contractId);
                 return;
             }
         }
 
         logger.LogInformation(
-            "Market Outlook five-minute seed submitted {BarCount} bars for ADX, ATR, and MACD on {ContractId}; liveReplay={LiveReplay}.",
-            bars.Length,
-            contractId,
-            liveSeedBars.Length == 48);
+            "{Component}.{Method} "+"Market Outlook five-minute seed submitted {BarCount} bars for ADX, ATR, and MACD on {ContractId}; liveReplay={LiveReplay}.",nameof(ApiApplicationStartupActivities),nameof(SeedMarketOutlookIndicatorsAsync),            bars.Length,            contractId,            liveSeedBars.Length == 48);
     }
 
     async Task<TomasAI.IFM.Shared.EventSourcing.ServiceResult<Guid>> StartSeededFiveMinuteRsiAsync(
@@ -627,11 +617,7 @@ public sealed class ApiApplicationStartupActivities(
                 if (attempt == maximumAttempts)
                 {
                     logger.LogWarning(
-                        "Historical accumulator replay rejected {CommandType} after {AttemptCount} attempts. ErrorCode={ErrorCode}; Error={ErrorMessage}",
-                        typeof(TCommand).Name,
-                        maximumAttempts,
-                        result.ErrorCode,
-                        result.ErrorMessage);
+                        "{Component}.{Method} "+"Historical accumulator replay rejected {CommandType} after {AttemptCount} attempts. ErrorCode={ErrorCode}; Error={ErrorMessage}",nameof(ApiApplicationStartupActivities),nameof(SubmitHistoricalSeedAsync),                        typeof(TCommand).Name,                        maximumAttempts,                        result.ErrorCode,                        result.ErrorMessage);
                     return false;
                 }
             }
@@ -642,11 +628,7 @@ public sealed class ApiApplicationStartupActivities(
             catch (Exception exception) when (attempt < maximumAttempts)
             {
                 logger.LogWarning(
-                    exception,
-                    "Historical accumulator replay transport failed for {CommandType}; retrying attempt {NextAttempt} of {AttemptCount}.",
-                    typeof(TCommand).Name,
-                    attempt + 1,
-                    maximumAttempts);
+                    exception,                    "{Component}.{Method} "+"Historical accumulator replay transport failed for {CommandType}; retrying attempt {NextAttempt} of {AttemptCount}.",nameof(ApiApplicationStartupActivities),nameof(SubmitHistoricalSeedAsync),                    typeof(TCommand).Name,                    attempt + 1,                    maximumAttempts);
             }
 
             await Task.Delay(TimeSpan.FromMilliseconds(100 * attempt), timeProvider, cancellationToken)
@@ -671,16 +653,13 @@ public sealed class ApiApplicationStartupActivities(
             // Historical warmup is an optional activity. Its failure already degrades the workflow;
             // final feed qualification must not promote that explicit degradation to Failed.
             logger.LogWarning(
-                "Application operational qualification retained the historical analytics degradation. ValueDate={ValueDate}; Detail={Detail}.",
-                context.ValueDate,
-                warmupDetail);
+                "{Component}.{Method} "+"Application operational qualification retained the historical analytics degradation. ValueDate={ValueDate}; Detail={Detail}.",nameof(ApiApplicationStartupActivities),nameof(QualifyOperationalStateAsync),                context.ValueDate,                warmupDetail);
         }
         if (marketSessionAuthority.Current.ActiveValueDate is not null
             && !marketDataApi.IsDatabentoFeedUp())
             throw new InvalidOperationException("Databento did not satisfy the bounded up/down qualification probe.");
         logger.LogInformation(
-            "Application operational qualification passed for value date {ValueDate}.",
-            context.ValueDate);
+            "{Component}.{Method} "+"Application operational qualification passed for value date {ValueDate}.",nameof(ApiApplicationStartupActivities),nameof(QualifyOperationalStateAsync),            context.ValueDate);
         return ValueTask.FromResult(ApplicationStartupActivityOutcome.AlreadySatisfied);
     }
 

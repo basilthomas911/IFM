@@ -68,7 +68,7 @@ public abstract class BaseEventSourceActorRepository
         }
         catch (Exception ex)
         {
-            _logger.LogErrorEvent(_serviceId, ex, "GetEventStreamIdAsync failed");
+            _logger.LogErrorEvent(_serviceId,ex,"{Component}.{Method} "+"GetEventStreamIdAsync failed",nameof(BaseEventSourceActorRepository),nameof(GetStreamId));
             throw new StorageException($"{_serviceId}.GetEntityIdAsync failed", ex);
         }
     }
@@ -110,7 +110,7 @@ public abstract class BaseEventSourceActorRepository
         }
         catch (Exception ex)
         {
-            _logger.LogErrorEvent(_serviceId, ex, "LoadStateAsync failed for {StateName}", typeof(TState).Name);
+            _logger.LogErrorEvent(_serviceId,ex,"{Component}.{Method} "+"LoadStateAsync failed for {StateName}",nameof(BaseEventSourceActorRepository),nameof(LoadStateAsync),typeof(TState).Name);
             var errorMsg = $"{_serviceId}.LoadStateAsync failed for {typeof(TState).Name}";
             throw new StorageException(errorMsg, ex);
         }
@@ -153,8 +153,7 @@ public abstract class BaseEventSourceActorRepository
                     lastNRange,
                     state.ReplayEvents).ConfigureAwait(false);
             }
-            _logger.LogInformationEvent($"{GetType().Name}", "loading state: {StateName} for command: {CommandName} from event stream: {StreamId} with domain events in last: {LastNRange}",
-                typeof(TState).Name, command.CommandName, streamId, lastNRange);
+            _logger.LogInformationEvent($"{GetType().Name}","{Component}.{Method} "+"loading state: {StateName} for command: {CommandName} from event stream: {StreamId} with domain events in last: {LastNRange}",nameof(BaseEventSourceActorRepository),nameof(LoadStateAsync),                typeof(TState).Name,command.CommandName,streamId,lastNRange);
             return state;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -163,7 +162,7 @@ public abstract class BaseEventSourceActorRepository
         }
         catch (Exception ex)
         {
-            _logger.LogErrorEvent(_serviceId, ex, "LoadStateAsync - lastNRange failed for {StateName}", typeof(TState).Name);
+            _logger.LogErrorEvent(_serviceId,ex,"{Component}.{Method} "+"LoadStateAsync - lastNRange failed for {StateName}",nameof(BaseEventSourceActorRepository),nameof(LoadStateAsync),typeof(TState).Name);
             var errorMsg = $"{_serviceId}.LoadStateAsync - lastNRange failed for {typeof(TState).Name}";
             throw new StorageException(errorMsg, ex);
         }
@@ -182,12 +181,12 @@ public abstract class BaseEventSourceActorRepository
         try
         {
             // no domain events to load, so return empty state...
-            _logger.LogInformationEvent(_serviceId, "loading empty bounded context: {StateName} with no domain events", stateName);
+            _logger.LogInformationEvent(_serviceId,"{Component}.{Method} "+"loading empty bounded context: {StateName} with no domain events",nameof(BaseEventSourceActorRepository),nameof(LoadEmptyStateAsync),stateName);
             return await Task.FromResult((TState)_stateFactory.CreateState<TState>());
         }
         catch (Exception ex)
         {
-            _logger.LogErrorEvent(_serviceId, ex, "LoadEmptyStateAsync failed for {StateName}", stateName);
+            _logger.LogErrorEvent(_serviceId,ex,"{Component}.{Method} "+"LoadEmptyStateAsync failed for {StateName}",nameof(BaseEventSourceActorRepository),nameof(LoadEmptyStateAsync),stateName);
             var errorMsg = $"{_serviceId}.LoadEmptyStateAsync failed for {stateName}";
             throw new StorageException(errorMsg, ex);
         }
@@ -228,8 +227,7 @@ public abstract class BaseEventSourceActorRepository
                     state.ReplayEvents).ConfigureAwait(false);
             }
 
-            _logger.LogInformationEvent(_serviceId, "loading state: {StateName} for command: {CommandName} from snapshot: {SnapshotEventName} in event stream: {StreamId}",
-                    stateName, command.CommandName, snapshotEventName, streamId);
+            _logger.LogInformationEvent(_serviceId,"{Component}.{Method} "+"loading state: {StateName} for command: {CommandName} from snapshot: {SnapshotEventName} in event stream: {StreamId}",nameof(BaseEventSourceActorRepository),nameof(LoadStateFromSnapshotAsync),                    stateName,command.CommandName,snapshotEventName,streamId);
             return state;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -238,7 +236,7 @@ public abstract class BaseEventSourceActorRepository
         }
         catch (Exception ex)
         {
-            _logger.LogErrorEvent(_serviceId, ex, "LoadStateFromSnapshot failed for {StateName} from snapshot {SnapshotEventName}", stateName, snapshotEventName);
+            _logger.LogErrorEvent(_serviceId,ex,"{Component}.{Method} "+"LoadStateFromSnapshot failed for {StateName} from snapshot {SnapshotEventName}",nameof(BaseEventSourceActorRepository),nameof(LoadStateFromSnapshotAsync),stateName,snapshotEventName);
             var errorMsg = $"{_serviceId}.LoadStateFromSnapshot failed for {stateName} from snapshot {snapshotEventName}";
             throw new StorageException(errorMsg, ex);
         }
@@ -281,14 +279,7 @@ public abstract class BaseEventSourceActorRepository
             }
 
             _logger.LogInformationEvent(
-                _serviceId,
-                "loading state: {StateName} for command: {CommandName} from snapshot: {SnapshotEventName} and last {LastNRange} {RangeEventName} events in stream: {StreamId}",
-                stateName,
-                command.CommandName,
-                snapshotEventName,
-                Math.Max(0, lastNRange),
-                rangeEventName,
-                streamId);
+                _serviceId,                "{Component}.{Method} "+"loading state: {StateName} for command: {CommandName} from snapshot: {SnapshotEventName} and last {LastNRange} {RangeEventName} events in stream: {StreamId}",nameof(BaseEventSourceActorRepository),nameof(LoadStateFromSnapshotLastNRangeAsync),                stateName,                command.CommandName,                snapshotEventName,                Math.Max(0, lastNRange),                rangeEventName,                streamId);
             return state;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -298,12 +289,7 @@ public abstract class BaseEventSourceActorRepository
         catch (Exception ex)
         {
             _logger.LogErrorEvent(
-                _serviceId,
-                ex,
-                "LoadStateFromSnapshotLastNRange failed for {StateName} from snapshot {SnapshotEventName} and range event {RangeEventName}",
-                stateName,
-                snapshotEventName,
-                rangeEventName);
+                _serviceId,                ex,                "{Component}.{Method} "+"LoadStateFromSnapshotLastNRange failed for {StateName} from snapshot {SnapshotEventName} and range event {RangeEventName}",nameof(BaseEventSourceActorRepository),nameof(LoadStateFromSnapshotLastNRangeAsync),                stateName,                snapshotEventName,                rangeEventName);
             throw new StorageException(
                 $"{_serviceId}.LoadStateFromSnapshotLastNRange failed for {stateName} from snapshot {snapshotEventName} and range event {rangeEventName}",
                 ex);
@@ -340,7 +326,7 @@ public abstract class BaseEventSourceActorRepository
                     .ConfigureAwait(false);
                 // Persistence has committed. Required denormalization/publication completes without caller cancellation.
                 await DenormalizeEventsAsync(context, domainEvents).ConfigureAwait(false);
-                _logger.LogInformationEvent(_serviceId, "saving state: {StateName} with {EventsCount} domain events from command: {CommandName} to event stream: {StreamId}", stateName, domainEvents.Count, command.CommandName, command.StreamId);
+                _logger.LogInformationEvent(_serviceId,"{Component}.{Method} "+"saving state: {StateName} with {EventsCount} domain events from command: {CommandName} to event stream: {StreamId}",nameof(BaseEventSourceActorRepository),nameof(SaveStateAndDenormalizeEventsAsync),stateName,domainEvents.Count,command.CommandName,command.StreamId);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -349,7 +335,7 @@ public abstract class BaseEventSourceActorRepository
         }
         catch (Exception ex)
         {
-            _logger.LogErrorEvent(_serviceId, ex, "SaveStateAndDenormalizeEventsAsync failed for {StateName}", stateName);
+            _logger.LogErrorEvent(_serviceId,ex,"{Component}.{Method} "+"SaveStateAndDenormalizeEventsAsync failed for {StateName}",nameof(BaseEventSourceActorRepository),nameof(SaveStateAndDenormalizeEventsAsync),stateName);
             var errorMsg = $"{_serviceId}.SaveStateAndDenormalizeEventsAsync failed for {stateName} ";
             throw new StorageException(errorMsg, ex);
         }
@@ -460,7 +446,7 @@ public abstract class BaseEventSourceActorRepository
         }
         catch (Exception ex)
         {
-            _logger.LogErrorEvent(_serviceId, ex, "UpdateReadModelAsync failed for event: {EventName}", typeof(TEvent).Name);
+            _logger.LogErrorEvent(_serviceId,ex,"{Component}.{Method} "+"UpdateReadModelAsync failed for event: {EventName}",nameof(BaseEventSourceActorRepository),nameof(UpdateReadModelAsync),typeof(TEvent).Name);
             var failedEvent = dernomalizeEvent.ToFailEvent<TFail, TEntityId>(ex) as TFail;
             if (failedEvent is not null)
             {

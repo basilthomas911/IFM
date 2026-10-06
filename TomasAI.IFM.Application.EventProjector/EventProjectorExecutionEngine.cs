@@ -623,10 +623,7 @@ internal sealed class EventProjectorExecutionEngine(
         catch (Exception releaseException)
         {
             _logger.LogWarning(
-                releaseException,
-                "Unable to release projection claim for event {EventId} and projector {ProjectorName}.",
-                state.EventId,
-                state.ProjectorName);
+                releaseException,                "{Component}.{Method} "+"Unable to release projection claim for event {EventId} and projector {ProjectorName}.",nameof(EventProjectorExecutionEngine),nameof(TryReleaseAsync),                state.EventId,                state.ProjectorName);
         }
     }
 

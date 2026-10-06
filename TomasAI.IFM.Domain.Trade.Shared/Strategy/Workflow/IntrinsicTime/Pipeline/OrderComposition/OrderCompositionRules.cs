@@ -149,7 +149,7 @@ public sealed record CompositionBinding
 public static class CompositionHash
 {
     public static string Compute<T>(T value) => CompositionSemanticHash.Compute(value);
-    public static string Candidate(CompositionCandidate value) => Compute(value with { CandidateHash = "" });
+    public static string Candidate(CompositionCandidate value) => Compute(value with { CandidateHash = "", DecisionEvidence = null });
     public static string Binding(CompositionBinding value) => Compute(value with { BindingSha256 = "" });
 }
 public sealed class CompositionException(string code) : ArgumentException(code)

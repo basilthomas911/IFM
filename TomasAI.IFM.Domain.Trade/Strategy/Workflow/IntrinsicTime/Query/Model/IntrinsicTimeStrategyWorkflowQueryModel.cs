@@ -126,10 +126,7 @@ internal static class IntrinsicTimeStrategyWorkflowQueryModel
     {
         RequireHistoryPage(query);
         var symbol = query.Symbol.Trim().ToUpperInvariant();
-        var frameStarts = ResolveCalendarBucketStarts(
-            DateOnly.FromDateTime(query.FromUtc),
-            DateOnly.FromDateTime(query.ToUtc),
-            query.TimePeriod);
+        var frameStarts = ResolveHistoryBucketStarts(query.FromUtc, query.ToUtc, query.TimePeriod);
         var history = new List<IntrinsicTimeStrategyWorkflowHistoryReadModel>();
         foreach (var status in Enum.GetValues<StrategyWorkflowStatus>().Where(static status => status != StrategyWorkflowStatus.None))
         {
@@ -244,6 +241,17 @@ internal static class IntrinsicTimeStrategyWorkflowQueryModel
                suffix[1..].IndexOfAnyExceptInRange('0', '9') < 0;
     }
 
+    /// <summary>Includes trading-date buckets on either side of UTC dates; exact UTC timestamps still limit results.</summary>
+    /// <remarks>Evening futures sessions use the next trading date before UTC midnight. Weekly and monthly bucket rollovers follow that date too.</remarks>
+    internal static IReadOnlyList<DateOnly> ResolveHistoryBucketStarts(DateTime fromUtc, DateTime toUtc, TimeFrameType timePeriod)
+    {
+        var first = DateOnly.FromDateTime(fromUtc);
+        var last = DateOnly.FromDateTime(toUtc);
+        return ResolveCalendarBucketStarts(
+            first == DateOnly.MinValue ? first : first.AddDays(-1),
+            last == DateOnly.MaxValue ? last : last.AddDays(1), timePeriod);
+    }
+
     internal static IReadOnlyList<DateOnly> ResolveCalendarBucketStarts(
         DateOnly startValueDate,
         DateOnly endValueDate,
@@ -313,9 +321,7 @@ internal static class IntrinsicTimeStrategyWorkflowQueryModel
         }
         catch (LegacyWorkflowStreamException exception)
         {
-            services.Logger.LogError(exception,
-                "Workflow observation is migration-blocked for {WorkflowEntityId} {StreamId}",
-                entityText, exception.StreamId);
+            services.Logger.LogError(exception,                "{Component}.{Method} "+"Workflow observation is migration-blocked for {WorkflowEntityId} {StreamId}",nameof(IntrinsicTimeStrategyWorkflowQueryModel),nameof(ObserveAsync),                entityText,exception.StreamId);
             return MigrationBlocked(entityText, now, exception.Message);
         }
 
@@ -351,16 +357,13 @@ internal static class IntrinsicTimeStrategyWorkflowQueryModel
 
         if (result.OperationalStatus == IntrinsicTimeStrategyWorkflowOperationalStatus.ExpiredNotClosed)
             services.Logger.LogWarning(
-                "Workflow is expired but not closed for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-                entityText, view.WorkflowId, view.WorkflowRevision);
+                "{Component}.{Method} "+"Workflow is expired but not closed for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",nameof(IntrinsicTimeStrategyWorkflowQueryModel),nameof(ObserveAsync),                entityText,view.WorkflowId,view.WorkflowRevision);
         if (result.NotificationLossSuspected)
             services.Logger.LogWarning(
-                "Regime terminal notification was not accepted by workflow {WorkflowEntityId} {WorkflowId} source {SourceEventId}",
-                entityText, view.WorkflowId, regime!.SourceEventId);
+                "{Component}.{Method} "+"Regime terminal notification was not accepted by workflow {WorkflowEntityId} {WorkflowId} source {SourceEventId}",nameof(IntrinsicTimeStrategyWorkflowQueryModel),nameof(ObserveAsync),                entityText,view.WorkflowId,regime!.SourceEventId);
         if (result.MarketConditionNotificationLossSuspected)
             services.Logger.LogWarning(
-                "Market Condition terminal notification was not accepted by workflow {WorkflowEntityId} {WorkflowId} source {SourceEventId}",
-                entityText, view.WorkflowId, marketCondition!.SourceEventId);
+                "{Component}.{Method} "+"Market Condition terminal notification was not accepted by workflow {WorkflowEntityId} {WorkflowId} source {SourceEventId}",nameof(IntrinsicTimeStrategyWorkflowQueryModel),nameof(ObserveAsync),                entityText,view.WorkflowId,marketCondition!.SourceEventId);
 
         return result;
     }

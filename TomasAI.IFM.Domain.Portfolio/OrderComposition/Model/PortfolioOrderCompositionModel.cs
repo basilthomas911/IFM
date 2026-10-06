@@ -21,6 +21,7 @@ public static class PortfolioOrderCompositionModel
         var candidate = request.Body;
         if (request.PortfolioId <= 0 || request.OperationId == Guid.Empty || candidate.CompositionId == Guid.Empty
             || candidate.WorkflowId == Guid.Empty || candidate.Components.Length == 0
+            || candidate.DecisionEvidence is { IsValid: false }
             || candidate.TimeInForce is not ("Day" or "GTC")
             || candidate.AlgorithmPace is not ("Patient" or "Normal" or "Urgent")
             || candidate.PositionType != PortfolioExecutionPositionType.Opening
@@ -113,6 +114,7 @@ public static class PortfolioOrderCompositionModel
                 BrokerAlgorithm = candidate.BrokerAlgorithm,
                 TimeInForce = candidate.TimeInForce,
                 AlgorithmPace = candidate.AlgorithmPace,
+                DecisionEvidence = candidate.DecisionEvidence,
                 VolatilityEvidence = candidate.VolatilityEvidence
             });
             effect = effect! with { OrderId = orderId };

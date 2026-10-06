@@ -34,8 +34,7 @@ public static class CompleteOrderComposition
             current.CurrentStage != StrategyWorkflowStage.OrderComposition ||
             current.OrderComposition.SourceEventId == command.SourceEventId)
         {
-            context.Logger.LogWarning("Stale or duplicate workflow terminal command {CommandName} ignored for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-                command.CommandName, command.Subject.EntityId, current?.WorkflowId, current?.WorkflowRevision);
+            context.Logger.LogWarning("{Component}.{Method} "+"Stale or duplicate workflow terminal command {CommandName} ignored for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",nameof(CompleteOrderComposition),nameof(Execute),                command.CommandName,command.Subject.EntityId,current?.WorkflowId,current?.WorkflowRevision);
             return Ok(command);
         }
         var now = context.TimeProvider.GetUtcNow().UtcDateTime;
@@ -59,8 +58,7 @@ public static class CompleteOrderComposition
                 }
             };
             AppendSnapshot(state, command, current.Status, timedOut, now);
-            context.Logger.LogWarning("Workflow deadline took precedence for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-                command.Subject.EntityId, timedOut.WorkflowId, timedOut.WorkflowRevision);
+            context.Logger.LogWarning("{Component}.{Method} "+"Workflow deadline took precedence for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",nameof(CompleteOrderComposition),nameof(Execute),                command.Subject.EntityId,timedOut.WorkflowId,timedOut.WorkflowRevision);
             return Ok(command);
         }
         OrderCompositionResult result;

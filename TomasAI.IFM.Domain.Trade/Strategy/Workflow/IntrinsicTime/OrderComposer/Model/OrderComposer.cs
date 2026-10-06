@@ -80,6 +80,11 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
             eligible++;
             if (bestRank is null || Compare(ranking!, bestRank) < 0) { best = candidate; bestRank = ranking; }
         }
+        if (best is not null)
+        {
+            best = best with { DecisionEvidence = TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketDecisionEvidence.Capture(c, c.EvaluatedAtUtc) };
+            best = best with { CandidateHash = CompositionHash.Candidate(best) };
+        }
         var reasons = best is null ? (generated == 0 ? ImmutableArray.Create(closed ? "OC.MARKET.SESSION_CLOSED" : "OC.CANDIDATE.NO_CONTRACT") : rejected.Keys.ToImmutableArray())
             : ImmutableArray.Create("OC.COMPOSED");
         return new()

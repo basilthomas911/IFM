@@ -48,8 +48,7 @@ public static class TimeoutOrderComposition
             }
         };
         AppendSnapshot(state, command, current.Status, updated, now);
-        context.Logger.LogWarning("Workflow deadline took precedence for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-            command.Subject.EntityId, updated.WorkflowId, updated.WorkflowRevision);
+        context.Logger.LogWarning("{Component}.{Method} "+"Workflow deadline took precedence for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",nameof(TimeoutOrderComposition),nameof(Execute),            command.Subject.EntityId,updated.WorkflowId,updated.WorkflowRevision);
         return Ok(command);
     }
 
@@ -86,8 +85,7 @@ public static class TimeoutOrderComposition
 
     static void LogStale(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
         TimeoutOrderCompositionCommand command, IntrinsicTimeStrategyWorkflowView? current)
-        => context.Logger.LogWarning("Stale or duplicate workflow terminal command {CommandName} ignored for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-            command.CommandName, command.Subject.EntityId, current?.WorkflowId, current?.WorkflowRevision);
+        => context.Logger.LogWarning("{Component}.{Method} "+"Stale or duplicate workflow terminal command {CommandName} ignored for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",nameof(TimeoutOrderComposition),nameof(LogStale),            command.CommandName,command.Subject.EntityId,current?.WorkflowId,current?.WorkflowRevision);
 
     static ServiceResult<GuidResult> Ok(TimeoutOrderCompositionCommand command)
         => new ServiceOk<GuidResult>(new GuidResult(command.CommandId));

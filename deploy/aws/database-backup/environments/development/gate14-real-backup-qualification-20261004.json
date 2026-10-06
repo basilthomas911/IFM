@@ -1,0 +1,233 @@
+﻿{
+    "schemaVersion":  1,
+    "environment":  "Development",
+    "runId":  "051f030cd7ab4e3c88a7913ad6928127",
+    "purpose":  "Non-evidence retention-drill database backups",
+    "realBackupQualificationComplete":  true,
+    "liveTestResult":  "Passed",
+    "restoreChecks":  4,
+    "deletionAuthorized":  false,
+    "candidateRestorePointId":  "3291d2ff9099419aa6c9b3e08ecde95b",
+    "preservedRestorePointId":  "b4c472227f044f419ac975f29a2463af",
+    "protectionSetId":  "postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127",
+    "observations":  [
+                         {
+                             "role":  "candidate",
+                             "operationId":  "3291d2ff9099419aa6c9b3e08ecde95b",
+                             "restorePointId":  "3291d2ff9099419aa6c9b3e08ecde95b",
+                             "publication":  {
+                                                 "RestorePointId":  {
+                                                                        "Value":  "3291d2ff9099419aa6c9b3e08ecde95b"
+                                                                    },
+                                                 "ManifestId":  "manifest-3291d2ff9099419aa6c9b3e08ecde95b",
+                                                 "ManifestRevision":  1,
+                                                 "Replicas":  [
+                                                                  {
+                                                                      "ArtifactId":  {
+                                                                                         "Value":  "artifact-3291d2ff9099419aa6c9b3e08ecde95b"
+                                                                                     },
+                                                                      "ReplicaId":  {
+                                                                                        "Value":  "aws-primary"
+                                                                                    },
+                                                                      "Engine":  1,
+                                                                      "State":  6,
+                                                                      "SafeDestinationReference":  "aws-primary:3291d2ff9099419aa6c9b3e08ecde95b",
+                                                                      "Bytes":  40586585
+                                                                  }
+                                                              ]
+                                             }
+                         },
+                         {
+                             "role":  "candidate",
+                             "replica":  "aws-primary",
+                             "restorePointId":  "3291d2ff9099419aa6c9b3e08ecde95b",
+                             "independentlyRestored":  true,
+                             "rows":  "100:6312.50"
+                         },
+                         {
+                             "role":  "candidate",
+                             "replica":  "aws-recovery",
+                             "restorePointId":  "3291d2ff9099419aa6c9b3e08ecde95b",
+                             "independentlyRestored":  true,
+                             "rows":  "100:6312.50"
+                         },
+                         {
+                             "role":  "keep",
+                             "operationId":  "b4c472227f044f419ac975f29a2463af",
+                             "restorePointId":  "b4c472227f044f419ac975f29a2463af",
+                             "publication":  {
+                                                 "RestorePointId":  {
+                                                                        "Value":  "b4c472227f044f419ac975f29a2463af"
+                                                                    },
+                                                 "ManifestId":  "manifest-b4c472227f044f419ac975f29a2463af",
+                                                 "ManifestRevision":  1,
+                                                 "Replicas":  [
+                                                                  {
+                                                                      "ArtifactId":  {
+                                                                                         "Value":  "artifact-b4c472227f044f419ac975f29a2463af"
+                                                                                     },
+                                                                      "ReplicaId":  {
+                                                                                        "Value":  "aws-primary"
+                                                                                    },
+                                                                      "Engine":  1,
+                                                                      "State":  6,
+                                                                      "SafeDestinationReference":  "aws-primary:b4c472227f044f419ac975f29a2463af",
+                                                                      "Bytes":  40586585
+                                                                  }
+                                                              ]
+                                             }
+                         },
+                         {
+                             "role":  "keep",
+                             "replica":  "aws-primary",
+                             "restorePointId":  "b4c472227f044f419ac975f29a2463af",
+                             "independentlyRestored":  true,
+                             "rows":  "101:6438.75"
+                         },
+                         {
+                             "role":  "keep",
+                             "replica":  "aws-recovery",
+                             "restorePointId":  "b4c472227f044f419ac975f29a2463af",
+                             "independentlyRestored":  true,
+                             "rows":  "101:6438.75"
+                         }
+                     ],
+    "primaryObjectRetention":  {
+                                   "value":  [
+                                                 {
+                                                     "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/artifacts/artifact-81d33f546046/pg_wal.tar",
+                                                     "versionId":  "rXZ8zwTIFpcswmX8KrEgdxfNqQ.GUgUN",
+                                                     "length":  16779264,
+                                                     "retention":  {
+                                                                       "Mode":  "GOVERNANCE",
+                                                                       "RetainUntilDate":  "2026-11-08T23:37:37.881000+00:00"
+                                                                   }
+                                                 },
+                                                 {
+                                                     "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/artifacts/artifact-858e6798dabe/base.tar",
+                                                     "versionId":  "IcFOb0MCRIeOp3o33PlsS8eRolPc_lPc",
+                                                     "length":  23669248,
+                                                     "retention":  {
+                                                                       "Mode":  "GOVERNANCE",
+                                                                       "RetainUntilDate":  "2026-11-08T23:37:37.881000+00:00"
+                                                                   }
+                                                 },
+                                                 {
+                                                     "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/artifacts/artifact-a44c78dd1791/backup_manifest",
+                                                     "versionId":  "9Ptelv13R76w4nNQ9L8Pjg52XWBH45IE",
+                                                     "length":  138073,
+                                                     "retention":  {
+                                                                       "Mode":  "GOVERNANCE",
+                                                                       "RetainUntilDate":  "2026-11-08T23:37:37.881000+00:00"
+                                                                   }
+                                                 },
+                                                 {
+                                                     "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/manifests/engine-manifest-v2.json",
+                                                     "versionId":  "OUUVyROOefNI6WmQLiCLPQm_Nrrx5LTl",
+                                                     "length":  1657,
+                                                     "retention":  {
+                                                                       "Mode":  "GOVERNANCE",
+                                                                       "RetainUntilDate":  "2026-11-08T23:37:37.881000+00:00"
+                                                                   }
+                                                 },
+                                                 {
+                                                     "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/manifests/engine-manifest-v2.signature.json",
+                                                     "versionId":  "3K.dxaEnCQcD4GC2n2mjlq8oRU4CKktO",
+                                                     "length":  402,
+                                                     "retention":  {
+                                                                       "Mode":  "GOVERNANCE",
+                                                                       "RetainUntilDate":  "2026-11-08T23:37:37.881000+00:00"
+                                                                   }
+                                                 },
+                                                 {
+                                                     "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/publications/aws-primary/publication-v1.json",
+                                                     "versionId":  "YEYJ1e7ytt_8xIoTU968jMBQKCI9mrhl",
+                                                     "length":  5621,
+                                                     "retention":  {
+                                                                       "Mode":  "GOVERNANCE",
+                                                                       "RetainUntilDate":  "2026-11-08T23:37:37.881000+00:00"
+                                                                   }
+                                                 },
+                                                 {
+                                                     "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/publications/aws-primary/publication-v1.signature.json",
+                                                     "versionId":  "nNudR4IzkGET45OOdMVdpLBcOk1gYJBz",
+                                                     "length":  397,
+                                                     "retention":  {
+                                                                       "Mode":  "GOVERNANCE",
+                                                                       "RetainUntilDate":  "2026-11-08T23:37:37.881000+00:00"
+                                                                   }
+                                                 },
+                                                 {
+                                                     "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/artifacts/artifact-81d33f546046/pg_wal.tar",
+                                                     "versionId":  "N9KYqpg5pTjLN_5aAU4c81PxOGutVrVf",
+                                                     "length":  16779264,
+                                                     "retention":  {
+                                                                       "Mode":  "GOVERNANCE",
+                                                                       "RetainUntilDate":  "2026-11-08T23:38:22.601000+00:00"
+                                                                   }
+                                                 },
+                                                 {
+                                                     "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/artifacts/artifact-858e6798dabe/base.tar",
+                                                     "versionId":  "Czjej.cZvO82jkz9ICVBJupKL9YJ5bYy",
+                                                     "length":  23669248,
+                                                     "retention":  {
+                                                                       "Mode":  "GOVERNANCE",
+                                                                       "RetainUntilDate":  "2026-11-08T23:38:22.601000+00:00"
+                                                                   }
+                                                 },
+                                                 {
+                                                     "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/artifacts/artifact-a44c78dd1791/backup_manifest",
+                                                     "versionId":  "0kQbM6NE4nG2b2hZN1QU5q7IZOEl7Guh",
+                                                     "length":  138073,
+                                                     "retention":  {
+                                                                       "Mode":  "GOVERNANCE",
+                                                                       "RetainUntilDate":  "2026-11-08T23:38:22.601000+00:00"
+                                                                   }
+                                                 },
+                                                 {
+                                                     "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/manifests/engine-manifest-v2.json",
+                                                     "versionId":  "12K1mGo.wvSD8p72EG2rBeEwWuTa1c9k",
+                                                     "length":  1652,
+                                                     "retention":  {
+                                                                       "Mode":  "GOVERNANCE",
+                                                                       "RetainUntilDate":  "2026-11-08T23:38:22.601000+00:00"
+                                                                   }
+                                                 },
+                                                 {
+                                                     "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/manifests/engine-manifest-v2.signature.json",
+                                                     "versionId":  "TOf5Taie3PTx1umeGIv3Ev_1rR2gSIdd",
+                                                     "length":  407,
+                                                     "retention":  {
+                                                                       "Mode":  "GOVERNANCE",
+                                                                       "RetainUntilDate":  "2026-11-08T23:38:22.601000+00:00"
+                                                                   }
+                                                 },
+                                                 {
+                                                     "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/publications/aws-primary/publication-v1.json",
+                                                     "versionId":  "HYGp6vk._cyJJlJUhR.wjo5z0PhYvQ7j",
+                                                     "length":  5611,
+                                                     "retention":  {
+                                                                       "Mode":  "GOVERNANCE",
+                                                                       "RetainUntilDate":  "2026-11-08T23:38:22.601000+00:00"
+                                                                   }
+                                                 },
+                                                 {
+                                                     "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/publications/aws-primary/publication-v1.signature.json",
+                                                     "versionId":  "AVv7FrBxjst9tUQIBbYT8V8.29.YyJY.",
+                                                     "length":  392,
+                                                     "retention":  {
+                                                                       "Mode":  "GOVERNANCE",
+                                                                       "RetainUntilDate":  "2026-11-08T23:38:22.601000+00:00"
+                                                                   }
+                                                 }
+                                             ],
+                                   "Count":  14
+                               },
+    "remainingRequirements":  [
+                                  "Reobserve complete catalog and exact-version object set before planning",
+                                  "Verify legal hold and retention eligibility for the real backup versions",
+                                  "Preserve newer backup and all prior qualification evidence",
+                                  "Canonical plan signing and independent exact-revision approval",
+                                  "Approved constrained deletion only after retention expiry"
+                              ]
+}

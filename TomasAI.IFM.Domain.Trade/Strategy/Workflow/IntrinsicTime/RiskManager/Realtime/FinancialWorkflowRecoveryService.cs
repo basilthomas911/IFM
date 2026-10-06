@@ -23,7 +23,7 @@ public sealed class FinancialWorkflowRecoveryService(FinancialWorkflowRecoveryJo
         // Disabling new ITI triggers must not abandon workflows that already own financial requests.
         var page = await journal.ReadPageAsync(_afterStream, token);
         foreach (var stream in page.InvalidStreamIds)
-            logger.LogError("Financial workflow stream {StreamId} has an invalid latest snapshot; recovery requires repair.", stream);
+            logger.LogError("{Component}.{Method} "+"Financial workflow stream {StreamId} has an invalid latest snapshot; recovery requires repair.",nameof(FinancialWorkflowRecoveryService),nameof(RunOnceAsync),stream);
         foreach (var snapshot in page.Snapshots)
         {
             token.ThrowIfCancellationRequested();
@@ -45,7 +45,7 @@ public sealed class FinancialWorkflowRecoveryService(FinancialWorkflowRecoveryJo
                 }
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
-            catch (Exception error) { logger.LogWarning(error, "Financial workflow {WorkflowId} recovery remains pending.", snapshot.WorkflowId); }
+            catch (Exception error) { logger.LogWarning(error,"{Component}.{Method} "+"Financial workflow {WorkflowId} recovery remains pending.",nameof(FinancialWorkflowRecoveryService),nameof(RunOnceAsync),snapshot.WorkflowId); }
         }
         // A late commit in an earlier stream is visited again on the next pass, including after restart.
         _afterStream = page.StreamsRead < 32 ? 0 : page.NextStreamId;
@@ -56,7 +56,7 @@ public sealed class FinancialWorkflowRecoveryService(FinancialWorkflowRecoveryJo
         {
             try { await RunOnceAsync(stoppingToken); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
-            catch (Exception error) { logger.LogWarning(error, "Financial workflow recovery scan remains pending."); }
+            catch (Exception error) { logger.LogWarning(error,"{Component}.{Method} "+"Financial workflow recovery scan remains pending.",nameof(FinancialWorkflowRecoveryService),nameof(ExecuteAsync)); }
             try { await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         }

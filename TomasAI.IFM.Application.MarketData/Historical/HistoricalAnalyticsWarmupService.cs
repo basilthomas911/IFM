@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
@@ -11,6 +13,7 @@ namespace TomasAI.IFM.Application.MarketData.Historical;
 /// </summary>
 public sealed class HistoricalAnalyticsWarmupService
 {
+    readonly ILogger logger;
     readonly HistoricalAnalyticsWarmupOptions options;
     readonly HistoricalDataLoader loader;
     readonly IHistoricalObservationStore observationStore;
@@ -26,8 +29,9 @@ public sealed class HistoricalAnalyticsWarmupService
         IHistoricalObservationStore observationStore,
         IHistoricalDailyReplayPublisher dailyReplayPublisher,
         IMarketSessionCalendar calendar,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider, ILogger<HistoricalAnalyticsWarmupService>? logger = null)
     {
+        this.logger = logger ?? NullLogger<HistoricalAnalyticsWarmupService>.Instance;
         this.options = (options ?? throw new ArgumentNullException(nameof(options))).Validate();
         this.loader = loader ?? throw new ArgumentNullException(nameof(loader));
         this.observationStore = observationStore ?? throw new ArgumentNullException(nameof(observationStore));
@@ -36,7 +40,28 @@ public sealed class HistoricalAnalyticsWarmupService
         this.timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
     }
 
-    public async ValueTask<HistoricalAnalyticsWarmupResult> EnsureAsync(
+    public async ValueTask<HistoricalAnalyticsWarmupResult> EnsureAsync(MarketDataHistoricalRequest template, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(template);
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
+        {
+            var result = await EnsureCoreAsync(template, cancellationToken).ConfigureAwait(false);
+            logger.LogInformation("{Component}.{Method} completed; DataLoadAttemptId={DataLoadAttemptId}; StartDate={StartDate}; EndDate={EndDate}; SeriesCount={SeriesCount}; Outcome={Outcome}; ElapsedMilliseconds={ElapsedMilliseconds}",
+                nameof(HistoricalAnalyticsWarmupService), nameof(EnsureAsync), template.DataLoadAttemptId,
+                template.StartDate, template.EndDate, template.Series.Length, result.Outcome,
+                System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            return result;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "{Component}.{Method} failed; DataLoadAttemptId={DataLoadAttemptId}; StartDate={StartDate}; EndDate={EndDate}",
+                nameof(HistoricalAnalyticsWarmupService), nameof(EnsureAsync), template.DataLoadAttemptId, template.StartDate, template.EndDate);
+            throw;
+        }
+    }
+
+    async ValueTask<HistoricalAnalyticsWarmupResult> EnsureCoreAsync(
         MarketDataHistoricalRequest template,
         CancellationToken cancellationToken)
     {

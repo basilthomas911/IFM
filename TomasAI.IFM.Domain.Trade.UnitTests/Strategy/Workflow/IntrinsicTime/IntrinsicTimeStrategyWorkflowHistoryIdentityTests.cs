@@ -87,4 +87,15 @@ public sealed class IntrinsicTimeStrategyWorkflowHistoryIdentityTests
 
         result.Should().BeFalse();
     }
+    [Theory]
+    [InlineData(2026, 10, 5, TimeFrameType.Daily, "IntrinsicTimeStrategy.ES20261218.20261006.Daily")]
+    [InlineData(2026, 10, 4, TimeFrameType.Weekly, "IntrinsicTimeStrategy.ES20261218.20261005.Weekly")]
+    [InlineData(2026, 9, 30, TimeFrameType.Monthly, "IntrinsicTimeStrategy.ES20261218.20261001.Monthly")]
+    public void Evening_history_includes_next_trading_date_bucket_before_utc_midnight(int year, int month, int day, TimeFrameType period, string entity)
+    {
+        var end = new DateTime(year, month, day, 22, 35, 0, DateTimeKind.Utc);
+        var buckets = IntrinsicTimeStrategyWorkflowQueryModel.ResolveHistoryBucketStarts(end.AddHours(-8), end, period);
+        Assert.True(IntrinsicTimeStrategyWorkflowQueryModel.MatchesHistoryEntity(entity, "ES", buckets.ToArray(), period));
+        Assert.False(IntrinsicTimeStrategyWorkflowQueryModel.MatchesHistoryEntity(entity.Replace("ES20261218", "VX20261216"), "ES", buckets.ToArray(), period));
+    }
 }

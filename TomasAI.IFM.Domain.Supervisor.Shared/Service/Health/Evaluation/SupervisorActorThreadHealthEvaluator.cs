@@ -20,7 +20,7 @@ public sealed record SupervisorActorThreadHealthEvaluation(
 /// <summary>One immutable entity-mailbox observation used by the baseline health policy.</summary>
 public readonly record struct SupervisorActorThreadHealthObservation(
     int Depth, int Capacity, long Rejected, long Dequeued, long Completed, bool IsProcessing,
-    TimeSpan ProcessingDuration, long Generation);
+    TimeSpan ProcessingDuration, long Generation, bool IsAdmissionOpen = true);
 
 /// <summary>
 /// Tracks continuous actor-thread limit incidents using monotonic time. Warnings are emitted immediately and no more
@@ -93,7 +93,7 @@ public sealed class SupervisorActorThreadHealthEvaluator
             var noProgress = observation.Depth > 0 && state.LastProgressTimestamp != 0
                 && Elapsed(state.LastProgressTimestamp, now) >= _policy.NoProgressAfter;
             var longHandler = observation.IsProcessing && observation.ProcessingDuration >= _policy.HandlerWarningAfter;
-            var restart = state.FirstLimitTimestamp != 0 && duration >= _policy.RestartRequiredAfter;
+            var restart = observation.IsAdmissionOpen && state.FirstLimitTimestamp != 0 && duration >= _policy.RestartRequiredAfter;
             var pressure = restart ? SupervisorMailboxPressureState.Restarting
                 : state.FirstLimitTimestamp != 0 && duration >= _policy.DegradedAfter ? SupervisorMailboxPressureState.Degraded
                 : atLimit ? SupervisorMailboxPressureState.AtLimit

@@ -6,6 +6,9 @@ namespace TomasAI.IFM.UI.Net.Contracts;
 
 public interface IAppRoot
 {
+    /// <summary>Gets the operational logger; test roots may keep diagnostics disabled.</summary>
+    Microsoft.Extensions.Logging.ILogger DiagnosticLogger => Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     /// <summary>Gets the configured application environment name.</summary>
     string AppEnvironment { get; }
 

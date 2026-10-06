@@ -92,7 +92,7 @@ internal sealed class EventProjectorOutboxDispatcher(
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Projector outbox dispatch failed for {ProjectorName}; polling will continue.", _projectorName);
+                _logger.LogError(ex,"{Component}.{Method} "+"Projector outbox dispatch failed for {ProjectorName}; polling will continue.",nameof(EventProjectorOutboxDispatcher),nameof(RunAsync),_projectorName);
                 await Task.Delay(_options.OutboxPollingInterval, cancellationToken).ConfigureAwait(false);
             }
         }
@@ -129,8 +129,7 @@ internal sealed class EventProjectorOutboxDispatcher(
                     cancellationToken).ConfigureAwait(false))
             {
                 _logger.LogWarning(
-                    "Projector outbox delivery marker lost its lease for {MessageId}; safe re-publication may occur.",
-                    message.MessageId);
+                    "{Component}.{Method} "+"Projector outbox delivery marker lost its lease for {MessageId}; safe re-publication may occur.",nameof(EventProjectorOutboxDispatcher),nameof(DispatchAsync),                    message.MessageId);
                 EventProjectorMetrics.RecordOutboxPublish(_projectorName, "marker-conflict", startedTimestamp);
             }
             else
@@ -154,11 +153,7 @@ internal sealed class EventProjectorOutboxDispatcher(
                 nowUtc,
                 CancellationToken.None).ConfigureAwait(false);
             _logger.LogWarning(
-                ex,
-                "Projector outbox publication {MessageId} failed on attempt {AttemptCount}; terminal={Terminal}.",
-                message.MessageId,
-                message.AttemptCount,
-                terminal);
+                ex,                "{Component}.{Method} "+"Projector outbox publication {MessageId} failed on attempt {AttemptCount}; terminal={Terminal}.",nameof(EventProjectorOutboxDispatcher),nameof(DispatchAsync),                message.MessageId,                message.AttemptCount,                terminal);
             EventProjectorMetrics.RecordOutboxPublish(
                 _projectorName, terminal ? "terminal-failed" : "retried", startedTimestamp);
         }

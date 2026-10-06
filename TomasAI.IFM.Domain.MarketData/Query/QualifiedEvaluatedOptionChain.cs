@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
@@ -28,6 +29,18 @@ static class QualifiedEvaluatedOptionChain
 
     /// <summary>Returns a qualified, expiry-specific live chain, using ATM IV when available and a labelled Bollinger fallback otherwise.</summary>
     public static async Task<ServiceResult<EvaluatedOptionChainReadModel>> ExecuteAsync(
+        GetEvaluatedOptionChainQuery query, IMarketDataQueryContext context, CancellationToken token)
+    {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        var result = await ExecuteCoreAsync(query, context, token).ConfigureAwait(false);
+        context.Logger.LogInformation("{Component}.{Method} completed; UnderlyingContractId={UnderlyingContractId}; ExpiryDate={ExpiryDate}; FrozenPreviewOnly={FrozenPreviewOnly}; ReleaseOnly={ReleaseOnly}; Outcome={Outcome}; ErrorCode={ErrorCode}; ElapsedMilliseconds={ElapsedMilliseconds}",
+            nameof(QualifiedEvaluatedOptionChain), nameof(ExecuteAsync), query.UnderlyingContractId, query.ExpiryDate,
+            query.FrozenEmulatorPreviewOnly, query.ReleaseOnly, result.Success ? "Succeeded" : "Rejected", result.ErrorCode,
+            System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        return result;
+    }
+
+    static async Task<ServiceResult<EvaluatedOptionChainReadModel>> ExecuteCoreAsync(
         GetEvaluatedOptionChainQuery query, IMarketDataQueryContext context, CancellationToken token)
     {
         var api = context.MarketDataApi;
@@ -79,6 +92,8 @@ static class QualifiedEvaluatedOptionChain
             && existing.ProviderRoots.SequenceEqual(roots, StringComparer.OrdinalIgnoreCase)
             ? existing : null;
         decimal? livePrice;
+        context.Logger.LogDebug("{Component}.{Method} window cache; UnderlyingContractId={UnderlyingContractId}; ExpiryDate={ExpiryDate}; GenerationId={GenerationId}; CacheHit={CacheHit}",
+            nameof(QualifiedEvaluatedOptionChain), nameof(AcquireAsync), query.UnderlyingContractId, query.ExpiryDate, admission.GenerationId, cached is not null);
         if (cached is null)
         {
             var definitions = await LoadDefinitionsAsync(query, context, token);

@@ -32,11 +32,19 @@ public static class BrokerTradeInitializationQuery
             ? Task.FromResult<OptionTradeReadModel?>(null)
             : Read("Stored trade", () => root.Services.TradeQueries.QueryOptionTradeAsync(orderId, tradeId, token));
         await Task.WhenAll(balances, usage, risk, order, reference, price, tradeTask, account).ConfigureAwait(false);
+        var balancesData = await balances.ConfigureAwait(false);
+        var usageData = await usage.ConfigureAwait(false);
+        var riskData = await risk.ConfigureAwait(false);
+        var orderData = await order.ConfigureAwait(false);
+        var underlyingData = await reference.ConfigureAwait(false);
+        var underlyingPriceData = await price.ConfigureAwait(false);
+        var tradeData = await tradeTask.ConfigureAwait(false);
+        var accountData = await account.ConfigureAwait(false);
         FinancialRead<FinancialReservationView>? reservation = null;
-        if (order.Result?.RiskAuthorization is { } authorization)
+        if (orderData?.RiskAuthorization is { } authorization)
             reservation = await Read("Order reservation", () => root.Services.PortfolioFinancial.GetCapacityReservationAsync(
                 scope, new(authorization.ReservationId), token)).ConfigureAwait(false);
-        return new(portfolioId, fundId, orderId, tradeId, balances.Result, usage.Result, risk.Result, order.Result, tradeTask.Result, reservation, reference.Result, price.Result, selectedLegs.ToArray(), capabilities, account.Result, errors.ToArray());
+        return new(portfolioId, fundId, orderId, tradeId, balancesData, usageData, riskData, orderData, tradeData, reservation, underlyingData, underlyingPriceData, selectedLegs.ToArray(), capabilities, accountData, errors.ToArray());
 
         async Task<T?> Read<T>(string source, Func<Task<ServiceResult<T>>> load) where T : class
         {

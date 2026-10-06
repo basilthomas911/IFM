@@ -13,7 +13,8 @@ public sealed class FourHourDatabentoSeedReplay(
     IDatabentoFeedFactory feeds,
     DatabentoMarketDataRuntimeOptions options,
     IMarketSessionCalendar calendar,
-    TimeProvider clock)
+    TimeProvider clock,
+    ILogger<FourHourDatabentoSeedReplay>? logger = null)
 {
     const int BarCount = 48;
     const decimal PriceScale = 1_000_000_000m;
@@ -33,9 +34,8 @@ public sealed class FourHourDatabentoSeedReplay(
             TimeSpan.Zero);
         var windows = RsiHistoricalSeedWindowModel.Create(
             TimeFrameType.FiveMinutes, BarCount, cutoff, calendar);
-        if (windows.Length != BarCount || windows[0].StartUtc < cutoff.AddHours(-4)
-            || windows[^1].EndUtc != cutoff
-            || windows.Zip(windows.Skip(1)).Any(static pair => pair.First.EndUtc != pair.Second.StartUtc))
+        // Initialization needs 48 actual trading bars, including across maintenance/session breaks.
+        if (windows.Length != BarCount)
             return [];
 
         var replayStart = windows[0].StartUtc;
@@ -102,8 +102,7 @@ public sealed class FourHourDatabentoSeedReplay(
                             record.Header.EventTimestampNanoseconds / 100);
                         if (time < windows[0].StartUtc || time >= cutoff)
                             continue;
-                        var index = (int)((time - windows[0].StartUtc).Ticks /
-                            TimeSpan.FromMinutes(5).Ticks);
+                        var index = RsiHistoricalSeedWindowModel.FindIntervalIndex(windows, time);
                         if ((uint)index >= BarCount || time < windows[index].StartUtc
                             || time >= windows[index].EndUtc)
                             continue;
@@ -113,7 +112,11 @@ public sealed class FourHourDatabentoSeedReplay(
                 }
             }
             if (!completed || buckets.Any(static bucket => bucket.Count == 0))
+            {
+                logger?.LogWarning("{Method} initialization replay incomplete; ContractId={ContractId}; StartUtc={StartUtc}; CutoffUtc={CutoffUtc}; ReplayCompleted={ReplayCompleted}; PopulatedBars={PopulatedBars}; RequiredBars={RequiredBars}",
+                    nameof(ReadReplay), contractId, windows[0].StartUtc, cutoff, completed, buckets.Count(bucket => bucket.Count > 0), BarCount);
                 return [];
+            }
             var series = MarketSeriesIdentity.ForContract(contractId);
             var bars = windows.Select((window, index) => buckets[index].ToObservation(
                 series, contractId, window, cutoff)).ToArray();

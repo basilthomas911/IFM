@@ -48,7 +48,7 @@ public static class StartMarketConditionPipeline
         }
         catch (Exception exception)
         {
-            context.Logger.LogError(exception, "Market Condition initialization failed for workflow {WorkflowId}", view.WorkflowId);
+            context.Logger.LogError(exception,"{Component}.{Method} "+"Market Condition initialization failed for workflow {WorkflowId}",nameof(StartMarketConditionPipeline),nameof(StartPipelineAsync),view.WorkflowId);
             return PipelineStartResult<WorkflowStrategyStateUpdatedEvent>.Failed("MC.INIT.EXCEPTION", "InitializationFailed",
                 PipelineExceptionDiagnostics.Summary("Market Condition initialization failed", exception),
                 PipelineExceptionDiagnostics.Create(exception, new Dictionary<string, string>

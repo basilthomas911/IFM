@@ -7,4 +7,5 @@
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Framework.TradeBroker\TomasAI.IFM.Framework.TradeBroker.csproj" />
   </ItemGroup>
+  <ItemGroup><PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" /></ItemGroup>
 </Project>

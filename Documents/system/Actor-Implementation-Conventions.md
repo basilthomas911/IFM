@@ -1591,3 +1591,8 @@ Fund authorization and workflow advancement remain conventional mapped Commands.
 `EmulatorExecutionCommandActor` is a mapped Command actor with a durable projector; it is not another capacity Function. Exactly two Portfolio financial Functions remain Reserve and Consume. Their typed context/policy/event-map conventions remain unchanged. An internal emulator submission receipt is not a fill or settlement receipt.
 
 Scheduled unconsumed expiry uses a durable operational dispatch journal and the existing CapacityReservationCommand actor. Maintenance services/projectors may not update money or usage directly. Reconciliation of the original receipt occurs under the financial fence before an expired uncommitted request can be replaced. Consumed or uncertain execution obligations require execution/financial reconciliation; elapsed wall time alone never releases them.
+
+
+## Structured operation logging
+
+Follow [Structured logging conventions](Structured-Logging-Conventions.md) for selected boundaries, method/argument fields, performance gating and OTLP correlation. Do not instrument every command compute/state application or every realtime event.

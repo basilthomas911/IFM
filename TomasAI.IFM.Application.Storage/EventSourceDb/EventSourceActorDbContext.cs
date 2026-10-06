@@ -43,6 +43,7 @@ public class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDb
     readonly ConcurrentDictionary<string, EventNameIdReadModel> _eventNameIdCache = new();
     readonly ConcurrentDictionary<Guid, Lazy<Task<bool>>> _legacyCommandReservations = new();
     readonly ConcurrentDictionary<string, AtomicPreparationLane> _atomicPreparationLanes = new(StringComparer.Ordinal);
+    readonly ILogger _diagnosticLogger;
     readonly Lazy<CommandDuplicateCoordinator> _commandDuplicates = new(
         static () => new CommandDuplicateCoordinator(
             CommandDuplicateCoordinator.ReadConfiguredCapacity()),
@@ -63,6 +64,7 @@ public class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDb
         CommandAuditPersistenceOptions? commandAuditPersistenceOptions = null)
         : base(connectionSettings[EventSourceActorDbConnection], logger)
     {
+        _diagnosticLogger = logger;
         _blackboardService = IsArgumentNull.Set(blackboardService);
         _dbFactory = IsArgumentNull.Set(dbFactory);
         var eventOptions = (eventLogPersistenceOptions ?? new EventLogPersistenceOptions()).Validate();
@@ -651,7 +653,27 @@ public class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDb
             .ConfigureAwait(false);
     }
 
-    public async ValueTask<CommandAuditReservation> TryReserveAsync(
+    public async ValueTask<CommandAuditReservation> TryReserveAsync(ICommand command, CancellationToken cancellationToken = default)
+    {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
+        {
+            var result = await TryReserveCoreAsync(command, cancellationToken).ConfigureAwait(false);
+            var elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            if (elapsed >= 250)
+                _diagnosticLogger.LogInformation("{Component}.{Method} slow reservation; CommandId={CommandId}; Subject={Subject}; ElapsedMilliseconds={ElapsedMilliseconds}",
+                    nameof(EventSourceActorDbContext), nameof(TryReserveAsync), command.CommandId, command.Subject, elapsed);
+            return result;
+        }
+        catch (CommandAuditPayloadConflictException exception)
+        {
+            _diagnosticLogger.LogError(exception, "{Component}.{Method} payload conflict; CommandId={CommandId}; Subject={Subject}; WriteMode={WriteMode}",
+                nameof(EventSourceActorDbContext), nameof(TryReserveAsync), command.CommandId, command.Subject, _commandAuditOptions.WriteMode);
+            throw;
+        }
+    }
+
+    async ValueTask<CommandAuditReservation> TryReserveCoreAsync(
         ICommand command,
         CancellationToken cancellationToken = default)
     {

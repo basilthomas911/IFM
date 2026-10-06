@@ -28,11 +28,11 @@ public sealed class ApplicationStartupCommandDispatcher(
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            logger.LogInformation("Application startup dispatch was cancelled by API process shutdown.");
+            logger.LogInformation("{Component}.{Method} "+"Application startup dispatch was cancelled by API process shutdown.",nameof(ApplicationStartupCommandDispatcher),nameof(ExecuteAsync));
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "Application startup dispatch failed before command acceptance.");
+            logger.LogError(exception,"{Component}.{Method} "+"Application startup dispatch failed before command acceptance.",nameof(ApplicationStartupCommandDispatcher),nameof(ExecuteAsync));
             await ReportAsync(
                 $"Application startup dispatch failed before command acceptance: {Bound(exception.Message)}",
                 10013).ConfigureAwait(false);
@@ -43,14 +43,14 @@ public sealed class ApplicationStartupCommandDispatcher(
     {
         if (!options.AutoStartAfterBootstrap)
         {
-            logger.LogInformation("Automatic Application startup dispatch is disabled.");
+            logger.LogInformation("{Component}.{Method} "+"Automatic Application startup dispatch is disabled.",nameof(ApplicationStartupCommandDispatcher),nameof(DispatchAfterBootstrapAsync));
             return;
         }
 
         if (!await HostedServiceLifecycle.WaitForSignalAsync(
                 lifetime.ApplicationStarted, stoppingToken).ConfigureAwait(false))
         {
-            logger.LogInformation("Application startup dispatch stopped before API bootstrap completed.");
+            logger.LogInformation("{Component}.{Method} "+"Application startup dispatch stopped before API bootstrap completed.",nameof(ApplicationStartupCommandDispatcher),nameof(DispatchAfterBootstrapAsync));
             return;
         }
         await actorRuntimeStartup.WaitAsync(stoppingToken).ConfigureAwait(false);
@@ -105,10 +105,7 @@ public sealed class ApplicationStartupCommandDispatcher(
                     $"StartApplication command accepted after bootstrap. ValueDate={valueDate:yyyy-MM-dd}; CommandId={result.Value}; Attempt={attempt}.",
                     null).ConfigureAwait(false);
                 logger.LogInformation(
-                    "Application startup handoff accepted. ValueDate={ValueDate}; CommandId={CommandId}; Attempt={Attempt}.",
-                    valueDate,
-                    result.Value,
-                    attempt);
+                    "{Component}.{Method} "+"Application startup handoff accepted. ValueDate={ValueDate}; CommandId={CommandId}; Attempt={Attempt}.",nameof(ApplicationStartupCommandDispatcher),nameof(DispatchAndObserveAsync),                    valueDate,                    result.Value,                    attempt);
 
                 if (await WaitForLifecycleObservationAsync(
                         valueDate, acceptedCommands, stoppingToken).ConfigureAwait(false) is { } observed)
@@ -128,11 +125,7 @@ public sealed class ApplicationStartupCommandDispatcher(
                         Summary = $"Application lifecycle observed command {observed.CommandId}."
                     });
                     logger.LogInformation(
-                        "Application startup lifecycle observed. ValueDate={ValueDate}; CommandId={CommandId}; Attempt={Attempt}; LifecycleState={LifecycleState}.",
-                        valueDate,
-                        observed.CommandId,
-                        attempt,
-                        observed.State);
+                        "{Component}.{Method} "+"Application startup lifecycle observed. ValueDate={ValueDate}; CommandId={CommandId}; Attempt={Attempt}; LifecycleState={LifecycleState}.",nameof(ApplicationStartupCommandDispatcher),nameof(DispatchAndObserveAsync),                        valueDate,                        observed.CommandId,                        attempt,                        observed.State);
                     return;
                 }
 
@@ -151,11 +144,7 @@ public sealed class ApplicationStartupCommandDispatcher(
                     Summary = timeoutMessage
                 });
                 logger.LogError(
-                    "Application startup lifecycle was not observed. ValueDate={ValueDate}; CommandId={CommandId}; Attempt={Attempt}; ObservationTimeout={ObservationTimeout}.",
-                    valueDate,
-                    result.Value,
-                    attempt,
-                    options.HandoffObservationTimeout);
+                    "{Component}.{Method} "+"Application startup lifecycle was not observed. ValueDate={ValueDate}; CommandId={CommandId}; Attempt={Attempt}; ObservationTimeout={ObservationTimeout}.",nameof(ApplicationStartupCommandDispatcher),nameof(DispatchAndObserveAsync),                    valueDate,                    result.Value,                    attempt,                    options.HandoffObservationTimeout);
                 await ReportAsync(timeoutMessage, 10014).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -230,9 +219,9 @@ public sealed class ApplicationStartupCommandDispatcher(
     async Task ReportAsync(string message, int? errorCode)
     {
         if (errorCode.HasValue)
-            logger.LogError("{ApplicationStartupMessage}", message);
+            logger.LogError("{Component}.{Method} "+"{ApplicationStartupMessage}",nameof(ApplicationStartupCommandDispatcher),nameof(ReportAsync),message);
         else
-            logger.LogInformation("{ApplicationStartupMessage}", message);
+            logger.LogInformation("{Component}.{Method} "+"{ApplicationStartupMessage}",nameof(ApplicationStartupCommandDispatcher),nameof(ReportAsync),message);
         try
         {
             if (errorCode.HasValue)
@@ -244,7 +233,7 @@ public sealed class ApplicationStartupCommandDispatcher(
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "Unable to publish bootstrap dispatch status to the System Console.");
+            logger.LogWarning(exception,"{Component}.{Method} "+"Unable to publish bootstrap dispatch status to the System Console.",nameof(ApplicationStartupCommandDispatcher),nameof(ReportAsync));
         }
     }
 

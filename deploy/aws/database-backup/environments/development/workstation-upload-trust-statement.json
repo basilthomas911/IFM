@@ -1,0 +1,6 @@
+﻿{
+  "Sid": "DevelopmentWorkstationBackup",
+  "Effect": "Allow",
+  "Principal": { "AWS": "arn:aws:iam::107651266250:user/basil.thomas@live.ca" },
+  "Action": "sts:AssumeRole"
+}

@@ -59,7 +59,7 @@ public abstract class NatsEventProducer : IEventProducer
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _producerName = GetType().Name;
         _producer = new NatsActorProducer(options, logger);
-        _logger.LogInformationEvent(_producerName, "successfully initialized");
+        _logger.LogInformationEvent(_producerName,"{Component}.{Method} "+"successfully initialized",nameof(NatsEventProducer),nameof(NatsEventProducer));
     }
 
     /// <summary>
@@ -83,7 +83,7 @@ public abstract class NatsEventProducer : IEventProducer
         _jetStreamProducer = new NatsJetStreamActorProducer(
             jetStreamOptions,
             loggerFactory.CreateLogger<NatsJetStreamActorProducer>());
-        _logger.LogInformationEvent(_producerName, "successfully initialized");
+        _logger.LogInformationEvent(_producerName,"{Component}.{Method} "+"successfully initialized",nameof(NatsEventProducer),nameof(NatsEventProducer));
     }
 
     /// <summary>

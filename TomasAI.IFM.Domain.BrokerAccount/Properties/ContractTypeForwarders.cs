@@ -1,0 +1,27 @@
+using System.Runtime.CompilerServices;
+using TomasAI.IFM.Domain.BrokerAccount.Contracts;
+
+// Resolve existing assembly-qualified contract names after moving them into Shared.
+[assembly: TypeForwardedTo(typeof(IBrokerAccountCommandApi))]
+[assembly: TypeForwardedTo(typeof(IBrokerAccountQueryApi))]
+[assembly: TypeForwardedTo(typeof(BrokerAccountActorNames))]
+[assembly: TypeForwardedTo(typeof(BrokerAccountId))]
+[assembly: TypeForwardedTo(typeof(BrokerAccountQualificationStatus))]
+[assembly: TypeForwardedTo(typeof(BrokerAccountOperationalGate))]
+[assembly: TypeForwardedTo(typeof(BrokerAccountPositionEvidence))]
+[assembly: TypeForwardedTo(typeof(BrokerAccountSnapshotEvidence))]
+[assembly: TypeForwardedTo(typeof(BrokerAccountDefinition))]
+[assembly: TypeForwardedTo(typeof(BrokerAccountSnapshotObservedEvent))]
+[assembly: TypeForwardedTo(typeof(BrokerAccountCommand))]
+[assembly: TypeForwardedTo(typeof(RecordBrokerAccountSnapshotCommand))]
+[assembly: TypeForwardedTo(typeof(SubmitAccountQualificationEvidenceCommand))]
+[assembly: TypeForwardedTo(typeof(AcceptAccountQualificationCommand))]
+[assembly: TypeForwardedTo(typeof(RevokeAccountQualificationCommand))]
+[assembly: TypeForwardedTo(typeof(SetManualTradingHoldCommand))]
+[assembly: TypeForwardedTo(typeof(ReleaseManualTradingHoldCommand))]
+[assembly: TypeForwardedTo(typeof(RequestBrokerAccountResynchronizationCommand))]
+[assembly: TypeForwardedTo(typeof(BrokerAccountChangedEvent))]
+[assembly: TypeForwardedTo(typeof(GetBrokerAccountQuery))]
+[assembly: TypeForwardedTo(typeof(BrokerAccountIdentityValidation))]
+[assembly: TypeForwardedTo(typeof(BrokerAccountSnapshotIdentity))]
+[assembly: TypeForwardedTo(typeof(BrokerAccountSnapshotValidation))]

@@ -40,7 +40,11 @@ public sealed class S3DatabaseBackupPublicationCapability(
         ValidateRequest(request);
         var restorePoint = new DatabaseRestorePointId(request.OperationId.Format());
         var described = await nativeArtifacts.DescribeAsync(request.Engine, request.OperationId, cancellationToken).ConfigureAwait(false);
-        var retainUntil = timeProvider.GetUtcNow().AddDays(options.DefaultRetentionDays);
+        var first = described.OrderBy(static value => value.RelativePath, StringComparer.Ordinal).First();
+        var firstId = new DatabaseArtifactId("artifact-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(first.RelativePath)))[..12].ToLowerInvariant());
+        var firstKey = _keys.Artifact(request.ProtectionSetId, request.Engine, restorePoint, firstId, Path.GetFileName(first.RelativePath));
+        var retention = await objects.ResolvePublicationRetentionAsync(firstKey, cancellationToken).ConfigureAwait(false);
+        var retainUntil = retention.RetainUntilUtc;
         var context = EncryptionContext(request, restorePoint);
         var uploaded = new List<AwsPublishedArtifact>(described.Count);
         var manifestArtifacts = new List<DatabaseArtifactDigest>(described.Count);
@@ -52,7 +56,7 @@ public sealed class S3DatabaseBackupPublicationCapability(
             var key = _keys.Artifact(request.ProtectionSetId, request.Engine, restorePoint, artifactId, fileName);
             var version = await objects.UploadAsync(key,
                 token => nativeArtifacts.OpenReadAsync(request.Engine, request.OperationId, artifact.RelativePath, token),
-                artifact.Length, retainUntil, context, cancellationToken).ConfigureAwait(false);
+                artifact.Length, retainUntil, context, cancellationToken, retention.StartedUtc).ConfigureAwait(false);
             uploaded.Add(new AwsPublishedArtifact(artifact.RelativePath, version));
             manifestArtifacts.Add(new DatabaseArtifactDigest(version.ObjectKey, version.Length, version.Sha256));
         }
@@ -63,9 +67,9 @@ public sealed class S3DatabaseBackupPublicationCapability(
         EnsureDocumentBound(manifestBytes);
         var manifestSignature = await signatures.SignAsync(manifestBytes, cancellationToken).ConfigureAwait(false);
         var manifestObject = await UploadDocumentAsync(_keys.EngineManifest(request.ProtectionSetId, request.Engine, restorePoint),
-            manifestBytes, retainUntil, context, cancellationToken).ConfigureAwait(false);
+            manifestBytes, retainUntil, context, cancellationToken, retention.StartedUtc).ConfigureAwait(false);
         _ = await UploadDocumentAsync(_keys.EngineManifestSignature(request.ProtectionSetId, request.Engine, restorePoint),
-            DatabaseBackupCanonicalJson.Serialize(manifestSignature), retainUntil, context, cancellationToken).ConfigureAwait(false);
+            DatabaseBackupCanonicalJson.Serialize(manifestSignature), retainUntil, context, cancellationToken, retention.StartedUtc).ConfigureAwait(false);
 
         var now = timeProvider.GetUtcNow();
         var record = new AwsPublicationRecord
@@ -95,10 +99,10 @@ public sealed class S3DatabaseBackupPublicationCapability(
         var recordSignature = await signatures.SignAsync(recordBytes, cancellationToken).ConfigureAwait(false);
         var recordObject = await UploadDocumentAsync(
             _keys.Publication(request.ProtectionSetId, request.Engine, restorePoint, _primaryReplica),
-            recordBytes, retainUntil, context, cancellationToken).ConfigureAwait(false);
+            recordBytes, retainUntil, context, cancellationToken, retention.StartedUtc).ConfigureAwait(false);
         _ = await UploadDocumentAsync(
             _keys.PublicationSignature(request.ProtectionSetId, request.Engine, restorePoint, _primaryReplica),
-            DatabaseBackupCanonicalJson.Serialize(recordSignature), retainUntil, context, cancellationToken).ConfigureAwait(false);
+            DatabaseBackupCanonicalJson.Serialize(recordSignature), retainUntil, context, cancellationToken, retention.StartedUtc).ConfigureAwait(false);
 
         // The catalog entry is deliberately the final write. Nothing is recovery-eligible before this succeeds.
         var catalog = new AwsCatalogEntry
@@ -112,7 +116,7 @@ public sealed class S3DatabaseBackupPublicationCapability(
             PublishedUtc = timeProvider.GetUtcNow()
         };
         _ = await UploadDocumentAsync(_keys.Catalog(restorePoint, _primaryReplica),
-            DatabaseBackupCanonicalJson.Serialize(catalog), retainUntil, context, cancellationToken).ConfigureAwait(false);
+            DatabaseBackupCanonicalJson.Serialize(catalog), retainUntil, context, cancellationToken, retention.StartedUtc).ConfigureAwait(false);
 
         var bytes = uploaded.Sum(static value => value.Object.Length);
         telemetry?.RecordUpload(request.Engine, bytes, Stopwatch.GetElapsedTime(started));
@@ -129,12 +133,12 @@ public sealed class S3DatabaseBackupPublicationCapability(
 
     async ValueTask<AwsImmutableObjectVersion> UploadDocumentAsync(
         AwsGeneratedObjectKey key, byte[] content, DateTimeOffset retainUntil,
-        IReadOnlyDictionary<string, string> context, CancellationToken cancellationToken)
+        IReadOnlyDictionary<string, string> context, CancellationToken cancellationToken, DateTimeOffset? policyStartedUtc = null)
     {
         EnsureDocumentBound(content);
         return await objects.UploadAsync(key,
             _ => ValueTask.FromResult<Stream>(new MemoryStream(content, writable: false)),
-            content.LongLength, retainUntil, context, cancellationToken).ConfigureAwait(false);
+            content.LongLength, retainUntil, context, cancellationToken, policyStartedUtc).ConfigureAwait(false);
     }
 
     DatabaseBackupManifest CreateManifest(

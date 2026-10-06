@@ -884,8 +884,11 @@ public static class Startup
         container.RegisterSingleton<TomasAI.IFM.Domain.Trade.Order.Broker.Realtime.BrokerOrderObservationBridge>();
         container.RegisterSingleton<TomasAI.IFM.Domain.Trade.Order.Broker.Query.Model.IBrokerOrderReadStore,
             TomasAI.IFM.Domain.Trade.Order.Broker.Query.Model.BrokerOrderReadStore>();
-        container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Query.Model.IBrokerAccountReadStore,
-            TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>();
+        container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>();
+        container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Query.Model.IBrokerAccountProjectionWriter>(
+            () => container.GetInstance<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>());
+        container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Query.Model.IBrokerAccountReadStore>(
+            () => container.GetInstance<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>());
         container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Realtime.BrokerAccountObservationBridge>();
     }
 

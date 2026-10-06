@@ -25,12 +25,12 @@ public sealed class FinancialHistoryRecoveryService(FinancialHistoryJournal jour
                         applied++;
                     }
                     catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
-                    catch (Exception error) { logger.LogWarning(error, "Financial history event {EventId} remains pending.", completed.EventId); }
+                    catch (Exception error) { logger.LogWarning(error,"{Component}.{Method} "+"Financial history event {EventId} remains pending.",nameof(FinancialHistoryRecoveryService),nameof(ExecuteAsync),completed.EventId); }
                 }
                 if (pending.Count == 32 && applied == 32) continue;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
-            catch (Exception error) { logger.LogWarning(error, "Financial history projection is pending; PostgreSQL receipts remain authoritative."); }
+            catch (Exception error) { logger.LogWarning(error,"{Component}.{Method} "+"Financial history projection is pending; PostgreSQL receipts remain authoritative.",nameof(FinancialHistoryRecoveryService),nameof(ExecuteAsync)); }
             try { await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         }

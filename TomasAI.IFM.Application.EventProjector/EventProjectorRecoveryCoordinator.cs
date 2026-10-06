@@ -115,10 +115,7 @@ public sealed class EventProjectorRecoveryCoordinator(
                             if (terminal is not null)
                                 Interlocked.Increment(ref terminalFailures);
                             _logger.LogError(
-                                "Unable to recover event {EventId} ({EventName}) for projector {ProjectorName}.",
-                                claimed.EventId,
-                                item.EventLog.EventName,
-                                projectorName);
+                                "{Component}.{Method} "+"Unable to recover event {EventId} ({EventName}) for projector {ProjectorName}.",nameof(EventProjectorRecoveryCoordinator),nameof(RecoverAsync),                                claimed.EventId,                                item.EventLog.EventName,                                projectorName);
                             continue;
                         }
 

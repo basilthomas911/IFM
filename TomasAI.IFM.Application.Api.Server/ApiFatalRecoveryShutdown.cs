@@ -93,7 +93,7 @@ public sealed class ApiFatalRecoveryShutdown : IApiFatalRecoveryShutdown
     async Task RequestCoreAsync(FatalRecoveryReport fatal)
     {
         var summary = Summary(fatal);
-        try { logger.LogCritical("API shutting down after unrecoverable Databento recovery: {Report}", summary); }
+        try { logger.LogCritical("{Component}.{Method} "+"API shutting down after unrecoverable Databento recovery: {Report}",nameof(ApiFatalRecoveryShutdown),nameof(RequestCoreAsync),summary); }
         catch (Exception) { }
         try { stdout.WriteLine(summary); stdout.Flush(); }
         catch (Exception) { }

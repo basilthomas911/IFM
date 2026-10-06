@@ -129,10 +129,40 @@ public sealed class FuturesRsiHistoricalSeedTests
         var daily = RsiHistoricalSeedWindowModel.Create(TimeFrameType.Daily, 16, open, Calendar);
         Assert.All(daily, x => Assert.True(Calendar.IsTradingDate(x.ValueDate))); Assert.True(daily[^1].ValueDate < monday);
     }
-    static StartFuturesRsiSignalCommand Command(TimeFrameType frame, int count = 16, int period = 14)
+    [Fact]
+    public async Task Evening_startup_replay_seeds_Tdi_without_waiting_for_live_bars()
     {
-        var entity = FuturesRsiSignalEntityId.Create("ES-SEED", new DateOnly(2026, 8, 25), frame, period); var series = MarketSeriesIdentity.ForContract(entity.ContractId);
-        var bars = RsiHistoricalSeedWindowModel.Create(frame, count, Cutoff, Calendar).Select((x, i) => new FuturesTradeSessionBarReadModel
+        var date = new DateOnly(2026, 10, 6);
+        var command = Command(TimeFrameType.FiveMinutes, 48, 13,
+            new DateTimeOffset(2026, 10, 5, 23, 32, 0, TimeSpan.Zero), date) with { ForceHistoricalInitialization = true };
+        var rsi = new FuturesRsiSignalCommandState();
+        Assert.True(command.Execute(rsi, Calendar).Success);
+        var window = Assert.Single(rsi.Events.OfType<FuturesRsiSignalsGeneratedEvent>());
+        Assert.Contains(window.FuturesRsiSignals, signal => signal.ValueDate < date);
+        var context = NSubstitute.Substitute.For<TomasAI.IFM.Shared.EventModelActor.Contracts.IEventActorContext<TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event.Actor.FuturesTdiSignalEventActor>>();
+        var logger = NSubstitute.Substitute.For<Microsoft.Extensions.Logging.ILogger<TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event.Actor.FuturesTdiSignalEventActor>>();
+        await TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event.FuturesRsiSignalsGenerated.ExecuteAsync(window, context, logger);
+        var request = Assert.Single(NSubstitute.SubstituteExtensions.ReceivedCalls(context)
+            .SelectMany(call => call.GetArguments().OfType<GenerateFuturesTdiSignalCommand>()));
+        var actor = new TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesTdiSignal.FuturesTdiSignalCommandActorTests.TestableFuturesTdiSignalCommandActor(
+            NSubstitute.Substitute.For<TomasAI.IFM.Application.Storage.IEventSourceActorDbContext>(),
+            NSubstitute.Substitute.For<Microsoft.Extensions.Logging.ILogger<TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.Actor.FuturesTdiSignalCommandActor>>());
+        await actor.InvokeOnValidateAsync(NSubstitute.Substitute.For<TomasAI.IFM.Shared.EventModelActor.Contracts.ICommandActorContext<TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.Actor.FuturesTdiSignalCommandActor>>(), request.Subject.ThreadId, request);
+        var tdi = new TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.State.FuturesTdiSignalCommandState();
+        Assert.True(TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.GenerateFuturesTdiSignal.Execute(request, tdi).Success);
+        var signal = Assert.Single(tdi.Events.OfType<FuturesTdiSignalGeneratedEvent>()).FuturesTdiSignal;
+        Assert.True(TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.MarketOutlookComponentEligibility.IsEligible(new MarketOutlookEntityId(command.EntityId.ContractId, date), signal));
+        Assert.True(double.IsFinite(signal.PriceLine));
+        Assert.True(double.IsFinite(signal.SignalLine));
+        Assert.True(double.IsFinite(signal.MarketBaseLine));
+        Assert.True(double.IsFinite(signal.UpperVolatilityBand));
+        Assert.True(double.IsFinite(signal.LowerVolatilityBand));
+    }
+    static StartFuturesRsiSignalCommand Command(TimeFrameType frame, int count = 16, int period = 14, DateTimeOffset? replayCutoff = null, DateOnly? valueDate = null)
+    {
+        var cutoff = replayCutoff ?? Cutoff;
+        var entity = FuturesRsiSignalEntityId.Create("ES-SEED", valueDate ?? new DateOnly(2026, 8, 25), frame, period); var series = MarketSeriesIdentity.ForContract(entity.ContractId);
+        var bars = RsiHistoricalSeedWindowModel.Create(frame, count, cutoff, Calendar).Select((x, i) => new FuturesTradeSessionBarReadModel
         {
             ContractId = entity.ContractId,
             MarketSeriesIdentity = series,
@@ -147,12 +177,12 @@ public sealed class FuturesRsiHistoricalSeedTests
             Close = 100 + i,
             FirstMarketEventUtc = x.EndUtc.AddTicks(-1),
             LastMarketEventUtc = x.EndUtc.AddTicks(-1),
-            CalculatedAtUtc = Cutoff,
+            CalculatedAtUtc = cutoff,
             CalculationVersion = "rsi-seed-test-v1",
             IsComplete = true,
             IsValid = true,
             CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate
         }).ToArray();
-        return MessagePackSerializer.Deserialize<StartFuturesRsiSignalCommand>(MessagePackSerializer.Serialize(new StartFuturesRsiSignalCommand(entity) { CommandId = Guid.NewGuid(), HistoricalSeed = new(count, Cutoff, bars, "test") }));
+        return MessagePackSerializer.Deserialize<StartFuturesRsiSignalCommand>(MessagePackSerializer.Serialize(new StartFuturesRsiSignalCommand(entity) { CommandId = Guid.NewGuid(), HistoricalSeed = new(count, cutoff, bars, "test") }));
     }
 }

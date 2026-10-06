@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Actor;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
@@ -181,14 +181,19 @@ public static class Startup
         {
             loggerConfiguration.WriteTo.Console();
         }
+        if (builder.Configuration.GetValue("Telemetry:Logs:Enabled", false))
+            loggerConfiguration.WriteTo.Sink(new TomasAI.IFM.Framework.Telemetry.Logging.OtlpStructuredLogSink(
+                builder.Configuration, "TomasAI.IFM.Application.Api.Server"));
         Log.Logger = loggerConfiguration
             .WriteTo.Async(
                 sink => sink.File(
+                    new Serilog.Formatting.Json.JsonFormatter(renderMessage: true),
                     "Logs/ifm-apiserver-.log",
                     rollingInterval: RollingInterval.Day,
                     retainedFileCountLimit: 7),
                 bufferSize: 4096,
-                blockWhenFull: false)
+                blockWhenFull: false,
+                monitor: new TomasAI.IFM.Framework.Telemetry.Logging.AsyncLogBufferMonitor())
             .CreateLogger();
         _ = builder.WebHost.UseKestrel();
         _ = builder.Host.UseSerilog();
@@ -197,7 +202,7 @@ public static class Startup
             .CreateLogger<Program>();
         builder.Services.AddSingleton(logger);
 
-        logger.LogInformationEvent("ApiServer", "configure web api server...");
+        logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"configure web api server...",nameof(Startup),nameof(ConfigureApiServer));
         builder.Services.ConfigureHttpJsonOptions(options =>
             ApiServerJson.Configure(options.SerializerOptions));
         builder.Services.AddOutputCache(options =>
@@ -242,7 +247,7 @@ public static class Startup
             services.AddSingleton<Microsoft.Extensions.Http.IHttpMessageHandlerBuilderFilter, QualificationHttpFilter>();
         }
         var focusedActorIntegration = !string.IsNullOrWhiteSpace(config["IFM_TEST_ACTOR_DOMAIN"]);
-        logger.LogInformationEvent("ApiServer", "add web app services...");
+        logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"add web app services...",nameof(Startup),nameof(RegisterServices));
         RegisterBaseServices();
         RegisterCommandApiServices();
         RegisterEventApiServices();
@@ -257,7 +262,7 @@ public static class Startup
         void RegisterBaseServices()
         {
             // add web app services...
-            logger.LogInformationEvent("ApiServer", "register base services...");
+            logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"register base services...",nameof(Startup),nameof(RegisterBaseServices));
             services.Configure<HostOptions>(options =>
                 options.BackgroundServiceExceptionBehavior =
                     BackgroundServiceExceptionBehavior.Ignore);
@@ -579,7 +584,7 @@ public static class Startup
 
         void RegisterCommandApiServices()
         {
-            logger.LogInformationEvent("ApiServer", "registering command api services...");
+            logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"registering command api services...",nameof(Startup),nameof(RegisterCommandApiServices));
             services.AddSingleton<IApplicationCommandApi>(provider =>
                 new TomasAI.IFM.Application.Api.Nats.Client.ApplicationCommandApi(
                     provider.GetRequiredService<IActorProducer>()));
@@ -618,12 +623,12 @@ public static class Startup
 
         void RegisterEventApiServices()
         {
-            logger.LogInformationEvent("ApiServer", "registering actor event api services...");
+            logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"registering actor event api services...",nameof(Startup),nameof(RegisterEventApiServices));
         }
 
         void RegisterQueryApiServices()
         {
-            logger.LogInformationEvent("ApiServer", "register query API services...");
+            logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"register query API services...",nameof(Startup),nameof(RegisterQueryApiServices));
             services.AddSingleton<IApplicationQueryApi>(provider =>
                 new TomasAI.IFM.Application.Api.Nats.Client.ApplicationQueryApi(
                     provider.GetRequiredService<IActorProducer>()));
@@ -673,7 +678,7 @@ public static class Startup
 
         void RegisterStorageServices()
         {
-            logger.LogInformationEvent("ApiServer", "register storage services...");
+            logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"register storage services...",nameof(Startup),nameof(RegisterStorageServices));
             services.AddSingleton(_ =>
             {
                 var isolatedPostgres = config["IFM_TEST_POSTGRES_CONNECTION"];
@@ -842,13 +847,13 @@ public static class Startup
 
         void RegisterServiceHandlers()
         {
-            logger.LogInformationEvent("ApiServer", "register service handlers...");
+            logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"register service handlers...",nameof(Startup),nameof(RegisterServiceHandlers));
             services.AddSingleton<IBoundedContextCommandResolver>(_ => new BoundedContextCommandResolver(cmdType => GetContainerInstance(siContainer, cmdType)!));
         }
 
         void RegisterEventProducers()
         {
-            logger.LogInformationEvent("ApiServer", "register event producers...");
+            logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"register event producers...",nameof(Startup),nameof(RegisterEventProducers));
             services.AddSingleton<ITradeEventProducer, TradeEventProducer>();
             services.AddSingleton<ITradePlacementEventProducer, TradePlacementEventProducer>();
             services.AddSingleton<IMarketDataEventProducer, MarketDataEventProducer>();
@@ -857,7 +862,7 @@ public static class Startup
 
         void RegisterHostedServices()
         {
-            logger.LogInformationEvent("ApiServer", "register hosted services...");
+            logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"register hosted services...",nameof(Startup),nameof(RegisterHostedServices));
             services.AddSingleton<IStatusConsoleWriter, StatusConsoleWriter>();
             services.AddSingleton<IAzureStorageOptions>(sp => config.GetSection("AzureStorage").Get<AzureStorageOptions>()!);
             services.AddSingleton<IAzureStorage, AzureStorage>();
@@ -1145,9 +1150,9 @@ public static class Startup
         ConfigurationManager config,
         Microsoft.Extensions.Logging.ILogger logger)
     {
-        logger.LogInformationEvent("ApiServer", "register open generic handlers...");
+        logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"register open generic handlers...",nameof(Startup),nameof(RegisterGenericTypes));
         siContainer.RegisterSingleton<IDataCacheService, DataCacheService>();
-        RegisterTradeBrokerEmulator(siContainer, config);
+        RegisterTradeBrokerEmulator(siContainer, config, logger);
         siContainer.RegisterSingleton<IDatabaseBackupExecutionOutbox, DatabaseBackupExecutionOutbox>();
         var projectorReliabilityOptions = config
             .GetSection(EventProjectorReliabilityOptions.SectionName)
@@ -1294,10 +1299,10 @@ public static class Startup
             domainAssemblies,
             Lifestyle.Singleton);
         siContainer.Register(typeof(IEventSourceActorState<>), assemblies, Lifestyle.Transient);
-        logger.LogInformationEvent("ApiServer", "open generic handlers registered");
+        logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"open generic handlers registered",nameof(Startup),nameof(RegisterGenericTypes));
     }
 
-    static void RegisterTradeBrokerEmulator(SimpleInjector.Container container, ConfigurationManager config)
+    static void RegisterTradeBrokerEmulator(SimpleInjector.Container container, ConfigurationManager config, Microsoft.Extensions.Logging.ILogger logger)
     {
         var accountAlias = config["TradeBroker:Emulator:AccountAlias"] ?? "IFM-EMULATOR-PAPER";
         var startingCash = config.GetValue<decimal?>("TradeBroker:Emulator:StartingCash") ?? 1_000_000m;
@@ -1322,7 +1327,7 @@ public static class Startup
                     CompletionTime = TimeSpan.FromSeconds(config.GetValue("TradeBroker:Emulator:OfflineSimulation:CompletionSeconds", 30)),
                     MaximumUnitsPerFill = config.GetValue("TradeBroker:Emulator:OfflineSimulation:MaximumUnitsPerFill", 3),
                     RandomSeed = config.GetValue("TradeBroker:Emulator:OfflineSimulation:RandomSeed", 1)
-                }, () => !container.GetInstance<IFuturesMarketSessionAuthority>().Current.IsMarketOpen));
+                }, () => !container.GetInstance<IFuturesMarketSessionAuthority>().Current.IsMarketOpen, logger));
         container.RegisterSingleton<TomasAI.IFM.Framework.TradeBroker.Contracts.IFrameworkOrderExecutionBroker>(() =>
             new FrozenEmulatorOrderExecutionBroker(
                 new TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.OrderExecution.EmulatedOrderExecutionBroker(
@@ -1332,13 +1337,18 @@ public static class Startup
                 container.GetInstance<TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.OfflineFillSimulation>()));
         container.RegisterSingleton<TomasAI.IFM.Framework.TradeBroker.Contracts.IFrameworkBrokerAccount,
             TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.BrokerAccount.EmulatedBrokerAccount>();
-        container.RegisterSingleton<TomasAI.IFM.Application.TradeBroker.Contracts.ITradeBroker,
-            TomasAI.IFM.Application.TradeBroker.InteractiveBrokersEmulatorTradeBroker>();
+        container.RegisterSingleton<TomasAI.IFM.Application.TradeBroker.Contracts.ITradeBroker>(() =>
+            new TomasAI.IFM.Application.TradeBroker.InteractiveBrokersEmulatorTradeBroker(
+                container.GetInstance<TomasAI.IFM.Framework.TradeBroker.Contracts.IFrameworkOrderExecutionBroker>(),
+                container.GetInstance<TomasAI.IFM.Framework.TradeBroker.Contracts.IFrameworkBrokerAccount>(), logger));
         container.RegisterSingleton<TomasAI.IFM.Domain.Trade.Order.Broker.Realtime.BrokerOrderObservationBridge>();
         container.RegisterSingleton<TomasAI.IFM.Domain.Trade.Order.Broker.Query.Model.IBrokerOrderReadStore,
             TomasAI.IFM.Domain.Trade.Order.Broker.Query.Model.BrokerOrderReadStore>();
-        container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Query.Model.IBrokerAccountReadStore,
-            TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>();
+        container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>();
+        container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Query.Model.IBrokerAccountProjectionWriter>(
+            () => container.GetInstance<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>());
+        container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Query.Model.IBrokerAccountReadStore>(
+            () => container.GetInstance<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>());
         container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Realtime.BrokerAccountObservationBridge>();
     }
 
@@ -1351,7 +1361,7 @@ public static class Startup
                 app.Services.GetRequiredService<IFuturesMarketSessionAuthority>());
         app.Services.UseSimpleInjector(siContainer);
         siContainer.Verify();
-        logger.LogInformationEvent("ApiServer", "configure HTTP request pipeline...");
+        logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"configure HTTP request pipeline...",nameof(Startup),nameof(ConfigureRequestPipeline));
         if (app.Environment.IsDevelopment())
         {
             app.UseSwagger();
@@ -1403,7 +1413,7 @@ public static class Startup
             Predicate = registration => registration.Tags.Contains("actor"),
             ResponseWriter = WriteHealthResponseAsync
         }).CacheOutput(ApiOutputCachePolicies.HealthSnapshot);
-        logger.LogInformationEvent("ApiServer", "web app configuration completed");
+        logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"web app configuration completed",nameof(Startup),nameof(ConfigureRequestPipeline));
         return app;
 
         static async Task WriteHealthResponseAsync(HttpContext context, HealthReport report)

@@ -74,7 +74,7 @@ public sealed class DatabentoMarketDataWatchdogService(
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "Initial Databento startup qualification failed; entering bounded recovery.");
+            logger.LogWarning(exception,"{Component}.{Method} "+"Initial Databento startup qualification failed; entering bounded recovery.",nameof(DatabentoMarketDataWatchdogService),nameof(StartAsync));
             if (options.Enabled)
                 await RecoverConfiguredAsync(valueDate, correlationId, DatabentoOperationReason.InitialStartup, token).ConfigureAwait(false);
             else
@@ -165,7 +165,7 @@ public sealed class DatabentoMarketDataWatchdogService(
             catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
             catch (Exception exception)
             {
-                logger.LogWarning(exception, "Scheduled Databento start failed; entering bounded recovery.");
+                logger.LogWarning(exception,"{Component}.{Method} "+"Scheduled Databento start failed; entering bounded recovery.",nameof(DatabentoMarketDataWatchdogService),nameof(ProbeAsync));
                 if (!options.Enabled)
                 {
                     Transition(DatabentoLifecycleState.Failed, valueDate, correlationId, 0,
@@ -471,8 +471,7 @@ public sealed class DatabentoMarketDataWatchdogService(
         catch (Exception exception) when (exception is not OperationCanceledException
                                            || !cancellationToken.IsCancellationRequested)
         {
-            logger.LogWarning(exception,
-                "Stage 3 incident hydration failed; recovery continues conservatively in memory.");
+            logger.LogWarning(exception,                "{Component}.{Method} "+"Stage 3 incident hydration failed; recovery continues conservatively in memory.",nameof(DatabentoMarketDataWatchdogService),nameof(EnsureIncidentsHydratedAsync));
         }
     }
 
@@ -496,9 +495,7 @@ public sealed class DatabentoMarketDataWatchdogService(
         catch (Exception exception) when (exception is not OperationCanceledException
                                            || !cancellationToken.IsCancellationRequested)
         {
-            logger.LogWarning(exception,
-                "Stage 3 incident transition persistence failed for dataset {Dataset}; live recovery remains active.",
-                snapshot.Dataset);
+            logger.LogWarning(exception,                "{Component}.{Method} "+"Stage 3 incident transition persistence failed for dataset {Dataset}; live recovery remains active.",nameof(DatabentoMarketDataWatchdogService),nameof(RecordIncidentAsync),                snapshot.Dataset);
         }
     }
 
@@ -527,7 +524,7 @@ public sealed class DatabentoMarketDataWatchdogService(
     async Task<bool> TryRecoverNewAsync(DateOnly valueDate, Guid correlationId,
         DatabentoOperationReason reason, CancellationToken cancellationToken)
     {
-        logger.LogWarning("Requesting hard reset recovery from Databento watchdog. CorrelationId={CorrelationId}; ValueDate={ValueDate}; Reason={Reason}", correlationId, valueDate, reason);
+        logger.LogWarning("{Component}.{Method} "+"Requesting hard reset recovery from Databento watchdog. CorrelationId={CorrelationId}; ValueDate={ValueDate}; Reason={Reason}",nameof(DatabentoMarketDataWatchdogService),nameof(TryRecoverNewAsync),correlationId,valueDate,reason);
         var episode = await (_recoveryRequester ?? throw new InvalidOperationException("Hard reset recovery pipeline is not configured."))
             .HardResetRecoveryAsync(new DatabentoHardRecoveryRequest(correlationId, valueDate,
                 Current.NativeGeneration, nameof(DatabentoMarketDataWatchdogService),
@@ -547,15 +544,13 @@ public sealed class DatabentoMarketDataWatchdogService(
                 Transition(DatabentoLifecycleState.Degraded, valueDate, correlationId,
                     attempts, Bound(episode.Detail), hard?.GenerationId ?? Guid.Empty,
                     attemptCompleted: UtcNow());
-                logger.LogWarning("Databento is locally healthy but downstream recovery remains fenced. CorrelationId={CorrelationId}; Detail={Detail}",
-                    correlationId, Bound(episode.Detail));
+                logger.LogWarning("{Component}.{Method} "+"Databento is locally healthy but downstream recovery remains fenced. CorrelationId={CorrelationId}; Detail={Detail}",nameof(DatabentoMarketDataWatchdogService),nameof(TryRecoverNewAsync),                    correlationId,Bound(episode.Detail));
                 return true;
             case DatabentoRecoveryRequestOutcome.Unrecoverable:
             case DatabentoRecoveryRequestOutcome.ApplicationStopping:
                 Transition(DatabentoLifecycleState.Failed, valueDate, correlationId,
                     attempts, Bound(episode.Detail), attemptCompleted: UtcNow());
-                logger.LogCritical("Databento recovery episode is terminal. CorrelationId={CorrelationId}; Outcome={Outcome}; Detail={Detail}",
-                    correlationId, episode.Outcome, Bound(episode.Detail));
+                logger.LogCritical("{Component}.{Method} "+"Databento recovery episode is terminal. CorrelationId={CorrelationId}; Outcome={Outcome}; Detail={Detail}",nameof(DatabentoMarketDataWatchdogService),nameof(TryRecoverNewAsync),                    correlationId,episode.Outcome,Bound(episode.Detail));
                 return true;
             }
         throw new InvalidOperationException("Unknown Databento recovery episode outcome.");
@@ -716,9 +711,7 @@ public sealed class DatabentoMarketDataWatchdogService(
             catch (Exception exception)
             {
                 persistenceFailure = exception;
-                logger.LogWarning(exception,
-                    "Databento watchdog observation persistence attempt {Attempt} of {MaximumAttempts} failed.",
-                    persistenceAttempt, MaximumRecoveryAttempts);
+                logger.LogWarning(exception,                    "{Component}.{Method} "+"Databento watchdog observation persistence attempt {Attempt} of {MaximumAttempts} failed.",nameof(DatabentoMarketDataWatchdogService),nameof(RecordAsync),                    persistenceAttempt,MaximumRecoveryAttempts);
                 if (persistenceAttempt < MaximumRecoveryAttempts && options.PersistenceRetryDelay > TimeSpan.Zero)
                     await Task.Delay(options.PersistenceRetryDelay, timeProvider, cancellationToken).ConfigureAwait(false);
             }
@@ -739,7 +732,7 @@ public sealed class DatabentoMarketDataWatchdogService(
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "Databento watchdog observation publication failed.");
+            logger.LogWarning(exception,"{Component}.{Method} "+"Databento watchdog observation publication failed.",nameof(DatabentoMarketDataWatchdogService),nameof(RecordAsync));
             lock (_snapshotSync) _current = _current with
             {
                 State = _current.CoreReady ? DatabentoLifecycleState.Degraded : _current.State,

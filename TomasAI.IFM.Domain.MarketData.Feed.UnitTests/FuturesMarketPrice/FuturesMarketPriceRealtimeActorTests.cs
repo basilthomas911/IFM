@@ -1,5 +1,8 @@
 using FluentAssertions;
 using MessagePack;
+using TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime.Actor;
+using TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesMarketPrice.Realtime;
@@ -64,7 +67,7 @@ public sealed class FuturesMarketPriceRealtimeActorTests
             Substitute.For<IEventActorContext<FuturesMarketPriceRealtimeActor>>(),
             message);
 
-        parsed.Should().BeSameAs(@event);
+        parsed.Should().BeEquivalentTo(@event);
     }
 
     [Theory]
@@ -88,7 +91,7 @@ public sealed class FuturesMarketPriceRealtimeActorTests
     }
 
     [Fact]
-    public async Task Receive_DispatchesOnlyUpdatedEventToPlaceholderHandler()
+    public async Task Receive_AcceptsLegacyPriceUpdateWithoutSourceTrade()
     {
         var actor = CreateActor();
         var context = Substitute.For<IEventActorContext<FuturesMarketPriceRealtimeActor>>();
@@ -100,7 +103,7 @@ public sealed class FuturesMarketPriceRealtimeActorTests
     }
 
     [Fact]
-    public async Task PlaceholderHandler_ValidatesArgumentsAndReturnsSuccess()
+    public async Task Handler_ValidatesArgumentsAndReturnsSuccess()
     {
         var @event = CreateEvent();
         var context = Substitute.For<IEventActorContext<FuturesMarketPriceRealtimeActor>>();
@@ -127,6 +130,71 @@ public sealed class FuturesMarketPriceRealtimeActorTests
             && contract.GetGenericTypeDefinition() == typeof(IActor<>));
     }
 
+    [Theory]
+    [InlineData(FuturesMarketPriceUpdateSource.Trade, "FuturesMarketPrice", true, false)]
+    [InlineData(FuturesMarketPriceUpdateSource.Quote, "FuturesMarketPrice", false, false)]
+    [InlineData(FuturesMarketPriceUpdateSource.Trade, "FuturesVwapSignal", false, true)]
+    [InlineData(FuturesMarketPriceUpdateSource.Trade, "FuturesMarketPrice", false, true)]
+    public async Task Handler_forwards_only_qualifying_trade_after_serialization(
+        FuturesMarketPriceUpdateSource source, string actorName, bool shouldForward, bool checkpoint)
+    {
+        var price = CreateEvent();
+        var trade = new FuturesTickTradeDataChangedEvent
+        {
+            Subject = new ActorSubject(ActorType.Realtime, FuturesTickTradeDataChangedEvent.Actor,
+                FuturesTickTradeDataChangedEvent.Verb, price.EntityId.Format()),
+            Id = price.Id,
+            CommandId = price.CommandId,
+            EntityId = price.EntityId,
+            AggregateId = price.AggregateId,
+            TickDataId = new TickDataId(price.EntityId.ContractId, price.EntityId.ValueDate, 1, price.ReceivedOn),
+            Dataset = "GLBX.MDP3",
+            DefinitionDate = price.EntityId.ValueDate,
+            PublisherId = price.Price.PublisherId,
+            InstrumentId = price.Price.InstrumentId,
+            AssetTypeId = AssetTypeId.Futures,
+            TradeData = new FuturesTickTradeData(42, 100, 101, 0, 5_450_250_000_000, 5450.25m, 3,
+                (byte)'T', (byte)'B', 0)
+        };
+        price = price with { SourceTrade = trade, UpdateSource = source, VwapCheckpoint = checkpoint ? new FuturesVwapSourceCheckpoint() : null,
+            Subject = price.Subject with { Name = actorName } };
+        var restored = MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(
+            MessagePackSerializer.Serialize(price));
+        restored.SourceTrade.Should().BeEquivalentTo(trade);
+        var generation = Guid.NewGuid();
+        restored = restored with { SourceDataset = "GLBX.MDP3", SourceGenerationId = generation };
+        var context = Substitute.For<IEventActorContext>();
+        await restored.ExecuteAsync(context, Substitute.For<ILogger<FuturesMarketPriceRealtimeActor>>());
+        if (shouldForward)
+        {
+            await context.Received(1).SendAsync<FuturesTickTradeDataChangedEvent, TickDataEntityId>(
+                Arg.Is<FuturesTickTradeDataChangedEvent>(e => e.Id == trade.Id
+                    && e.TickDataId == trade.TickDataId && e.TradeData == trade.TradeData
+                    && e.SourceDataset == "GLBX.MDP3" && e.SourceGenerationId == generation));
+            var forwarded = context.ReceivedCalls().Single().GetArguments()
+                .OfType<FuturesTickTradeDataChangedEvent>().Single();
+            var tickContext = Substitute.For<ITickAggregationRealtimeContext>();
+            await TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime.FuturesTickTradeDataChanged
+                .ExecuteAsync(forwarded, tickContext);
+            await tickContext.Projector.Received(1).ProcessRealtimeEventAsync(
+                Arg.Is<IEvent>(e => e is FuturesTickTradeDataInsertedEvent
+                    && ((FuturesTickTradeDataInsertedEvent)e).TradeData == trade.TradeData
+                    && e.Id == trade.Id), Arg.Any<CancellationToken>());
+        }
+        else
+            context.ReceivedCalls().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Legacy_price_payload_without_source_trade_still_deserializes()
+    {
+        var bytes = MessagePackSerializer.Serialize(CreateEvent());
+        // Remove the appended, null key 12 from the previous twelve-field array contract.
+        bytes[0] = 0x9c;
+        var restored = MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(bytes[..^1]);
+        restored.SourceTrade.Should().BeNull();
+        restored.Price.Trade!.Value.LastPrice.Should().Be(5450.25m);
+    }
     static TestableFuturesMarketPriceRealtimeActor CreateActor()
     {
         var supervisor = Substitute.For<IActorSupervisor>();

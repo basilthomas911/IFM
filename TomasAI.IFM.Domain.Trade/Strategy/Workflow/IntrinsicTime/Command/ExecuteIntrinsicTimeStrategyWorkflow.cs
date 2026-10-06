@@ -41,8 +41,7 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
         if (current is { Status: WorkflowStrategyMachineStatus.Started } && now < current.ExpiresAtUtc)
         {
             context.Logger.LogWarning(
-                "Workflow Execute rejected as busy for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-                command.EntityId.Format(), current.WorkflowId, current.WorkflowRevision);
+                "{Component}.{Method} "+"Workflow Execute rejected as busy for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",nameof(ExecuteIntrinsicTimeStrategyWorkflow),nameof(Execute),                command.EntityId.Format(),current.WorkflowId,current.WorkflowRevision);
             return Ok(command);
         }
 
@@ -51,8 +50,7 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
             var expired = CreateExpiredView(current, command.CommandId, now);
             AppendSnapshot(state, command, current.Status, expired, now);
             context.Logger.LogWarning(
-                "Expired workflow {ExpiredWorkflowId} was lazily closed and replaced by {WorkflowId} for {WorkflowEntityId}",
-                current.WorkflowId, command.ProposedWorkflowId, command.EntityId.Format());
+                "{Component}.{Method} "+"Expired workflow {ExpiredWorkflowId} was lazily closed and replaced by {WorkflowId} for {WorkflowEntityId}",nameof(ExecuteIntrinsicTimeStrategyWorkflow),nameof(Execute),                current.WorkflowId,command.ProposedWorkflowId,command.EntityId.Format());
             current = expired;
         }
 

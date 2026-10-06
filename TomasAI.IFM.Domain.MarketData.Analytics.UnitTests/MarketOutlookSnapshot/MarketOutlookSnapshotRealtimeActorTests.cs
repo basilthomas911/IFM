@@ -82,7 +82,7 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
         {
             ContractId = id.ContractId,
             ValueDate = id.ValueDate,
-            TimePeriod = TimeFrameType.FifteenSeconds,
+            TimePeriod = TimeFrameType.FiveMinutes,
             PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength,
             IsWarm = true
         };
@@ -93,6 +93,14 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
         MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
         current.FuturesRsiSignal.Should().Be(rsi);
         current.RefreshTrigger.Should().Be(MarketOutlookRefreshTrigger.Component);
+        await actor.Receive(context, Component(id, 2) with
+        {
+            FuturesRsiSignal = rsi with { TimePeriod = TimeFrameType.FifteenSeconds, RSI = 99d }
+        });
+        await runtime.DrainAsync();
+        MarketOutlookHotCache.Shared.TryGetCurrent(id, out var afterOtherTimeframe).Should().BeTrue();
+        afterOtherTimeframe.FuturesRsiSignal.Should().Be(rsi);
+
         await runtime.Publisher.DidNotReceiveWithAnyArgs().PublishAsync(
             default!, default!, default);
     }

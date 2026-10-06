@@ -1,0 +1,31 @@
+﻿{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadPrimaryVersionInventory",
+      "Effect": "Allow",
+      "Action": "s3:ListBucketVersions",
+      "Resource": "arn:aws:s3:::ifm-db-backup-development-primary-107651266250"
+    },
+    {
+      "Sid": "ReadPrimaryLegalHold",
+      "Effect": "Allow",
+      "Action": "s3:GetObjectLegalHold",
+      "Resource": "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/*"
+    },
+    {
+      "Sid": "DecryptPrimaryReadback",
+      "Effect": "Allow",
+      "Action": "kms:Decrypt",
+      "Resource": "arn:aws:kms:ca-central-1:107651266250:key/4772d4b1-82d9-49fc-acca-b97e73fe93df",
+      "Condition": { "StringEquals": { "kms:ViaService": "s3.ca-central-1.amazonaws.com" } }
+    },
+    {
+      "Sid": "AssumeRecoveryRead",
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": "arn:aws:iam::107651266250:role/ifm-database-backup-recovery-read-development",
+      "Condition": { "StringEquals": { "sts:ExternalId": "ifm-database-backup-development" } }
+    }
+  ]
+}

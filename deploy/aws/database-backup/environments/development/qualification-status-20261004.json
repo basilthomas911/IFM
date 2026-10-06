@@ -1,0 +1,28 @@
+{
+    "schemaVersion":  1,
+    "environment":  "Development",
+    "date":  "2026-10-04",
+    "fullyQualified":  false,
+    "awsRuntimeAcceptanceEnabled":  false,
+    "unitTestsPassed":  94,
+    "nonLiveIntegrationTestsPassed":  11,
+    "deterministicGateTestsPassed":  47,
+    "liveIdentityJournalTestsPassed":  3,
+    "hostStartupOrderTestsPassed":  1,
+    "realBackupRestoresPassed":  4,
+    "realBackupRunId":  "051f030cd7ab4e3c88a7913ad6928127",
+    "earliestObservedCandidateExpiryUtc":  "2026-11-08T23:37:37.881000+00:00",
+    "expiryScope":  "Primary artifact/manifest/publication observations; full catalog expiry must be rechecked",
+    "remaining":  [
+                      "Exact real-backup legal-hold and full replica/catalog eligibility",
+                      "Canonical signed retention plan with reviewed policy revision",
+                      "Independent exact-version deletion approval",
+                      "Live constrained deletion after retention expiry and preservation reconciliation",
+                      "Isolated restore of running-host restore point 57e0e1e29f2a4c779ba9d8538bcec52a",
+                      "Reboot-persistent credential refresh and Development request admission activation"
+                  ],
+    "deletionPerformed":  false,
+    "runningHostPrimaryBackupVerified":  true,
+    "runningHostRestorePointId":  "57e0e1e29f2a4c779ba9d8538bcec52a",
+    "runningHostRestoreVerified":  false
+}

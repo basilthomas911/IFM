@@ -65,9 +65,7 @@ public class FuturesOptionTradeEventActor(
                 global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
                 ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
             Typed(context).Logger.LogError(
-                reportingException,
-                "Failed to report an event exception for {ActorName}.",
-                ActorName);
+                reportingException,                "{Component}.{Method} "+"Failed to report an event exception for {ActorName}.",nameof(FuturesOptionTradeEventActor),nameof(OnExceptionAsync),                ActorName);
         }
     }
 

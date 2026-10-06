@@ -93,7 +93,8 @@ public sealed record ActorMailboxMetricsSnapshot(
     int ProcessingManagedThreadId = 0,
     long HandlerCount = 0,
     TimeSpan TotalHandlerDuration = default,
-    TimeSpan MaximumHandlerDuration = default);
+    TimeSpan MaximumHandlerDuration = default,
+    long CapacityRejected = 0);
 
 public sealed record ActorMetricsSnapshot(
     ActorMailboxId ActorId,
@@ -204,6 +205,7 @@ sealed class ActorMailboxMetrics(ActorThreadId threadId, IActorThreadQueue queue
     long _escapedFailures;
     long _cancelled;
     long _rejected;
+    long _capacityRejected;
     long _lastAcceptedTicks;
     long _lastStartedTicks;
     long _lastCompletedTicks;
@@ -291,6 +293,10 @@ sealed class ActorMailboxMetrics(ActorThreadId threadId, IActorThreadQueue queue
     internal void RecordRejected(ActorAdmissionReason reason, string verb)
     {
         Interlocked.Increment(ref _rejected);
+        if (reason is ActorAdmissionReason.MailboxLimit or ActorAdmissionReason.GlobalMessageLimit
+            or ActorAdmissionReason.GlobalByteLimit or ActorAdmissionReason.ActorTypeMessageLimit
+            or ActorAdmissionReason.ActorTypeByteLimit)
+            Interlocked.Increment(ref _capacityRejected);
         Interlocked.Exchange(ref _lastRejectedTicks, DateTime.UtcNow.Ticks);
         Volatile.Write(ref _lastRejectionReason, reason.ToStringFast());
         Volatile.Write(ref _lastRejectedVerb, verb);
@@ -342,7 +348,8 @@ sealed class ActorMailboxMetrics(ActorThreadId threadId, IActorThreadQueue queue
             Volatile.Read(ref _processingManagedThreadId),
             Interlocked.Read(ref _handlerCount),
             StopwatchDuration(Interlocked.Read(ref _totalHandlerStopwatchTicks)),
-            StopwatchDuration(Interlocked.Read(ref _maximumHandlerStopwatchTicks)));
+            StopwatchDuration(Interlocked.Read(ref _maximumHandlerStopwatchTicks)),
+            Interlocked.Read(ref _capacityRejected));
     }
 
     void UpdatePeak(int depth)

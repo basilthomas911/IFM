@@ -65,7 +65,8 @@ public sealed class ApplicationLifecycleOwnershipTests
     {
         var actorStartup = File.ReadAllText(Path.Combine(
             root,
-            "TomasAI.IFM.Domain.Supervisor",
+            "TomasAI.IFM.Domain.Supervisor.Shared",
+            "Service",
             "Lifecycle",
             "SupervisorManagedActorLifecycle.cs"));
         var apiStartup = File.ReadAllText(Path.Combine(

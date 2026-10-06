@@ -258,7 +258,8 @@ public sealed record BrokerAccountChangedEvent : IEvent<BrokerAccountId>
     [Key(5)] public string AggregateId { get; init; } = string.Empty;
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     [Key(7)] public DateTime ReceivedOn { get; init; }
-    [Key(8)] public BrokerAccountDefinition State { get; init; } = new();
+    /// <summary>Gets the accepted broker account definition carried by this event.</summary>
+    [Key(8)] public BrokerAccountDefinition BrokerAccountDefinition { get; init; } = new();
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(BrokerAccountChangedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;

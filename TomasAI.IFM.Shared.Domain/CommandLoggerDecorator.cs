@@ -20,13 +20,11 @@ public class CommandLoggerDecorator<TState>(ICommandContext<TState> commandConte
     /// indicating the outcome of the command execution.</returns>
     public async Task<ServiceResult<Guid>> ExecuteAsync<TEntityId>(ICommand<TEntityId> command) where TEntityId : IActorEntityId
     {
-        var sw = new Stopwatch();
-        sw.Start();
+        var started = Stopwatch.GetTimestamp();
         var serviceResult = await commandContext.ExecuteAsync(command);
-        sw.Stop();
-        var queryElapsedTime = sw.Elapsed.ToString(@"ss\.fff");
-        if (!$"{command.RouteTo}".Equals("TelemetryLogsAggregate"))
-            logger.LogInformationEvent(command.CommandName, "{CommandName} executed in {QueryElapsedTime} seconds", command.CommandName, queryElapsedTime);
+        var elapsedMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        if (logger.IsEnabled(LogLevel.Information) && !$"{command.RouteTo}".Equals("TelemetryLogsAggregate"))
+            logger.LogInformationEvent(command.CommandName, "{Component}.{Method} CommandName={CommandName} CommandId={CommandId} Subject={Subject} Outcome={Outcome} ElapsedMilliseconds={ElapsedMilliseconds}", nameof(CommandLoggerDecorator<TState>), nameof(ExecuteAsync), command.CommandName, command.CommandId, command.Subject, serviceResult.GetType().Name, elapsedMilliseconds);
         return serviceResult;
     }
 
@@ -40,13 +38,11 @@ public class CommandLoggerDecorator<TState>(ICommandContext<TState> commandConte
     /// cref="ServiceResult{Guid}"/> with the execution result.</returns>
     public async ValueTask<ServiceResult<Guid>> ExecuteAsync(ICommand command)
     {
-        var sw = new Stopwatch();
-        sw.Start();
+        var started = Stopwatch.GetTimestamp();
         var serviceResult = await commandContext.ExecuteAsync(command);
-        sw.Stop();
-        var queryElapsedTime = sw.Elapsed.ToString(@"ss\.fff");
-        if (!$"{command.RouteTo}".Equals("TelemetryLogsBoundedContext"))
-            logger.LogInformationEvent(command.CommandName, "{CommandName} executed in {QueryElapsedTime} seconds", command.CommandName, queryElapsedTime);
+        var elapsedMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        if (logger.IsEnabled(LogLevel.Information) && !$"{command.RouteTo}".Equals("TelemetryLogsBoundedContext"))
+            logger.LogInformationEvent(command.CommandName, "{Component}.{Method} CommandName={CommandName} CommandId={CommandId} Subject={Subject} Outcome={Outcome} ElapsedMilliseconds={ElapsedMilliseconds}", nameof(CommandLoggerDecorator<TState>), nameof(ExecuteAsync), command.CommandName, command.CommandId, command.Subject, serviceResult.GetType().Name, elapsedMilliseconds);
         return serviceResult;
     }
 }

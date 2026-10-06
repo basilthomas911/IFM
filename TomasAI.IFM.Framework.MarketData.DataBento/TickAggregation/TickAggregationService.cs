@@ -914,7 +914,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                     break;
                 }
                 MarkObserved(state);
-                if (!UpdateLastTrade(state, record.Trade, out var marketPrice))
+                if (!UpdateLastTrade(state, record.Trade, out var marketPrice, out var priceChanged))
                 {
                     Interlocked.Increment(ref state.RejectedCacheUpdates);
                     break;
@@ -928,14 +928,6 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                         DatabentoTradeNormalizer.MapConditions(
                             record.Trade.Header.Flags, record.Trade.DbnFlags),
                         state.StreamEpochId, state.TradeOrdinal);
-                SetProcessingStage(TickAggregationProcessingStage.TradeMarketPricePublish);
-                await PublishMarketPriceAsync(
-                        state,
-                        marketPrice,
-                        FuturesMarketPriceUpdateSource.Trade,
-                        observedUtc,
-                        cancellationToken)
-                    .ConfigureAwait(false);
                 await PublishVwapCheckpointIfDueAsync(state, marketPrice, observedUtc,
                     cancellationToken).ConfigureAwait(false);
                 if (_liveRouter is not null
@@ -949,11 +941,12 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 var quotePending = state.QuoteCount > 0
                     ? EnsurePendingQuote(state, QuoteEmissionReason.TradeObserved, observedUtc)
                     : null;
-                state.PendingTrade ??= CreatePendingTrade(
+                if (priceChanged)
+                    state.PendingTrade ??= CreatePendingTrade(
                     state,
                     record.Trade,
                     observedUtc,
-                    checked(state.Sequence + (quotePending is null ? 1 : 2)));
+                    checked(state.Sequence + (quotePending is null ? 1 : 2)), marketPrice);
                 SetProcessingStage(TickAggregationProcessingStage.TradeQuoteFlush);
                 await FlushAsync(
                         state,
@@ -961,7 +954,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                         observedUtc,
                         cancellationToken)
                     .ConfigureAwait(false);
-                SetProcessingStage(TickAggregationProcessingStage.TradePublish);
+                SetProcessingStage(TickAggregationProcessingStage.TradeMarketPricePublish);
                 await PublishPendingTradeAsync(state, cancellationToken).ConfigureAwait(false);
                 break;
             case MarketRecordKind.Statistics:
@@ -1090,8 +1083,10 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     private bool UpdateLastTrade(
         TickerState state,
         TradeRecord64 trade,
-        out FuturesMarketPriceSnapshot snapshot)
+        out FuturesMarketPriceSnapshot snapshot,
+        out bool priceChanged)
     {
+        priceChanged = false;
         var tradeSnapshot = new LastTradeTickSnapshot(
             state.Mapping.ContractId,
             state.ValueDate,
@@ -1120,7 +1115,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 DatabentoTradeNormalizer.MapConditions(trade.Header.Flags, trade.DbnFlags),
                 state.StreamEpochId,
                 nextTradeOrdinal),
-            out snapshot);
+            out snapshot,
+            out priceChanged);
         if (accepted)
             state.TradeOrdinal = nextTradeOrdinal;
         return accepted;
@@ -1131,7 +1127,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         FuturesMarketPriceSnapshot snapshot,
         FuturesMarketPriceUpdateSource updateSource,
         DateTime observedUtc,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        FuturesTickTradeDataChangedEvent? sourceTrade = null)
     {
         var entity = new TickDataEntityId(
             state.Mapping.ContractId,
@@ -1151,7 +1148,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             EventSource = nameof(TickAggregationService),
             ReceivedOn = DateTime.SpecifyKind(observedUtc, DateTimeKind.Utc),
             Price = snapshot,
-            UpdateSource = updateSource
+            UpdateSource = updateSource,
+            SourceTrade = sourceTrade
         };
 
         try
@@ -1364,16 +1362,21 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         var pending = state.PendingTrade;
         try
         {
-            await _publisher.PublishAsync(pending.Event, cancellationToken).ConfigureAwait(false);
+            await PublishMarketPriceAsync(state, pending.Price, FuturesMarketPriceUpdateSource.Trade,
+                pending.Event.ReceivedOn, cancellationToken, pending.Event).ConfigureAwait(false);
             MarkPublished(ref state.LastDurableTickPublishedUtcTicks);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            // A fenced generation must not retry its trade during the shutdown flush.
+            state.PendingTrade = null;
             throw;
         }
         catch
         {
-            Interlocked.Increment(ref _publicationFailures);
+            // PublishMarketPriceAsync already records this failure. A terminal publisher
+            // cannot accept a shutdown retry, and realtime observations are not replayed.
+            if (!_publisher.IsRunning) state.PendingTrade = null;
             throw;
         }
         state.Sequence = pending.Event.TickDataId.SequenceId;
@@ -1401,7 +1404,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         TickerState state,
         TradeRecord64 trade,
         DateTime timestampUtc,
-        long sequence)
+        long sequence,
+        FuturesMarketPriceSnapshot price)
     {
         var entity = new TickDataEntityId(state.Mapping.ContractId, state.ValueDate, state.Mapping.AssetTypeId);
         return new PendingTradePublication(new FuturesTickTradeDataChangedEvent
@@ -1425,7 +1429,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 trade.Header.Sequence, trade.Header.EventTimestampNanoseconds,
                 trade.Header.ReceiveTimestampNanoseconds, trade.Header.Flags,
                 trade.Price, trade.Price / PriceScale, trade.Size, trade.Action, trade.Side, trade.DbnFlags)
-        });
+        }, price);
     }
 
     private async ValueTask FlushAllAsync(QuoteEmissionReason reason)
@@ -1683,6 +1687,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         private int _version;
         private bool _hasValue;
         private FuturesMarketPriceSnapshot _snapshot;
+        private FuturesMarketTradeSnapshot? _lastAcceptedTrade;
 
         /// <summary>Attempts to read the next available batch or current snapshot.</summary>
         /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
@@ -1743,20 +1748,24 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             return true;
         }
 
-        /// <summary>Attempts to update the cached trade price with the supplied trade snapshot.</summary>
+        /// <summary>Accepts a newer trade and creates a market-price snapshot only when its price moves by at least one tick.</summary>
+        /// <remarks>When contract tick size is unavailable, only identical prices are suppressed. Every accepted trade still advances source continuity.</remarks>
         /// <param name="valueDate">The trading value date associated with the data.</param>
         /// <param name="trade">The last trade snapshot, when available.</param>
         /// <param name="snapshot">The market data snapshot to update, or the snapshot returned when the read succeeds.</param>
-        /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
+        /// <returns>True when the source trade is accepted, including when its price snapshot is unchanged; false for an older or duplicate trade.</returns>
+        /// <param name="priceChanged">True when a new market-price snapshot is created; false when only source continuity advances.</param>
         public bool TryUpdateTrade(
             DateOnly valueDate,
             FuturesMarketTradeSnapshot trade,
-            out FuturesMarketPriceSnapshot snapshot)
+            out FuturesMarketPriceSnapshot snapshot,
+            out bool priceChanged)
         {
+            priceChanged = false;
             var current = _snapshot;
             if (_hasValue
                 && current.ValueDate == valueDate
-                && current.Trade is { } existing
+                && _lastAcceptedTrade is { } existing
                 && IsOlderOrEqual(
                     existing.SourceSequence,
                     existing.EventTimestamp,
@@ -1767,6 +1776,20 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 return false;
             }
 
+            // Retain source continuity even when no new market-price snapshot is needed.
+            _lastAcceptedTrade = trade;
+            if (_hasValue
+                && current.ValueDate == valueDate
+                && current.Trade is { } previous
+                && (mapping.ContractDetails?.TickSize is > 0
+                    ? Math.Abs(trade.LastPrice - previous.LastPrice) < mapping.ContractDetails.TickSize.Value
+                    : trade.LastPrice == previous.LastPrice))
+            {
+                snapshot = current;
+                return true;
+            }
+
+            priceChanged = true;
             snapshot = Create(
                 valueDate,
                 _hasValue && current.ValueDate == valueDate
@@ -1782,6 +1805,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         {
             var odd = Interlocked.Increment(ref _version);
             _snapshot = default;
+            _lastAcceptedTrade = null;
             _hasValue = false;
             Volatile.Write(ref _version, unchecked(odd + 1));
         }
@@ -1830,7 +1854,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         QuoteEmissionReason Reason);
 
     /// <summary>Initializes a new PendingTradePublication instance.</summary>
-    /// <param name="Event">The event.</param>
-    private sealed record PendingTradePublication(FuturesTickTradeDataChangedEvent Event);
+    /// <param name="Event">The original qualifying trade event.</param>
+    /// <param name="Price">The price snapshot captured for the same trade.</param>
+    private sealed record PendingTradePublication(FuturesTickTradeDataChangedEvent Event, FuturesMarketPriceSnapshot Price);
 
 }

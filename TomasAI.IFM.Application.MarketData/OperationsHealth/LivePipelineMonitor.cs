@@ -103,11 +103,10 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                 forcedHardResetRequested = true;
                 if (forcedResetDue)
                     logger.LogWarning(
-                        "The configured five-minute startup boundary was reached. Performing the one-shot complete hard reset.");
+                        "{Component}.{Method} "+"The configured five-minute startup boundary was reached. Performing the one-shot complete hard reset.",nameof(LivePipelineMonitor),nameof(CheckOnceAsync));
                 else
                     logger.LogWarning(
-                        "Required live-pipeline health remained unhealthy for five minutes ({Components}). Performing a complete hard reset.",
-                        string.Join(", ", dueUpstream.Select(CheckKey)));
+                        "{Component}.{Method} "+"Required live-pipeline health remained unhealthy for five minutes ({Components}). Performing a complete hard reset.",nameof(LivePipelineMonitor),nameof(CheckOnceAsync),                        string.Join(", ", dueUpstream.Select(CheckKey)));
                 lastHardResetUtc = now;
                 lastHardResetState = "HardResetInProgress";
                 lastHardResetError = null;
@@ -125,7 +124,7 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                 {
                     lastHardResetState = "HardResetInProgress";
                     AdvanceUpstreamRecovery(now, lastHardResetState, null);
-                    logger.LogInformation("Duplicate hard reset request ignored; the authoritative recovery episode remains active. CorrelationId={CorrelationId}", ex.Result.CorrelationId);
+                    logger.LogInformation("{Component}.{Method} "+"Duplicate hard reset request ignored; the authoritative recovery episode remains active. CorrelationId={CorrelationId}",nameof(LivePipelineMonitor),nameof(CheckOnceAsync),ex.Result.CorrelationId);
                 }
                 catch (DatabentoRecoveryEpisodeStatusException ex)
                 {
@@ -140,16 +139,14 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                     };
                     lastHardResetError = ex.Result.Detail;
                     AdvanceUpstreamRecovery(now, lastHardResetState, lastHardResetError);
-                    logger.LogCritical(ex,
-                        "Recovery episode ended without full downstream qualification; no independent hard reset will be retried.");
+                    logger.LogCritical(ex,                        "{Component}.{Method} "+"Recovery episode ended without full downstream qualification; no independent hard reset will be retried.",nameof(LivePipelineMonitor),nameof(CheckOnceAsync));
                 }
                 catch (Exception ex) when (!token.IsCancellationRequested)
                 {
                     lastHardResetState = "HardResetFailed";
                     lastHardResetError = ex.Message;
                     AdvanceUpstreamRecovery(now, lastHardResetState, lastHardResetError);
-                    logger.LogWarning(ex,
-                        "Complete live-pipeline hard reset failed.");
+                    logger.LogWarning(ex,                        "{Component}.{Method} "+"Complete live-pipeline hard reset failed.",nameof(LivePipelineMonitor),nameof(CheckOnceAsync));
                 }
             }
             await RecoverDueDownstreamAsync(recoverable, next.ValueDate.Value, now, token).ConfigureAwait(false);
@@ -165,7 +162,7 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
             [.. current.Checks.Where(x => x.Component != "Health monitor"),
                 new("Health monitor", "minute cycle", "Unknown", ex.Message, now)]);
             Publish(failed);
-            logger.LogWarning(ex, "Live pipeline audit or recovery failed; health remains unconfirmed.");
+            logger.LogWarning(ex,"{Component}.{Method} "+"Live pipeline audit or recovery failed; health remains unconfirmed.",nameof(LivePipelineMonitor),nameof(CheckOnceAsync));
         }
         finally { gate.Release(); }
     }
@@ -200,8 +197,7 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                     LastError = null
                 };
                 logger.LogWarning(
-                    "Requested targeted downstream recovery for {Target} after its one-minute confirmation window. Attempt={Attempt}.",
-                    target, attempt);
+                    "{Component}.{Method} "+"Requested targeted downstream recovery for {Target} after its one-minute confirmation window. Attempt={Attempt}.",nameof(LivePipelineMonitor),nameof(RecoverDueDownstreamAsync),                    target,attempt);
             }
             catch (Exception ex) when (!token.IsCancellationRequested)
             {
@@ -212,8 +208,7 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                     State = "Failed",
                     LastError = ex.Message
                 };
-                logger.LogWarning(ex,
-                    "Targeted downstream recovery failed for {Target}. Attempt={Attempt}.", target, attempt);
+                logger.LogWarning(ex,                    "{Component}.{Method} "+"Targeted downstream recovery failed for {Target}. Attempt={Attempt}.",nameof(LivePipelineMonitor),nameof(RecoverDueDownstreamAsync),target,attempt);
             }
         }
     }
@@ -364,7 +359,7 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                 .WaitAsync(TimeSpan.FromSeconds(2), token).ConfigureAwait(false);
         }
         catch (Exception ex) when (!token.IsCancellationRequested)
-        { logger.LogWarning(ex, "Status-console delivery failed; pipeline recovery remains independent."); }
+        { logger.LogWarning(ex,"{Component}.{Method} "+"Status-console delivery failed; pipeline recovery remains independent.",nameof(LivePipelineMonitor),nameof(ReportStatusAsync)); }
     }
 
     void Publish(LivePipelineHealthSnapshot snapshot)

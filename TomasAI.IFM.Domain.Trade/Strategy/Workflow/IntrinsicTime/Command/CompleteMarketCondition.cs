@@ -34,8 +34,7 @@ public static class CompleteMarketCondition
             current.CurrentStage != StrategyWorkflowStage.MarketCondition ||
             current.MarketCondition.SourceEventId == command.SourceEventId)
         {
-            context.Logger.LogWarning("Stale or duplicate workflow terminal command {CommandName} ignored for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-                command.CommandName, command.Subject.EntityId, current?.WorkflowId, current?.WorkflowRevision);
+            context.Logger.LogWarning("{Component}.{Method} "+"Stale or duplicate workflow terminal command {CommandName} ignored for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",nameof(CompleteMarketCondition),nameof(Execute),                command.CommandName,command.Subject.EntityId,current?.WorkflowId,current?.WorkflowRevision);
             return Ok(command);
         }
         var now = context.TimeProvider.GetUtcNow().UtcDateTime;
@@ -93,8 +92,7 @@ public static class CompleteMarketCondition
                 }
             };
             AppendSnapshot(state, command, current.Status, timedOut, now);
-            context.Logger.LogWarning("Workflow deadline took precedence for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-                command.Subject.EntityId, timedOut.WorkflowId, timedOut.WorkflowRevision);
+            context.Logger.LogWarning("{Component}.{Method} "+"Workflow deadline took precedence for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",nameof(CompleteMarketCondition),nameof(Execute),                command.Subject.EntityId,timedOut.WorkflowId,timedOut.WorkflowRevision);
             return Ok(command);
         }
 

@@ -34,8 +34,7 @@ public sealed class RiskObservationRecoveryService(RiskHistoryJournal journal, I
             {
                 await journal.QuarantineConflictAsync(snapshot.EventId, result, token).ConfigureAwait(false);
                 logger.LogError(
-                    "Risk history source conflict quarantined. EventId={EventId} WorkflowId={WorkflowId} InvocationId={InvocationId} Revision={Revision}; the immutable stored definition was preserved.",
-                    snapshot.EventId, result.WorkflowId, result.InvocationId, result.Revision);
+                    "{Component}.{Method} "+"Risk history source conflict quarantined. EventId={EventId} WorkflowId={WorkflowId} InvocationId={InvocationId} Revision={Revision}; the immutable stored definition was preserved.",nameof(RiskObservationRecoveryService),nameof(ProjectCommittedAsync),                    snapshot.EventId,result.WorkflowId,result.InvocationId,result.Revision);
             }
             await SynchronizeAsync(snapshot, token).ConfigureAwait(false);
         }
@@ -51,8 +50,7 @@ public sealed class RiskObservationRecoveryService(RiskHistoryJournal journal, I
             {
                 await journal.QuarantineConflictAsync(snapshot.EventId, result, token);
                 logger.LogError(
-                    "Risk history source conflict quarantined. EventId={EventId} WorkflowId={WorkflowId} InvocationId={InvocationId} Revision={Revision}; the immutable stored definition was preserved.",
-                    snapshot.EventId, result.WorkflowId, result.InvocationId, result.Revision);
+                    "{Component}.{Method} "+"Risk history source conflict quarantined. EventId={EventId} WorkflowId={WorkflowId} InvocationId={InvocationId} Revision={Revision}; the immutable stored definition was preserved.",nameof(RiskObservationRecoveryService),nameof(ProjectPageAsync),                    snapshot.EventId,result.WorkflowId,result.InvocationId,result.Revision);
             }
             else
                 await journal.AcknowledgeAsync(RiskHistoryJournal.HistoryProjection, snapshot.EventId, token);
@@ -81,7 +79,7 @@ public sealed class RiskObservationRecoveryService(RiskHistoryJournal journal, I
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch (Exception e)
         {
-            logger.LogWarning(e, "Fund outcome for workflow {WorkflowId} awaits reconciliation.", snapshot.WorkflowId);
+            logger.LogWarning(e,"{Component}.{Method} "+"Fund outcome for workflow {WorkflowId} awaits reconciliation.",nameof(RiskObservationRecoveryService),nameof(SynchronizeAndAcknowledgeAsync),snapshot.WorkflowId);
         }
     }
 

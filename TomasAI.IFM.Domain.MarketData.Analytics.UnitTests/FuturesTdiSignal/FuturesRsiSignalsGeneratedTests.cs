@@ -84,6 +84,38 @@ public sealed class FuturesRsiSignalsGeneratedTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_SeedWindowAcrossEveningRollover_GeneratesAllTdiValues()
+    {
+        var context = Substitute.For<IEventActorContext<FuturesTdiSignalEventActor>>();
+        context.RequestAsync<GenerateFuturesTdiSignalCommand, FuturesTdiSignalEntityId>(Arg.Any<GenerateFuturesTdiSignalCommand>())
+            .Returns(new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid())));
+        var date = SampleData.ValueDate.AddDays(1);
+        var source = new FuturesRsiSignalsGeneratedEvent
+        {
+            CommandId = Guid.NewGuid(),
+            EntityId = new(SampleData.ContractId, date, TimeFrameType.FiveMinutes, 13),
+            PeriodLength = 13,
+            FuturesRsiSignals = SampleData.TdiRsiSignals.Select((signal, index) => signal with
+            {
+                ValueDate = index < 28 ? date.AddDays(-1) : date,
+                TimePeriod = TimeFrameType.FiveMinutes,
+                SourceEventTimestamp = date.ToDateTime(new TimeOnly(22, 0)).AddMinutes(index * 5)
+            }).Reverse().ToArray()
+        };
+        Assert.True(await source.ExecuteAsync(context, Substitute.For<ILogger<FuturesTdiSignalEventActor>>()));
+        var command = Assert.Single(context.ReceivedCalls().SelectMany(call => call.GetArguments().OfType<GenerateFuturesTdiSignalCommand>()));
+        Assert.Equal(34, command.FuturesRsiSignals.Length);
+        var state = new TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.State.FuturesTdiSignalCommandState();
+        Assert.True(TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.GenerateFuturesTdiSignal.Execute(command, state).Success);
+        var generated = Assert.Single(state.Events.OfType<FuturesTdiSignalGeneratedEvent>());
+        Assert.Equal(date, generated.EntityId.ValueDate);
+        Assert.True(double.IsFinite(generated.FuturesTdiSignal.PriceLine));
+        Assert.True(double.IsFinite(generated.FuturesTdiSignal.SignalLine));
+        Assert.True(double.IsFinite(generated.FuturesTdiSignal.MarketBaseLine));
+        Assert.True(double.IsFinite(generated.FuturesTdiSignal.UpperVolatilityBand));
+        Assert.True(double.IsFinite(generated.FuturesTdiSignal.LowerVolatilityBand));
+    }
+    [Fact]
     public async Task ExecuteAsync_NonIntradayRsiEvent_IsIgnored()
     {
         var context = Substitute.For<IEventActorContext<FuturesTdiSignalEventActor>>();

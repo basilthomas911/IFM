@@ -227,12 +227,14 @@ public sealed class SupervisorHealthActionCoordinator(
             var current = sources.CaptureActorMetricsSources()
                 .FirstOrDefault(source => source.ActorId == threadId.MailboxId)?.CaptureSnapshot();
             var mailbox = current?.Mailboxes.FirstOrDefault(value => value.ThreadId == threadId);
-            if (mailbox is null || mailbox.Generation != expectedGeneration)
+            if (mailbox is null || !mailbox.IsAdmissionOpen || mailbox.Generation != expectedGeneration)
             {
                 outcome = SupervisorOperationOutcome.Rejected;
-                reason = "The health observation was stale before restart execution.";
+                reason = "The health observation was stale or mailbox admission is closed; explicit resume is required.";
                 return;
             }
+            logger.LogInformation("{Method} automatic health recovery started; ActorThreadId={ActorThreadId}; ExpectedGeneration={ExpectedGeneration}; Trigger={Trigger}; DrainTimeout={DrainTimeout}",
+                nameof(RestartAsync), threadId, expectedGeneration, "RestartRequired", TimeSpan.FromMinutes(1));
             using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
             var restarted = await supervisor.RestartAsync(threadId, expectedGeneration, TimeSpan.FromMinutes(1), timeout.Token).ConfigureAwait(false);
             outcome = restarted ? SupervisorOperationOutcome.Succeeded : SupervisorOperationOutcome.Rejected;
@@ -247,6 +249,8 @@ public sealed class SupervisorHealthActionCoordinator(
         }
         finally
         {
+            logger.LogInformation("{Method} automatic health recovery completed; ActorThreadId={ActorThreadId}; ExpectedGeneration={ExpectedGeneration}; Outcome={Outcome}; Reason={Reason}",
+                nameof(RestartAsync), threadId, expectedGeneration, outcome, reason);
             operations.Completed(operation, outcome, reason);
             _active.TryRemove(threadId, out _);
         }

@@ -6,11 +6,11 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 
 /// <summary>
-/// Provides external observers with the latest successfully persisted futures EOD display snapshot.
+/// Provides external observers with the latest futures EOD display snapshot and its persistence status.
 /// </summary>
 /// <remarks>
-/// This is a best-effort Core NATS notification. It is emitted only after
-/// <see cref="FuturesEodDataInsertedCompleteEvent"/> and is not part of the durable insert workflow.
+/// This is a best-effort Core NATS notification. Persisted notifications follow
+/// <see cref="FuturesEodDataInsertedCompleteEvent"/> and are not part of the durable insert workflow.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
 public sealed record FuturesEodDataUpdatedNotifyEvent : IEvent<FuturesEodDataId>
@@ -27,6 +27,9 @@ public sealed record FuturesEodDataUpdatedNotifyEvent : IEvent<FuturesEodDataId>
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     [Key(7)] public DateTime ReceivedOn { get; init; }
     [Key(8)] public FuturesEodDataV2ReadModel FuturesEodData { get; init; } = new();
+
+    /// <summary>True only when this snapshot has been stored; false denotes an immediate live update.</summary>
+    [Key(9)] public bool IsPersisted { get; init; } = true;
 
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesEodDataUpdatedNotifyEvent);

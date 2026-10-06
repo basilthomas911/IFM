@@ -110,7 +110,7 @@ public class NatsJetStreamActorProducer(
                 await _connectionManager.DisposeAsync().ConfigureAwait(false);
             _nc = default!;
             _js = default!;
-            _logger.LogInformation("NATS JetStream producer stopped.");
+            _logger.LogInformation("{Component}.{Method} "+"NATS JetStream producer stopped.",nameof(NatsJetStreamActorProducer),nameof(StopAsync));
         }
         finally
         {
@@ -146,11 +146,11 @@ public class NatsJetStreamActorProducer(
             IsArgumentNull.Check(@event);
             await PublishAsync(subject.ToString(), @event.ToEvent<TEvent>(), cancellationToken).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("Published event to JetStream subject {Subject} CommandId={CommandId}", subject, @event.CommandId);
+                _logger.LogDebug("{Component}.{Method} "+"Published event to JetStream subject {Subject} CommandId={CommandId}",nameof(NatsJetStreamActorProducer),nameof(SendAsync),subject,@event.CommandId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to publish event to JetStream subject {Subject}", subject);
+            _logger.LogError(ex,"{Component}.{Method} "+"Failed to publish event to JetStream subject {Subject}",nameof(NatsJetStreamActorProducer),nameof(SendAsync),subject);
             throw;
         }
     }

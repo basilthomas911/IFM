@@ -23,7 +23,7 @@ public sealed class CapacityExpiryService(CapacityExpiryDispatchStore dispatch, 
                 await dispatch.ReconcileAsync(item.Request, token);
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
-            catch (Exception error) { logger.LogWarning(error, "Capacity expiry operation {OperationId} remains pending; no release is inferred.", item.Request.OperationId); }
+            catch (Exception error) { logger.LogWarning(error,"{Component}.{Method} "+"Capacity expiry operation {OperationId} remains pending; no release is inferred.",nameof(CapacityExpiryService),nameof(RunOnceAsync),item.Request.OperationId); }
         }
     }
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -32,7 +32,7 @@ public sealed class CapacityExpiryService(CapacityExpiryDispatchStore dispatch, 
         {
             try { await RunOnceAsync(stoppingToken); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
-            catch (Exception error) { logger.LogWarning(error, "Capacity expiry dispatcher is pending; financial obligations are retained."); }
+            catch (Exception error) { logger.LogWarning(error,"{Component}.{Method} "+"Capacity expiry dispatcher is pending; financial obligations are retained.",nameof(CapacityExpiryService),nameof(ExecuteAsync)); }
             try { await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         }

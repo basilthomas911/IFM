@@ -29,8 +29,7 @@ public static class CompleteRiskManagement
             current.CurrentStage != StrategyWorkflowStage.RiskManagement ||
             current.RiskManagement.SourceEventId == command.SourceEventId)
         {
-            context.Logger.LogWarning("Stale or duplicate workflow terminal command {CommandName} ignored for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-                command.CommandName, command.Subject.EntityId, current?.WorkflowId, current?.WorkflowRevision);
+            context.Logger.LogWarning("{Component}.{Method} "+"Stale or duplicate workflow terminal command {CommandName} ignored for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",nameof(CompleteRiskManagement),nameof(Execute),                command.CommandName,command.Subject.EntityId,current?.WorkflowId,current?.WorkflowRevision);
             return Ok(command);
         }
         var now = context.TimeProvider.GetUtcNow().UtcDateTime;
@@ -55,8 +54,7 @@ public static class CompleteRiskManagement
                 }
             };
             AppendSnapshot(state, command, current.Status, timedOut, now);
-            context.Logger.LogWarning("Workflow deadline took precedence for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-                command.Subject.EntityId, timedOut.WorkflowId, timedOut.WorkflowRevision);
+            context.Logger.LogWarning("{Component}.{Method} "+"Workflow deadline took precedence for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",nameof(CompleteRiskManagement),nameof(Execute),                command.Subject.EntityId,timedOut.WorkflowId,timedOut.WorkflowRevision);
             return Ok(command);
         }
         if (command.PortfolioDecision is { } portfolioDecision)
@@ -194,8 +192,7 @@ public static class CompleteRiskManagement
         };
         AppendSnapshot(state, command, current.Status, updated, now);
         context.Logger.LogInformation(
-            "Portfolio completed workflow {WorkflowId} with {Status}, {OrderCount} Trade Orders and financial revision {FinancialRevision}",
-            current.WorkflowId, decision.Status, decision.TradeOrders.Length, decision.FinancialRevision);
+            "{Component}.{Method} "+"Portfolio completed workflow {WorkflowId} with {Status}, {OrderCount} Trade Orders and financial revision {FinancialRevision}",nameof(CompleteRiskManagement),nameof(CompletePortfolioDecision),            current.WorkflowId,decision.Status,decision.TradeOrders.Length,decision.FinancialRevision);
         return Ok(command);
     }
 }

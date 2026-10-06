@@ -29,8 +29,7 @@ public sealed class DeploymentIdentityEnforcementService(
         if (validation.Valid) return false;
 
         logger.LogCritical(
-            "Deployment identity changed after process startup; stopping stale API process. Errors: {Errors}",
-            string.Join(" ", validation.Errors));
+            "{Component}.{Method} "+"Deployment identity changed after process startup; stopping stale API process. Errors: {Errors}",nameof(DeploymentIdentityEnforcementService),nameof(EnforceOnce),            string.Join(" ", validation.Errors));
         lifetime.StopApplication();
         return true;
     }

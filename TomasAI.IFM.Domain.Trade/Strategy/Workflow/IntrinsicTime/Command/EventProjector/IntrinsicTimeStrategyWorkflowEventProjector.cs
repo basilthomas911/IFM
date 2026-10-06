@@ -175,10 +175,7 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector
             catch (Exception exception)
             {
                 _actorContext.Logger.LogError(
-                    exception,
-                    "Strategy Workflow UI notification failed for {WorkflowId} revision {WorkflowRevision}",
-                    snapshot.WorkflowId,
-                    snapshot.WorkflowRevision);
+                    exception,                    "{Component}.{Method} "+"Strategy Workflow UI notification failed for {WorkflowId} revision {WorkflowRevision}",nameof(IntrinsicTimeStrategyWorkflowEventProjector),nameof(ProjectAsync),                    snapshot.WorkflowId,                    snapshot.WorkflowRevision);
             }
 
             // These handlers receive the already committed event on the projector worker. They do not scan or

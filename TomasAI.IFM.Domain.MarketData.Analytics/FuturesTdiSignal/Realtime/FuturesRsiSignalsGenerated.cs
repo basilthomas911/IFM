@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
@@ -30,18 +31,22 @@ public static class FuturesRsiSignalsGenerated
         var signals = source.FuturesRsiSignals
             .Where(signal =>
                 StringComparer.Ordinal.Equals(signal.ContractId, source.EntityId.ContractId)
-                && signal.ValueDate == source.EntityId.ValueDate
+                // TDI is a rolling RSI window: prior-session seed observations remain required after rollover.
+                && signal.ValueDate <= source.EntityId.ValueDate
                 && signal.TimePeriod == source.EntityId.TimePeriod
                 && signal.PeriodLength == configuration.RsiPeriod
                 && signal.IsWarm
                 && signal.RSI >= 0d
                 && signal.Metadata is not { IsValid: false })
-            .OrderBy(static signal => signal.ValueDate)
-            .ThenBy(static signal => signal.Timestamp)
+            .OrderBy(FuturesTdiSignalCompute.SampleTime)
             .TakeLast(configuration.RequiredRsiSamples)
             .ToArray();
         if (signals.Length < configuration.RequiredRsiSamples)
+        {
+            logger.LogDebug("{Method} TDI RSI window incomplete; ContractId={ContractId}; ValueDate={ValueDate}; TimePeriod={TimePeriod}; AvailableSamples={AvailableSamples}; RequiredSamples={RequiredSamples}",
+                nameof(ExecuteAsync), source.EntityId.ContractId, source.EntityId.ValueDate, source.EntityId.TimePeriod, signals.Length, configuration.RequiredRsiSamples);
             return true;
+        }
 
         await state.SeedAsync(source, configuration, marketDataDb).ConfigureAwait(false);
         if (!state.TryEvaluate(source, signals, configuration, out var evaluation))

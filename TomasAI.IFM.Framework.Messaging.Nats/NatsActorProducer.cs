@@ -70,7 +70,7 @@ public class NatsActorProducer(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to start NATS producer for mailbox {MailboxId}", mailboxId);
+            _logger.LogError(ex,"{Component}.{Method} "+"Failed to start NATS producer for mailbox {MailboxId}",nameof(NatsActorProducer),nameof(StartAsync),mailboxId);
             throw;
         }
     }
@@ -104,7 +104,7 @@ public class NatsActorProducer(
                 if (_ownsConnectionManager)
                     await _connectionManager.DisposeAsync().ConfigureAwait(false);
                 _nc = null;
-                _logger.LogInformation("NATS producer stopped.");
+                _logger.LogInformation("{Component}.{Method} "+"NATS producer stopped.",nameof(NatsActorProducer),nameof(StopAsync));
             }
             finally
             {
@@ -113,7 +113,7 @@ public class NatsActorProducer(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to stop NATS producer.");
+            _logger.LogError(ex,"{Component}.{Method} "+"Failed to stop NATS producer.",nameof(NatsActorProducer),nameof(StopAsync));
             throw;
         }
     }
@@ -155,11 +155,11 @@ public class NatsActorProducer(
                 await StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
             await PublishAsync(subject.ToString(), command.ToCommand<TCommand, TEntityId>(), cancellationToken).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("Published command to subject {Subject} CommandId={CommandId}", subject, command.CommandId);
+                _logger.LogDebug("{Component}.{Method} "+"Published command to subject {Subject} CommandId={CommandId}",nameof(NatsActorProducer),nameof(SendAsync),subject,command.CommandId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to publish command to subject {Subject}", subject);
+            _logger.LogError(ex,"{Component}.{Method} "+"Failed to publish command to subject {Subject}",nameof(NatsActorProducer),nameof(SendAsync),subject);
             throw;
         }
     }
@@ -194,11 +194,11 @@ public class NatsActorProducer(
                 await StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
             await PublishAsync(subject.ToString(), @event.ToEvent<TEvent>(), cancellationToken).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("Published event to subject {Subject} CommandId={CommandId}", subject, @event.CommandId);
+                _logger.LogDebug("{Component}.{Method} "+"Published event to subject {Subject} CommandId={CommandId}",nameof(NatsActorProducer),nameof(SendAsync),subject,@event.CommandId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to publish event to subject {Subject}", subject);
+            _logger.LogError(ex,"{Component}.{Method} "+"Failed to publish event to subject {Subject}",nameof(NatsActorProducer),nameof(SendAsync),subject);
             throw;
         }
     }
@@ -225,11 +225,11 @@ public class NatsActorProducer(
                 await StartAsync(_actorId).ConfigureAwait(false);
             await PublishAsync(subject.ToString(), @event).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("Published  denormalize event to subject {Subject}", subject);
+                _logger.LogDebug("{Component}.{Method} "+"Published  denormalize event to subject {Subject}",nameof(NatsActorProducer),nameof(SendAsync),subject);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to publish denormalize event to subject {Subject}", subject);
+            _logger.LogError(ex,"{Component}.{Method} "+"Failed to publish denormalize event to subject {Subject}",nameof(NatsActorProducer),nameof(SendAsync),subject);
             throw;
         }
     }
@@ -283,12 +283,12 @@ public class NatsActorProducer(
             result = IsArgumentNull.Set(reply.Data);
             NatsMessagingMetrics.Published.Add(1);
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("Requested query to subject {Subject} query={Name}", subject, query.GetType().Name);
+                _logger.LogDebug("{Component}.{Method} "+"Requested query to subject {Subject} query={Name}",nameof(NatsActorProducer),nameof(RequestAsync),subject,query.GetType().Name);
         }
         catch (Exception ex)
         {
             NatsMessagingMetrics.RecordOperationFailure(NatsMessagingMetrics.CoreRequestOperation);
-            _logger.LogError(ex, "Failed to request query to subject {Subject}", subject);
+            _logger.LogError(ex,"{Component}.{Method} "+"Failed to request query to subject {Subject}",nameof(NatsActorProducer),nameof(RequestAsync),subject);
             throw;
         }
         finally
@@ -340,11 +340,11 @@ public class NatsActorProducer(
                 command.ToCommand<TCommand, TEntityId>(),
                 cancellationToken).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("Requested command to subject {Subject} CommandId={CommandId}", subject, command.CommandId);
+                _logger.LogDebug("{Component}.{Method} "+"Requested command to subject {Subject} CommandId={CommandId}",nameof(NatsActorProducer),nameof(RequestAsync),subject,command.CommandId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to request command to subject {Subject}", subject);
+            _logger.LogError(ex,"{Component}.{Method} "+"Failed to request command to subject {Subject}",nameof(NatsActorProducer),nameof(RequestAsync),subject);
             throw;
         }
         return result!;

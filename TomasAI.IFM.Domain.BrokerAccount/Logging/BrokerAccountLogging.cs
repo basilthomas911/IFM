@@ -6,7 +6,7 @@ namespace TomasAI.IFM.Domain.BrokerAccount.Logging;
 internal static partial class BrokerAccountLogging
 {
     [LoggerMessage(EventId = 25601, Level = LogLevel.Error,
-        Message = "Broker account observation failed. AccountAlias={AccountAlias} ObservationId={ObservationId}")]
+        Message = "Broker account observation failed. AccountAlias={AccountAlias} ObservationId={ObservationId}; Method={Method}")]
     internal static partial void AccountObservationFailed(this ILogger logger, Exception exception,
-        string accountAlias, Guid observationId);
+        string accountAlias, Guid observationId, [System.Runtime.CompilerServices.CallerMemberName] string method = "");
 }

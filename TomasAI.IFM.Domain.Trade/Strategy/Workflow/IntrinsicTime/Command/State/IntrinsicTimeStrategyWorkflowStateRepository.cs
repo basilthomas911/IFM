@@ -93,15 +93,13 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(
         if (snapshots.Length == 0)
         {
             _logger.LogError(
-                "Workflow stream is migration-blocked: {StreamId} contains {EventCount} legacy event(s)",
-                command.StreamId, events.Count);
+                "{Component}.{Method} "+"Workflow stream is migration-blocked: {StreamId} contains {EventCount} legacy event(s)",nameof(IntrinsicTimeStrategyWorkflowStateRepository),nameof(LoadStateAsync),                command.StreamId,events.Count);
             throw new LegacyWorkflowStreamException(command.StreamId, events.Count);
         }
         if (converted.Any(value => value.Event is not WorkflowStrategyStateUpdatedEvent))
         {
             _logger.LogError(
-                "Workflow stream is migration-blocked: {StreamId} contains unsupported events among {EventCount} event(s)",
-                command.StreamId, events.Count);
+                "{Component}.{Method} "+"Workflow stream is migration-blocked: {StreamId} contains unsupported events among {EventCount} event(s)",nameof(IntrinsicTimeStrategyWorkflowStateRepository),nameof(LoadStateAsync),                command.StreamId,events.Count);
             throw new LegacyWorkflowStreamException(command.StreamId, events.Count,
                 "The stream contains events after its latest authoritative snapshot.");
         }

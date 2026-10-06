@@ -10,6 +10,7 @@ internal static class TradeOrderDefinitionChecks
     {
         if (order is null) return ["Order is required."];
         List<string> errors = [];
+        if (order.DecisionEvidence is { IsValid: false }) errors.Add("Decision inputs failed integrity validation.");
         if (!order.Id.IsValid) errors.Add("PortfolioId, FundId, OrderId and TradeId must be greater than zero.");
         if (order.Revision < 1) errors.Add("Order revision must be greater than zero.");
         if (order.PositionType == TradeOrderPositionType.Unknown) errors.Add("Order position type is required.");

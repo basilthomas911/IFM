@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "runId": "014a9d09a13d4621affbf2695173093c",
+  "environment": "Development",
+  "preparationUtc": "2026-10-04T19:50:22.7646545+00:00",
+  "defaultRetentionDays": 35,
+  "purpose": "Retention-only synthetic fixture; not a database backup or verified restore point",
+  "protectedRoles": [
+    "keep"
+  ],
+  "deletionCandidateRoles": [
+    "candidate"
+  ],
+  "publicationComplete": true,
+  "approvedForDeletion": false,
+  "readbackVerified": true,
+  "readbackBlocker": null,
+  "objects": [
+    {
+      "role": "candidate",
+      "bucketName": "ifm-db-backup-development-primary-107651266250",
+      "region": "ca-central-1",
+      "objectKey": "v1/environment/development/gate14/disposable/014a9d09a13d4621affbf2695173093c/candidate.json",
+      "length": 165,
+      "sha256": "2990b49183322566222c67810501417155e912d8bfec7c5e141d7f7c44412c36",
+      "versionId": "rQeNDPiTOAC0iMcFEGTmVUOXquFj.qpL",
+      "observedRetainUntilUtc": "2026-11-08T19:50:25.661000+00:00"
+    },
+    {
+      "role": "keep",
+      "bucketName": "ifm-db-backup-development-primary-107651266250",
+      "region": "ca-central-1",
+      "objectKey": "v1/environment/development/gate14/disposable/014a9d09a13d4621affbf2695173093c/keep.json",
+      "length": 160,
+      "sha256": "04fdefb17a4451c29e1ef9966f1203070ae87543b6e2a39e1fc38eefcd7faa06",
+      "versionId": "xRHRWOtLXQqFDpbhKlDKjRJxdkn3KQ3c",
+      "observedRetainUntilUtc": "2026-11-08T19:50:28.204000+00:00"
+    }
+  ],
+  "readbackObservedUtc": "2026-10-04T22:40:01.4175354+00:00",
+  "verifiedObservations": [
+    {
+      "replica": "primary",
+      "role": "candidate",
+      "bucketName": "ifm-db-backup-development-primary-107651266250",
+      "region": "ca-central-1",
+      "objectKey": "v1/environment/development/gate14/disposable/014a9d09a13d4621affbf2695173093c/candidate.json",
+      "versionId": "rQeNDPiTOAC0iMcFEGTmVUOXquFj.qpL",
+      "length": 165,
+      "sha256": "2990b49183322566222c67810501417155e912d8bfec7c5e141d7f7c44412c36",
+      "retainUntilUtc": "2026-11-08T19:50:25.661000+00:00",
+      "legalHoldStatus": null,
+      "legalHoldVerified": false,
+      "replicationStatus": "COMPLETED"
+    },
+    {
+      "replica": "recovery",
+      "role": "candidate",
+      "bucketName": "ifm-db-backup-development-recovery-107651266250",
+      "region": "ca-west-1",
+      "objectKey": "v1/environment/development/gate14/disposable/014a9d09a13d4621affbf2695173093c/candidate.json",
+      "versionId": "rQeNDPiTOAC0iMcFEGTmVUOXquFj.qpL",
+      "length": 165,
+      "sha256": "2990b49183322566222c67810501417155e912d8bfec7c5e141d7f7c44412c36",
+      "retainUntilUtc": "2026-11-08T19:50:25.661000+00:00",
+      "legalHoldStatus": null,
+      "legalHoldVerified": false,
+      "replicationStatus": "REPLICA"
+    },
+    {
+      "replica": "primary",
+      "role": "keep",
+      "bucketName": "ifm-db-backup-development-primary-107651266250",
+      "region": "ca-central-1",
+      "objectKey": "v1/environment/development/gate14/disposable/014a9d09a13d4621affbf2695173093c/keep.json",
+      "versionId": "xRHRWOtLXQqFDpbhKlDKjRJxdkn3KQ3c",
+      "length": 160,
+      "sha256": "04fdefb17a4451c29e1ef9966f1203070ae87543b6e2a39e1fc38eefcd7faa06",
+      "retainUntilUtc": "2026-11-08T19:50:28.204000+00:00",
+      "legalHoldStatus": null,
+      "legalHoldVerified": false,
+      "replicationStatus": "COMPLETED"
+    },
+    {
+      "replica": "recovery",
+      "role": "keep",
+      "bucketName": "ifm-db-backup-development-recovery-107651266250",
+      "region": "ca-west-1",
+      "objectKey": "v1/environment/development/gate14/disposable/014a9d09a13d4621affbf2695173093c/keep.json",
+      "versionId": "xRHRWOtLXQqFDpbhKlDKjRJxdkn3KQ3c",
+      "length": 160,
+      "sha256": "04fdefb17a4451c29e1ef9966f1203070ae87543b6e2a39e1fc38eefcd7faa06",
+      "retainUntilUtc": "2026-11-08T19:50:28.204000+00:00",
+      "legalHoldStatus": null,
+      "legalHoldVerified": false,
+      "replicationStatus": "REPLICA"
+    }
+  ],
+  "legalHoldVerified": false,
+  "legalHoldReadResult": "NoSuchObjectLockConfiguration for all four exact versions; not recorded as explicit OFF"
+}

@@ -115,7 +115,7 @@ public class NatsActorConsumer(
             _subscriptionSubject = string.Concat(_actorType.ToStringFast(), ".>");
             if (_nc is not null)
             {
-                _logger.LogDebug("NATS {ActorType} consumer already started.", _actorType);
+                _logger.LogDebug("{Component}.{Method} "+"NATS {ActorType} consumer already started.",nameof(NatsActorConsumer),nameof(StartCoreAsync),_actorType);
                 return;
             }
 
@@ -151,13 +151,13 @@ public class NatsActorConsumer(
             _subscriptionReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
             _loopTask = RunMessageLoopAsync(ctsRequestToken);
             await _subscriptionReady.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
-            _logger.LogInformationEvent(_serviceId, "NATS {ActorType} consumer started with {DispatcherCount} dispatch stripes.", _actorType, dispatcherCount);
+            _logger.LogInformationEvent(_serviceId,"{Component}.{Method} "+"NATS {ActorType} consumer started with {DispatcherCount} dispatch stripes.",nameof(NatsActorConsumer),nameof(StartCoreAsync),_actorType,dispatcherCount);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "NATS {ActorType} failed during consumer startup.", _actorType);
+            _logger.LogError(ex,"{Component}.{Method} "+"NATS {ActorType} failed during consumer startup.",nameof(NatsActorConsumer),nameof(StartCoreAsync),_actorType);
             try { await StopCoreAsync().ConfigureAwait(false); }
-            catch (Exception cleanup) { _logger.LogError(cleanup, "NATS consumer startup cleanup failed."); }
+            catch (Exception cleanup) { _logger.LogError(cleanup,"{Component}.{Method} "+"NATS consumer startup cleanup failed.",nameof(NatsActorConsumer),nameof(StartCoreAsync)); }
             throw;
         }
     }
@@ -259,7 +259,7 @@ public class NatsActorConsumer(
         {
             if (_nc is null)
             {
-                _logger.LogDebug("NATS {ActorType} consumer has not started.", _actorType);
+                _logger.LogDebug("{Component}.{Method} "+"NATS {ActorType} consumer has not started.",nameof(NatsActorConsumer),nameof(StopCoreAsync),_actorType);
                 return;
             }
 
@@ -271,7 +271,7 @@ public class NatsActorConsumer(
             {
                 try { await _loopTask.ConfigureAwait(false); }
                 catch (OperationCanceledException) { /* expected */ }
-                catch (Exception ex) { _logger.LogError(ex, "NATS consumer loop failed before shutdown."); }
+                catch (Exception ex) { _logger.LogError(ex,"{Component}.{Method} "+"NATS consumer loop failed before shutdown.",nameof(NatsActorConsumer),nameof(StopCoreAsync)); }
             }
             _loopTask = null;
 
@@ -296,11 +296,11 @@ public class NatsActorConsumer(
                 await _connectionManager.DisposeAsync().ConfigureAwait(false);
             _nc = null;
             _isRunning = false;
-            _logger.LogInformation("NATS {ActorType} consumer has stopped.", _actorType);
+            _logger.LogInformation("{Component}.{Method} "+"NATS {ActorType} consumer has stopped.",nameof(NatsActorConsumer),nameof(StopCoreAsync),_actorType);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to stop NATS {ActorType} consumer.", _actorType);
+            _logger.LogError(ex,"{Component}.{Method} "+"Failed to stop NATS {ActorType} consumer.",nameof(NatsActorConsumer),nameof(StopCoreAsync),_actorType);
             throw;
         }
     }
@@ -329,7 +329,7 @@ public class NatsActorConsumer(
                     else
                     {
                         _logger.LogWarning(
-                            "NATS realtime consumer is using the legacy byte[] payload path for diagnostics.");
+                            "{Component}.{Method} "+"NATS realtime consumer is using the legacy byte[] payload path for diagnostics.",nameof(NatsActorConsumer),nameof(RunMessageLoopAsync));
                         await PubSubMessageLoopAsync(cancellationToken).ConfigureAwait(false);
                     }
                     break;
@@ -340,7 +340,7 @@ public class NatsActorConsumer(
                     else
                     {
                         _logger.LogWarning(
-                            "NATS command consumer is using the legacy byte[] payload path for diagnostics.");
+                            "{Component}.{Method} "+"NATS command consumer is using the legacy byte[] payload path for diagnostics.",nameof(NatsActorConsumer),nameof(RunMessageLoopAsync));
                         await PubSubMessageLoopAsync(cancellationToken).ConfigureAwait(false);
                     }
                     break;
@@ -350,7 +350,7 @@ public class NatsActorConsumer(
                     else
                     {
                         _logger.LogWarning(
-                            "NATS query consumer is using the legacy byte[] payload path for diagnostics.");
+                            "{Component}.{Method} "+"NATS query consumer is using the legacy byte[] payload path for diagnostics.",nameof(NatsActorConsumer),nameof(RunMessageLoopAsync));
                         await ReqReplMessageLoopAsync(cancellationToken).ConfigureAwait(false);
                     }
                     break;
@@ -392,8 +392,7 @@ public class NatsActorConsumer(
         var stripes = _stripeChannels!;
         var stripeCount = stripes.Length;
         _logger.LogInformationEvent(
-            _serviceId,
-            "NATS realtime consumer started with shared owned pooled payloads");
+            _serviceId,            "{Component}.{Method} "+"NATS realtime consumer started with shared owned pooled payloads",nameof(NatsActorConsumer),nameof(RealtimeMessageLoopAsync));
 
         await foreach (NatsMsg<NatsMemoryOwner<byte>> msg in SubscribeReadyAsync<NatsMemoryOwner<byte>>(
             _subscriptionSubject,
@@ -417,9 +416,7 @@ public class NatsActorConsumer(
                 {
                     NatsMessagingMetrics.DispatchFailures.Add(1);
                     _logger.LogErrorEvent(
-                        _serviceId,
-                        "NATS realtime message rejected because its primary actor {ActorId} is not registered.",
-                        source.ActorId);
+                        _serviceId,                        "{Component}.{Method} "+"NATS realtime message rejected because its primary actor {ActorId} is not registered.",nameof(NatsActorConsumer),nameof(RealtimeMessageLoopAsync),                        source.ActorId);
                     continue;
                 }
 
@@ -452,9 +449,7 @@ public class NatsActorConsumer(
             {
                 NatsMessagingMetrics.DispatchFailures.Add(1);
                 _logger.LogErrorEvent(
-                    _serviceId,
-                    ex,
-                    "NATS realtime consumer failed before ownership transfer.");
+                    _serviceId,                    ex,                    "{Component}.{Method} "+"NATS realtime consumer failed before ownership transfer.",nameof(NatsActorConsumer),nameof(RealtimeMessageLoopAsync));
             }
             finally
             {
@@ -470,11 +465,11 @@ public class NatsActorConsumer(
     {
         var stripes = _stripeChannels!;
         var stripeCount = stripes.Length;
-        _logger.LogInformationEvent(_serviceId, "{ActorType} consumer started", _actorType);
+        _logger.LogInformationEvent(_serviceId,"{Component}.{Method} "+"{ActorType} consumer started",nameof(NatsActorConsumer),nameof(PubSubMessageLoopAsync),_actorType);
         while (!ctsRequestToken.IsCancellationRequested)
         {
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("NATS {ActorType} consumer waiting for messages...", _actorType);
+                _logger.LogDebug("{Component}.{Method} "+"NATS {ActorType} consumer waiting for messages...",nameof(NatsActorConsumer),nameof(PubSubMessageLoopAsync),_actorType);
             var messagesRead = 0;
             await foreach (var msg in SubscribeReadyAsync(_subscriptionSubject, serializer: _deserializer, opts: _requestOptions, cancellationToken: ctsRequestToken))
             {
@@ -487,7 +482,7 @@ public class NatsActorConsumer(
                     NatsMessagingMetrics.Received.Add(1);
                     NatsMessagingMetrics.RecordLegacyPayloadCopy(msg.Data.Length);
                     if (_logger.IsEnabled(LogLevel.Debug))
-                        _logger.LogDebug("NATS {ActorType} consumer received message for subject={Subject}", _actorType, msg.Subject);
+                        _logger.LogDebug("{Component}.{Method} "+"NATS {ActorType} consumer received message for subject={Subject}",nameof(NatsActorConsumer),nameof(PubSubMessageLoopAsync),_actorType,msg.Subject);
 
                     // parse subject and route to a dispatch stripe by entity hash.
                     // Same entity always maps to the same stripe, preserving per-entity FIFO ordering.
@@ -497,9 +492,7 @@ public class NatsActorConsumer(
                     {
                         NatsMessagingMetrics.DispatchFailures.Add(1);
                         _logger.LogErrorEvent(
-                            _serviceId,
-                            "NATS realtime message rejected because its primary actor {ActorId} is not registered.",
-                            msgSubject.ActorId);
+                            _serviceId,                            "{Component}.{Method} "+"NATS realtime message rejected because its primary actor {ActorId} is not registered.",nameof(NatsActorConsumer),nameof(PubSubMessageLoopAsync),                            msgSubject.ActorId);
                         continue;
                     }
 
@@ -513,15 +506,15 @@ public class NatsActorConsumer(
                 }
                 catch (OperationCanceledException ex)
                 {
-                    _logger.LogErrorEvent(_serviceId, ex, "NATS consumer cancellation requested while processing {Subject}; stopping message loop.", msg.Subject);
+                    _logger.LogErrorEvent(_serviceId,ex,"{Component}.{Method} "+"NATS consumer cancellation requested while processing {Subject}; stopping message loop.",nameof(NatsActorConsumer),nameof(PubSubMessageLoopAsync),msg.Subject);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogErrorEvent(_serviceId, ex, "NATS consumer failed to process message for {Subject}.", msg.Subject);
+                    _logger.LogErrorEvent(_serviceId,ex,"{Component}.{Method} "+"NATS consumer failed to process message for {Subject}.",nameof(NatsActorConsumer),nameof(PubSubMessageLoopAsync),msg.Subject);
                 }
             }
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("NATS {ActorType} consumer read {MessagesRead} messages.", _actorType, messagesRead);
+                _logger.LogDebug("{Component}.{Method} "+"NATS {ActorType} consumer read {MessagesRead} messages.",nameof(NatsActorConsumer),nameof(PubSubMessageLoopAsync),_actorType,messagesRead);
         }
     }
 
@@ -550,7 +543,7 @@ public class NatsActorConsumer(
     {
         var stripes = _stripeChannels!;
         var stripeCount = stripes.Length;
-        _logger.LogInformationEvent(_serviceId, "NATS command consumer started with owned pooled payloads");
+        _logger.LogInformationEvent(_serviceId,"{Component}.{Method} "+"NATS command consumer started with owned pooled payloads",nameof(NatsActorConsumer),nameof(CommandMessageLoopAsync));
 
         await foreach (NatsMsg<NatsMemoryOwner<byte>> msg in SubscribeReadyAsync<NatsMemoryOwner<byte>>(
             _subscriptionSubject,
@@ -582,7 +575,7 @@ public class NatsActorConsumer(
             catch (Exception ex)
             {
                 NatsMessagingMetrics.DispatchFailures.Add(1);
-                _logger.LogErrorEvent(_serviceId, ex, "NATS command consumer failed before ownership transfer.");
+                _logger.LogErrorEvent(_serviceId,ex,"{Component}.{Method} "+"NATS command consumer failed before ownership transfer.",nameof(NatsActorConsumer),nameof(CommandMessageLoopAsync));
             }
             finally
             {
@@ -605,11 +598,11 @@ public class NatsActorConsumer(
     {
         var stripes = _stripeChannels!;
         var stripeCount = stripes.Length;
-        _logger.LogInformationEvent(_serviceId, "{ActorType} consumer started", _actorType);
+        _logger.LogInformationEvent(_serviceId,"{Component}.{Method} "+"{ActorType} consumer started",nameof(NatsActorConsumer),nameof(ReqReplMessageLoopAsync),_actorType);
         while (!ctsRequestToken.IsCancellationRequested)
         {
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("NATS {ActorType} consumer waiting for messages...", _actorType);
+                _logger.LogDebug("{Component}.{Method} "+"NATS {ActorType} consumer waiting for messages...",nameof(NatsActorConsumer),nameof(ReqReplMessageLoopAsync),_actorType);
             var messagesRead = 0;
             await foreach (var msg in SubscribeReadyAsync(_subscriptionSubject, serializer: _deserializer, opts: _requestOptions, cancellationToken: ctsRequestToken))
             {
@@ -622,7 +615,7 @@ public class NatsActorConsumer(
                     NatsMessagingMetrics.Received.Add(1);
                     NatsMessagingMetrics.RecordLegacyPayloadCopy(msg.Data.Length);
                     if (_logger.IsEnabled(LogLevel.Debug))
-                        _logger.LogDebug("NATS {ActorType} consumer received message for subject={Subject}", _actorType, msg.Subject);
+                        _logger.LogDebug("{Component}.{Method} "+"NATS {ActorType} consumer received message for subject={Subject}",nameof(NatsActorConsumer),nameof(ReqReplMessageLoopAsync),_actorType,msg.Subject);
 
                     // parse subject and route to a dispatch stripe by entity hash.
                     var msgSubject = msg.Subject.ToSubject();
@@ -631,11 +624,11 @@ public class NatsActorConsumer(
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogErrorEvent(_serviceId, ex, "NATS consumer failed to process message for {Subject}.", msg.Subject);
+                    _logger.LogErrorEvent(_serviceId,ex,"{Component}.{Method} "+"NATS consumer failed to process message for {Subject}.",nameof(NatsActorConsumer),nameof(ReqReplMessageLoopAsync),msg.Subject);
                 }
             }
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("NATS {ActorType} consumer read {MessagesRead} messages.", _actorType, messagesRead);
+                _logger.LogDebug("{Component}.{Method} "+"NATS {ActorType} consumer read {MessagesRead} messages.",nameof(NatsActorConsumer),nameof(ReqReplMessageLoopAsync),_actorType,messagesRead);
         }
     }
 
@@ -679,7 +672,7 @@ public class NatsActorConsumer(
                 catch (Exception ex)
                 {
                     NatsMessagingMetrics.DispatchFailures.Add(1);
-                    _logger.LogErrorEvent(_serviceId, ex, "Dispatch stripe failed to deliver message for {ActorId}.", msgSubject.ActorId);
+                    _logger.LogErrorEvent(_serviceId,ex,"{Component}.{Method} "+"Dispatch stripe failed to deliver message for {ActorId}.",nameof(NatsActorConsumer),nameof(DispatchLoopAsync),msgSubject.ActorId);
                 }
                 finally
                 {
@@ -700,8 +693,7 @@ public class NatsActorConsumer(
         var stripes = _stripeChannels!;
         var stripeCount = stripes.Length;
         _logger.LogInformationEvent(
-            _serviceId,
-            "NATS query consumer started with owned pooled payloads");
+            _serviceId,            "{Component}.{Method} "+"NATS query consumer started with owned pooled payloads",nameof(NatsActorConsumer),nameof(QueryMessageLoopAsync));
 
         await foreach (NatsMsg<NatsMemoryOwner<byte>> msg in SubscribeReadyAsync<NatsMemoryOwner<byte>>(
             _subscriptionSubject,
@@ -734,9 +726,7 @@ public class NatsActorConsumer(
             {
                 NatsMessagingMetrics.DispatchFailures.Add(1);
                 _logger.LogErrorEvent(
-                    _serviceId,
-                    ex,
-                    "NATS query consumer failed before ownership transfer.");
+                    _serviceId,                    ex,                    "{Component}.{Method} "+"NATS query consumer failed before ownership transfer.",nameof(NatsActorConsumer),nameof(QueryMessageLoopAsync));
             }
             finally
             {

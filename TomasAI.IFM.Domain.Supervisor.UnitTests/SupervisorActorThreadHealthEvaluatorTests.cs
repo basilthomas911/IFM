@@ -9,6 +9,18 @@ public sealed class SupervisorActorThreadHealthEvaluatorTests
     static readonly ActorThreadId ThreadId = new(ActorType.Command, "Risk", "portfolio-1");
 
     [Fact]
+    public void Closed_admission_does_not_request_automatic_restart_after_saturation()
+    {
+        var time = new ManualTimeProvider();
+        var evaluator = new SupervisorActorThreadHealthEvaluator(timeProvider: time);
+        evaluator.Evaluate(ThreadId, new SupervisorActorThreadHealthObservation(2048, 2048, 1, 0, 0, false, TimeSpan.Zero, 1));
+        time.Advance(TimeSpan.FromMinutes(16));
+        var result = evaluator.Evaluate(ThreadId, new SupervisorActorThreadHealthObservation(0, 2048, 1, 1, 1, false, TimeSpan.Zero, 1, false));
+        Assert.False(result.RestartRequired);
+        Assert.False(result.LogWarning);
+    }
+
+    [Fact]
     public void Warns_immediately_then_rate_limits_for_one_minute()
     {
         var time = new ManualTimeProvider();

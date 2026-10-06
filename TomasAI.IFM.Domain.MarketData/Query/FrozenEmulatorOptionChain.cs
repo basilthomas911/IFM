@@ -60,8 +60,8 @@ internal static class FrozenEmulatorOptionChain
                 query.UnderlyingContractId, query.ExpiryDate, enriched).ConfigureAwait(false);
         var evaluationMs = timer.Elapsed.TotalMilliseconds - definitionsMs - inputsMs;
         context.Logger.LogInformation(
-            "Frozen emulator option chain {Expiry}: {Count} contracts, projected quotes {QuoteCount}; definitions {DefinitionsMs:F1} ms, inputs/window {InputsMs:F1} ms, bulk quotes/pricing {EvaluationMs:F1} ms, total {TotalMs:F1} ms.",
-            query.ExpiryDate, contracts.Length, storedQuotes.Count,
+            "{Component}.{Method} frozen option chain UnderlyingContractId={UnderlyingContractId} {Expiry}: {Count} contracts, projected quotes {QuoteCount}; definitions {DefinitionsMs:F1} ms, inputs/window {InputsMs:F1} ms, bulk quotes/pricing {EvaluationMs:F1} ms, total {TotalMs:F1} ms.",
+            nameof(FrozenEmulatorOptionChain), nameof(ExecuteAsync), query.UnderlyingContractId, query.ExpiryDate, contracts.Length, storedQuotes.Count,
             definitionsMs, inputsMs, evaluationMs, timer.Elapsed.TotalMilliseconds);
 
         var source = observationDate?.ToString("yyyy-MM-dd") ?? "stored inputs";

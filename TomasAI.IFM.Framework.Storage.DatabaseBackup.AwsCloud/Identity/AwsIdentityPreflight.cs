@@ -44,8 +44,7 @@ public sealed class AwsIdentityPreflight(
             response.Account, arn, partition, options.PrimaryRegion,
             response.ResponseMetadata?.RequestId, timeProvider.GetUtcNow());
         logger.LogInformation(
-            "AWS backup identity preflight accepted account {AccountId}, principal {PrincipalArn}, partition {Partition}, Region {Region}, request {AwsRequestId}.",
-            observation.AccountId, observation.PrincipalArn, observation.Partition, observation.Region, observation.RequestId);
+            "{Component}.{Method} "+"AWS backup identity preflight accepted account {AccountId}, principal {PrincipalArn}, partition {Partition}, Region {Region}, request {AwsRequestId}.",nameof(AwsIdentityPreflight),nameof(VerifyAsync),            observation.AccountId,observation.PrincipalArn,observation.Partition,observation.Region,observation.RequestId);
         return observation;
     }
 }

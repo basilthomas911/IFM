@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Trade.Order.Broker.Command;
+using TomasAI.IFM.Domain.Trade.Order.Broker.Command;
 using TomasAI.IFM.Domain.Trade.Order.Broker.Command.State;
 using TomasAI.IFM.Domain.Trade.Order.Broker.Query.Model;
 using TomasAI.IFM.Domain.BrokerAccount.Contracts;
@@ -336,7 +336,7 @@ public sealed class BrokerOrderCommandTests
         {
             Order = create.Order with { AccountPromotionApprovalReference = approval.ToString("N") }
         };
-        var store = new BrokerAccountReadStore();
+        var store = new TestBrokerAccountReadStore();
         store.Set(new BrokerAccountDefinition
         {
             Id = new("EMU"),
@@ -477,7 +477,7 @@ public sealed class BrokerOrderCommandTests
         CreateBrokerOrderCommand command, BrokerOrderCommandState state)
     {
         var approvalId = Guid.ParseExact(command.Order.AccountPromotionApprovalReference, "N");
-        var accounts = new BrokerAccountReadStore();
+        var accounts = new TestBrokerAccountReadStore();
         accounts.Set(new BrokerAccountDefinition
         {
             Id = new(command.Order.BrokerAccountAlias),

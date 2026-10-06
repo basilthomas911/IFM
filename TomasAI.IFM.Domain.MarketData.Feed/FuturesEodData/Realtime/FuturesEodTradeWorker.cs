@@ -39,7 +39,7 @@ internal sealed class FuturesEodTradeWorker
         Interlocked.Increment(ref _pending);
         try
         {
-            await _queue.Writer.WriteAsync(new WorkItem(trade, null, null)).ConfigureAwait(false);
+            await _queue.Writer.WriteAsync(new WorkItem(trade, null, null, Stopwatch.GetTimestamp(), Activity.Current?.Context ?? default)).ConfigureAwait(false);
         }
         catch
         {
@@ -53,7 +53,7 @@ internal sealed class FuturesEodTradeWorker
         Interlocked.Increment(ref _pending);
         try
         {
-            await _queue.Writer.WriteAsync(new WorkItem(null, operation, null)).ConfigureAwait(false);
+            await _queue.Writer.WriteAsync(new WorkItem(null, operation, null, Stopwatch.GetTimestamp(), Activity.Current?.Context ?? default)).ConfigureAwait(false);
         }
         catch
         {
@@ -65,7 +65,7 @@ internal sealed class FuturesEodTradeWorker
     internal async ValueTask DrainAsync()
     {
         var drained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await _queue.Writer.WriteAsync(new WorkItem(null, null, drained)).ConfigureAwait(false);
+        await _queue.Writer.WriteAsync(new WorkItem(null, null, drained, Stopwatch.GetTimestamp(), default)).ConfigureAwait(false);
         await drained.Task.ConfigureAwait(false);
     }
 
@@ -94,6 +94,9 @@ internal sealed class FuturesEodTradeWorker
                 }
                 var trade = item.Trade!;
                 var started = Stopwatch.GetTimestamp();
+                var queueWaitMilliseconds = Stopwatch.GetElapsedTime(item.EnqueuedAt, started).TotalMilliseconds;
+                using var trace = item.TraceContext == default ? null :
+                    TomasAI.IFM.Shared.EventModelActor.ActorTrace.Source.StartActivity("eod.process", ActivityKind.Consumer, item.TraceContext);
                 try
                 {
                     if (!await _process(trade).ConfigureAwait(false))
@@ -103,9 +106,9 @@ internal sealed class FuturesEodTradeWorker
                     var count = Interlocked.Increment(ref _processed);
                     if (elapsed >= 250 || (count & 63) == 0)
                         _logger.LogInformation(
-                            "Futures EOD queued trade exit: {ContractId}; SourceId={SourceId}; TickDataId={TickDataId}; queuePending={Pending}; processedCount={ProcessedCount}; elapsed {ElapsedMilliseconds:F3} ms.",
-                            trade.EntityId.ContractId, trade.Id, trade.TickDataId, Pending,
-                            count, elapsed);
+                            "{Component}.{Method} Futures EOD queued trade exit: {ContractId}; SourceId={SourceId}; TickDataId={TickDataId}; queuePending={Pending}; processedCount={ProcessedCount}; QueueWaitMilliseconds={QueueWaitMilliseconds}; elapsed {ElapsedMilliseconds:F3} ms.",
+                            nameof(FuturesEodTradeWorker), nameof(RunAsync), trade.EntityId.ContractId, trade.Id, trade.TickDataId, Pending,
+                            count, queueWaitMilliseconds, elapsed);
                 }
                 finally
                 {
@@ -127,5 +130,5 @@ internal sealed class FuturesEodTradeWorker
 
     readonly record struct WorkItem(FuturesTickTradeDataInsertedEvent? Trade,
         Func<ValueTask>? Operation,
-        TaskCompletionSource? Barrier);
+        TaskCompletionSource? Barrier, long EnqueuedAt, ActivityContext TraceContext);
 }
