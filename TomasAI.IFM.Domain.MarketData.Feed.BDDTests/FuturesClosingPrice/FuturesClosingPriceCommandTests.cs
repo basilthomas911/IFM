@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
@@ -136,17 +136,19 @@ public class FuturesClosingPriceCommandTests : IClassFixture<MarketDataFeedBddFi
     }
 
     [Fact]
-    public async Task Given_TheClosingPriceAlreadyExists_When_TheCommandIsReceived_Then_A_DuplicateExceptionIsRaised()
+    public async Task Given_TheClosingPriceAlreadyExists_When_TheCommandIsReceived_Then_TheDuplicateIsRejectedWithoutAnotherEvent()
     {
         var actor = _fixture.CreateClosingPriceCommandActor();
         var command = CreateCommand();
         var state = new FuturesClosingPriceCommandState { Id = command.Subject.ThreadId };
         await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>(), state, command);
 
-        Func<Task> act = () => actor.InvokeReceiveAsync(
-            Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>(), state, CreateCommand()).AsTask();
+        var result = await actor.InvokeReceiveAsync(
+            Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>(), state, CreateCommand());
 
-        await act.Should().ThrowAsync<InsertFuturesClosingPriceException>();
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("already exists");
+        state.Events.Should().ContainSingle();
     }
 
     [Fact]

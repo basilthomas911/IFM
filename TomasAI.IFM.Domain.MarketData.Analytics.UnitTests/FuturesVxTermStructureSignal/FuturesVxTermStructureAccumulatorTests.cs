@@ -42,13 +42,13 @@ public sealed class FuturesVxTermStructureAccumulatorTests
         var first = FuturesVxTermStructureAccumulator.Apply(
             EntityId, null, Front((decimal)frontPrice, 1), Configuration);
         var second = FuturesVxTermStructureAccumulator.Apply(
-            EntityId, first.Checkpoint, Back((decimal)backPrice, 1), Configuration);
+            EntityId, first.FuturesVxTermStructureCheckpoint, Back((decimal)backPrice, 1), Configuration);
 
-        Assert.NotNull(second.Signal);
-        Assert.Equal(expected, second.Signal.TermStructureState);
-        Assert.Equal((decimal)backPrice - (decimal)frontPrice, second.Signal.FrontBackSpread);
-        Assert.Equal((decimal)frontPrice / (decimal)backPrice, second.Signal.FrontBackRatio);
-        Assert.True(second.Signal.IsValid);
+        Assert.NotNull(second.FuturesVxTermStructureSignal);
+        Assert.Equal(expected, second.FuturesVxTermStructureSignal.TermStructureState);
+        Assert.Equal((decimal)backPrice - (decimal)frontPrice, second.FuturesVxTermStructureSignal.FrontBackSpread);
+        Assert.Equal((decimal)frontPrice / (decimal)backPrice, second.FuturesVxTermStructureSignal.FrontBackRatio);
+        Assert.True(second.FuturesVxTermStructureSignal.IsValid);
     }
 
     [Fact]
@@ -61,11 +61,11 @@ public sealed class FuturesVxTermStructureAccumulatorTests
             SourceTimestampUtc = FrontTimestamp.AddSeconds(6)
         };
         var result = FuturesVxTermStructureAccumulator.Apply(
-            EntityId, first.Checkpoint, delayed, Configuration);
+            EntityId, first.FuturesVxTermStructureCheckpoint, delayed, Configuration);
 
-        Assert.Null(result.Signal);
-        Assert.NotNull(result.Checkpoint.Front);
-        Assert.NotNull(result.Checkpoint.Back);
+        Assert.Null(result.FuturesVxTermStructureSignal);
+        Assert.NotNull(result.FuturesVxTermStructureCheckpoint.Front);
+        Assert.NotNull(result.FuturesVxTermStructureCheckpoint.Back);
     }
 
     [Fact]
@@ -77,10 +77,10 @@ public sealed class FuturesVxTermStructureAccumulatorTests
         foreach (var sequence in new long[] { 10, 9 })
         {
             var result = FuturesVxTermStructureAccumulator.Apply(
-                EntityId, first.Checkpoint, Front(20.1m, sequence), Configuration);
+                EntityId, first.FuturesVxTermStructureCheckpoint, Front(20.1m, sequence), Configuration);
             Assert.False(result.Changed);
-            Assert.Same(first.Checkpoint, result.Checkpoint);
-            Assert.Null(result.Signal);
+            Assert.Same(first.FuturesVxTermStructureCheckpoint, result.FuturesVxTermStructureCheckpoint);
+            Assert.Null(result.FuturesVxTermStructureSignal);
         }
     }
 
@@ -91,12 +91,12 @@ public sealed class FuturesVxTermStructureAccumulatorTests
         var first = UpdateCommand(Front(20m, 10));
         Assert.True(first.Execute(state).Success);
         state.AcceptChanges();
-        var checkpoint = state.Checkpoint;
+        var checkpoint = state.FuturesVxTermStructureCheckpoint;
 
         var duplicate = UpdateCommand(Front(21m, 10));
         Assert.True(duplicate.Execute(state).Success);
 
-        Assert.Same(checkpoint, state.Checkpoint);
+        Assert.Same(checkpoint, state.FuturesVxTermStructureCheckpoint);
         Assert.Empty(state.Events);
         Assert.False(state.Updated);
     }
@@ -121,9 +121,9 @@ public sealed class FuturesVxTermStructureAccumulatorTests
         var nextEpoch = Front(20.1m, 1) with { StreamEpochId = Guid.NewGuid() };
 
         var result = FuturesVxTermStructureAccumulator.Apply(
-            EntityId, first.Checkpoint, nextEpoch, Configuration);
+            EntityId, first.FuturesVxTermStructureCheckpoint, nextEpoch, Configuration);
 
-        Assert.Equal(1, result.Checkpoint.Front!.SourceSequence);
+        Assert.Equal(1, result.FuturesVxTermStructureCheckpoint.Front!.SourceSequence);
     }
 
     [Fact]

@@ -23,11 +23,11 @@ public sealed record FuturesEmaSignalGeneratedEvent : IEvent<FuturesTradeSession
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     [Key(7)] public DateTime ReceivedOn { get; init; }
     /// <summary>Gets the generated EMA family.</summary>
-    [Key(8)] public FuturesEmaSignalReadModel Signal { get; init; } = new();
+    [Key(8)] public FuturesEmaSignalReadModel FuturesEmaSignal { get; init; } = new();
     /// <summary>Gets the immutable source observation for downstream BB composition.</summary>
     [Key(9)] public FuturesTradeSessionBarReadModel Observation { get; init; } = new();
-    /// <summary>Gets the replayable EMA accumulator checkpoint.</summary>
-    [Key(10)] public FuturesEmaAccumulatorCheckpoint Checkpoint { get; init; } = new();
+    /// <summary>Gets the replayable EMA accumulator futuresEmaCheckpoint.</summary>
+    [Key(10)] public FuturesEmaAccumulatorCheckpoint FuturesEmaCheckpoint { get; init; } = new();
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesEmaSignalGeneratedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;
@@ -45,9 +45,9 @@ public sealed record FuturesEmaSignalGeneratedEvent : IEvent<FuturesTradeSession
             AggregateId = AggregateId,
             EventSource = EventSource,
             ReceivedOn = ReceivedOn,
-            Signal = Signal,
+            FuturesEmaSignal = FuturesEmaSignal,
             Observation = Observation,
-            Checkpoint = Checkpoint
+            FuturesEmaCheckpoint = FuturesEmaCheckpoint
         };
 
     /// <inheritdoc />
@@ -73,11 +73,11 @@ public sealed record FuturesEmaSignalGeneratedCompleteEvent : ICompleteEvent<Fut
     /// <param name="aggregateId">The AggregateId field.</param>
     /// <param name="eventSource">The EventSource field.</param>
     /// <param name="receivedOn">The ReceivedOn field.</param>
-    /// <param name="signal">The Signal field.</param>
+    /// <param name="futuresEmaSignal">The FuturesEmaSignal field.</param>
     /// <param name="observation">The Observation field.</param>
-    /// <param name="checkpoint">The Checkpoint field.</param>
+    /// <param name="futuresEmaCheckpoint">The FuturesEmaCheckpoint field.</param>
     [SerializationConstructor]
-    public FuturesEmaSignalGeneratedCompleteEvent(ActorSubject subject, FuturesTradeSessionBarEntityId entityId, Guid id, long eventId, Guid commandId, string aggregateId, string eventSource, DateTime receivedOn, FuturesEmaSignalReadModel signal, FuturesTradeSessionBarReadModel observation, FuturesEmaAccumulatorCheckpoint checkpoint)
+    public FuturesEmaSignalGeneratedCompleteEvent(ActorSubject subject, FuturesTradeSessionBarEntityId entityId, Guid id, long eventId, Guid commandId, string aggregateId, string eventSource, DateTime receivedOn, FuturesEmaSignalReadModel futuresEmaSignal, FuturesTradeSessionBarReadModel observation, FuturesEmaAccumulatorCheckpoint futuresEmaCheckpoint)
     {
         Subject = subject;
         EntityId = entityId;
@@ -87,9 +87,9 @@ public sealed record FuturesEmaSignalGeneratedCompleteEvent : ICompleteEvent<Fut
         AggregateId = aggregateId;
         EventSource = eventSource;
         ReceivedOn = receivedOn;
-        Signal = signal;
+        FuturesEmaSignal = futuresEmaSignal;
         Observation = observation;
-        Checkpoint = checkpoint;
+        FuturesEmaCheckpoint = futuresEmaCheckpoint;
     }
     public const string Verb = "SignalGeneratedComplete";
     [Key(0)] public ActorSubject Subject { get; init; }
@@ -100,9 +100,9 @@ public sealed record FuturesEmaSignalGeneratedCompleteEvent : ICompleteEvent<Fut
     [Key(5)] public string AggregateId { get; init; } = string.Empty;
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     [Key(7)] public DateTime ReceivedOn { get; init; }
-    [Key(8)] public FuturesEmaSignalReadModel Signal { get; init; } = new();
+    [Key(8)] public FuturesEmaSignalReadModel FuturesEmaSignal { get; init; } = new();
     [Key(9)] public FuturesTradeSessionBarReadModel Observation { get; init; } = new();
-    [Key(10)] public FuturesEmaAccumulatorCheckpoint Checkpoint { get; init; } = new();
+    [Key(10)] public FuturesEmaAccumulatorCheckpoint FuturesEmaCheckpoint { get; init; } = new();
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesEmaSignalGeneratedCompleteEvent);
     [IgnoreMember] public EventType EventType => EventType.CompletedEvent;

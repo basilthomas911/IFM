@@ -1,46 +1,58 @@
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
+﻿using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.MarketData.Feed.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Model;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Command;
 
+/// <summary>Handles TurnTradeLiveFeedOff commands through computation and state-owned event application.</summary>
 public static class TurnTradeLiveFeedOff
 {
-    /// <summary>
-    /// Executes the command to turn off the trade live feed if it is currently active.
-    /// </summary>
-    /// <remarks>This method checks the current state before attempting to turn off the trade live feed. If
-    /// the feed is already off, an exception is thrown to prevent redundant operations.</remarks>
-    /// <param name="e">The command that requests the trade live feed to be turned off.</param>
-    /// <param name="state">The current state of the market data feed, indicating whether the trade live feed is active.</param>
-    /// <returns>true if the trade live feed was successfully turned off; otherwise, false.</returns>
-    /// <exception cref="TurnTradeLiveFeedOffException">Thrown if the trade live feed is already off for the specified order and trade identifiers.</exception>
-    public static ServiceResult<GuidResult> Execute(this TurnTradeLiveFeedOffCommand e, MarketDataFeedCommandState state)
-        => e switch
+    /// <summary>Computes the requested business change and applies its event only after acceptance guards pass.</summary>
+    /// <param name="command">The originating command and its business inputs.</param>
+    /// <param name="state">The owning event-sourced state; mutations occur only through event application.</param>
+    /// <returns>The command identity on success, or the business rejection or application failure.</returns>
+    public static ServiceResult<GuidResult> Execute(this TurnTradeLiveFeedOffCommand command, MarketDataFeedCommandState state)
+    {
+        var errorMsg = $"{command.CommandName}: unable to apply TradeLiveFeedTurnedOffEvent";
+        var updated = command.Compute(state.IsTradeLiveFeedOn, out var tradeLiveFeedDeactivation) switch
         {
-            _ when !state.IsTradeLiveFeedOn => throw new TurnTradeLiveFeedOffException($"Trade live feed is already off for: {e.OrderId}:{e.TradeId}"),
-            _ => e.UpdateResult(() => state.Update(e.CreateTradeLiveFeedTurnedOffEvent(), e))
+            _ when !tradeLiveFeedDeactivation.Accepted
+                => command.UpdateFailed(ref errorMsg, $"Trade live feed is already off for: {command.OrderId}:{command.TradeId}"),
+            _ => state.Update(command.CreateTradeLiveFeedTurnedOffEvent(tradeLiveFeedDeactivation), command)
         };
+        return updated
+            ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
+            : command.UpdateFailed(errorMsg);
+    }
 
-    /// <summary>
-    /// Creates a <see cref="TradeLiveFeedTurnedOffEvent"/> from a <see cref="TurnTradeLiveFeedOffCommand"/>.
-    /// </summary>
-    /// <param name="e">The originating turn-off command.</param>
-    /// <returns>A new <see cref="TradeLiveFeedTurnedOffEvent"/> populated with the command's order,
-    /// trade identifiers and audit metadata.</returns>
-    internal static TradeLiveFeedTurnedOffEvent CreateTradeLiveFeedTurnedOffEvent(this TurnTradeLiveFeedOffCommand e)
+    /// <summary>Computes the proposed business inputs without mutating state or creating pending events.</summary>
+    /// <param name="command">The command supplying the requested business values.</param>
+    /// <param name="isTradeLiveFeedOn">Whether the owning state currently has an active trade feed.</param>
+    /// <param name="tradeLiveFeedDeactivation">The proposed business values passed to the event factory.</param>
+    /// <returns>True when the proposed inputs have been computed; acceptance guards are evaluated before application.</returns>
+    internal static bool Compute(this TurnTradeLiveFeedOffCommand command, bool isTradeLiveFeedOn, out TradeLiveFeedDeactivation tradeLiveFeedDeactivation)
+    {
+        tradeLiveFeedDeactivation = new(command.OrderId, command.TradeId, isTradeLiveFeedOn);
+        return true;
+    }
+
+    /// <summary>Creates the source event from computed business values with the originating command identity.</summary>
+    /// <param name="command">The originating command supplying route and audit metadata.</param>
+    /// <param name="tradeLiveFeedDeactivation">The accepted business values to carry in the event.</param>
+    /// <returns>A source event ready for the owning state's Update and Apply path.</returns>
+    internal static TradeLiveFeedTurnedOffEvent CreateTradeLiveFeedTurnedOffEvent(this TurnTradeLiveFeedOffCommand command, TradeLiveFeedDeactivation tradeLiveFeedDeactivation)
         => new()
         {
-            Subject = new ActorSubject(ActorType.Event, TradeLiveFeedTurnedOffEvent.Actor, TradeLiveFeedTurnedOffEvent.Verb, e.EntityId.Format()),
-            EntityId = new TradeLiveFeedId(e.OrderId, e.TradeId, e.ValueDate),
-            OrderId = e.OrderId,
-            TradeId = e.TradeId,
-            UpdatedOn = e.OriginatedOn,
-            UpdatedBy = e.OriginatedBy
+            CommandId = command.CommandId,
+            Subject = new ActorSubject(ActorType.Event, TradeLiveFeedTurnedOffEvent.Actor, TradeLiveFeedTurnedOffEvent.Verb, command.EntityId.Format()),
+            EntityId = new TradeLiveFeedId(command.OrderId, command.TradeId, command.ValueDate),
+            OrderId = tradeLiveFeedDeactivation.OrderId,
+            TradeId = tradeLiveFeedDeactivation.TradeId,
+            UpdatedOn = command.OriginatedOn,
+            UpdatedBy = command.OriginatedBy
         };
-
 }

@@ -22,9 +22,9 @@ public sealed record LoadFuturesAnalyticsHistoricalDataCommand
     /// <param name="entityId">The EntityId field.</param>
     /// <param name="errorCode">The ErrorCode field.</param>
     /// <param name="routeTo">The RouteTo field.</param>
-    /// <param name="parameters">The Parameters field.</param>
+    /// <param name="futuresAnalyticsHistoricalDataLoaderParameters">The FuturesAnalyticsHistoricalDataLoaderParameters field.</param>
     [SerializationConstructor]
-    public LoadFuturesAnalyticsHistoricalDataCommand(Guid commandId, ActorSubject subject, bool postEvents, FuturesAnalyticsHistoricalDataLoaderEntityId entityId, int errorCode, BoundedContextName routeTo, FuturesAnalyticsHistoricalDataLoaderParameters parameters)
+    public LoadFuturesAnalyticsHistoricalDataCommand(Guid commandId, ActorSubject subject, bool postEvents, FuturesAnalyticsHistoricalDataLoaderEntityId entityId, int errorCode, BoundedContextName routeTo, FuturesAnalyticsHistoricalDataLoaderParameters futuresAnalyticsHistoricalDataLoaderParameters)
     {
         CommandId = commandId;
         Subject = subject;
@@ -32,7 +32,7 @@ public sealed record LoadFuturesAnalyticsHistoricalDataCommand
         EntityId = entityId;
         ErrorCode = errorCode;
         RouteTo = routeTo;
-        Parameters = parameters;
+        FuturesAnalyticsHistoricalDataLoaderParameters = futuresAnalyticsHistoricalDataLoaderParameters;
     }
     /// <summary>Gets the command actor name.</summary>
     public const string Actor = "FuturesAnalyticsHistoricalDataLoaderCommand";
@@ -53,8 +53,8 @@ public sealed record LoadFuturesAnalyticsHistoricalDataCommand
     [Key(4)] public int ErrorCode { get; init; } = ErrorId;
     /// <inheritdoc />
     [Key(5)] public BoundedContextName RouteTo { get; init; }
-    /// <summary>Gets the immutable provider-neutral request parameters.</summary>
-    [Key(6)] public FuturesAnalyticsHistoricalDataLoaderParameters Parameters { get; init; } = new();
+    /// <summary>Gets the immutable provider-neutral request futuresAnalyticsHistoricalDataLoaderParameters.</summary>
+    [Key(6)] public FuturesAnalyticsHistoricalDataLoaderParameters FuturesAnalyticsHistoricalDataLoaderParameters { get; init; } = new();
     /// <inheritdoc />
     [IgnoreMember] public string CommandName => nameof(LoadFuturesAnalyticsHistoricalDataCommand);
     /// <inheritdoc />
@@ -64,5 +64,5 @@ public sealed record LoadFuturesAnalyticsHistoricalDataCommand
     /// <inheritdoc />
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
     /// <inheritdoc />
-    [IgnoreMember] public string OriginatedBy => Parameters.RequestedBy;
+    [IgnoreMember] public string OriginatedBy => FuturesAnalyticsHistoricalDataLoaderParameters.RequestedBy;
 }

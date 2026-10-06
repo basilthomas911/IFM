@@ -38,6 +38,19 @@ public class FuturesMacdSignalCompute
         ComputeMacdComponents((double)futuresPrice, configuration);
     }
 
+    /// <summary>Gets whether all MACD accumulator components are finite.</summary>
+    public bool IsValid => double.IsFinite(MacdLine) && double.IsFinite(SignalLine)
+        && double.IsFinite(Histogram) && double.IsFinite(FastEma) && double.IsFinite(SlowEma);
+
+    /// <summary>Gets the computed domain direction without mutating the previous signal.</summary>
+    public FuturesTrendDirectionType SignalDirection => this switch
+    {
+        _ when IsSignalInitializing => FuturesTrendDirectionType.Init,
+        _ when IsSignalUpTrending => FuturesTrendDirectionType.UpTrending,
+        _ when IsSignalDownTrending => FuturesTrendDirectionType.DownTrending,
+        _ => FuturesTrendDirectionType.Flat
+    };
+
     /// <summary>MACD line value (fast EMA minus slow EMA of RSI).</summary>
     public double MacdLine { get; private set; }
 

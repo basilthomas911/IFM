@@ -9,28 +9,31 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command;
 
+/// <summary>Owns the concrete command handler and event factories for this analytics operation.</summary>
 public static class StopFuturesRsiSignal
 {
-    /// <summary>
-    /// Executes the StopFuturesRsiSignalCommand by updating the FuturesRsiSignalCommandState with a new FuturesRsiSignalStoppedEvent.
-    /// </summary>
-    /// <param name="e">The command to execute.</param>
-    /// <param name="state">The state to update.</param>
-    /// <returns><see langword="true"/> if the command was executed successfully; otherwise, <see langword="false"/>.</returns>
-    public static ServiceResult<GuidResult> Execute(this StopFuturesRsiSignalCommand e, FuturesRsiSignalCommandState state)
-        => e.UpdateResult(() => state.Update(e.CreateFuturesRsiSignalStoppedEvent(), e));
+    /// <summary>Computes and validates the Futures RSI Signal command, then applies accepted events through actor-owned state.</summary>
+    /// <param name="command">The originating concrete command, including its identity and domain inputs.</param>
+    /// <param name="state">The command actor state that owns the current business values and pending events.</param>
+    /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
+    public static ServiceResult<GuidResult> Execute(this StopFuturesRsiSignalCommand command, FuturesRsiSignalCommandState state)
+    {
+        var updated = state.Update(command.CreateFuturesRsiSignalStoppedEvent(), command);
+        return updated
+            ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
+            : command.UpdateFailed($"{command.CommandName}: unable to apply RSI stop event");
+    }
 
-    /// <summary>
-    /// Creates a new FuturesRsiSignalStoppedEvent from the StopFuturesRsiSignalCommand.
-    /// </summary>
-    /// <param name="e">The command containing the details required to construct the stopped RSI signal event.</param>
-    /// <returns>A FuturesRsiSignalStoppedEvent initialized with the entity ID, originator, and timestamp from the provided command.</returns>
-    internal static FuturesRsiSignalStoppedEvent CreateFuturesRsiSignalStoppedEvent(this StopFuturesRsiSignalCommand e)
+    /// <summary>Creates the Futures RSI Signal event payload from accepted business data without changing state or publishing messages.</summary>
+    /// <param name="command">The originating concrete command, including its identity and domain inputs.</param>
+    /// <returns>The event or ordered event collection to apply through actor state and persist before projection.</returns>
+    internal static FuturesRsiSignalStoppedEvent CreateFuturesRsiSignalStoppedEvent(this StopFuturesRsiSignalCommand command)
         => new()
         {
-            Subject = new ActorSubject(ActorType.Event, FuturesRsiSignalStoppedEvent.Actor, FuturesRsiSignalStoppedEvent.Verb, e.EntityId.Format()),
-            EntityId = e.EntityId,
-            StoppedOn = e.OriginatedOn,
-            StoppedBy = e.OriginatedBy
+            CommandId = command.CommandId,
+            Subject = new ActorSubject(ActorType.Event, FuturesRsiSignalStoppedEvent.Actor, FuturesRsiSignalStoppedEvent.Verb, command.EntityId.Format()),
+            EntityId = command.EntityId,
+            StoppedOn = command.OriginatedOn,
+            StoppedBy = command.OriginatedBy
         };
 }

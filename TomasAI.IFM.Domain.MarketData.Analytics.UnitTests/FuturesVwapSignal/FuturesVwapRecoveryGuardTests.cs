@@ -32,6 +32,6 @@ public sealed class FuturesVwapRecoveryGuardTests
 
         Assert.False(result.Success);
         Assert.Empty(state.Events);
-        Assert.Null(state.Checkpoint);
+        Assert.Null(state.FuturesVwapCheckpoint);
     }
 }

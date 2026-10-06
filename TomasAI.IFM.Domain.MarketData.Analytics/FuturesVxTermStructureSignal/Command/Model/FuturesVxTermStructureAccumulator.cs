@@ -96,6 +96,6 @@ public static class FuturesVxTermStructureAccumulator
 
 /// <summary>Contains one accepted VX state transition and optional paired signal.</summary>
 public sealed record FuturesVxTermStructureAccumulatorResult(
-    FuturesVxTermStructureCheckpoint Checkpoint,
-    FuturesVxTermStructureSignalReadModel? Signal,
+    FuturesVxTermStructureCheckpoint FuturesVxTermStructureCheckpoint,
+    FuturesVxTermStructureSignalReadModel? FuturesVxTermStructureSignal,
     bool Changed = true);

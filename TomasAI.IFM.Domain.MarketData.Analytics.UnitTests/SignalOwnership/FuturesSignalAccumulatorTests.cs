@@ -106,19 +106,19 @@ public sealed class FuturesSignalAccumulatorTests
         var resumed = Observation(1, 5001m, newEpoch, 2);
 
         var emaFirst = FuturesEmaAccumulator.Apply(null, first);
-        var emaResumed = FuturesEmaAccumulator.Apply(emaFirst.Checkpoint, resumed);
+        var emaResumed = FuturesEmaAccumulator.Apply(emaFirst.FuturesEmaCheckpoint, resumed);
         Assert.True(emaResumed.IsApplied);
-        Assert.Equal(2, emaResumed.Checkpoint.Count);
-        Assert.Equal(newEpoch, emaResumed.Checkpoint.LastStreamEpochId);
-        Assert.Equal(resumed.IntervalEndUtc, emaResumed.Checkpoint.LastIntervalEndUtc);
-        Assert.Equal(newEpoch, emaResumed.Signal!.Metadata.StreamEpochId);
+        Assert.Equal(2, emaResumed.FuturesEmaCheckpoint.Count);
+        Assert.Equal(newEpoch, emaResumed.FuturesEmaCheckpoint.LastStreamEpochId);
+        Assert.Equal(resumed.IntervalEndUtc, emaResumed.FuturesEmaCheckpoint.LastIntervalEndUtc);
+        Assert.Equal(newEpoch, emaResumed.FuturesEmaSignal!.Metadata.StreamEpochId);
 
-        var bbFirst = FuturesBbAccumulator.Apply(null, first, emaFirst.Signal!);
+        var bbFirst = FuturesBbAccumulator.Apply(null, first, emaFirst.FuturesEmaSignal!);
         var bbResumed = FuturesBbAccumulator.Apply(
-            bbFirst.Checkpoint, resumed, emaResumed.Signal!);
+            bbFirst.FuturesBbCheckpoint, resumed, emaResumed.FuturesEmaSignal!);
         Assert.True(bbResumed.IsApplied);
-        Assert.Equal(2, bbResumed.Checkpoint.Closes.Length);
-        Assert.Equal(newEpoch, bbResumed.Checkpoint.LastStreamEpochId);
+        Assert.Equal(2, bbResumed.FuturesBbCheckpoint.Closes.Length);
+        Assert.Equal(newEpoch, bbResumed.FuturesBbCheckpoint.LastStreamEpochId);
 
         var rsiFirst = FuturesRsiWilderAccumulator.Apply(null, first, 14);
         var rsiResumed = FuturesRsiWilderAccumulator.Apply(rsiFirst.Checkpoint, resumed, 14);
@@ -133,23 +133,23 @@ public sealed class FuturesSignalAccumulatorTests
         var newest = Observation(20, 5020m);
         var older = Observation(19, 5019m);
         var emaApplied = FuturesEmaAccumulator.Apply(null, newest);
-        var emaDuplicate = FuturesEmaAccumulator.Apply(emaApplied.Checkpoint, newest);
-        var emaStale = FuturesEmaAccumulator.Apply(emaApplied.Checkpoint, older);
+        var emaDuplicate = FuturesEmaAccumulator.Apply(emaApplied.FuturesEmaCheckpoint, newest);
+        var emaStale = FuturesEmaAccumulator.Apply(emaApplied.FuturesEmaCheckpoint, older);
 
         Assert.Equal(MarketObservationApplicationDisposition.Duplicate, emaDuplicate.Disposition);
         Assert.Equal(MarketObservationApplicationDisposition.Stale, emaStale.Disposition);
-        Assert.Null(emaDuplicate.Signal);
-        Assert.Null(emaStale.Signal);
+        Assert.Null(emaDuplicate.FuturesEmaSignal);
+        Assert.Null(emaStale.FuturesEmaSignal);
 
-        var bbApplied = FuturesBbAccumulator.Apply(null, newest, emaApplied.Signal!);
-        var bbDuplicate = FuturesBbAccumulator.Apply(bbApplied.Checkpoint, newest, emaApplied.Signal!);
-        var olderEma = FuturesEmaAccumulator.Apply(null, older).Signal!;
-        var bbStale = FuturesBbAccumulator.Apply(bbApplied.Checkpoint, older, olderEma);
+        var bbApplied = FuturesBbAccumulator.Apply(null, newest, emaApplied.FuturesEmaSignal!);
+        var bbDuplicate = FuturesBbAccumulator.Apply(bbApplied.FuturesBbCheckpoint, newest, emaApplied.FuturesEmaSignal!);
+        var olderEma = FuturesEmaAccumulator.Apply(null, older).FuturesEmaSignal!;
+        var bbStale = FuturesBbAccumulator.Apply(bbApplied.FuturesBbCheckpoint, older, olderEma);
 
         Assert.Equal(MarketObservationApplicationDisposition.Duplicate, bbDuplicate.Disposition);
         Assert.Equal(MarketObservationApplicationDisposition.Stale, bbStale.Disposition);
-        Assert.Null(bbDuplicate.Signal);
-        Assert.Null(bbStale.Signal);
+        Assert.Null(bbDuplicate.FuturesBbSignal);
+        Assert.Null(bbStale.FuturesBbSignal);
     }
 
     [Fact]
@@ -171,7 +171,7 @@ public sealed class FuturesSignalAccumulatorTests
         Assert.True(command.Execute(state).Success);
 
         Assert.Single(state.Events);
-        Assert.Equal(1, state.Checkpoint!.Count);
+        Assert.Equal(1, state.FuturesEmaCheckpoint!.Count);
     }
 
     [Fact]
@@ -182,17 +182,17 @@ public sealed class FuturesSignalAccumulatorTests
         for (var sequence = 1; sequence <= 200; sequence++)
         {
             result = FuturesEmaAccumulator.Apply(checkpoint, Observation(sequence, sequence));
-            checkpoint = result.Checkpoint;
+            checkpoint = result.FuturesEmaCheckpoint;
         }
-        Assert.Equal(100.5m, result!.Signal.Ema200);
-        Assert.Null(result.Signal.PreviousEma200);
-        Assert.True(result.Signal.IsWarm);
+        Assert.Equal(100.5m, result!.FuturesEmaSignal.Ema200);
+        Assert.Null(result.FuturesEmaSignal.PreviousEma200);
+        Assert.True(result.FuturesEmaSignal.IsWarm);
 
         result = FuturesEmaAccumulator.Apply(checkpoint, Observation(201, 201m));
-        Assert.Equal(101.5m, result.Signal.Ema200);
-        Assert.Equal(100.5m, result.Signal.PreviousEma200);
-        Assert.Equal(1m, result.Signal.Ema200Slope);
-        Assert.True(result.Signal.IsWarm);
+        Assert.Equal(101.5m, result.FuturesEmaSignal.Ema200);
+        Assert.Equal(100.5m, result.FuturesEmaSignal.PreviousEma200);
+        Assert.Equal(1m, result.FuturesEmaSignal.Ema200Slope);
+        Assert.True(result.FuturesEmaSignal.IsWarm);
     }
 
     [Fact]
@@ -206,15 +206,15 @@ public sealed class FuturesSignalAccumulatorTests
         {
             var observation = Observation(sequence, 4200m + sequence * .25m);
             var a = FuturesEmaAccumulator.Apply(uninterrupted, observation);
-            uninterrupted = a.Checkpoint;
-            expected = a.Signal;
+            uninterrupted = a.FuturesEmaCheckpoint;
+            expected = a.FuturesEmaSignal;
             if (sequence <= 210)
-                restored = a.Checkpoint with { };
+                restored = a.FuturesEmaCheckpoint with { };
             else
             {
                 var b = FuturesEmaAccumulator.Apply(restored, observation);
-                restored = b.Checkpoint;
-                actual = b.Signal;
+                restored = b.FuturesEmaCheckpoint;
+                actual = b.FuturesEmaSignal;
             }
         }
         Assert.Equal(expected, actual);
@@ -224,7 +224,7 @@ public sealed class FuturesSignalAccumulatorTests
     public void BollingerRejectsMismatchedEmaAndUsesPriorWidthsForBaseline()
     {
         var first = Observation(1, 101m);
-        var wrong = FuturesEmaAccumulator.Apply(null, Observation(2, 102m)).Signal;
+        var wrong = FuturesEmaAccumulator.Apply(null, Observation(2, 102m)).FuturesEmaSignal;
         Assert.Throws<InvalidOperationException>(() => FuturesBbAccumulator.Apply(null, first, wrong));
 
         FuturesEmaAccumulatorCheckpoint? emaState = null;
@@ -234,10 +234,10 @@ public sealed class FuturesSignalAccumulatorTests
         {
             var observation = Observation(sequence, 100m + sequence);
             var ema = FuturesEmaAccumulator.Apply(emaState, observation);
-            emaState = ema.Checkpoint;
-            var bb = FuturesBbAccumulator.Apply(bbState, observation, ema.Signal);
-            bbState = bb.Checkpoint;
-            signal = bb.Signal;
+            emaState = ema.FuturesEmaCheckpoint;
+            var bb = FuturesBbAccumulator.Apply(bbState, observation, ema.FuturesEmaSignal);
+            bbState = bb.FuturesBbCheckpoint;
+            signal = bb.FuturesBbSignal;
         }
         Assert.True(signal!.IsWarm);
         Assert.NotNull(signal.Width20Baseline);
@@ -258,15 +258,15 @@ public sealed class FuturesSignalAccumulatorTests
             EntityId = entityId,
             Id = Guid.NewGuid(),
             CommandId = Guid.NewGuid(),
-            Signal = result.Signal,
+            FuturesEmaSignal = result.FuturesEmaSignal,
             Observation = observation,
-            Checkpoint = result.Checkpoint
+            FuturesEmaCheckpoint = result.FuturesEmaCheckpoint
         };
 
         var completed = (FuturesEmaSignalGeneratedCompleteEvent)generated.ToCompleteEvent<
             FuturesEmaSignalGeneratedCompleteEvent, FuturesTradeSessionBarEntityId>();
-        Assert.Equal(generated.Checkpoint, completed.Checkpoint);
-        Assert.Equal(observation.ObservationId, completed.Signal.Metadata.ObservationId);
+        Assert.Equal(generated.FuturesEmaCheckpoint, completed.FuturesEmaCheckpoint);
+        Assert.Equal(observation.ObservationId, completed.FuturesEmaSignal.Metadata.ObservationId);
     }
 
     [Fact]

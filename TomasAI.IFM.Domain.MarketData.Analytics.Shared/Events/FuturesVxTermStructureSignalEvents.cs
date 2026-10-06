@@ -6,7 +6,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 
-/// <summary>Records one accepted VX curve leg and the resulting paired checkpoint.</summary>
+/// <summary>Records one accepted VX curve leg and the resulting paired futuresVxTermStructureCheckpoint.</summary>
 [MessagePackObject]
 public sealed record FuturesVxTermStructureSignalUpdatedEvent
     : IEvent<FuturesVxTermStructureSignalEntityId>
@@ -22,8 +22,8 @@ public sealed record FuturesVxTermStructureSignalUpdatedEvent
     [Key(5)] public string AggregateId { get; init; } = string.Empty;
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     [Key(7)] public DateTime ReceivedOn { get; init; }
-    [Key(8)] public FuturesVxTermStructureCheckpoint Checkpoint { get; init; } = new();
-    [Key(9)] public FuturesVxTermStructureSignalReadModel? Signal { get; init; }
+    [Key(8)] public FuturesVxTermStructureCheckpoint FuturesVxTermStructureCheckpoint { get; init; } = new();
+    [Key(9)] public FuturesVxTermStructureSignalReadModel? FuturesVxTermStructureSignal { get; init; }
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesVxTermStructureSignalUpdatedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;
@@ -40,8 +40,8 @@ public sealed record FuturesVxTermStructureSignalUpdatedEvent
             AggregateId = AggregateId,
             EventSource = EventSource,
             ReceivedOn = ReceivedOn,
-            Checkpoint = Checkpoint,
-            Signal = Signal
+            FuturesVxTermStructureCheckpoint = FuturesVxTermStructureCheckpoint,
+            FuturesVxTermStructureSignal = FuturesVxTermStructureSignal
         };
 
     public IErrorEvent<TEntityId> ToFailEvent<TFail, TEntityId>(Exception exception)
@@ -63,8 +63,8 @@ public sealed record FuturesVxTermStructureSignalUpdatedCompleteEvent
     [Key(5)] public string AggregateId { get; init; } = string.Empty;
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     [Key(7)] public DateTime ReceivedOn { get; init; }
-    [Key(8)] public FuturesVxTermStructureCheckpoint Checkpoint { get; init; } = new();
-    [Key(9)] public FuturesVxTermStructureSignalReadModel? Signal { get; init; }
+    [Key(8)] public FuturesVxTermStructureCheckpoint FuturesVxTermStructureCheckpoint { get; init; } = new();
+    [Key(9)] public FuturesVxTermStructureSignalReadModel? FuturesVxTermStructureSignal { get; init; }
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesVxTermStructureSignalUpdatedCompleteEvent);
     [IgnoreMember] public EventType EventType => EventType.CompletedEvent;

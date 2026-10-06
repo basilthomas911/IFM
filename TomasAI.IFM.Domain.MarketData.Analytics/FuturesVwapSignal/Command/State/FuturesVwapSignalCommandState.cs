@@ -14,17 +14,26 @@ public sealed class FuturesVwapSignalCommandState
     /// <inheritdoc />
     public override ActorThreadId Id { get; set; } = default!;
     /// <summary>Gets the latest replayed accumulator checkpoint.</summary>
-    public FuturesVwapCheckpoint? Checkpoint { get; private set; }
+    public FuturesVwapCheckpoint? FuturesVwapCheckpoint { get; private set; }
     /// <summary>Gets the latest projected signal.</summary>
-    public FuturesVwapSignalReadModel? Signal { get; private set; }
+    public FuturesVwapSignalReadModel? FuturesVwapSignal { get; private set; }
 
     /// <inheritdoc />
     protected override bool Apply(IEvent domainEvent)
     {
-        if (domainEvent is not FuturesVwapSignalUpdatedEvent updated) return false;
-        if (updated.Checkpoint is null) return false;
-        Checkpoint = updated.Checkpoint;
-        Signal = updated.Signal;
+        return domainEvent switch
+        {
+            FuturesVwapSignalUpdatedEvent updated => On(updated),
+            _ => false
+        };
+    }
+
+    /// <summary>Mutates the authoritative business values only from the accepted domain event.</summary>
+    bool On(FuturesVwapSignalUpdatedEvent updated)
+    {
+        if (updated.FuturesVwapCheckpoint is null) return false;
+        FuturesVwapCheckpoint = updated.FuturesVwapCheckpoint;
+        FuturesVwapSignal = updated.FuturesVwapSignal;
         return true;
     }
 }

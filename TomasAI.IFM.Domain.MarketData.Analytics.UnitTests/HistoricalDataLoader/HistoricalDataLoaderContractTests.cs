@@ -23,17 +23,17 @@ public sealed class HistoricalDataLoaderContractTests
 
         Assert.Equal(command.CommandId, result.CommandId);
         Assert.Equal(command.EntityId, result.EntityId);
-        Assert.Equal(command.Parameters.StartDate, result.Parameters.StartDate);
-        Assert.Equal(command.Parameters.EndDate, result.Parameters.EndDate);
-        Assert.Equal(command.Parameters.MaximumCostUsd, result.Parameters.MaximumCostUsd);
-        Assert.Equal(command.Parameters.MaximumBytes, result.Parameters.MaximumBytes);
-        Assert.Equal(command.Parameters.NormalizationVersion, result.Parameters.NormalizationVersion);
-        Assert.Equal(command.Parameters.CalculationConfigurationVersion,
-            result.Parameters.CalculationConfigurationVersion);
-        Assert.Equal(command.Parameters.RequestedBy, result.Parameters.RequestedBy);
-        Assert.Equal(command.Parameters.SignalFamilies, result.Parameters.SignalFamilies);
-        Assert.Equal(command.Parameters.Series, result.Parameters.Series);
-        Assert.DoesNotContain("Databento", result.Parameters.GetType().AssemblyQualifiedName!,
+        Assert.Equal(command.FuturesAnalyticsHistoricalDataLoaderParameters.StartDate, result.FuturesAnalyticsHistoricalDataLoaderParameters.StartDate);
+        Assert.Equal(command.FuturesAnalyticsHistoricalDataLoaderParameters.EndDate, result.FuturesAnalyticsHistoricalDataLoaderParameters.EndDate);
+        Assert.Equal(command.FuturesAnalyticsHistoricalDataLoaderParameters.MaximumCostUsd, result.FuturesAnalyticsHistoricalDataLoaderParameters.MaximumCostUsd);
+        Assert.Equal(command.FuturesAnalyticsHistoricalDataLoaderParameters.MaximumBytes, result.FuturesAnalyticsHistoricalDataLoaderParameters.MaximumBytes);
+        Assert.Equal(command.FuturesAnalyticsHistoricalDataLoaderParameters.NormalizationVersion, result.FuturesAnalyticsHistoricalDataLoaderParameters.NormalizationVersion);
+        Assert.Equal(command.FuturesAnalyticsHistoricalDataLoaderParameters.CalculationConfigurationVersion,
+            result.FuturesAnalyticsHistoricalDataLoaderParameters.CalculationConfigurationVersion);
+        Assert.Equal(command.FuturesAnalyticsHistoricalDataLoaderParameters.RequestedBy, result.FuturesAnalyticsHistoricalDataLoaderParameters.RequestedBy);
+        Assert.Equal(command.FuturesAnalyticsHistoricalDataLoaderParameters.SignalFamilies, result.FuturesAnalyticsHistoricalDataLoaderParameters.SignalFamilies);
+        Assert.Equal(command.FuturesAnalyticsHistoricalDataLoaderParameters.Series, result.FuturesAnalyticsHistoricalDataLoaderParameters.Series);
+        Assert.DoesNotContain("Databento", result.FuturesAnalyticsHistoricalDataLoaderParameters.GetType().AssemblyQualifiedName!,
             StringComparison.OrdinalIgnoreCase);
     }
 
@@ -51,7 +51,7 @@ public sealed class HistoricalDataLoaderContractTests
         Assert.IsType<ServiceOk<GuidResult>>(first);
         Assert.IsType<ServiceFailed<GuidResult>>(second);
         Assert.True(state.IsRequested);
-        Assert.Equal(command.Parameters, state.Parameters);
+        Assert.Equal(command.FuturesAnalyticsHistoricalDataLoaderParameters, state.FuturesAnalyticsHistoricalDataLoaderParameters);
         var requested = Assert.IsType<FuturesAnalyticsHistoricalDataLoaderRequestedEvent>(
             Assert.Single(state.Events));
         Assert.InRange(requested.ReceivedOn, earliestExpectedReceivedOn, DateTime.UtcNow);
@@ -70,7 +70,7 @@ public sealed class HistoricalDataLoaderContractTests
                 LoadFuturesAnalyticsHistoricalDataCommand.Actor,
                 LoadFuturesAnalyticsHistoricalDataCommand.Verb,
                 entityId.Format()),
-            Parameters = new()
+            FuturesAnalyticsHistoricalDataLoaderParameters = new()
             {
                 Series =
                 [

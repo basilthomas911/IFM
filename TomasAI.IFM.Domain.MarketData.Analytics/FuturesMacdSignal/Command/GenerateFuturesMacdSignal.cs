@@ -10,96 +10,93 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command;
 
+/// <summary>Owns the concrete command handler and event factories for this analytics operation.</summary>
 public static class GenerateFuturesMacdSignal
 {
-    /// <summary>
-    /// Executes the GenerateFuturesMacdSignalCommand by computing the MACD signal based on the provided FuturesRsiSignals and the current state of the FuturesMacdSignal. 
-    /// Depending on the computed signal, it updates the state with a corresponding FuturesMacdSignalGeneratedEvent indicating the trend direction (Init, UpTrending, DownTrending, or Flat).
-    /// </summary>
-    /// <param name="e">The command containing the input RSI signals used to generate the MACD signal compute model.</param>
-    /// <param name="state">The current state of the FuturesMacdSignal.</param>
-    /// <returns>true if the operation succeeds; otherwise, false.</returns>
-    public static ServiceResult<GuidResult> Execute(this GenerateFuturesMacdSignalCommand e, FuturesMacdSignalCommandState state)
+    /// <summary>Computes and validates the Futures MACD Signal command, then applies accepted events through actor-owned state.</summary>
+    /// <param name="command">The originating concrete command, including its identity and domain inputs.</param>
+    /// <param name="state">The command actor state that owns the current business values and pending events.</param>
+    /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
+    public static ServiceResult<GuidResult> Execute(this GenerateFuturesMacdSignalCommand command, FuturesMacdSignalCommandState state)
     {
-        if (e.Observation is { } observation
+        if (command.Observation is { } observation
             && state.MacdSignals.LastOrDefault()?.Metadata?.MarketDataAsOfUtc >= observation.LastMarketEventUtc)
-            return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
-        if (e.Observation is { } observationDuplicate
+            return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
+        if (command.Observation is { } observationDuplicate
             && state.MacdSignals.LastOrDefault()?.Metadata?.ObservationId == observationDuplicate.ObservationId)
-            return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
-        return e.Compute(state.MacdSignals, out var model) switch
+            return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
+        var errorMsg = "unable to apply generated MACD signal event";
+        var updated = command.Compute(state.MacdSignals, out var futuresMacdSignalCompute) switch
         {
-            _ when model.IsSignalInitializing
-                => e.UpdateResult(() => state.Update(e.CreateFuturesMacdSignalGeneratedEvent(FuturesTrendDirectionType.Init, model), e)),
-            _ when model.IsSignalUpTrending
-                => e.UpdateResult(() => state.Update(e.CreateFuturesMacdSignalGeneratedEvent(FuturesTrendDirectionType.UpTrending, model), e)),
-            _ when model.IsSignalDownTrending
-                => e.UpdateResult(() => state.Update(e.CreateFuturesMacdSignalGeneratedEvent(FuturesTrendDirectionType.DownTrending, model), e)),
-            _ => e.UpdateResult(() => state.Update(e.CreateFuturesMacdSignalGeneratedEvent(FuturesTrendDirectionType.Flat, model), e)),
+            _ when !futuresMacdSignalCompute.IsValid
+                => command.UpdateFailed(ref errorMsg, "futuresMacdSignalCompute MACD signal contains invalid accumulator values"),
+            _ => state.Update(command.CreateFuturesMacdSignalGeneratedEvent(
+                futuresMacdSignalCompute.SignalDirection, futuresMacdSignalCompute), command)
         };
+        return updated
+            ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
+            : command.UpdateFailed($"{command.CommandName}: {errorMsg}");
     }
 
-    /// <summary>
-    /// Computes the MACD signal based on the provided FuturesRsiSignals and the current state of the FuturesMacdSignal.
-    /// </summary>
-    /// <param name="e">The command containing the input RSI signals used to generate the MACD signal compute model.</param>
-    /// <param name="computeModel">When this method returns, contains the resulting futures MACD signal compute model if the operation succeeds;
-    /// otherwise, contains null.</param>
-    /// <returns>true if the compute model was successfully created; otherwise, false.</returns>
+    /// <summary>Computes the proposed Futures MACD Signal result from the supplied business inputs without mutating actor state or pending events.</summary>
+    /// <param name="command">The originating concrete command, including its identity and domain inputs.</param>
+    /// <param name="previousMacdSignals">The previously accepted previous macd signals used only as computation input.</param>
+    /// <param name="futuresMacdSignalCompute">The computed business decision, including accepted domain values and any no-change or rejection information.</param>
+    /// <returns>True when the proposed business result advances or is accepted; otherwise, false. The output retains the no-change or rejection decision.</returns>
+    /// <remarks>Accumulator validation exceptions propagate to the command actor exception boundary.</remarks>
     internal static bool Compute(
-        this GenerateFuturesMacdSignalCommand e,
+        this GenerateFuturesMacdSignalCommand command,
         IReadOnlyCollection<FuturesMacdSignalReadModel> previousMacdSignals,
-        out FuturesMacdSignalCompute computeModel)
+        out FuturesMacdSignalCompute futuresMacdSignalCompute)
        => FuturesMacdSignalCompute.Create(
-           e.FuturesPrice,
+           command.FuturesPrice,
            previousMacdSignals,
-           e.EntityId.Configuration,
-           out computeModel);
+           command.EntityId.Configuration,
+           out futuresMacdSignalCompute);
 
-    /// <summary>
-    /// Creates a FuturesMacdSignalGeneratedEvent based on the provided command, trend direction, and computed MACD signal.
-    /// </summary>
-    /// <param name="e">The command containing the input RSI signals used to generate the MACD signal compute model.</param>
-    /// <param name="trendDirection">The trend direction type indicating the computed signal direction.</param>
-    /// <param name="computed">The computed MACD signal values.</param>
-    /// <returns>The generated event representing the futures MACD signal.</returns>
-    internal static FuturesMacdSignalGeneratedEvent CreateFuturesMacdSignalGeneratedEvent(this GenerateFuturesMacdSignalCommand e, FuturesTrendDirectionType trendDirection, FuturesMacdSignalCompute computed)
+    /// <summary>Creates the Futures MACD Signal event payload from accepted business data without changing state or publishing messages.</summary>
+    /// <param name="command">The originating concrete command, including its identity and domain inputs.</param>
+    /// <param name="trendDirection">The computed business trend direction to record on the signal event.</param>
+    /// <param name="futuresMacdSignalCompute">The computed business decision, including accepted domain values and any no-change or rejection information.</param>
+    /// <returns>The event or ordered event collection to apply through actor state and persist before projection.</returns>
+    internal static FuturesMacdSignalGeneratedEvent CreateFuturesMacdSignalGeneratedEvent(this GenerateFuturesMacdSignalCommand command, FuturesTrendDirectionType trendDirection, FuturesMacdSignalCompute futuresMacdSignalCompute)
     {
-        var entityId = e.FuturesMacdSignalId.ToEntityId();
+        var entityId = command.FuturesMacdSignalId.ToEntityId();
         var signal = new FuturesMacdSignalReadModel(
-            e.FuturesMacdSignalId.ContractId,
-            e.FuturesMacdSignalId.ValueDate,
-            e.FuturesMacdSignalId.TimePeriod,
-            e.FuturesMacdSignalId.SignalEmaPeriod,
-            e.FuturesMacdSignalId.FastEmaPeriod,
-            e.FuturesMacdSignalId.SlowEmaPeriod,
-            e.FuturesMacdSignalId.Timestamp,
-            e.FuturesPrice,
-            computed.MacdLine,
-            computed.SignalLine,
-            computed.Histogram,
+            command.FuturesMacdSignalId.ContractId,
+            command.FuturesMacdSignalId.ValueDate,
+            command.FuturesMacdSignalId.TimePeriod,
+            command.FuturesMacdSignalId.SignalEmaPeriod,
+            command.FuturesMacdSignalId.FastEmaPeriod,
+            command.FuturesMacdSignalId.SlowEmaPeriod,
+            command.FuturesMacdSignalId.Timestamp,
+            command.FuturesPrice,
+            futuresMacdSignalCompute.MacdLine,
+            futuresMacdSignalCompute.SignalLine,
+            futuresMacdSignalCompute.Histogram,
             trendDirection,
-            computed.TrendDirectionStrength(),
-            computed.FastEma,
-            computed.SlowEma)
+            futuresMacdSignalCompute.TrendDirectionStrength(),
+            futuresMacdSignalCompute.FastEma,
+            futuresMacdSignalCompute.SlowEma)
         {
-            IsWarm = computed.IsWarm,
-            ObservationCount = computed.ObservationCount,
-            Metadata = e.Observation is { } observation
+            IsWarm = futuresMacdSignalCompute.IsWarm,
+            ObservationCount = futuresMacdSignalCompute.ObservationCount,
+            Metadata = command.Observation is { } observation
                 ? MarketAnalyticsSignalMetadataFactory.Create(
                     observation,
                     MarketAnalyticsSignalKind.Macd,
-                    $"macd-{e.EntityId.SignalEmaPeriod}-{e.EntityId.FastEmaPeriod}-{e.EntityId.SlowEmaPeriod}-legacy-v1",
+                    $"macd-{command.EntityId.SignalEmaPeriod}-{command.EntityId.FastEmaPeriod}-{command.EntityId.SlowEmaPeriod}-legacy-v1",
                     "macd-legacy-compatible-v1")
                 : null
         };
         return new FuturesMacdSignalGeneratedEvent
         {
+            CommandId = command.CommandId,
             Subject = new ActorSubject(ActorType.Event, FuturesMacdSignalGeneratedEvent.Actor, FuturesMacdSignalGeneratedEvent.Verb, entityId.Format()),
             EntityId = entityId,
             FuturesMacdSignal = signal,
-            CreatedBy = e.OriginatedBy,
-            CreatedOn = e.OriginatedOn
+            CreatedBy = command.OriginatedBy,
+            CreatedOn = command.OriginatedOn
         };
     }
 

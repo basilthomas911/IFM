@@ -66,4 +66,18 @@ public class FuturesMacdSignalCommandState
     public FuturesMacdSignalReadModel MacdSignal => _macdSignal!;
     public IReadOnlyCollection<FuturesMacdSignalReadModel> MacdSignals => _macdSignals;
 
+    /// <summary>Applies the prevalidated lifecycle and historical events through the state event dispatcher.</summary>
+    /// <param name="startedEvent">The accepted start event.</param>
+    /// <param name="historicalSignals">Precomputed historical signal events in observation order.</param>
+    /// <param name="command">The originating start command.</param>
+    /// <returns>True when all events were applied to the owning state.</returns>
+    public bool Update(FuturesMacdSignalStartedEvent startedEvent,
+        IReadOnlyList<FuturesMacdSignalGeneratedEvent> historicalSignals, ICommand command)
+    {
+        if (!Update(startedEvent, command)) return false;
+        foreach (var historicalSignal in historicalSignals)
+            if (!Update(historicalSignal, command)) return false;
+        return true;
+    }
+
 }

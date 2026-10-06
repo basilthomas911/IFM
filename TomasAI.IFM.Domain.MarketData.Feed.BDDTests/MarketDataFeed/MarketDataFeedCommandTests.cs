@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
@@ -185,10 +185,15 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
         var actor = _fixture.CreateMarketDataFeedCommandActor();
         var state = new MarketDataFeedCommandState { Id = CreateCommand("TurnOff").Subject.ThreadId };
 
-        await ((Func<Task>)(() => actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), state, CreateCommand("TurnOff")).AsTask()))
-            .Should().ThrowAsync<ApplicationException>();
-        await ((Func<Task>)(() => actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), state, CreateCommand("Halt")).AsTask()))
-            .Should().ThrowAsync<ApplicationException>();
+        var turnedOff = await actor.InvokeReceiveAsync(
+            Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), state, CreateCommand("TurnOff"));
+        var halted = await actor.InvokeReceiveAsync(
+            Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), state, CreateCommand("Halt"));
+        turnedOff.Success.Should().BeFalse();
+        turnedOff.ErrorMessage.Should().Contain("already off");
+        halted.Success.Should().BeFalse();
+        halted.ErrorMessage.Should().Contain("not on");
+        state.Events.Should().BeEmpty();
     }
 
     [Theory]

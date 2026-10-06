@@ -109,6 +109,20 @@ public class FuturesAdxSignalCompute
         return (currentPlusDI, currentMinusDI, dx);
     }
 
+    /// <summary>Gets whether the computed directional values are finite and within their ADX bounds.</summary>
+    public bool IsValid => _adxPeriod > 0 && double.IsFinite(PlusDI) && double.IsFinite(MinusDI)
+        && double.IsFinite(AdxValue) && PlusDI is >= 0 and <= 100
+        && MinusDI is >= 0 and <= 100 && AdxValue is >= 0 and <= 100;
+
+    /// <summary>Gets the accepted business direction for the generated signal.</summary>
+    public FuturesTrendDirectionType SignalDirection => this switch
+    {
+        _ when IsSignalInitializing => FuturesTrendDirectionType.Init,
+        _ when IsSignalUpTrending => FuturesTrendDirectionType.UpTrending,
+        _ when IsSignalDownTrending => FuturesTrendDirectionType.DownTrending,
+        _ => FuturesTrendDirectionType.TrendReversal
+    };
+
     /// <summary>Plus Directional Indicator (+DI) value.</summary>
     public double PlusDI { get; private set; }
 

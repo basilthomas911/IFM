@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
+﻿using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Actor;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using Microsoft.AspNetCore.Builder;
@@ -754,9 +754,15 @@ public static class Startup
             .Where(static assembly => !assembly.IsDynamic));
         assemblies.AddRange(domainAssemblies);
         var repositoryTypes = ObjectRepositoryDiscovery.Discover(assemblies)
-            .Where(static type => type != typeof(SystemAdminDbContext) && type != typeof(EventSourceActorDbContext))
+            .Where(static type => type != typeof(SystemAdminDbContext)
+                                  && type != typeof(EventSourceActorDbContext)
+                                  && type != typeof(TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore))
             .ToArray();
         siContainer.Register(typeof(IObjectRepository<>), repositoryTypes, Lifestyle.Transient);
+        // The repository contract must use the same singleton as the account reader and projector.
+        siContainer.AddRegistration<IObjectRepository<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>>(
+            siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
+                typeof(TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore)).Registration);
         var eventSourceRegistration = Lifestyle.Singleton.CreateRegistration<EventSourceActorDbContext>(siContainer);
         siContainer.AddRegistration<IObjectRepository<EventSourceActorDbContext>>(eventSourceRegistration);
         var systemAdminRegistration = Lifestyle.Singleton.CreateRegistration<SystemAdminDbContext>(siContainer);

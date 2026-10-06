@@ -32,7 +32,7 @@ public record FuturesAtrDailySignalGeneratedEvent : IEvent<FuturesAtrDailySignal
     [Key(11)] public string CreatedBy { get; init; }
 
     /// <summary>Gets the complete bounded Wilder calculation checkpoint.</summary>
-    [Key(12)] public FuturesAtrAccumulatorCheckpoint? CalculationState { get; init; }
+    [Key(12)] public FuturesAtrAccumulatorCheckpoint? FuturesAtrCheckpoint { get; init; }
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
@@ -56,7 +56,7 @@ public record FuturesAtrDailySignalGeneratedEvent : IEvent<FuturesAtrDailySignal
         FuturesAtrSignalReadModel futuresAtrSignal,
         DateTime createdOn,
         string createdBy,
-        FuturesAtrAccumulatorCheckpoint? calculationState)
+        FuturesAtrAccumulatorCheckpoint? futuresAtrCheckpoint)
     {
         Subject = subject;
         Id = id;
@@ -69,7 +69,7 @@ public record FuturesAtrDailySignalGeneratedEvent : IEvent<FuturesAtrDailySignal
         FuturesAtrSignal = futuresAtrSignal;
         CreatedOn = createdOn;
         CreatedBy = createdBy ?? string.Empty;
-        CalculationState = calculationState;
+        FuturesAtrCheckpoint = futuresAtrCheckpoint;
     }
 
     /// <summary>
@@ -95,7 +95,7 @@ public record FuturesAtrDailySignalGeneratedEvent : IEvent<FuturesAtrDailySignal
             FuturesAtrSignal = this.FuturesAtrSignal,
             CreatedOn = this.CreatedOn,
             CreatedBy = this.CreatedBy,
-            CalculationState = this.CalculationState
+            FuturesAtrCheckpoint = this.FuturesAtrCheckpoint
         };
 
         return (ICompleteEvent<TEntityId>)completed;
@@ -156,7 +156,7 @@ public record FuturesAtrDailySignalGeneratedCompleteEvent : ICompleteEvent<Futur
     [Key(10)] public string CreatedBy { get; init; }
 
     /// <summary>Gets the complete bounded Wilder calculation checkpoint.</summary>
-    [Key(11)] public FuturesAtrAccumulatorCheckpoint? CalculationState { get; init; }
+    [Key(11)] public FuturesAtrAccumulatorCheckpoint? FuturesAtrCheckpoint { get; init; }
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
@@ -177,7 +177,7 @@ public record FuturesAtrDailySignalGeneratedCompleteEvent : ICompleteEvent<Futur
         FuturesAtrSignalReadModel futuresAtrSignal,
         DateTime createdOn,
         string createdBy,
-        FuturesAtrAccumulatorCheckpoint? calculationState)
+        FuturesAtrAccumulatorCheckpoint? futuresAtrCheckpoint)
     {
         Subject = subject;
         EntityId = entityId;
@@ -190,7 +190,7 @@ public record FuturesAtrDailySignalGeneratedCompleteEvent : ICompleteEvent<Futur
         FuturesAtrSignal = futuresAtrSignal;
         CreatedOn = createdOn;
         CreatedBy = createdBy ?? string.Empty;
-        CalculationState = calculationState;
+        FuturesAtrCheckpoint = futuresAtrCheckpoint;
     }
 }
 

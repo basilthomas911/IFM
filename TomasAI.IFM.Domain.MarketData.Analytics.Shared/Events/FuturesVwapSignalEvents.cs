@@ -21,8 +21,8 @@ public sealed record FuturesVwapSignalUpdatedEvent : IEvent<FuturesVwapSignalEnt
     [Key(5)] public string AggregateId { get; init; } = string.Empty;
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     [Key(7)] public DateTime ReceivedOn { get; init; }
-    [Key(8)] public FuturesVwapCheckpoint Checkpoint { get; init; } = new();
-    [Key(9)] public FuturesVwapSignalReadModel Signal { get; init; } = new();
+    [Key(8)] public FuturesVwapCheckpoint FuturesVwapCheckpoint { get; init; } = new();
+    [Key(9)] public FuturesVwapSignalReadModel FuturesVwapSignal { get; init; } = new();
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesVwapSignalUpdatedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;
@@ -39,8 +39,8 @@ public sealed record FuturesVwapSignalUpdatedEvent : IEvent<FuturesVwapSignalEnt
             AggregateId = AggregateId,
             EventSource = EventSource,
             ReceivedOn = ReceivedOn,
-            Checkpoint = Checkpoint,
-            Signal = Signal
+            FuturesVwapCheckpoint = FuturesVwapCheckpoint,
+            FuturesVwapSignal = FuturesVwapSignal
         };
 
     public IErrorEvent<TEntityId> ToFailEvent<TFail, TEntityId>(Exception exception)
@@ -61,8 +61,8 @@ public sealed record FuturesVwapSignalUpdatedCompleteEvent : ICompleteEvent<Futu
     [Key(5)] public string AggregateId { get; init; } = string.Empty;
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     [Key(7)] public DateTime ReceivedOn { get; init; }
-    [Key(8)] public FuturesVwapCheckpoint Checkpoint { get; init; } = new();
-    [Key(9)] public FuturesVwapSignalReadModel Signal { get; init; } = new();
+    [Key(8)] public FuturesVwapCheckpoint FuturesVwapCheckpoint { get; init; } = new();
+    [Key(9)] public FuturesVwapSignalReadModel FuturesVwapSignal { get; init; } = new();
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesVwapSignalUpdatedCompleteEvent);
     [IgnoreMember] public EventType EventType => EventType.CompletedEvent;

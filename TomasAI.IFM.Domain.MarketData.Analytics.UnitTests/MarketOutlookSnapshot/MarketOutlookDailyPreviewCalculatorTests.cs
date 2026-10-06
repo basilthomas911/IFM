@@ -80,9 +80,9 @@ public sealed class MarketOutlookDailyPreviewCalculatorTests
             baseline.EmaCheckpoint.LastIntervalEndUtc.AddDays(1),
             77);
         var committedEma = FuturesEmaAccumulator.Apply(
-            baseline.EmaCheckpoint, committedObservation).Signal!;
+            baseline.EmaCheckpoint, committedObservation).FuturesEmaSignal!;
         var committedBb = FuturesBbAccumulator.Apply(
-            baseline.BbCheckpoint, committedObservation, committedEma).Signal!;
+            baseline.BbCheckpoint, committedObservation, committedEma).FuturesBbSignal!;
 
         previewEma.Ema20.Should().Be(committedEma.Ema20);
         previewEma.Ema50.Should().Be(committedEma.Ema50);
@@ -209,11 +209,11 @@ public sealed class MarketOutlookDailyPreviewCalculatorTests
                 CalculationVersion = "unit-test"
             };
             var emaResult = FuturesEmaAccumulator.Apply(emaCheckpoint, observation);
-            emaCheckpoint = emaResult.Checkpoint;
-            ema = emaResult.Signal!;
+            emaCheckpoint = emaResult.FuturesEmaCheckpoint;
+            ema = emaResult.FuturesEmaSignal!;
             var bbResult = FuturesBbAccumulator.Apply(bbCheckpoint, observation, ema);
-            bbCheckpoint = bbResult.Checkpoint;
-            bb = bbResult.Signal!;
+            bbCheckpoint = bbResult.FuturesBbCheckpoint;
+            bb = bbResult.FuturesBbSignal!;
         }
         RegimeDiscoverySignalCacheAdapter.Publish(ema, emaCheckpoint!);
         RegimeDiscoverySignalCacheAdapter.Publish(bb, bbCheckpoint!);

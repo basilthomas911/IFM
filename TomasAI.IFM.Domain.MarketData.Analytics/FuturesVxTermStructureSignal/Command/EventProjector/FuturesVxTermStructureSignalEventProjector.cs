@@ -31,9 +31,9 @@ public sealed class FuturesVxTermStructureSignalEventProjector(
             FuturesVxTermStructureSignalUpdatedFailEvent,
             FuturesVxTermStructureSignalEntityId>((Func<FuturesVxTermStructureSignalUpdatedEvent, Task>)(async e =>
             {
-                if (e.Signal is null) return;
-                await dbFactory.MarketDataDb.InsertFuturesVxTermStructureSignalAsync(e.Signal).ConfigureAwait(false);
-                RegimeDiscoverySignalCacheAdapter.Publish(e.Signal);
+                if (e.FuturesVxTermStructureSignal is null) return;
+                await dbFactory.MarketDataDb.InsertFuturesVxTermStructureSignalAsync(e.FuturesVxTermStructureSignal).ConfigureAwait(false);
+                RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesVxTermStructureSignal);
             }))
     ];
     /// <inheritdoc />

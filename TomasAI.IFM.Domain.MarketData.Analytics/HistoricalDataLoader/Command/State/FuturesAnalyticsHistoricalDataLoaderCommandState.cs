@@ -17,14 +17,23 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderCommandState
     public bool IsRequested { get; private set; }
 
     /// <summary>Gets the immutable accepted parameters.</summary>
-    public FuturesAnalyticsHistoricalDataLoaderParameters? Parameters { get; private set; }
+    public FuturesAnalyticsHistoricalDataLoaderParameters? FuturesAnalyticsHistoricalDataLoaderParameters { get; private set; }
 
     /// <inheritdoc />
     protected override bool Apply(IEvent domainEvent)
     {
-        if (domainEvent is not FuturesAnalyticsHistoricalDataLoaderRequestedEvent requested) return false;
+        return domainEvent switch
+        {
+            FuturesAnalyticsHistoricalDataLoaderRequestedEvent requested => On(requested),
+            _ => false
+        };
+    }
+
+    /// <summary>Records the accepted historical load request only from its domain event.</summary>
+    bool On(FuturesAnalyticsHistoricalDataLoaderRequestedEvent requested)
+    {
         IsRequested = true;
-        Parameters = requested.Parameters;
+        FuturesAnalyticsHistoricalDataLoaderParameters = requested.FuturesAnalyticsHistoricalDataLoaderParameters;
         return true;
     }
 }

@@ -32,7 +32,7 @@ public record FuturesRsiSignalGeneratedEvent : IEvent<FuturesRsiSignalEntityId>
     [Key(10)] public string CreatedBy { get; init; }
 
     /// <summary>Gets the event-sourced Wilder RSI state after this observation.</summary>
-    [Key(11)] public FuturesRsiAccumulatorCheckpoint? AccumulatorCheckpoint { get; init; }
+    [Key(11)] public FuturesRsiAccumulatorCheckpoint? FuturesRsiCheckpoint { get; init; }
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
@@ -56,7 +56,7 @@ public record FuturesRsiSignalGeneratedEvent : IEvent<FuturesRsiSignalEntityId>
         FuturesRsiSignalReadModel futuresRsiSignal,
         DateTime createdOn,
         string createdBy,
-        FuturesRsiAccumulatorCheckpoint? accumulatorCheckpoint)
+        FuturesRsiAccumulatorCheckpoint? futuresRsiCheckpoint)
     {
         Subject = subject;
         Id = id;
@@ -69,7 +69,7 @@ public record FuturesRsiSignalGeneratedEvent : IEvent<FuturesRsiSignalEntityId>
         FuturesRsiSignal = futuresRsiSignal;
         CreatedOn = createdOn;
         CreatedBy = createdBy ?? string.Empty;
-        AccumulatorCheckpoint = accumulatorCheckpoint;
+        FuturesRsiCheckpoint = futuresRsiCheckpoint;
     }
 
     /// <summary>
@@ -96,7 +96,7 @@ public record FuturesRsiSignalGeneratedEvent : IEvent<FuturesRsiSignalEntityId>
             PeriodLength = this.EntityId.PeriodLength,
             CreatedOn = this.CreatedOn,
             CreatedBy = this.CreatedBy,
-            AccumulatorCheckpoint = this.AccumulatorCheckpoint
+            FuturesRsiCheckpoint = this.FuturesRsiCheckpoint
         };
 
         return (ICompleteEvent<TEntityId>)completed;
@@ -157,7 +157,7 @@ public record FuturesRsiSignalGeneratedCompleteEvent : ICompleteEvent<FuturesRsi
     [Key(11)] public string CreatedBy { get; init; }
 
     /// <summary>Gets the event-sourced Wilder RSI state after this observation.</summary>
-    [Key(12)] public FuturesRsiAccumulatorCheckpoint? AccumulatorCheckpoint { get; init; }
+    [Key(12)] public FuturesRsiAccumulatorCheckpoint? FuturesRsiCheckpoint { get; init; }
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
@@ -179,7 +179,7 @@ public record FuturesRsiSignalGeneratedCompleteEvent : ICompleteEvent<FuturesRsi
         int periodLength,
         DateTime createdOn,
         string createdBy,
-        FuturesRsiAccumulatorCheckpoint? accumulatorCheckpoint)
+        FuturesRsiAccumulatorCheckpoint? futuresRsiCheckpoint)
     {
         Subject = subject;
         EntityId = entityId;
@@ -193,7 +193,7 @@ public record FuturesRsiSignalGeneratedCompleteEvent : ICompleteEvent<FuturesRsi
         PeriodLength = periodLength;
         CreatedOn = createdOn;
         CreatedBy = createdBy ?? string.Empty;
-        AccumulatorCheckpoint = accumulatorCheckpoint;
+        FuturesRsiCheckpoint = futuresRsiCheckpoint;
     }
 }
 

@@ -22,7 +22,16 @@ public sealed class FuturesTradeSessionBarSignalCommandState
     /// <inheritdoc />
     protected override bool Apply(IEvent domainEvent)
     {
-        if (domainEvent is not FuturesTradeSessionBarPublishedEvent published) return false;
+        return domainEvent switch
+        {
+            FuturesTradeSessionBarPublishedEvent published => On(published),
+            _ => false
+        };
+    }
+
+    /// <summary>Mutates the authoritative business values only from the accepted domain event.</summary>
+    bool On(FuturesTradeSessionBarPublishedEvent published)
+    {
         if (published.Bar is null) return false;
         LastAppliedBarId = published.Bar.ObservationId;
         LastAppliedBar = published.Bar;

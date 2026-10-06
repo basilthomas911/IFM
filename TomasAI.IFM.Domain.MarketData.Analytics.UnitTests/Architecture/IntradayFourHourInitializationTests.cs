@@ -44,6 +44,9 @@ public sealed class IntradayFourHourInitializationTests
         Assert.True(adxCommand.Execute(adx).Success);
         Assert.True(atrCommand.Execute(atr).Success);
         Assert.True(macdCommand.Execute(macd).Success);
+        Assert.All(adx.Events, e => Assert.Equal(adxCommand.CommandId, e.CommandId));
+        Assert.All(atr.Events, e => Assert.Equal(atrCommand.CommandId, e.CommandId));
+        Assert.All(macd.Events, e => Assert.Equal(macdCommand.CommandId, e.CommandId));
         Assert.Equal(48, adx.Events.OfType<FuturesAdxSignalGeneratedEvent>().Count());
         Assert.Equal(48, atr.Events.OfType<FuturesAtrSignalGeneratedEvent>().Count());
         Assert.Equal(48, macd.Events.OfType<FuturesMacdSignalGeneratedEvent>().Count());

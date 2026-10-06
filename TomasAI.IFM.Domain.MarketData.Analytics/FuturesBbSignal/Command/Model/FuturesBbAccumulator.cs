@@ -87,8 +87,8 @@ public static class FuturesBbAccumulator
 
 /// <summary>Contains one Bollinger state transition.</summary>
 public sealed record FuturesBbAccumulatorResult(
-    FuturesBbAccumulatorCheckpoint Checkpoint,
-    FuturesBbSignalReadModel? Signal,
+    FuturesBbAccumulatorCheckpoint FuturesBbCheckpoint,
+    FuturesBbSignalReadModel? FuturesBbSignal,
     MarketObservationApplicationDisposition Disposition)
 {
     /// <summary>Gets whether this transition advanced durable state.</summary>

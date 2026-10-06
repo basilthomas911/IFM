@@ -194,7 +194,7 @@ public class FuturesRsiSignalStateRepositoryTests
                             RegimeSlope = 0d,
                             IsWarm = index >= configuration.RsiPeriod
                         },
-                        AccumulatorCheckpoint = new FuturesRsiAccumulatorCheckpoint
+                        FuturesRsiCheckpoint = new FuturesRsiAccumulatorCheckpoint
                         {
                             PeriodLength = configuration.RsiPeriod,
                             PreviousClose = 5500m + index,
@@ -227,8 +227,8 @@ public class FuturesRsiSignalStateRepositoryTests
         loadedState.FuturesRsiSignals.Should().HaveCount(requiredHistory);
         loadedState.FuturesRsiSignals.Count(signal => signal.IsWarm)
             .Should().Be(configuration.RequiredRsiSamples);
-        loadedState.AccumulatorCheckpoint.Should().NotBeNull();
-        loadedState.AccumulatorCheckpoint!.CurrentRsi.Should().Be(100d);
+        loadedState.FuturesRsiCheckpoint.Should().NotBeNull();
+        loadedState.FuturesRsiCheckpoint!.CurrentRsi.Should().Be(100d);
         await eventDb.Received(1).MapReduceActorEventStreamAsync<
             FuturesRsiSignalCommandState,
             FuturesRsiSignalGeneratedEvent>(

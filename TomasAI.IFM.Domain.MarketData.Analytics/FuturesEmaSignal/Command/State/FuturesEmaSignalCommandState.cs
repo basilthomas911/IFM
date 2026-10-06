@@ -13,17 +13,26 @@ public sealed class FuturesEmaSignalCommandState
     /// <inheritdoc />
     public override ActorThreadId Id { get; set; } = default!;
     /// <summary>Gets the replayed EMA checkpoint.</summary>
-    public FuturesEmaAccumulatorCheckpoint? Checkpoint { get; private set; }
+    public FuturesEmaAccumulatorCheckpoint? FuturesEmaCheckpoint { get; private set; }
     /// <summary>Gets the most recently generated signal.</summary>
-    public FuturesEmaSignalReadModel? Signal { get; private set; }
+    public FuturesEmaSignalReadModel? FuturesEmaSignal { get; private set; }
 
     /// <inheritdoc />
     protected override bool Apply(IEvent domainEvent)
     {
-        if (domainEvent is not FuturesEmaSignalGeneratedEvent generated) return false;
-        if (generated.Checkpoint is null || generated.Signal is null) return false;
-        Checkpoint = generated.Checkpoint;
-        Signal = generated.Signal;
+        return domainEvent switch
+        {
+            FuturesEmaSignalGeneratedEvent generated => On(generated),
+            _ => false
+        };
+    }
+
+    /// <summary>Mutates the authoritative business values only from the accepted domain event.</summary>
+    bool On(FuturesEmaSignalGeneratedEvent generated)
+    {
+        if (generated.FuturesEmaCheckpoint is null || generated.FuturesEmaSignal is null) return false;
+        FuturesEmaCheckpoint = generated.FuturesEmaCheckpoint;
+        FuturesEmaSignal = generated.FuturesEmaSignal;
         return true;
     }
 }

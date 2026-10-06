@@ -22,7 +22,7 @@ public class FuturesItiSignalCommandState
     FuturesItiSignalV2ReadModel? _futuresItiSignal;
 
     /// <summary>The last durable signal applied to this timeframe stream.</summary>
-    internal FuturesItiSignalV2ReadModel? CurrentSignal => _futuresItiSignal;
+    internal FuturesItiSignalV2ReadModel? FuturesItiSignal => _futuresItiSignal;
 
     /// <summary>
     /// Gets or sets the unique identifier for the actor thread associated with this state.

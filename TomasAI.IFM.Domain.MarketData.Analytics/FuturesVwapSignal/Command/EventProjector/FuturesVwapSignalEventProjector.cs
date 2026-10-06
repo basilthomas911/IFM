@@ -32,7 +32,7 @@ public sealed class FuturesVwapSignalEventProjector(
             FuturesVwapSignalUpdatedCompleteEvent,
             FuturesVwapSignalUpdatedFailEvent,
             FuturesVwapSignalEntityId>(value =>
-                dbFactory.MarketDataDb.InsertFuturesVwapSignalAsync(value.Signal),
+                dbFactory.MarketDataDb.InsertFuturesVwapSignalAsync(value.FuturesVwapSignal),
                 useDurableReplay: false)
     ];
 

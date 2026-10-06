@@ -37,11 +37,11 @@ public sealed class FuturesRsiEventApplicationTests
         var invalid = new FuturesRsiSignalGeneratedEvent
         {
             FuturesRsiSignal = null!,
-            AccumulatorCheckpoint = checkpoint
+            FuturesRsiCheckpoint = checkpoint
         };
 
         Assert.False(state.Update(invalid));
-        Assert.Null(state.AccumulatorCheckpoint);
+        Assert.Null(state.FuturesRsiCheckpoint);
         Assert.Empty(state.FuturesRsiSignals);
         Assert.Empty(state.Events);
         Assert.False(state.Updated);

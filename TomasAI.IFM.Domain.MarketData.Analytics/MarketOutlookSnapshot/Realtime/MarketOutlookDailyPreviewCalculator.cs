@@ -74,10 +74,10 @@ public static class MarketOutlookDailyPreviewCalculator
             StreamEpochId = trade.StreamEpochId
         };
         var emaResult = FuturesEmaAccumulator.Apply(emaBaseline, observation);
-        if (emaResult.Signal is not { } previewEma)
+        if (emaResult.FuturesEmaSignal is not { } previewEma)
             return false;
         var bbResult = FuturesBbAccumulator.Apply(bbBaseline, observation, previewEma);
-        if (bbResult.Signal is not { } previewBb)
+        if (bbResult.FuturesBbSignal is not { } previewBb)
             return false;
         ema = previewEma with
         {

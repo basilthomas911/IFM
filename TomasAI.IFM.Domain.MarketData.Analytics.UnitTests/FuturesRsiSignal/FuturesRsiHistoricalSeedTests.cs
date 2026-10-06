@@ -31,17 +31,17 @@ public sealed class FuturesRsiHistoricalSeedTests
         var result = command.Execute(state, Calendar); Assert.True(result.Success);
         FuturesRsiAccumulatorCheckpoint? expected = null;
         foreach (var bar in command.HistoricalSeed!.Observations) expected = FuturesRsiWilderAccumulator.Apply(expected, bar, 14).Checkpoint;
-        Assert.Equal(expected, state.AccumulatorCheckpoint); Assert.NotNull(expected!.CurrentRsi); Assert.Equal(100d, expected.CurrentRsi);
+        Assert.Equal(expected, state.FuturesRsiCheckpoint); Assert.NotNull(expected!.CurrentRsi); Assert.Equal(100d, expected.CurrentRsi);
         Assert.True(Assert.Single(state.Events.OfType<FuturesRsiSignalGeneratedEvent>()).FuturesRsiSignal.IsWarm);
         var started = Assert.Single(state.Events.OfType<FuturesRsiSignalStartedEvent>());
         Assert.Equal(16, started.HistoricalSeedCount);
         Assert.Equal(16, MessagePackSerializer.Deserialize<FuturesRsiSignalStartedEvent>(MessagePackSerializer.Serialize(started)).HistoricalSeedCount);
         var restored = new FuturesRsiSignalCommandState(); foreach (var fact in state.Events) restored.Apply(fact, false);
-        Assert.Equal(state.AccumulatorCheckpoint, restored.AccumulatorCheckpoint);
-        var duplicate = FuturesRsiWilderAccumulator.Apply(restored.AccumulatorCheckpoint, command.HistoricalSeed.Observations[^1], 14);
+        Assert.Equal(state.FuturesRsiCheckpoint, restored.FuturesRsiCheckpoint);
+        var duplicate = FuturesRsiWilderAccumulator.Apply(restored.FuturesRsiCheckpoint, command.HistoricalSeed.Observations[^1], 14);
         Assert.False(duplicate.IsApplied);
         var again = command with { CommandId = Guid.NewGuid() }; Assert.True(again.Execute(restored, Calendar).Success);
-        Assert.Equal(expected, restored.AccumulatorCheckpoint);
+        Assert.Equal(expected, restored.FuturesRsiCheckpoint);
         var restoredEvent = Assert.Single(restored.Events.OfType<FuturesRsiSignalStartedEvent>());
         Assert.NotNull(restoredEvent.RestoredSignal);
         Assert.NotNull(restoredEvent.RestoredCheckpoint);
@@ -58,7 +58,7 @@ public sealed class FuturesRsiHistoricalSeedTests
             Close = 114m,
             LastSourceSequence = 1
         };
-        var advanced = FuturesRsiWilderAccumulator.Apply(restored.AccumulatorCheckpoint, live, 14);
+        var advanced = FuturesRsiWilderAccumulator.Apply(restored.FuturesRsiCheckpoint, live, 14);
         Assert.True(advanced.IsApplied); Assert.Equal(expected.ChangeCount + 1, advanced.Checkpoint.ChangeCount);
         Assert.InRange(advanced.Checkpoint.CurrentRsi!.Value, 0d, 99.999d);
         Assert.False(FuturesRsiWilderAccumulator.Apply(advanced.Checkpoint, last, 14).IsApplied);
@@ -80,7 +80,7 @@ public sealed class FuturesRsiHistoricalSeedTests
         var restored = new FuturesRsiSignalCommandState();
         foreach (var fact in state.Events) restored.Apply(fact, false);
         Assert.Equal(34, restored.FuturesRsiSignals.Count(signal => signal.IsWarm));
-        Assert.Equal(state.AccumulatorCheckpoint, restored.AccumulatorCheckpoint);
+        Assert.Equal(state.FuturesRsiCheckpoint, restored.FuturesRsiCheckpoint);
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public sealed class FuturesRsiHistoricalSeedTests
         var restored = new FuturesRsiSignalCommandState();
         foreach (var fact in state.Events) restored.Apply(fact, false);
         Assert.Equal(34, restored.FuturesRsiSignals.Count(signal => signal.IsWarm));
-        Assert.Equal(state.AccumulatorCheckpoint, restored.AccumulatorCheckpoint);
+        Assert.Equal(state.FuturesRsiCheckpoint, restored.FuturesRsiCheckpoint);
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public sealed class FuturesRsiHistoricalSeedTests
         foreach (var observations in new[] { Array.Empty<FuturesTradeSessionBarReadModel>(), original.HistoricalSeed!.Observations.Skip(1).ToArray(), original.HistoricalSeed.Observations.Reverse().ToArray() })
         {
             var state = new FuturesRsiSignalCommandState(); var command = original with { HistoricalSeed = original.HistoricalSeed with { Observations = observations } };
-            Assert.True(command.Execute(state, Calendar).Success); Assert.Null(state.AccumulatorCheckpoint);
+            Assert.True(command.Execute(state, Calendar).Success); Assert.Null(state.FuturesRsiCheckpoint);
             Assert.Empty(state.Events.OfType<FuturesRsiSignalGeneratedEvent>());
         }
     }

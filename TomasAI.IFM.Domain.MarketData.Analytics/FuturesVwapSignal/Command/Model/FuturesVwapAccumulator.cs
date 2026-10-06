@@ -297,6 +297,6 @@ public static class FuturesVwapAccumulator
 
 /// <summary>Contains one VWAP state transition and its projected signal.</summary>
 public sealed record FuturesVwapAccumulatorResult(
-    FuturesVwapCheckpoint Checkpoint,
-    FuturesVwapSignalReadModel Signal,
+    FuturesVwapCheckpoint FuturesVwapCheckpoint,
+    FuturesVwapSignalReadModel FuturesVwapSignal,
     bool Changed);

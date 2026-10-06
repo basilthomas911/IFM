@@ -31,6 +31,7 @@ public sealed class TradeBrokerEmulatorRegistrationTests
     {
         using var container = new Container();
         container.Options.EnableAutoVerification = false;
+        container.RegisterInstance<Microsoft.Extensions.Logging.ILogger>(NullLogger.Instance);
         typeof(global::TomasAI.IFM.Application.Actor.IntegrationTests.Startup)
             .GetMethod("RegisterGenericTypes", BindingFlags.Static | BindingFlags.NonPublic)!
             .Invoke(null, [container, new ConfigurationManager(), NullLogger.Instance]);
@@ -54,6 +55,30 @@ public sealed class TradeBrokerEmulatorRegistrationTests
         orderPort.AccountAlias.Should().Be(accountPort.AccountAlias).And.Be(broker.AccountAlias);
         orderPort.Generation.Should().Be(accountPort.Generation).And.Be(broker.Generation);
         broker.Environment.Should().Be(BrokerEnvironment.Emulator);
+    }
+
+    /// <summary>Prevents account repository discovery from creating a conflicting transient registration.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Account_repository_and_reader_share_singleton_registration(bool productionHost)
+    {
+        using var container = new Container();
+        container.Options.EnableAutoVerification = false;
+        container.RegisterInstance<Microsoft.Extensions.Logging.ILogger>(NullLogger.Instance);
+        var startup = productionHost
+            ? typeof(global::TomasAI.IFM.Application.Api.Server.Startup)
+            : typeof(global::TomasAI.IFM.Application.Actor.IntegrationTests.Startup);
+        startup.GetMethod("RegisterGenericTypes", BindingFlags.Static | BindingFlags.NonPublic)!
+            .Invoke(null, [container, new ConfigurationManager(), NullLogger.Instance]);
+
+        var registrations = container.GetCurrentRegistrations();
+        var reader = registrations.Single(registration => registration.ServiceType ==
+            typeof(TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore));
+        var repository = registrations.Single(registration => registration.ServiceType ==
+            typeof(TomasAI.IFM.Framework.Storage.IObjectRepository<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>));
+        repository.Registration.Should().BeSameAs(reader.Registration);
+        repository.Lifestyle.Should().Be(Lifestyle.Singleton);
     }
 
     private static void ExactlyOne<T>(IEnumerable<InstanceProducer> registrations) =>

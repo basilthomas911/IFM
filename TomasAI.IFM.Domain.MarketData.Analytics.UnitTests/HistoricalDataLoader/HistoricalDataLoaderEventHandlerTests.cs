@@ -105,7 +105,7 @@ public sealed class HistoricalDataLoaderEventHandlerTests
             CommandId = Guid.NewGuid(),
             EntityId = id,
             ReceivedOn = DateTime.UtcNow,
-            Parameters = new FuturesAnalyticsHistoricalDataLoaderParameters
+            FuturesAnalyticsHistoricalDataLoaderParameters = new FuturesAnalyticsHistoricalDataLoaderParameters
             {
                 AutomaticStartupWarmup = automatic,
                 StartDate = new(2026, 8, 17),

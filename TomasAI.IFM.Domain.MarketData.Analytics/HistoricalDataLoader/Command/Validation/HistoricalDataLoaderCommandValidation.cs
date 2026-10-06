@@ -27,18 +27,18 @@ public static class HistoricalDataLoaderCommandValidation
         if (value.CommandId == Guid.Empty || value.EntityId.Value == Guid.Empty
             || value.CommandId != value.EntityId.Value)
             errors.Add(new("CommandId and DataLoadAttemptId must be the same non-empty identity."));
-        if (value.Parameters is null) { errors.Add(new("Parameters are required.")); return errors; }
-        if (value.Parameters.StartDate == default || value.Parameters.EndDate < value.Parameters.StartDate)
+        if (value.FuturesAnalyticsHistoricalDataLoaderParameters is null) { errors.Add(new("FuturesAnalyticsHistoricalDataLoaderParameters are required.")); return errors; }
+        if (value.FuturesAnalyticsHistoricalDataLoaderParameters.StartDate == default || value.FuturesAnalyticsHistoricalDataLoaderParameters.EndDate < value.FuturesAnalyticsHistoricalDataLoaderParameters.StartDate)
             errors.Add(new("A valid inclusive data load date range is required."));
-        if (value.Parameters.Series is null || value.Parameters.Series.Length == 0)
+        if (value.FuturesAnalyticsHistoricalDataLoaderParameters.Series is null || value.FuturesAnalyticsHistoricalDataLoaderParameters.Series.Length == 0)
             errors.Add(new("At least one historical series is required."));
-        if (value.Parameters.MaximumCostUsd <= 0 || value.Parameters.MaximumBytes <= 0)
+        if (value.FuturesAnalyticsHistoricalDataLoaderParameters.MaximumCostUsd <= 0 || value.FuturesAnalyticsHistoricalDataLoaderParameters.MaximumBytes <= 0)
             errors.Add(new("Positive cost and byte budgets are required."));
-        if (string.IsNullOrWhiteSpace(value.Parameters.NormalizationVersion)
-            || string.IsNullOrWhiteSpace(value.Parameters.CalculationConfigurationVersion)
-            || string.IsNullOrWhiteSpace(value.Parameters.RequestedBy))
+        if (string.IsNullOrWhiteSpace(value.FuturesAnalyticsHistoricalDataLoaderParameters.NormalizationVersion)
+            || string.IsNullOrWhiteSpace(value.FuturesAnalyticsHistoricalDataLoaderParameters.CalculationConfigurationVersion)
+            || string.IsNullOrWhiteSpace(value.FuturesAnalyticsHistoricalDataLoaderParameters.RequestedBy))
             errors.Add(new("Normalization, calculation configuration, and requester are required."));
-        foreach (var series in value.Parameters.Series ?? [])
+        foreach (var series in value.FuturesAnalyticsHistoricalDataLoaderParameters.Series ?? [])
         {
             if (series is null) { errors.Add(new("Historical series identity is required.")); continue; }
             if (new MarketSeriesIdentityValidationRules().Execute(series.MarketSeriesIdentity).Length != 0)

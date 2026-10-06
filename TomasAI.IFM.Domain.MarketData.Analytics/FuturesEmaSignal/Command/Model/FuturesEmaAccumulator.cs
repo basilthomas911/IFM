@@ -89,8 +89,8 @@ public static class FuturesEmaAccumulator
 
 /// <summary>Contains one EMA state transition.</summary>
 public sealed record FuturesEmaAccumulatorResult(
-    FuturesEmaAccumulatorCheckpoint Checkpoint,
-    FuturesEmaSignalReadModel? Signal,
+    FuturesEmaAccumulatorCheckpoint FuturesEmaCheckpoint,
+    FuturesEmaSignalReadModel? FuturesEmaSignal,
     MarketObservationApplicationDisposition Disposition)
 {
     /// <summary>Gets whether this transition advanced durable state.</summary>

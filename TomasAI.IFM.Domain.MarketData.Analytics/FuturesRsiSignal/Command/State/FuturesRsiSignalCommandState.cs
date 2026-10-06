@@ -19,7 +19,7 @@ public class FuturesRsiSignalCommandState
     readonly List<FuturesRsiSignalReadModel> _futuresRsiSignals = [];
 
     /// <summary>Gets the current event-sourced Wilder RSI accumulator state.</summary>
-    public FuturesRsiAccumulatorCheckpoint? AccumulatorCheckpoint { get; private set; }
+    public FuturesRsiAccumulatorCheckpoint? FuturesRsiCheckpoint { get; private set; }
 
     /// <summary>
     /// Gets or sets the unique identifier for the actor thread associated with this state.
@@ -48,10 +48,10 @@ public class FuturesRsiSignalCommandState
         {
             if (e.ResetForHistoricalSeed)
             {
-                AccumulatorCheckpoint = null;
+                FuturesRsiCheckpoint = null;
                 _futuresRsiSignals.Clear();
             }
-            AccumulatorCheckpoint = e.RestoredCheckpoint ?? AccumulatorCheckpoint;
+            FuturesRsiCheckpoint = e.RestoredCheckpoint ?? FuturesRsiCheckpoint;
             if (_futuresRsiSignals.Count == 0 && e.HistoricalWarmSignals is { Length: > 0 })
                 _futuresRsiSignals.AddRange(e.HistoricalWarmSignals.TakeLast(MaxSignalHistory));
             if (e.RestoredSignal is { } signal && _futuresRsiSignals.Count == 0)
@@ -63,7 +63,7 @@ public class FuturesRsiSignalCommandState
         {
             if (e.FuturesRsiSignal is not null)
             {
-                AccumulatorCheckpoint = e.AccumulatorCheckpoint ?? AccumulatorCheckpoint;
+                FuturesRsiCheckpoint = e.FuturesRsiCheckpoint ?? FuturesRsiCheckpoint;
                 _futuresRsiSignals.Add(e.FuturesRsiSignal);
                 if (_futuresRsiSignals.Count > MaxSignalHistory)
                     _futuresRsiSignals.RemoveAt(0);
@@ -108,4 +108,15 @@ public class FuturesRsiSignalCommandState
         }
         return false;
     }
+    /// <summary>Applies precomputed RSI lifecycle, checkpoint, and collection events through event dispatch.</summary>
+    /// <param name="rsiEvents">The accepted events in causal order.</param>
+    /// <param name="command">The originating command to preserve on every applied event.</param>
+    /// <returns>True when every event has been applied.</returns>
+    public bool Update(IReadOnlyList<IEvent> rsiEvents, ICommand command)
+    {
+        foreach (var rsiEvent in rsiEvents)
+            if (!Update(rsiEvent, command)) return false;
+        return true;
+    }
+
 }

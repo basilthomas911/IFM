@@ -41,7 +41,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                     LoadFuturesAnalyticsHistoricalDataCommand.Actor,
                     LoadFuturesAnalyticsHistoricalDataCommand.Verb,
                     entityId.Format()),
-                Parameters = new FuturesAnalyticsHistoricalDataLoaderParameters
+                FuturesAnalyticsHistoricalDataLoaderParameters = new FuturesAnalyticsHistoricalDataLoaderParameters
                 {
                     StartDate = candidateValueDate.AddYears(-1),
                     EndDate = candidateValueDate,

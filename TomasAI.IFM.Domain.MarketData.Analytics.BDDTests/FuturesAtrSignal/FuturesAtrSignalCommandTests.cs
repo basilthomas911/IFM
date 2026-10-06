@@ -28,8 +28,8 @@ public sealed class FuturesAtrSignalCommandTests
         result.Success.Should().BeTrue();
         var generated = state.Events.Should().ContainSingle().Subject
             .Should().BeOfType<FuturesAtrSignalGeneratedEvent>().Subject;
-        generated.CalculationState.Should().NotBeNull();
-        generated.CalculationState!.LastObservationId.Should().Be(observation.ObservationId);
+        generated.FuturesAtrCheckpoint.Should().NotBeNull();
+        generated.FuturesAtrCheckpoint!.LastObservationId.Should().Be(observation.ObservationId);
         generated.FuturesAtrSignal.FuturesPrice.Should().Be(observation.Close);
     }
 
@@ -46,8 +46,8 @@ public sealed class FuturesAtrSignalCommandTests
         result.Success.Should().BeTrue();
         var generated = state.Events.Should().ContainSingle().Subject
             .Should().BeOfType<FuturesAtrDailySignalGeneratedEvent>().Subject;
-        generated.CalculationState.Should().NotBeNull();
-        generated.CalculationState!.LastObservationId.Should().Be(observation.ObservationId);
+        generated.FuturesAtrCheckpoint.Should().NotBeNull();
+        generated.FuturesAtrCheckpoint!.LastObservationId.Should().Be(observation.ObservationId);
         generated.FuturesAtrSignal.TimePeriod.Should().Be(TimeFrameType.Weekly);
     }
 

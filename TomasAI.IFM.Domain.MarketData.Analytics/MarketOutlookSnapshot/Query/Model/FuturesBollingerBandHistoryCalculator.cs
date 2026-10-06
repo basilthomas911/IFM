@@ -45,16 +45,16 @@ public static class FuturesBollingerBandHistoryCalculator
         {
             var observation = FuturesEodObservationMapper.ToDailyBar(source);
             var emaResult = FuturesEmaAccumulator.Apply(emaCheckpoint, observation);
-            emaCheckpoint = emaResult.Checkpoint;
-            if (emaResult.Signal is not { } ema)
+            emaCheckpoint = emaResult.FuturesEmaCheckpoint;
+            if (emaResult.FuturesEmaSignal is not { } ema)
                 continue;
 
             var bollingerResult = FuturesBbAccumulator.Apply(
                 bollingerCheckpoint,
                 observation,
                 ema);
-            bollingerCheckpoint = bollingerResult.Checkpoint;
-            if (bollingerResult.Signal is
+            bollingerCheckpoint = bollingerResult.FuturesBbCheckpoint;
+            if (bollingerResult.FuturesBbSignal is
                 {
                     Ema20Center: not null,
                     Upper20: not null,

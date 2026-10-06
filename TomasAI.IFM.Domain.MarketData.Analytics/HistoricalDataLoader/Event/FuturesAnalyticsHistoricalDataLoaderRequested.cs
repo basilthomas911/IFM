@@ -27,12 +27,12 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
         logger.LogInformation(
             "Received historical Analytics request {AttemptId}; automatic={AutomaticStartupWarmup}, received={ReceivedOnUtc}, target={AnalyticsTargetContractId}.",
             requested.EntityId.Value,
-            requested.Parameters.AutomaticStartupWarmup,
+            requested.FuturesAnalyticsHistoricalDataLoaderParameters.AutomaticStartupWarmup,
             requested.ReceivedOn,
-            requested.Parameters.AnalyticsTargetContractId);
+            requested.FuturesAnalyticsHistoricalDataLoaderParameters.AnalyticsTargetContractId);
         try
         {
-            if (requested.Parameters.AutomaticStartupWarmup
+            if (requested.FuturesAnalyticsHistoricalDataLoaderParameters.AutomaticStartupWarmup
                 && requested.ReceivedOn != default
                 && DateTime.UtcNow - DateTime.SpecifyKind(requested.ReceivedOn, DateTimeKind.Utc)
                     > AutomaticRequestMaximumAge)
@@ -46,7 +46,7 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
 
             HistoricalAnalyticsWarmupResult? warmupResult = null;
             HistoricalDataLoaderState state;
-            if (requested.Parameters.AutomaticStartupWarmup)
+            if (requested.FuturesAnalyticsHistoricalDataLoaderParameters.AutomaticStartupWarmup)
             {
                 logger.LogInformation(
                     "Writing historical Analytics coverage-scan checkpoint for {AttemptId}.",
@@ -163,7 +163,7 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
         FuturesAnalyticsHistoricalDataLoaderRequestedEvent requested) => new()
         {
             DataLoadAttemptId = requested.EntityId.Value,
-            Series = requested.Parameters.Series.Select(value => new MarketDataHistoricalSeriesRequest
+            Series = requested.FuturesAnalyticsHistoricalDataLoaderParameters.Series.Select(value => new MarketDataHistoricalSeriesRequest
             {
                 SeriesIdentity = value.MarketSeriesIdentity,
                 ContractId = value.ContractId,
@@ -174,15 +174,15 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
                     FuturesAnalyticsHistoricalSchema.OhlcvDaily => HistoricalDataSchema.OhlcvDaily,
                     _ => throw new InvalidOperationException($"Unsupported historical schema {value.Schema}.")
                 },
-                ExactTradesRequired = value.ExactTradesRequired || requested.Parameters.ExactVwapRequired
+                ExactTradesRequired = value.ExactTradesRequired || requested.FuturesAnalyticsHistoricalDataLoaderParameters.ExactVwapRequired
             }).ToArray(),
-            StartDate = requested.Parameters.StartDate,
-            EndDate = requested.Parameters.EndDate,
-            MaximumCostUsd = requested.Parameters.MaximumCostUsd,
-            MaximumBytes = requested.Parameters.MaximumBytes,
-            NormalizationVersion = requested.Parameters.NormalizationVersion,
-            RequestedBy = requested.Parameters.RequestedBy,
-            AnalyticsTargetContractId = requested.Parameters.AnalyticsTargetContractId
+            StartDate = requested.FuturesAnalyticsHistoricalDataLoaderParameters.StartDate,
+            EndDate = requested.FuturesAnalyticsHistoricalDataLoaderParameters.EndDate,
+            MaximumCostUsd = requested.FuturesAnalyticsHistoricalDataLoaderParameters.MaximumCostUsd,
+            MaximumBytes = requested.FuturesAnalyticsHistoricalDataLoaderParameters.MaximumBytes,
+            NormalizationVersion = requested.FuturesAnalyticsHistoricalDataLoaderParameters.NormalizationVersion,
+            RequestedBy = requested.FuturesAnalyticsHistoricalDataLoaderParameters.RequestedBy,
+            AnalyticsTargetContractId = requested.FuturesAnalyticsHistoricalDataLoaderParameters.AnalyticsTargetContractId
         };
 
     /// <summary>Parses a source record ordinal, returning minus one when it is unavailable.</summary>

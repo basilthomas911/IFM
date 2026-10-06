@@ -148,8 +148,8 @@ public sealed class FuturesAtrWilderAccumulatorTests
             .Which.Should().BeOfType<FuturesAtrSignalGeneratedEvent>();
         dailyState.Events.Should().ContainSingle()
             .Which.Should().BeOfType<FuturesAtrDailySignalGeneratedEvent>();
-        intradayState.CalculationState.Should().BeEquivalentTo(
-            dailyState.CalculationState,
+        intradayState.FuturesAtrCheckpoint.Should().BeEquivalentTo(
+            dailyState.FuturesAtrCheckpoint,
             options => options.Excluding(value => value.LastObservationId));
     }
 
@@ -204,7 +204,7 @@ public sealed class FuturesAtrWilderAccumulatorTests
         var roundTrip = MessagePackSerializer.Deserialize<FuturesAtrSignalGeneratedEvent>(
             MessagePackSerializer.Serialize(generated));
 
-        roundTrip.CalculationState.Should().BeEquivalentTo(generated.CalculationState);
+        roundTrip.FuturesAtrCheckpoint.Should().BeEquivalentTo(generated.FuturesAtrCheckpoint);
         roundTrip.FuturesAtrSignal.Should().BeEquivalentTo(generated.FuturesAtrSignal);
 
         var dailyObservation = DailyObservation(1, 99m, 101m, 100m);
@@ -225,7 +225,7 @@ public sealed class FuturesAtrWilderAccumulatorTests
         var dailyRoundTrip = MessagePackSerializer.Deserialize<FuturesAtrDailySignalGeneratedEvent>(
             MessagePackSerializer.Serialize(dailyGenerated));
 
-        dailyRoundTrip.CalculationState.Should().BeEquivalentTo(dailyGenerated.CalculationState);
+        dailyRoundTrip.FuturesAtrCheckpoint.Should().BeEquivalentTo(dailyGenerated.FuturesAtrCheckpoint);
         dailyRoundTrip.FuturesAtrSignal.Should().BeEquivalentTo(dailyGenerated.FuturesAtrSignal);
     }
 

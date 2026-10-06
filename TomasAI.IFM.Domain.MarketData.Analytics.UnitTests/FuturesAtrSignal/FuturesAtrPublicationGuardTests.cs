@@ -19,6 +19,6 @@ public sealed class FuturesAtrPublicationGuardTests
 
         Assert.False(result.Success);
         Assert.Empty(state.Events);
-        Assert.Null(state.CalculationState);
+        Assert.Null(state.FuturesAtrCheckpoint);
     }
 }

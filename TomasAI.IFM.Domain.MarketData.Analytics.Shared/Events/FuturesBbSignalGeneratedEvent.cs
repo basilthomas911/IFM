@@ -22,10 +22,10 @@ public sealed record FuturesBbSignalGeneratedEvent : IEvent<FuturesTradeSessionB
     [Key(5)] public string AggregateId { get; init; } = string.Empty;
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     [Key(7)] public DateTime ReceivedOn { get; init; }
-    /// <summary>Gets the generated Bollinger signal.</summary>
-    [Key(8)] public FuturesBbSignalReadModel Signal { get; init; } = new();
-    /// <summary>Gets the replayable Bollinger checkpoint.</summary>
-    [Key(9)] public FuturesBbAccumulatorCheckpoint Checkpoint { get; init; } = new();
+    /// <summary>Gets the generated Bollinger futuresBbSignal.</summary>
+    [Key(8)] public FuturesBbSignalReadModel FuturesBbSignal { get; init; } = new();
+    /// <summary>Gets the replayable Bollinger futuresBbCheckpoint.</summary>
+    [Key(9)] public FuturesBbAccumulatorCheckpoint FuturesBbCheckpoint { get; init; } = new();
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesBbSignalGeneratedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;
@@ -43,8 +43,8 @@ public sealed record FuturesBbSignalGeneratedEvent : IEvent<FuturesTradeSessionB
             AggregateId = AggregateId,
             EventSource = EventSource,
             ReceivedOn = ReceivedOn,
-            Signal = Signal,
-            Checkpoint = Checkpoint
+            FuturesBbSignal = FuturesBbSignal,
+            FuturesBbCheckpoint = FuturesBbCheckpoint
         };
 
     /// <inheritdoc />
@@ -70,10 +70,10 @@ public sealed record FuturesBbSignalGeneratedCompleteEvent : ICompleteEvent<Futu
     /// <param name="aggregateId">The AggregateId field.</param>
     /// <param name="eventSource">The EventSource field.</param>
     /// <param name="receivedOn">The ReceivedOn field.</param>
-    /// <param name="signal">The Signal field.</param>
-    /// <param name="checkpoint">The Checkpoint field.</param>
+    /// <param name="futuresBbSignal">The FuturesBbSignal field.</param>
+    /// <param name="futuresBbCheckpoint">The FuturesBbCheckpoint field.</param>
     [SerializationConstructor]
-    public FuturesBbSignalGeneratedCompleteEvent(ActorSubject subject, FuturesTradeSessionBarEntityId entityId, Guid id, long eventId, Guid commandId, string aggregateId, string eventSource, DateTime receivedOn, FuturesBbSignalReadModel signal, FuturesBbAccumulatorCheckpoint checkpoint)
+    public FuturesBbSignalGeneratedCompleteEvent(ActorSubject subject, FuturesTradeSessionBarEntityId entityId, Guid id, long eventId, Guid commandId, string aggregateId, string eventSource, DateTime receivedOn, FuturesBbSignalReadModel futuresBbSignal, FuturesBbAccumulatorCheckpoint futuresBbCheckpoint)
     {
         Subject = subject;
         EntityId = entityId;
@@ -83,8 +83,8 @@ public sealed record FuturesBbSignalGeneratedCompleteEvent : ICompleteEvent<Futu
         AggregateId = aggregateId;
         EventSource = eventSource;
         ReceivedOn = receivedOn;
-        Signal = signal;
-        Checkpoint = checkpoint;
+        FuturesBbSignal = futuresBbSignal;
+        FuturesBbCheckpoint = futuresBbCheckpoint;
     }
     public const string Verb = "SignalGeneratedComplete";
     [Key(0)] public ActorSubject Subject { get; init; }
@@ -95,8 +95,8 @@ public sealed record FuturesBbSignalGeneratedCompleteEvent : ICompleteEvent<Futu
     [Key(5)] public string AggregateId { get; init; } = string.Empty;
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     [Key(7)] public DateTime ReceivedOn { get; init; }
-    [Key(8)] public FuturesBbSignalReadModel Signal { get; init; } = new();
-    [Key(9)] public FuturesBbAccumulatorCheckpoint Checkpoint { get; init; } = new();
+    [Key(8)] public FuturesBbSignalReadModel FuturesBbSignal { get; init; } = new();
+    [Key(9)] public FuturesBbAccumulatorCheckpoint FuturesBbCheckpoint { get; init; } = new();
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesBbSignalGeneratedCompleteEvent);
     [IgnoreMember] public EventType EventType => EventType.CompletedEvent;

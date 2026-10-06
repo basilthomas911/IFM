@@ -34,8 +34,8 @@ public class FuturesAtrSignalCommandState
         {
             FuturesAtrSignalStartedEvent e => Reset(e.ResetForHistoricalSeed),
             FuturesAtrSignalStoppedEvent => true,
-            FuturesAtrSignalGeneratedEvent e => On(e.CalculationState, e.FuturesAtrSignal),
-            FuturesAtrDailySignalGeneratedEvent e => On(e.CalculationState, e.FuturesAtrSignal),
+            FuturesAtrSignalGeneratedEvent e => On(e.FuturesAtrCheckpoint, e.FuturesAtrSignal),
+            FuturesAtrDailySignalGeneratedEvent e => On(e.FuturesAtrCheckpoint, e.FuturesAtrSignal),
             _ => false
         };
 
@@ -64,9 +64,23 @@ public class FuturesAtrSignalCommandState
     }
 
     /// <summary>Gets the replayed Wilder checkpoint for the current aggregate stream.</summary>
-    internal FuturesAtrAccumulatorCheckpoint? CalculationState => _calculationState;
+    internal FuturesAtrAccumulatorCheckpoint? FuturesAtrCheckpoint => _calculationState;
 
     /// <summary>Gets the latest event-sourced ATR signal restored with the checkpoint.</summary>
     internal FuturesAtrSignalReadModel? AtrSignal => _atrSignal;
+
+    /// <summary>Applies the prevalidated lifecycle and historical events through the state event dispatcher.</summary>
+    /// <param name="startedEvent">The accepted start event.</param>
+    /// <param name="historicalSignals">Precomputed historical signal events in observation order.</param>
+    /// <param name="command">The originating start command.</param>
+    /// <returns>True when all events were applied to the owning state.</returns>
+    public bool Update(FuturesAtrSignalStartedEvent startedEvent,
+        IReadOnlyList<FuturesAtrSignalGeneratedEvent> historicalSignals, ICommand command)
+    {
+        if (!Update(startedEvent, command)) return false;
+        foreach (var historicalSignal in historicalSignals)
+            if (!Update(historicalSignal, command)) return false;
+        return true;
+    }
 
 }

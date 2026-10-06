@@ -24,9 +24,9 @@ public sealed record FuturesAnalyticsHistoricalDataLoaderRequestedEvent
     /// <param name="aggregateId">The AggregateId field.</param>
     /// <param name="eventSource">The EventSource field.</param>
     /// <param name="receivedOn">The ReceivedOn field.</param>
-    /// <param name="parameters">The Parameters field.</param>
+    /// <param name="futuresAnalyticsHistoricalDataLoaderParameters">The FuturesAnalyticsHistoricalDataLoaderParameters field.</param>
     [SerializationConstructor]
-    public FuturesAnalyticsHistoricalDataLoaderRequestedEvent(ActorSubject subject, Guid id, FuturesAnalyticsHistoricalDataLoaderEntityId entityId, long eventId, Guid commandId, string aggregateId, string eventSource, DateTime receivedOn, FuturesAnalyticsHistoricalDataLoaderParameters parameters)
+    public FuturesAnalyticsHistoricalDataLoaderRequestedEvent(ActorSubject subject, Guid id, FuturesAnalyticsHistoricalDataLoaderEntityId entityId, long eventId, Guid commandId, string aggregateId, string eventSource, DateTime receivedOn, FuturesAnalyticsHistoricalDataLoaderParameters futuresAnalyticsHistoricalDataLoaderParameters)
     {
         Subject = subject;
         Id = id;
@@ -36,7 +36,7 @@ public sealed record FuturesAnalyticsHistoricalDataLoaderRequestedEvent
         AggregateId = aggregateId;
         EventSource = eventSource;
         ReceivedOn = receivedOn;
-        Parameters = parameters;
+        FuturesAnalyticsHistoricalDataLoaderParameters = futuresAnalyticsHistoricalDataLoaderParameters;
     }
     /// <summary>Gets the durable Event actor name.</summary>
     public const string Actor = "FuturesAnalyticsHistoricalDataLoaderEvent";
@@ -58,10 +58,10 @@ public sealed record FuturesAnalyticsHistoricalDataLoaderRequestedEvent
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     /// <inheritdoc />
     [Key(7)] public DateTime ReceivedOn { get; init; }
-    /// <summary>Gets the immutable data load parameters.</summary>
-    [Key(8)] public FuturesAnalyticsHistoricalDataLoaderParameters Parameters { get; init; } = new();
+    /// <summary>Gets the immutable data load futuresAnalyticsHistoricalDataLoaderParameters.</summary>
+    [Key(8)] public FuturesAnalyticsHistoricalDataLoaderParameters FuturesAnalyticsHistoricalDataLoaderParameters { get; init; } = new();
     /// <inheritdoc />
-    [IgnoreMember] public string UserName => Parameters.RequestedBy;
+    [IgnoreMember] public string UserName => FuturesAnalyticsHistoricalDataLoaderParameters.RequestedBy;
     /// <inheritdoc />
     [IgnoreMember] public string EventName => nameof(FuturesAnalyticsHistoricalDataLoaderRequestedEvent);
     /// <inheritdoc />

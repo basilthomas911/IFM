@@ -100,4 +100,15 @@ public class FuturesTradeSignalCommandState
         };
 
 
+    /// <summary>Applies the precomputed trade signal and optional hold transition through event dispatch.</summary>
+    /// <param name="tradeSignalEvents">The accepted signal and hold events in causal order.</param>
+    /// <param name="command">The originating trade signal command.</param>
+    /// <returns>True when all events have been applied.</returns>
+    public bool Update(IReadOnlyList<IEvent> tradeSignalEvents, ICommand command)
+    {
+        foreach (var tradeSignalEvent in tradeSignalEvents)
+            if (!Update(tradeSignalEvent, command)) return false;
+        return true;
+    }
+
 }

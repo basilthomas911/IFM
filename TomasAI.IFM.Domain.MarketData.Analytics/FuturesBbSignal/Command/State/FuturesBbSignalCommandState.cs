@@ -13,20 +13,29 @@ public sealed class FuturesBbSignalCommandState
     /// <inheritdoc />
     public override ActorThreadId Id { get; set; } = default!;
     /// <summary>Gets the replayed Bollinger checkpoint.</summary>
-    public FuturesBbAccumulatorCheckpoint? Checkpoint { get; private set; }
+    public FuturesBbAccumulatorCheckpoint? FuturesBbCheckpoint { get; private set; }
     /// <summary>Gets the most recently generated signal.</summary>
-    public FuturesBbSignalReadModel? Signal { get; private set; }
+    public FuturesBbSignalReadModel? FuturesBbSignal { get; private set; }
     /// <inheritdoc />
     protected override bool Apply(IEvent domainEvent)
     {
-        if (domainEvent is not FuturesBbSignalGeneratedEvent generated) return false;
-        if (generated.Checkpoint is null || generated.Signal is null) return false;
-        Checkpoint = generated.Checkpoint with
+        return domainEvent switch
         {
-            Closes = [.. generated.Checkpoint.Closes],
-            CompletedWidths20 = [.. generated.Checkpoint.CompletedWidths20]
+            FuturesBbSignalGeneratedEvent generated => On(generated),
+            _ => false
         };
-        Signal = generated.Signal;
+    }
+
+    /// <summary>Mutates the authoritative business values only from the accepted domain event.</summary>
+    bool On(FuturesBbSignalGeneratedEvent generated)
+    {
+        if (generated.FuturesBbCheckpoint is null || generated.FuturesBbSignal is null) return false;
+        FuturesBbCheckpoint = generated.FuturesBbCheckpoint with
+        {
+            Closes = [.. generated.FuturesBbCheckpoint.Closes],
+            CompletedWidths20 = [.. generated.FuturesBbCheckpoint.CompletedWidths20]
+        };
+        FuturesBbSignal = generated.FuturesBbSignal;
         return true;
     }
 }

@@ -50,15 +50,15 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisher(
                 cancellationToken.ThrowIfCancellationRequested();
                 var observation = FuturesEodObservationMapper.ToDailyBar(source);
                 var emaResult = FuturesEmaAccumulator.Apply(emaCheckpoint, observation);
-                emaCheckpoint = emaResult.Checkpoint;
-                if (emaResult.Signal is { } emaSignal)
+                emaCheckpoint = emaResult.FuturesEmaCheckpoint;
+                if (emaResult.FuturesEmaSignal is { } emaSignal)
                 {
                     var bbResult = FuturesBbAccumulator.Apply(bbCheckpoint, observation, emaSignal);
-                    bbCheckpoint = bbResult.Checkpoint;
+                    bbCheckpoint = bbResult.FuturesBbCheckpoint;
                     if (IsEsSeries(seriesGroup.Key))
                     {
                         latestEsEma = emaSignal;
-                        latestEsBb = bbResult.Signal;
+                        latestEsBb = bbResult.FuturesBbSignal;
                         latestEsEmaCheckpoint = emaCheckpoint;
                         latestEsBbCheckpoint = bbCheckpoint;
                         latestEsContractId = source.ContractId;

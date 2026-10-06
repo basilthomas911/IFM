@@ -8,75 +8,90 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command;
 
+/// <summary>Owns the concrete command handler and event factories for this analytics operation.</summary>
 public static class UpdateFuturesTradeSignal
 {
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="e"></param>
-    /// <param name="state"></param>
-    /// <returns></returns>
-    public static ServiceResult<GuidResult> Execute(this UpdateFuturesTradeSignalCommand e, FuturesTradeSignalCommandState state)
+    /// <summary>Computes and validates the Futures Trade Signal command, then applies accepted events through actor-owned state.</summary>
+    /// <param name="command">The originating concrete command, including its identity and domain inputs.</param>
+    /// <param name="state">The command actor state that owns the current business values and pending events.</param>
+    /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
+    public static ServiceResult<GuidResult> Execute(this UpdateFuturesTradeSignalCommand command, FuturesTradeSignalCommandState state)
     {
-        if (!e.Compute(out var model))
-            return e.UpdateFailed($"{e.CommandName}: unable to compute trade signal");
-        if (!state.HasFuturesTradeSignalChanged(model.FuturesTradeSignal))
-            return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
-
-        // Capture the transition before applying the new trade signal to the state.
-        var holdChanged = state.HasFuturesItiSignalHoldTradeChanged(model.FuturesTradeSignal);
-        if (!state.Update(e.CreateFuturesTradeSignalUpdatedEvent(model), e))
-            return e.UpdateFailed($"{e.CommandName}: unable to apply trade signal update");
-        if (holdChanged && !state.Update(e.CreateFuturesItiSignalHoldTradeChangedEvent(model), e))
-            throw new InvalidOperationException("A validated ITI hold transition was rejected after the trade signal update.");
-        return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
+        var futuresTradeSignalComputed = command.Compute(out var futuresTradeSignalCompute);
+        if (futuresTradeSignalComputed && !state.HasFuturesTradeSignalChanged(futuresTradeSignalCompute.FuturesTradeSignal))
+            return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
+        var errorMsg = "unable to apply trade signal events";
+        var updated = futuresTradeSignalComputed switch
+        {
+            _ when !futuresTradeSignalComputed
+                => command.UpdateFailed(ref errorMsg, "unable to compute trade signal"),
+            _ => state.Update(command.CreateFuturesTradeSignalEvents(futuresTradeSignalCompute,
+                state.HasFuturesItiSignalHoldTradeChanged(futuresTradeSignalCompute.FuturesTradeSignal)), command)
+        };
+        return updated
+            ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
+            : command.UpdateFailed($"{command.CommandName}: {errorMsg}");
     }
 
-    /// <summary>
-    /// Attempts to create a new futures trade signal compute model based on the specified command.
-    /// </summary>
-    /// <param name="e">The command containing the EOD data and technical signals used to generate the trade signal compute model.</param>
-    /// <param name="computeModel">When this method returns, contains the resulting futures trade signal compute model if the operation succeeds;
-    /// otherwise, contains null.</param>
-    /// <returns>true if the compute model was successfully created; otherwise, false.</returns>
-    internal static bool Compute(this UpdateFuturesTradeSignalCommand e, out FuturesTradeSignalCompute computeModel)
-        => FuturesTradeSignalCompute.Create(e, out computeModel);
+    /// <summary>Creates the Futures Trade Signal event payload from accepted business data without changing state or publishing messages.</summary>
+    /// <param name="command">The originating concrete command, including its identity and domain inputs.</param>
+    /// <param name="futuresTradeSignalCompute">The computed business decision, including accepted domain values and any no-change or rejection information.</param>
+    /// <param name="holdTradeChanged">Whether the computed trade signal requires a correlated ITI hold transition.</param>
+    /// <returns>The event or ordered event collection to apply through actor state and persist before projection.</returns>
+    internal static IReadOnlyList<IEvent> CreateFuturesTradeSignalEvents(this UpdateFuturesTradeSignalCommand command,
+        FuturesTradeSignalCompute futuresTradeSignalCompute, bool holdTradeChanged)
+    {
+        var events = new List<IEvent> { command.CreateFuturesTradeSignalUpdatedEvent(futuresTradeSignalCompute) };
+        if (holdTradeChanged) events.Add(command.CreateFuturesItiSignalHoldTradeChangedEvent(futuresTradeSignalCompute));
+        return events;
+    }
 
-    /// <summary>
-    /// Creates a new <see cref="FuturesTradeSignalUpdatedEvent"/> using the specified command and computed trade signal.
-    /// </summary>
-    internal static FuturesTradeSignalUpdatedEvent CreateFuturesTradeSignalUpdatedEvent(this UpdateFuturesTradeSignalCommand e, FuturesTradeSignalCompute computed)
+
+    /// <summary>Computes the proposed Futures Trade Signal result from the supplied business inputs without mutating actor state or pending events.</summary>
+    /// <param name="command">The originating concrete command, including its identity and domain inputs.</param>
+    /// <param name="futuresTradeSignalCompute">The computed business decision, including accepted domain values and any no-change or rejection information.</param>
+    /// <returns>True when the proposed business result advances or is accepted; otherwise, false. The output retains the no-change or rejection decision.</returns>
+    /// <remarks>Accumulator validation exceptions propagate to the command actor exception boundary.</remarks>
+    internal static bool Compute(this UpdateFuturesTradeSignalCommand command, out FuturesTradeSignalCompute futuresTradeSignalCompute)
+        => FuturesTradeSignalCompute.Create(command, out futuresTradeSignalCompute);
+
+    /// <summary>Creates the Futures Trade Signal event payload from accepted business data without changing state or publishing messages.</summary>
+    /// <param name="command">The originating concrete command, including its identity and domain inputs.</param>
+    /// <param name="futuresTradeSignalCompute">The computed business decision, including accepted domain values and any no-change or rejection information.</param>
+    /// <returns>The event or ordered event collection to apply through actor state and persist before projection.</returns>
+    internal static FuturesTradeSignalUpdatedEvent CreateFuturesTradeSignalUpdatedEvent(this UpdateFuturesTradeSignalCommand command, FuturesTradeSignalCompute futuresTradeSignalCompute)
         => new()
         {
-            CommandId = e.CommandId,
+            CommandId = command.CommandId,
             Subject = new ActorSubject(
                 ActorType.Event,
                 FuturesTradeSignalUpdatedEvent.Actor,
                 FuturesTradeSignalUpdatedEvent.Verb,
-                e.EntityId.Format()),
-            EntityId = e.EntityId,
-            FuturesTradeSignal = computed.FuturesTradeSignal,
-            CreatedOn = e.OriginatedOn,
-            CreatedBy = e.OriginatedBy
+                command.EntityId.Format()),
+            EntityId = command.EntityId,
+            FuturesTradeSignal = futuresTradeSignalCompute.FuturesTradeSignal,
+            CreatedOn = command.OriginatedOn,
+            CreatedBy = command.OriginatedBy
         };
 
-    /// <summary>
-    /// Creates a new <see cref="FuturesItiSignalHoldTradeChangedEvent"/> using the specified command and computed trade signal.
-    /// </summary>
-    internal static FuturesItiSignalHoldTradeChangedEvent CreateFuturesItiSignalHoldTradeChangedEvent(this UpdateFuturesTradeSignalCommand e, FuturesTradeSignalCompute computed)
+    /// <summary>Creates the Futures Trade Signal event payload from accepted business data without changing state or publishing messages.</summary>
+    /// <param name="command">The originating concrete command, including its identity and domain inputs.</param>
+    /// <param name="futuresTradeSignalCompute">The computed business decision, including accepted domain values and any no-change or rejection information.</param>
+    /// <returns>The event or ordered event collection to apply through actor state and persist before projection.</returns>
+    internal static FuturesItiSignalHoldTradeChangedEvent CreateFuturesItiSignalHoldTradeChangedEvent(this UpdateFuturesTradeSignalCommand command, FuturesTradeSignalCompute futuresTradeSignalCompute)
     {
         var entityId = new FuturesItiSignalEntityId(
-            e.EntityId.ContractId,
-            e.EntityId.ValueDate,
-            e.EntityId.TimePeriod);
+            command.EntityId.ContractId,
+            command.EntityId.ValueDate,
+            command.EntityId.TimePeriod);
         var signalId = FuturesItiSignalId.Create(
-            e.EntityId.ContractId,
-            e.EntityId.ValueDate,
-            e.EntityId.TimePeriod,
-            e.OriginatedOn);
+            command.EntityId.ContractId,
+            command.EntityId.ValueDate,
+            command.EntityId.TimePeriod,
+            command.OriginatedOn);
         return new()
         {
-            CommandId = e.CommandId,
+            CommandId = command.CommandId,
             Subject = new ActorSubject(
                 ActorType.Event,
                 FuturesItiSignalHoldTradeChangedEvent.Actor,
@@ -84,9 +99,9 @@ public static class UpdateFuturesTradeSignal
                 entityId.Format()),
             EntityId = entityId,
             FuturesItiSignalId = signalId,
-            HoldTrade = computed.FuturesTradeSignal.TradeExecuteState == TradeExecuteState.Hold,
-            CreatedOn = e.OriginatedOn,
-            CreatedBy = e.OriginatedBy
+            HoldTrade = futuresTradeSignalCompute.FuturesTradeSignal.TradeExecuteState == TradeExecuteState.Hold,
+            CreatedOn = command.OriginatedOn,
+            CreatedBy = command.OriginatedBy
         };
     }
 

@@ -14,17 +14,26 @@ public sealed class FuturesVxTermStructureSignalCommandState
     /// <inheritdoc />
     public override ActorThreadId Id { get; set; } = default!;
     /// <summary>Gets the latest replayed pair checkpoint.</summary>
-    public FuturesVxTermStructureCheckpoint? Checkpoint { get; private set; }
+    public FuturesVxTermStructureCheckpoint? FuturesVxTermStructureCheckpoint { get; private set; }
     /// <summary>Gets the latest valid paired signal.</summary>
-    public FuturesVxTermStructureSignalReadModel? Signal { get; private set; }
+    public FuturesVxTermStructureSignalReadModel? FuturesVxTermStructureSignal { get; private set; }
 
     /// <inheritdoc />
     protected override bool Apply(IEvent domainEvent)
     {
-        if (domainEvent is not FuturesVxTermStructureSignalUpdatedEvent updated) return false;
-        if (updated.Checkpoint is null) return false;
-        Checkpoint = updated.Checkpoint;
-        if (updated.Signal is not null) Signal = updated.Signal;
+        return domainEvent switch
+        {
+            FuturesVxTermStructureSignalUpdatedEvent updated => On(updated),
+            _ => false
+        };
+    }
+
+    /// <summary>Mutates the authoritative business values only from the accepted domain event.</summary>
+    bool On(FuturesVxTermStructureSignalUpdatedEvent updated)
+    {
+        if (updated.FuturesVxTermStructureCheckpoint is null) return false;
+        FuturesVxTermStructureCheckpoint = updated.FuturesVxTermStructureCheckpoint;
+        if (updated.FuturesVxTermStructureSignal is not null) FuturesVxTermStructureSignal = updated.FuturesVxTermStructureSignal;
         return true;
     }
 }

@@ -1,4 +1,3 @@
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
@@ -28,11 +27,10 @@ public sealed class FuturesItiSignalCompute
 
     public static bool Create(
         GenerateFuturesItiSignalCommand command,
-        FuturesItiSignalCommandState state,
+        FuturesItiSignalV2ReadModel? currentFuturesItiSignal,
         out FuturesItiSignalCompute model)
     {
-        ArgumentNullException.ThrowIfNull(state);
-        model = new FuturesItiSignalCompute(command, state.CurrentSignal);
+        model = new FuturesItiSignalCompute(command, currentFuturesItiSignal);
         return true;
     }
 

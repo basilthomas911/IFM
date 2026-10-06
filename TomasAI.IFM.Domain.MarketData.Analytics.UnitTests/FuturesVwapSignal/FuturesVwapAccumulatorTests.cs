@@ -31,13 +31,13 @@ public sealed class FuturesVwapAccumulatorTests
         var first = FuturesVwapAccumulator.ApplyLive(
             EntityId, null, Trade(1, 100m, 2), Configuration);
         var second = FuturesVwapAccumulator.ApplyLive(
-            EntityId, first.Checkpoint, Trade(2, 110m, 1), Configuration);
+            EntityId, first.FuturesVwapCheckpoint, Trade(2, 110m, 1), Configuration);
 
-        Assert.Equal(310m, second.Checkpoint.CumulativePriceVolume);
-        Assert.Equal(3, second.Checkpoint.CumulativeVolume);
-        Assert.Equal(310m / 3m, second.Signal.Vwap);
-        Assert.Equal(110m - 310m / 3m, second.Signal.PriceMinusVwap);
-        Assert.True(second.Signal.IsTickExact);
+        Assert.Equal(310m, second.FuturesVwapCheckpoint.CumulativePriceVolume);
+        Assert.Equal(3, second.FuturesVwapCheckpoint.CumulativeVolume);
+        Assert.Equal(310m / 3m, second.FuturesVwapSignal.Vwap);
+        Assert.Equal(110m - 310m / 3m, second.FuturesVwapSignal.PriceMinusVwap);
+        Assert.True(second.FuturesVwapSignal.IsTickExact);
     }
 
     [Fact]
@@ -47,15 +47,15 @@ public sealed class FuturesVwapAccumulatorTests
         var latest = SourceCheckpoint(3, 530m, 5);
         var initial = FuturesVwapAccumulator.ApplySourceCheckpoint(EntityId, null,
             first, Configuration, SessionStart, SessionEnd);
-        var healed = FuturesVwapAccumulator.ApplySourceCheckpoint(EntityId, initial.Checkpoint,
+        var healed = FuturesVwapAccumulator.ApplySourceCheckpoint(EntityId, initial.FuturesVwapCheckpoint,
             latest, Configuration, SessionStart, SessionEnd);
-        var duplicate = FuturesVwapAccumulator.ApplySourceCheckpoint(EntityId, healed.Checkpoint,
+        var duplicate = FuturesVwapAccumulator.ApplySourceCheckpoint(EntityId, healed.FuturesVwapCheckpoint,
             first, Configuration, SessionStart, SessionEnd);
 
         Assert.True(healed.Changed);
-        Assert.Equal(530m / 5m, healed.Signal.Vwap);
-        Assert.Equal(3, healed.Checkpoint.LastTradeOrdinal);
-        Assert.True(healed.Signal.IsTickExact);
+        Assert.Equal(530m / 5m, healed.FuturesVwapSignal.Vwap);
+        Assert.Equal(3, healed.FuturesVwapCheckpoint.LastTradeOrdinal);
+        Assert.True(healed.FuturesVwapSignal.IsTickExact);
         Assert.False(duplicate.Changed);
     }
 
@@ -66,8 +66,8 @@ public sealed class FuturesVwapAccumulatorTests
             SourceCheckpoint(1, 200m, 2) with { IsValid = false },
             Configuration, SessionStart, SessionEnd);
 
-        Assert.False(result.Signal.IsValid);
-        Assert.False(result.Signal.IsTickExact);
+        Assert.False(result.FuturesVwapSignal.IsValid);
+        Assert.False(result.FuturesVwapSignal.IsTickExact);
     }
 
     [Fact]
@@ -143,10 +143,10 @@ public sealed class FuturesVwapAccumulatorTests
             EntityId, null, Trade(2, 100m, 1), Configuration);
 
         var duplicate = FuturesVwapAccumulator.ApplyLive(
-            EntityId, first.Checkpoint, Trade(2, 101m, 1), Configuration);
+            EntityId, first.FuturesVwapCheckpoint, Trade(2, 101m, 1), Configuration);
 
         Assert.False(duplicate.Changed);
-        Assert.Equal(first.Checkpoint, duplicate.Checkpoint);
+        Assert.Equal(first.FuturesVwapCheckpoint, duplicate.FuturesVwapCheckpoint);
     }
 
     [Fact]
@@ -156,12 +156,12 @@ public sealed class FuturesVwapAccumulatorTests
             EntityId, null, Trade(1, 100m, 1), Configuration);
 
         var gap = FuturesVwapAccumulator.ApplyLive(
-            EntityId, first.Checkpoint, Trade(3, 102m, 1), Configuration);
+            EntityId, first.FuturesVwapCheckpoint, Trade(3, 102m, 1), Configuration);
 
-        Assert.False(gap.Signal.IsValid);
-        Assert.False(gap.Signal.IsTickExact);
-        Assert.Equal(FuturesVwapInvalidReason.DeliveryGap, gap.Signal.InvalidReason);
-        Assert.Equal(2, gap.Checkpoint.EligibleTradeCount);
+        Assert.False(gap.FuturesVwapSignal.IsValid);
+        Assert.False(gap.FuturesVwapSignal.IsTickExact);
+        Assert.Equal(FuturesVwapInvalidReason.DeliveryGap, gap.FuturesVwapSignal.InvalidReason);
+        Assert.Equal(2, gap.FuturesVwapCheckpoint.EligibleTradeCount);
     }
 
     [Fact]
@@ -172,10 +172,10 @@ public sealed class FuturesVwapAccumulatorTests
         var changed = Trade(2, 101m, 1) with { StreamEpochId = Guid.NewGuid() };
 
         var result = FuturesVwapAccumulator.ApplyLive(
-            EntityId, first.Checkpoint, changed, Configuration);
+            EntityId, first.FuturesVwapCheckpoint, changed, Configuration);
 
-        Assert.Equal(FuturesVwapInvalidReason.StreamEpochChanged, result.Signal.InvalidReason);
-        Assert.False(result.Signal.IsValid);
+        Assert.Equal(FuturesVwapInvalidReason.StreamEpochChanged, result.FuturesVwapSignal.InvalidReason);
+        Assert.False(result.FuturesVwapSignal.IsValid);
     }
 
     [Theory]
@@ -189,10 +189,10 @@ public sealed class FuturesVwapAccumulatorTests
             EntityId, null, Trade(1, 100m, 1), Configuration);
 
         var result = FuturesVwapAccumulator.ApplyLive(
-            EntityId, first.Checkpoint, Trade(2, 100m, 1) with { Action = action }, Configuration);
+            EntityId, first.FuturesVwapCheckpoint, Trade(2, 100m, 1) with { Action = action }, Configuration);
 
-        Assert.Equal(FuturesVwapInvalidReason.UncorrelatableCorrection, result.Signal.InvalidReason);
-        Assert.False(result.Signal.IsValid);
+        Assert.Equal(FuturesVwapInvalidReason.UncorrelatableCorrection, result.FuturesVwapSignal.InvalidReason);
+        Assert.False(result.FuturesVwapSignal.IsValid);
     }
 
     [Fact]
@@ -200,16 +200,16 @@ public sealed class FuturesVwapAccumulatorTests
     {
         FuturesVwapCheckpoint? live = null;
         foreach (var trade in new[] { Trade(1, 100m, 2), Trade(2, 102m, 3), Trade(3, 99m, 1) })
-            live = FuturesVwapAccumulator.ApplyLive(EntityId, live, trade, Configuration).Checkpoint;
+            live = FuturesVwapAccumulator.ApplyLive(EntityId, live, trade, Configuration).FuturesVwapCheckpoint;
         var recovery = FuturesVwapAccumulator.ApplyRecovery(
             EntityId, null, Guid.NewGuid(), 0, true, true,
             new[] { Trade(1, 100m, 2), Trade(2, 102m, 3), Trade(3, 99m, 1) }, Configuration);
 
-        Assert.Equal(live!.CumulativePriceVolume, recovery.Checkpoint.CumulativePriceVolume);
-        Assert.Equal(live.CumulativeVolume, recovery.Checkpoint.CumulativeVolume);
-        Assert.Equal(live.EligibleTradeCount, recovery.Checkpoint.EligibleTradeCount);
-        Assert.True(recovery.Signal.IsValid);
-        Assert.True(recovery.Signal.IsTickExact);
+        Assert.Equal(live!.CumulativePriceVolume, recovery.FuturesVwapCheckpoint.CumulativePriceVolume);
+        Assert.Equal(live.CumulativeVolume, recovery.FuturesVwapCheckpoint.CumulativeVolume);
+        Assert.Equal(live.EligibleTradeCount, recovery.FuturesVwapCheckpoint.EligibleTradeCount);
+        Assert.True(recovery.FuturesVwapSignal.IsValid);
+        Assert.True(recovery.FuturesVwapSignal.IsTickExact);
     }
 
     [Fact]
@@ -223,16 +223,16 @@ public sealed class FuturesVwapAccumulatorTests
 
         var live = FuturesVwapAccumulator.ApplyLive(
             EntityId,
-            recovered.Checkpoint,
+            recovered.FuturesVwapCheckpoint,
             Trade(1, 104m, 1) with { StreamEpochId = liveEpoch },
             Configuration);
 
-        Assert.True(recovered.Signal.IsTickExact);
-        Assert.Equal(liveEpoch, recovered.Checkpoint.StreamEpochId);
-        Assert.Equal(0, recovered.Checkpoint.LastTradeOrdinal);
-        Assert.True(live.Signal.IsTickExact);
-        Assert.Equal(3, live.Checkpoint.EligibleTradeCount);
-        Assert.Equal(1, live.Checkpoint.LastTradeOrdinal);
+        Assert.True(recovered.FuturesVwapSignal.IsTickExact);
+        Assert.Equal(liveEpoch, recovered.FuturesVwapCheckpoint.StreamEpochId);
+        Assert.Equal(0, recovered.FuturesVwapCheckpoint.LastTradeOrdinal);
+        Assert.True(live.FuturesVwapSignal.IsTickExact);
+        Assert.Equal(3, live.FuturesVwapCheckpoint.EligibleTradeCount);
+        Assert.Equal(1, live.FuturesVwapCheckpoint.LastTradeOrdinal);
     }
 
     [Fact]
@@ -243,15 +243,15 @@ public sealed class FuturesVwapAccumulatorTests
             EntityId, null, Guid.NewGuid(), 0, true, true,
             [Trade(1, 100m, 2), Trade(2, 102m, 3)], Configuration, liveEpoch, 0);
 
-        var delayed = FuturesVwapAccumulator.ApplyLive(EntityId, recovered.Checkpoint,
+        var delayed = FuturesVwapAccumulator.ApplyLive(EntityId, recovered.FuturesVwapCheckpoint,
             Trade(2, 102m, 3) with { StreamEpochId = Epoch }, Configuration);
-        var current = FuturesVwapAccumulator.ApplyLive(EntityId, delayed.Checkpoint,
+        var current = FuturesVwapAccumulator.ApplyLive(EntityId, delayed.FuturesVwapCheckpoint,
             Trade(1, 104m, 1) with { StreamEpochId = liveEpoch }, Configuration);
 
         Assert.False(delayed.Changed);
-        Assert.Equal(recovered.Checkpoint, delayed.Checkpoint);
-        Assert.True(current.Signal.IsTickExact);
-        Assert.Equal(6, current.Checkpoint.CumulativeVolume);
+        Assert.Equal(recovered.FuturesVwapCheckpoint, delayed.FuturesVwapCheckpoint);
+        Assert.True(current.FuturesVwapSignal.IsTickExact);
+        Assert.Equal(6, current.FuturesVwapCheckpoint.CumulativeVolume);
     }
 
     [Fact]
@@ -261,9 +261,9 @@ public sealed class FuturesVwapAccumulatorTests
             EntityId, null, Guid.NewGuid(), 0, true, false,
             new[] { Trade(1, 100m, 2) }, Configuration);
 
-        Assert.True(recovery.Checkpoint.IsRecovering);
-        Assert.False(recovery.Signal.IsValid);
-        Assert.Equal(FuturesVwapInvalidReason.RecoveryIncomplete, recovery.Signal.InvalidReason);
+        Assert.True(recovery.FuturesVwapCheckpoint.IsRecovering);
+        Assert.False(recovery.FuturesVwapSignal.IsValid);
+        Assert.Equal(FuturesVwapInvalidReason.RecoveryIncomplete, recovery.FuturesVwapSignal.InvalidReason);
     }
 
     [Fact]

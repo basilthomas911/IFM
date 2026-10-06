@@ -64,6 +64,22 @@ public class FuturesAdxSignalCommandState
         }
     }
 
+    /// <summary>Applies a validated start and its precomputed historical signals through event dispatch.</summary>
+    /// <param name="startedEvent">The accepted ADX start event.</param>
+    /// <param name="historicalSignals">Prevalidated signal events in observation order.</param>
+    /// <param name="command">The originating start command used for event metadata.</param>
+    /// <returns>True when all initialization events have been applied.</returns>
+    public bool Update(FuturesAdxSignalStartedEvent startedEvent,
+        IReadOnlyList<FuturesAdxSignalGeneratedEvent> historicalSignals, ICommand command)
+    {
+        if (!Update(startedEvent, command))
+            return false;
+        foreach (var historicalSignal in historicalSignals)
+            if (!Update(historicalSignal, command))
+                return false;
+        return true;
+    }
+
     /// <summary>
     /// Gets the view model that provides ADX signal data for futures trading analysis.
     /// </summary>

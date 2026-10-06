@@ -15,10 +15,10 @@ public static class FuturesEmaSignalGeneratedComplete
         IFuturesEmaSignalEventContext context, ILogger<FuturesEmaSignalEventActor> logger)
     {
         await context.PublishMarketOutlookComponentAsync(@event).ConfigureAwait(false);
-        var result = await context.GenerateFuturesBbSignalAsync(@event.Observation, @event.Signal);
+        var result = await context.GenerateFuturesBbSignalAsync(@event.Observation, @event.FuturesEmaSignal);
         if (result is ServiceFailed<GuidResult>)
             logger.LogError("Bollinger command rejected EMA observation {ObservationId}.",
-                @event.Signal.Metadata.ObservationId);
+                @event.FuturesEmaSignal.Metadata.ObservationId);
         return result is not ServiceFailed<GuidResult>;
     }
 }

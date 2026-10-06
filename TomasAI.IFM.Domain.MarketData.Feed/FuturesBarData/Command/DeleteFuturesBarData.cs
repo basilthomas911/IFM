@@ -1,33 +1,53 @@
-using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.State;
+﻿using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Model;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command;
 
+/// <summary>Handles DeleteFuturesBarData commands through computation and state-owned event application.</summary>
 public static class DeleteFuturesBarData
 {
-    /// <summary>
-    /// Handle a <see cref="DeleteFuturesBarDataCommand"/> by building the corresponding
-    /// <see cref="FuturesBarDataDeletedEvent"/> and updating the actor state.
-    /// </summary>
-    public static ServiceResult<GuidResult> Execute(this DeleteFuturesBarDataCommand e, FuturesBarDataCommandState state)
-        => e.UpdateResult(() => state.Update(e.CreateFuturesBarDataDeletedEvent(), e));
-
-    /// <summary>
-    /// Creates a <see cref="FuturesBarDataDeletedEvent"/> from a <see cref="DeleteFuturesBarDataCommand"/>.
-    /// </summary>
-    /// <param name="e">The source delete command containing entity identifiers and origin metadata.</param>
-    /// <returns>A fully-populated deleted event ready to be applied to actor state.</returns>
-    internal static FuturesBarDataDeletedEvent CreateFuturesBarDataDeletedEvent(this DeleteFuturesBarDataCommand e)
-    => new()
+    /// <summary>Computes the requested business change and applies its event only after acceptance guards pass.</summary>
+    /// <param name="command">The originating command and its business inputs.</param>
+    /// <param name="state">The owning event-sourced state; mutations occur only through event application.</param>
+    /// <returns>The command identity on success, or the business rejection or application failure.</returns>
+    public static ServiceResult<GuidResult> Execute(this DeleteFuturesBarDataCommand command, FuturesBarDataCommandState state)
     {
-        Subject = new ActorSubject(ActorType.Event, FuturesBarDataDeletedEvent.Actor, FuturesBarDataDeletedEvent.Verb, e.EntityId.Format()),
-        EntityId = e.EntityId,
-        BarDataId = e.Id,
-        CreatedOn = e.OriginatedOn,
-        CreatedBy = e.OriginatedBy
-    };
+        var errorMsg = $"{command.CommandName}: unable to apply FuturesBarDataDeletedEvent";
+        var updated = command.Compute(out var deleteFuturesBarDataRequest) switch
+        {
+            _ => state.Update(command.CreateFuturesBarDataDeletedEvent(deleteFuturesBarDataRequest), command)
+        };
+        return updated
+            ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
+            : command.UpdateFailed(errorMsg);
+    }
 
+    /// <summary>Computes the proposed business inputs without mutating state or creating pending events.</summary>
+    /// <param name="command">The command supplying the requested business values.</param>
+    /// <param name="deleteFuturesBarDataRequest">The proposed business values passed to the event factory.</param>
+    /// <returns>True when the proposed inputs have been computed; acceptance guards are evaluated before application.</returns>
+    internal static bool Compute(this DeleteFuturesBarDataCommand command, out DeleteFuturesBarDataRequest deleteFuturesBarDataRequest)
+    {
+        deleteFuturesBarDataRequest = new(command.Id);
+        return true;
+    }
+
+    /// <summary>Creates the source event from computed business values with the originating command identity.</summary>
+    /// <param name="command">The originating command supplying route and audit metadata.</param>
+    /// <param name="deleteFuturesBarDataRequest">The accepted business values to carry in the event.</param>
+    /// <returns>A source event ready for the owning state's Update and Apply path.</returns>
+    internal static FuturesBarDataDeletedEvent CreateFuturesBarDataDeletedEvent(this DeleteFuturesBarDataCommand command, DeleteFuturesBarDataRequest deleteFuturesBarDataRequest)
+        => new()
+        {
+            CommandId = command.CommandId,
+            Subject = new ActorSubject(ActorType.Event, FuturesBarDataDeletedEvent.Actor, FuturesBarDataDeletedEvent.Verb, command.EntityId.Format()),
+            EntityId = command.EntityId,
+            BarDataId = deleteFuturesBarDataRequest.BarDataId,
+            CreatedOn = command.OriginatedOn,
+            CreatedBy = command.OriginatedBy
+        };
 }
