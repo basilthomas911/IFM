@@ -47,7 +47,7 @@ public sealed class DatabaseBackupApiTests
                 Arg.Any<ActorSubject>(), Arg.Any<RequestDatabaseBackupCommand>(), Arg.Any<DatabaseRecoveryOperationId>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(accepted.OperationId.Value))));
         var api = new DatabaseBackupCommandApi(producer);
-        var requestId = Guid.NewGuid();
+        var requestId = accepted.OperationId.Value;
         var command = new RequestDatabaseBackupCommand
         {
             Request = ValidRequest(requestId),
@@ -67,6 +67,24 @@ public sealed class DatabaseBackupApiTests
             Arg.Is<RequestDatabaseBackupCommand>(sent => sent.CommandId == requestId && sent.EntityId.Value == requestId),
             Arg.Is<DatabaseRecoveryOperationId>(id => id.Value == requestId),
             CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Cancellation_preserves_operation_identity_when_command_acknowledgement_has_a_different_id()
+    {
+        var producer = Substitute.For<IActorProducer>();
+        var operationId = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var commandId = Guid.NewGuid();
+        producer.RequestAsync<CancelDatabaseBackupCommand, DatabaseRecoveryOperationId, GuidResult>(
+            Arg.Any<ActorSubject>(), Arg.Any<CancelDatabaseBackupCommand>(), Arg.Any<DatabaseRecoveryOperationId>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(commandId))));
+        var result = await new DatabaseBackupCommandApi(producer).CancelBackupAsync(new CancelDatabaseBackupCommand
+        {
+            CommandId = commandId, EntityId = operationId, Request = ValidRequest(commandId), SafeReason = "operator cancellation test",
+            Source = BackupSource.LocalWorkstation, ProtectionSetId = new DatabaseProtectionSetId("core")
+        });
+        result.Success.Should().BeTrue();
+        result.Value!.OperationId.Should().Be(operationId);
     }
 
     [Fact]

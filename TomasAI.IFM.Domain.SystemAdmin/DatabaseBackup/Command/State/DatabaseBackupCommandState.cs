@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using System.Text.Json;
 
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.Model;
 namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
 
 public sealed class DatabaseBackupCommandState
@@ -22,7 +23,37 @@ public sealed class DatabaseBackupCommandState
     public DatabaseBackupServiceState Service { get; private set; } = new();
     public DatabaseRetentionState Retention { get; private set; } = new();
 
+    /// <summary>Preserves legacy callers through pure computation and event application.</summary>
+    /// <param name="command">The operator intent.</param>
+    /// <returns>The existing recovery-operation identity.</returns>
     public DatabaseRecoveryOperationId Execute(IDatabaseBackupCommand command)
+    {
+        var transition = Compute(command);
+        if (!Update(DatabaseBackupEventFactory.Create(command, transition), command)) throw new InvalidOperationException("DatabaseBackup.STATE.APPLY_FAILED");
+        return command.EntityId;
+    }
+    /// <summary>Preserves legacy service-observation callers through the same application path.</summary>
+    /// <param name="command">The service observation.</param>
+    /// <returns>The existing recovery-operation identity.</returns>
+    public DatabaseRecoveryOperationId Execute(DatabaseBackupInternalCommand command)
+    {
+        var transition = Compute(command);
+        if (!Update(DatabaseBackupEventFactory.Create(command, transition), command)) throw new InvalidOperationException("DatabaseBackup.STATE.APPLY_FAILED");
+        return Operation.OperationId;
+    }
+    /// <summary>Applies an already validated ordered lifecycle event batch.</summary>
+    /// <param name="lifecycleEvents">The source events created from accepted business changes.</param>
+    /// <param name="command">The originating command.</param>
+    /// <returns>True when every source event is applied, including an idempotent empty batch.</returns>
+    internal bool Update(IReadOnlyList<DatabaseBackupEventContract> lifecycleEvents, ICommand command)
+    {
+        if (lifecycleEvents.Any(sourceEvent => sourceEvent.CommandId != command.CommandId)) return false;
+        foreach (var sourceEvent in lifecycleEvents)
+            if (!Update(sourceEvent, command)) return false;
+        return true;
+    }
+
+    internal DatabaseBackupTransition Compute(IDatabaseBackupCommand command)
     {
         ArgumentNullException.ThrowIfNull(command);
         EnsureExpectedRevision(command.ExpectedStateRevision);
@@ -44,141 +75,151 @@ public sealed class DatabaseBackupCommandState
         };
     }
 
-    public DatabaseRecoveryOperationId Execute(DatabaseBackupInternalCommand command)
+    internal DatabaseBackupTransition Compute(DatabaseBackupInternalCommand command)
     {
         ArgumentNullException.ThrowIfNull(command);
         EnsureExpectedRevision(command.ExpectedStateRevision);
-        var domainEvent = Translate(command);
-        var fingerprint = Fingerprint(domainEvent);
+        var backupChange = Translate(command);
+        var fingerprint = Fingerprint(backupChange);
         if (_processedServiceEvents.TryGetValue(command.Source.SourceEventId, out var existing))
         {
             if (!StringComparer.Ordinal.Equals(existing, fingerprint))
                 throw new InvalidOperationException("A service event ID was replayed with conflicting content.");
-            return Operation.OperationId;
+            return new([]);
         }
         EnsureServiceIdentityAndSequence(command.Source);
-        EnsureLegalTransition(domainEvent.Source.Phase, domainEvent.Outcome);
-        Update(domainEvent, command);
-        return Operation.OperationId;
+        EnsureLegalTransition(backupChange.DatabaseSource.Phase, backupChange.Outcome);
+        return new([backupChange]);
     }
 
-    static DatabaseBackupEventContract Translate(DatabaseBackupInternalCommand command)
+    static DatabaseBackupChange Translate(DatabaseBackupInternalCommand command)
         => command switch
         {
-            RecordDatabaseOperationAdmissionCommand => Create<DatabaseOperationAdmissionRecordedEvent>(command, command.Source.Phase),
-            RecordDatabaseOperationStartedCommand => Create<DatabaseOperationStartedEvent>(command, DatabaseRecoveryPhase.Started),
-            RecordDatabaseOperationProgressCommand => Create<DatabaseOperationProgressRecordedEvent>(command, command.Source.Phase),
-            RecordDatabaseBackupBoundaryCommand => Create<DatabaseBackupBoundaryRecordedEvent>(command, command.Source.Phase),
-            RecordDatabaseArtifactReplicaCommand => Create<DatabaseArtifactReplicaRecordedEvent>(command, command.Source.Phase),
+            RecordDatabaseOperationAdmissionCommand => CreateChange<DatabaseOperationAdmissionRecordedEvent>(command, command.Source.Phase),
+            RecordDatabaseOperationStartedCommand => CreateChange<DatabaseOperationStartedEvent>(command, DatabaseRecoveryPhase.Started),
+            RecordDatabaseOperationProgressCommand => CreateChange<DatabaseOperationProgressRecordedEvent>(command, command.Source.Phase),
+            RecordDatabaseBackupBoundaryCommand => CreateChange<DatabaseBackupBoundaryRecordedEvent>(command, command.Source.Phase),
+            RecordDatabaseArtifactReplicaCommand => CreateChange<DatabaseArtifactReplicaRecordedEvent>(command, command.Source.Phase),
             RecordDatabaseOperationVerificationCommand => command.Source.OperationKind is DatabaseRecoveryOperationKind.Restore or DatabaseRecoveryOperationKind.RestoreDrill
-                ? Create<DatabaseRestoreValidationRecordedEvent>(command, DatabaseRecoveryPhase.Validating)
-                : Create<DatabaseOperationVerificationRecordedEvent>(command, DatabaseRecoveryPhase.Verifying),
-            RecordDatabaseOperationErrorCommand => Create<DatabaseOperationErrorRecordedEvent>(command, command.Source.Phase),
-            RecordDatabaseRestoreReadyForCutoverCommand => Create<DatabaseRestoreReadyForCutoverRecordedEvent>(command, DatabaseRecoveryPhase.ReadyForCutover),
-            CompleteDatabaseOperationCommand => Create<DatabaseOperationCompletedEvent>(command, DatabaseRecoveryPhase.Completed, DatabaseRecoveryOutcome.Succeeded),
-            FailDatabaseOperationCommand => Create<DatabaseOperationFailedEvent>(command, DatabaseRecoveryPhase.Failed, DatabaseRecoveryOutcome.Failed),
-            RecordDatabaseOperationCancelledCommand => Create<DatabaseOperationCancelledEvent>(command, DatabaseRecoveryPhase.Cancelled, DatabaseRecoveryOutcome.Cancelled),
-            RecordDatabaseBackupPolicyStatusCommand => Create<DatabaseBackupPolicyEnforcedEvent>(command, command.Source.Phase),
-            RecordDatabaseRetentionResultCommand => Create<DatabaseRetentionExecutionRequestedDomainEvent>(command, command.Source.Phase, command.Outcome),
-            ReconcileDatabaseBackupServiceStateCommand => Create<DatabaseBackupServiceReconciledEvent>(command, command.Source.Phase),
-            RecordDatabaseBackupServiceCapabilityCommand => Create<DatabaseBackupServiceCapabilityRecordedEvent>(command, command.Source.Phase),
-            RecordDatabaseRecoveryRunStatisticsCommand => Create<DatabaseRecoveryStatisticsRecordedEvent>(command, command.Source.Phase),
+                ? CreateChange<DatabaseRestoreValidationRecordedEvent>(command, DatabaseRecoveryPhase.Validating)
+                : CreateChange<DatabaseOperationVerificationRecordedEvent>(command, DatabaseRecoveryPhase.Verifying),
+            RecordDatabaseOperationErrorCommand => CreateChange<DatabaseOperationErrorRecordedEvent>(command, command.Source.Phase),
+            RecordDatabaseRestoreReadyForCutoverCommand => CreateChange<DatabaseRestoreReadyForCutoverRecordedEvent>(command, DatabaseRecoveryPhase.ReadyForCutover),
+            CompleteDatabaseOperationCommand => CreateChange<DatabaseOperationCompletedEvent>(command, DatabaseRecoveryPhase.Completed, DatabaseRecoveryOutcome.Succeeded),
+            FailDatabaseOperationCommand => CreateChange<DatabaseOperationFailedEvent>(command, DatabaseRecoveryPhase.Failed, DatabaseRecoveryOutcome.Failed),
+            RecordDatabaseOperationCancelledCommand => CreateChange<DatabaseOperationCancelledEvent>(command, DatabaseRecoveryPhase.Cancelled, DatabaseRecoveryOutcome.Cancelled),
+            RecordDatabaseBackupPolicyStatusCommand => CreateChange<DatabaseBackupPolicyEnforcedEvent>(command, command.Source.Phase),
+            RecordDatabaseRetentionResultCommand => CreateChange<DatabaseRetentionExecutionRequestedDomainEvent>(command, command.Source.Phase, command.Outcome),
+            ReconcileDatabaseBackupServiceStateCommand => CreateChange<DatabaseBackupServiceReconciledEvent>(command, command.Source.Phase),
+            RecordDatabaseBackupServiceCapabilityCommand => CreateChange<DatabaseBackupServiceCapabilityRecordedEvent>(command, command.Source.Phase),
+            RecordDatabaseRecoveryRunStatisticsCommand => CreateChange<DatabaseRecoveryStatisticsRecordedEvent>(command, command.Source.Phase),
             _ => throw new InvalidOperationException($"Unsupported internal DatabaseBackup command '{command.GetType().Name}'.")
         };
 
-    DatabaseRecoveryOperationId RequestBackup(RequestDatabaseBackupCommand command)
+    DatabaseBackupTransition RequestBackup(RequestDatabaseBackupCommand command)
     {
+        List<DatabaseBackupChange> lifecycleChanges = [];
         EnsureNewOperation(command.EntityId);
         var source = Source(command, DatabaseRecoveryOperationKind.Backup, DatabaseRecoveryPhase.Requested);
-        Update(Create<DatabaseBackupRequestedDomainEvent>(command, source), command);
-        Update(Create<DatabaseBackupAuthorizedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Authorized)), command);
-        Update(Create<DatabaseBackupExecutionRequestedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Requested)), command);
-        return command.EntityId;
+        lifecycleChanges.Add(CreateChange<DatabaseBackupRequestedDomainEvent>(command, source));
+        lifecycleChanges.Add(CreateChange<DatabaseBackupAuthorizedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Authorized)));
+        lifecycleChanges.Add(CreateChange<DatabaseBackupExecutionRequestedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Requested)));
+        return new(lifecycleChanges.ToArray());
     }
 
-    DatabaseRecoveryOperationId RequestRestore(RequestDatabaseRestoreCommand command)
+    DatabaseBackupTransition RequestRestore(RequestDatabaseRestoreCommand command)
     {
+        List<DatabaseBackupChange> lifecycleChanges = [];
         EnsureNewOperation(command.EntityId);
         var source = Source(command, DatabaseRecoveryOperationKind.Restore, DatabaseRecoveryPhase.Requested);
-        Update(Create<DatabaseRestoreRequestedDomainEvent>(command, source), command);
-        return command.EntityId;
+        lifecycleChanges.Add(CreateChange<DatabaseRestoreRequestedDomainEvent>(command, source));
+        return new(lifecycleChanges.ToArray());
     }
 
-    DatabaseRecoveryOperationId ApproveRestore(ApproveDatabaseRestoreCommand command)
+    DatabaseBackupTransition ApproveRestore(ApproveDatabaseRestoreCommand command)
     {
+        List<DatabaseBackupChange> lifecycleChanges = [];
         EnsureOperation(DatabaseRecoveryOperationKind.Restore, DatabaseRecoveryPhase.Requested);
         var source = Source(command, Operation.Kind, DatabaseRecoveryPhase.Authorized);
-        Update(Create<DatabaseRestoreAuthorizedDomainEvent>(command, source), command);
-        Update(Create<DatabaseRestoreExecutionRequestedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Requested)), command);
-        return Operation.OperationId;
+        lifecycleChanges.Add(CreateChange<DatabaseRestoreAuthorizedDomainEvent>(command, source));
+        lifecycleChanges.Add(CreateChange<DatabaseRestoreExecutionRequestedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Requested)));
+        return new(lifecycleChanges.ToArray());
     }
 
-    DatabaseRecoveryOperationId RequestDrill(RequestDatabaseRestoreDrillCommand command)
+    DatabaseBackupTransition RequestDrill(RequestDatabaseRestoreDrillCommand command)
     {
+        List<DatabaseBackupChange> lifecycleChanges = [];
         EnsureNewOperation(command.EntityId);
         var source = Source(command, DatabaseRecoveryOperationKind.RestoreDrill, DatabaseRecoveryPhase.Requested);
-        Update(Create<DatabaseRestoreDrillRequestedDomainEvent>(command, source), command);
-        Update(Create<DatabaseRestoreDrillAuthorizedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Authorized)), command);
-        Update(Create<DatabaseRestoreDrillExecutionRequestedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Requested)), command);
-        return command.EntityId;
+        lifecycleChanges.Add(CreateChange<DatabaseRestoreDrillRequestedDomainEvent>(command, source));
+        lifecycleChanges.Add(CreateChange<DatabaseRestoreDrillAuthorizedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Authorized)));
+        lifecycleChanges.Add(CreateChange<DatabaseRestoreDrillExecutionRequestedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Requested)));
+        return new(lifecycleChanges.ToArray());
     }
 
-    DatabaseRecoveryOperationId ApproveCutover(ApproveDatabaseCutoverCommand command)
+    DatabaseBackupTransition ApproveCutover(ApproveDatabaseCutoverCommand command)
     {
+        List<DatabaseBackupChange> lifecycleChanges = [];
         EnsureOperation(DatabaseRecoveryOperationKind.Restore, DatabaseRecoveryPhase.ReadyForCutover);
         if (command.ValidationRevision != Operation.ValidationRevision)
             throw new InvalidOperationException("Cutover approval does not match the current validation revision.");
         var source = Source(command, DatabaseRecoveryOperationKind.Cutover, DatabaseRecoveryPhase.Authorized);
-        Update(Create<DatabaseCutoverRequestedDomainEvent>(command, source), command);
-        Update(Create<DatabaseCutoverAuthorizedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Authorized)), command);
-        Update(Create<DatabaseCutoverExecutionRequestedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.CuttingOver)), command);
-        return Operation.OperationId;
+        lifecycleChanges.Add(CreateChange<DatabaseCutoverRequestedDomainEvent>(command, source));
+        lifecycleChanges.Add(CreateChange<DatabaseCutoverAuthorizedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Authorized)));
+        lifecycleChanges.Add(CreateChange<DatabaseCutoverExecutionRequestedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.CuttingOver)));
+        return new(lifecycleChanges.ToArray());
     }
 
-    DatabaseRecoveryOperationId Cancel(IDatabaseBackupCommand command)
+    DatabaseBackupTransition Cancel(IDatabaseBackupCommand command)
     {
+        List<DatabaseBackupChange> lifecycleChanges = [];
         if (!Operation.Exists || Operation.IsTerminal) throw new InvalidOperationException("Only an active operation can be cancelled.");
         var source = Source(command, Operation.Kind, DatabaseRecoveryPhase.Cancelled);
-        Update(Create<DatabaseOperationCancelledEvent>(command, source, DatabaseRecoveryOutcome.Cancelled), command);
-        return Operation.OperationId;
+        lifecycleChanges.Add(CreateChange<DatabaseOperationCancelledEvent>(command, source, DatabaseRecoveryOutcome.Cancelled));
+        return new(lifecycleChanges.ToArray());
     }
 
-    DatabaseRecoveryOperationId UpdatePolicy(UpdateDatabaseBackupPolicyCommand command)
+    DatabaseBackupTransition UpdatePolicy(UpdateDatabaseBackupPolicyCommand command)
     {
+        List<DatabaseBackupChange> lifecycleChanges = [];
         var source = Source(command, DatabaseRecoveryOperationKind.Reconciliation, DatabaseRecoveryPhase.Authorized);
-        Update(Create<DatabaseBackupPolicyRevisedEvent>(command, source), command);
-        Update(Create<DatabaseBackupPolicyEnforcedEvent>(command, NextSource(source, DatabaseRecoveryPhase.Authorized)), command);
-        return command.EntityId;
+        lifecycleChanges.Add(CreateChange<DatabaseBackupPolicyRevisedEvent>(command, source));
+        lifecycleChanges.Add(CreateChange<DatabaseBackupPolicyEnforcedEvent>(command, NextSource(source, DatabaseRecoveryPhase.Authorized)));
+        return new(lifecycleChanges.ToArray());
     }
 
-    DatabaseRecoveryOperationId PlaceLegalHold(PlaceBackupLegalHoldCommand command)
+    DatabaseBackupTransition PlaceLegalHold(PlaceBackupLegalHoldCommand command)
     {
+        List<DatabaseBackupChange> lifecycleChanges = [];
         var source = Source(command, DatabaseRecoveryOperationKind.Retention, DatabaseRecoveryPhase.Authorized);
-        Update(Create<DatabaseBackupLegalHoldPlacedEvent>(command, source), command);
-        return command.EntityId;
+        lifecycleChanges.Add(CreateChange<DatabaseBackupLegalHoldPlacedEvent>(command, source));
+        return new(lifecycleChanges.ToArray());
     }
 
-    DatabaseRecoveryOperationId ReleaseLegalHold(ReleaseBackupLegalHoldCommand command)
+    DatabaseBackupTransition ReleaseLegalHold(ReleaseBackupLegalHoldCommand command)
     {
+        List<DatabaseBackupChange> lifecycleChanges = [];
         var source = Source(command, DatabaseRecoveryOperationKind.Retention, DatabaseRecoveryPhase.Authorized);
-        Update(Create<DatabaseBackupLegalHoldReleasedEvent>(command, source), command);
-        return command.EntityId;
+        lifecycleChanges.Add(CreateChange<DatabaseBackupLegalHoldReleasedEvent>(command, source));
+        return new(lifecycleChanges.ToArray());
     }
 
-    DatabaseRecoveryOperationId RequestRetention(RequestBackupRetentionEvaluationCommand command)
+    DatabaseBackupTransition RequestRetention(RequestBackupRetentionEvaluationCommand command)
     {
+        List<DatabaseBackupChange> lifecycleChanges = [];
         EnsureNewOperation(command.EntityId);
         var source = Source(command, DatabaseRecoveryOperationKind.Retention, DatabaseRecoveryPhase.Requested);
-        Update(Create<DatabaseRetentionRequestedDomainEvent>(command, source), command);
-        Update(Create<DatabaseRetentionAuthorizedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Authorized)), command);
-        return command.EntityId;
+        lifecycleChanges.Add(CreateChange<DatabaseRetentionRequestedDomainEvent>(command, source));
+        lifecycleChanges.Add(CreateChange<DatabaseRetentionAuthorizedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Authorized)));
+        return new(lifecycleChanges.ToArray());
     }
 
-    DatabaseRecoveryOperationId ExecuteRetention(ExecuteBackupRetentionPlanCommand command)
+    DatabaseBackupTransition ExecuteRetention(ExecuteBackupRetentionPlanCommand command)
     {
+        List<DatabaseBackupChange> lifecycleChanges = [];
         var source = Source(command, DatabaseRecoveryOperationKind.Retention, DatabaseRecoveryPhase.Requested);
-        Update(Create<DatabaseRetentionExecutionRequestedDomainEvent>(command, source), command);
-        return command.EntityId;
+        lifecycleChanges.Add(CreateChange<DatabaseRetentionExecutionRequestedDomainEvent>(command, source));
+        return new(lifecycleChanges.ToArray());
     }
 
     protected override bool Apply(IEvent domainEvent)
@@ -223,7 +264,7 @@ public sealed class DatabaseBackupCommandState
         };
         if (source.ProducingHostId is not null)
         {
-            _processedServiceEvents[source.SourceEventId] = Fingerprint(e);
+            _processedServiceEvents[source.SourceEventId] = Fingerprint(DatabaseBackupEventFactory.Describe(e));
             Service = Service with
             {
                 Source = source.Source,
@@ -311,25 +352,18 @@ public sealed class DatabaseBackupCommandState
     static DatabaseSourceEnvelope NextSource(DatabaseSourceEnvelope source, DatabaseRecoveryPhase phase)
         => source with { SourceEventId = Guid.NewGuid(), Phase = phase };
 
-    static TEvent Create<TEvent>(IDatabaseBackupCommand command, DatabaseSourceEnvelope source, DatabaseRecoveryOutcome outcome = DatabaseRecoveryOutcome.None)
+    static DatabaseBackupChange CreateChange<TEvent>(IDatabaseBackupCommand command, DatabaseSourceEnvelope source, DatabaseRecoveryOutcome outcome = DatabaseRecoveryOutcome.None)
         where TEvent : DatabaseBackupEventContract, new()
     {
-        var template = new TEvent();
-        return (TEvent)(template with
+        return new DatabaseBackupChange
         {
-            Subject = new ActorSubject(ActorType.Event, "DatabaseBackupEvent", template.Verb, source.OperationId.Format()),
-            Id = source.SourceEventId,
-            EntityId = source.OperationId,
-            CommandId = command.CommandId,
-            AggregateId = source.OperationId.Format(),
-            EventSource = DatabaseBackupCommandRoute.Actor,
-            ReceivedOn = source.ObservedUtc.UtcDateTime,
-            Source = source,
-            Request = command.Request,
+            EventFamily = typeof(TEvent),
+            DatabaseSource = source,
+            DatabaseRequest = command.Request,
             Outcome = outcome,
             RestorePointId = command.RestorePointId,
             FreshTarget = command.FreshTarget,
-            Policy = command.Policy,
+            BackupPolicy = command.Policy,
             RequiredDestinations = command.RequiredDestinations,
             ValidationRevision = command.ValidationRevision,
             RetentionPlanId = command.RetentionPlanId,
@@ -346,24 +380,17 @@ public sealed class DatabaseBackupCommandState
                         : command.RequestedBackupMode
                 }
                 : null
-        });
+        };
     }
 
-    static TEvent Create<TEvent>(DatabaseBackupInternalCommand command, DatabaseRecoveryPhase phase, DatabaseRecoveryOutcome outcome = DatabaseRecoveryOutcome.None)
+    static DatabaseBackupChange CreateChange<TEvent>(DatabaseBackupInternalCommand command, DatabaseRecoveryPhase phase, DatabaseRecoveryOutcome outcome = DatabaseRecoveryOutcome.None)
         where TEvent : DatabaseBackupEventContract, new()
     {
         var source = command.Source with { Phase = phase };
-        var template = new TEvent();
-        return (TEvent)(template with
+        return new DatabaseBackupChange
         {
-            Subject = new ActorSubject(ActorType.Event, "DatabaseBackupEvent", template.Verb, source.OperationId.Format()),
-            Id = source.SourceEventId,
-            EntityId = source.OperationId,
-            CommandId = command.CommandId,
-            AggregateId = source.OperationId.Format(),
-            EventSource = DatabaseBackupInternalCommand.Actor,
-            ReceivedOn = source.ObservedUtc.UtcDateTime,
-            Source = source,
+            EventFamily = typeof(TEvent),
+            DatabaseSource = source,
             ProgressPercent = command.ProgressPercent,
             SafeDiagnosticReference = command.SafeDiagnosticReference,
             ArtifactReplica = command.ArtifactReplica,
@@ -378,40 +405,40 @@ public sealed class DatabaseBackupCommandState
             FreshTarget = command.FreshTarget,
             RestoreClass = command.RestoreClass,
             PolicyId = command.PolicyId,
-            Policy = command.Policy,
+            BackupPolicy = command.Policy,
             RetentionPlanId = command.RetentionPlanId,
             RetentionPlanRevision = command.RetentionPlanRevision,
             EvaluationBoundaryUtc = command.EvaluationBoundaryUtc,
             ManifestRevision = command.ManifestRevision,
             BackupLineage = command.BackupLineage
-        });
+        };
     }
 
-    static string Fingerprint(DatabaseBackupEventContract domainEvent)
+    internal static string Fingerprint(DatabaseBackupChange backupChange)
         => JsonSerializer.Serialize(new
         {
-            Type = domainEvent.GetType().FullName,
-            domainEvent.Source,
-            domainEvent.ProgressPercent,
-            domainEvent.SafeDiagnosticReference,
-            domainEvent.ArtifactReplica,
-            domainEvent.VerificationLevel,
-            domainEvent.Outcome,
-            domainEvent.ErrorClassification,
-            domainEvent.CutoverState,
-            domainEvent.CapabilityState,
-            domainEvent.Statistics,
-            domainEvent.RestorePointId,
-            domainEvent.FreshTarget,
-            domainEvent.Policy,
-            domainEvent.RequiredDestinations,
-            domainEvent.ValidationRevision,
-            domainEvent.RetentionPlanId,
-            domainEvent.RetentionPlanRevision,
-            domainEvent.RestoreClass,
-            domainEvent.EvaluationBoundaryUtc,
-            domainEvent.PolicyId,
-            domainEvent.ManifestRevision,
-            domainEvent.BackupLineage
+            Type = backupChange.EventFamily.FullName,
+            Source = backupChange.DatabaseSource,
+            backupChange.ProgressPercent,
+            backupChange.SafeDiagnosticReference,
+            backupChange.ArtifactReplica,
+            backupChange.VerificationLevel,
+            backupChange.Outcome,
+            backupChange.ErrorClassification,
+            backupChange.CutoverState,
+            backupChange.CapabilityState,
+            backupChange.Statistics,
+            backupChange.RestorePointId,
+            backupChange.FreshTarget,
+            Policy = backupChange.BackupPolicy,
+            backupChange.RequiredDestinations,
+            backupChange.ValidationRevision,
+            backupChange.RetentionPlanId,
+            backupChange.RetentionPlanRevision,
+            backupChange.RestoreClass,
+            backupChange.EvaluationBoundaryUtc,
+            backupChange.PolicyId,
+            backupChange.ManifestRevision,
+            backupChange.BackupLineage
         });
 }

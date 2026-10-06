@@ -43,7 +43,7 @@ public sealed class DatabaseBackupCommandApi(IActorProducer actorProducer) : IDa
                 return new ServiceFailed<DatabaseOperationAcceptedResult>(actorResult.ErrorCode, actorResult.ErrorMessage);
             return new ServiceOk<DatabaseOperationAcceptedResult>(new DatabaseOperationAcceptedResult
             {
-                OperationId = new DatabaseRecoveryOperationId(actorResult.Value.Guid),
+                OperationId = entityId,
                 BackupSetId = normalized.BackupSetId,
                 Source = normalized.Source,
                 PolicyRevision = normalized.ExpectedPolicyRevision,
