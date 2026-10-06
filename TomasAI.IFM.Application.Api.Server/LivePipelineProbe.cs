@@ -309,6 +309,8 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
         switch (unhealthyCheck.Component)
         {
             case "ITI route":
+                await RestartRealtimeActorAsync(ItiMailbox, token).ConfigureAwait(false);
+                return;
             case "ITI ingress":
                 await RestartRealtimeActorAsync(ItiMailbox, token).ConfigureAwait(false);
                 return;
@@ -372,6 +374,20 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
             ?? throw new InvalidOperationException($"No analytics activation exists for {scope}.");
         var indicator = scope[..separator];
         token.ThrowIfCancellationRequested();
+        if (restart)
+        {
+            var actorName = indicator switch
+            {
+                "RSI" => TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Actor.FuturesRsiSignalRealtimeActor.ActorName,
+                "ATR" => TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Realtime.Actor.FuturesAtrSignalRealtimeActor.ActorName,
+                "ADX" => TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Realtime.Actor.FuturesAdxSignalRealtimeActor.ActorName,
+                "MACD" => TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Realtime.Actor.FuturesMacdSignalRealtimeActor.ActorName,
+                _ => throw new InvalidOperationException($"Analytics recovery indicator '{indicator}' is unsupported.")
+            };
+            var mailbox = new ActorMailboxId(ActorType.Realtime, actorName);
+            if (supervisor?.ActorExists(mailbox) == true)
+                await RestartRealtimeActorAsync(mailbox, token).ConfigureAwait(false);
+        }
         switch (indicator)
         {
             case "RSI":
@@ -399,9 +415,10 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
     {
         if (supervisor is null || !supervisor.ActorExists(mailbox))
             throw new InvalidOperationException($"Realtime actor {mailbox} is unavailable for targeted recovery.");
-        await supervisor.StopAsync(mailbox, token).ConfigureAwait(false);
-        await supervisor.StartAsync(mailbox, token).ConfigureAwait(false);
+        await supervisor.RestartAsync(mailbox, token).ConfigureAwait(false);
     }
+
+
 
     static void RequireAccepted(ServiceResult<Guid> result, string activity)
     {

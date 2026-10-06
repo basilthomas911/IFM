@@ -534,7 +534,8 @@ public static class Startup
                     .ToArray();
                 return new ActorRegistry(actorTypes);
             });
-            services.AddSingleton<IActorFactory>(_ => new ActorFactory(actorType => GetContainerInstance(siContainer, actorType)!));
+            services.AddSingleton<IActorFactory>(_ => new ActorFactory(actorType => GetContainerInstance(siContainer, actorType)!,
+                actorType => RealtimeActorReplacementFactory.Create(actorType, type => GetContainerInstance(siContainer, type)!)));
             services.AddSingleton<INatsProducerOptions>(_ => new NatsProducerOptions
             {
                 Url = EventLogQualification.Active is null ? brokerUrl ?? new NatsProducerOptions().Url : EventLogQualification.Active.BrokerUrl

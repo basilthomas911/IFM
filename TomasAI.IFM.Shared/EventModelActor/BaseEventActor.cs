@@ -22,7 +22,7 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 public abstract class BaseEventActor<TActor>(
     IEventActorContext<TActor> actorContext,
     ILogger logger)
-    : IEventActor<TActor> where TActor : IActor
+    : IEventActor<TActor>, IReplaceableRealtimeActor where TActor : IActor
 {
     readonly IEventActorContext<TActor> _context = IsArgumentNull.Set(actorContext);
     readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorContext).ActorId;
@@ -30,6 +30,19 @@ public abstract class BaseEventActor<TActor>(
     IActorSupervisor _supervisor;
     string _serviceId = string.Empty;
     int _lifecycle;
+
+    /// <inheritdoc />
+    public RealtimeActorGeneration RealtimeGeneration { get; } =
+        (actorContext as EventActorContext)?.RealtimeGeneration ?? new();
+
+    /// <inheritdoc />
+    public void RetireRealtimeGeneration()
+    {
+        if (Id.ActorType != ActorType.Realtime)
+            throw new InvalidOperationException("Only disposable realtime actors can be retired without draining.");
+        RealtimeGeneration.Retire();
+        Volatile.Write(ref _lifecycle, 0);
+    }
 
     // IActor properties
     public ActorMailboxId Id => _actorId;
@@ -85,6 +98,7 @@ public abstract class BaseEventActor<TActor>(
             }
             _serviceId = typeof(TActor).Name;
             _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
+            using var generationScope = Id.ActorType == ActorType.Realtime ? RealtimeGeneration.Enter() : null;
             await OnStartup(_context, cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _lifecycle, 2);
         }
@@ -189,6 +203,7 @@ public abstract class BaseEventActor<TActor>(
 
     public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId, CancellationToken cancellationToken)
     {
+        using var generationScope = Id.ActorType == ActorType.Realtime ? RealtimeGeneration.Enter() : null;
         IEvent? @event = null;
         var activeStage = ActorRuntimeMetrics.ParsingStage;
         try

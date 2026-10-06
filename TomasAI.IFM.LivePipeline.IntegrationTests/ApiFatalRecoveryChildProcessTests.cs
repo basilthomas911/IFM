@@ -16,10 +16,11 @@ public sealed class ApiFatalRecoveryChildProcessTests
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "TomasAI.IFM.sln")))
             root = root.Parent;
         Assert.NotNull(root);
-        var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
+        var relativeOutput = Path.GetRelativePath(
+            Path.Combine(root.FullName, "TomasAI.IFM.LivePipeline.IntegrationTests", "bin"), AppContext.BaseDirectory);
         var assembly = Path.Combine(root.FullName,
             "TomasAI.IFM.Application.Api.Server.RecoveryChildProbe",
-            "bin", configuration, "net10.0", "TomasAI.IFM.Application.Api.Server.RecoveryChildProbe.dll");
+            "bin", relativeOutput, "TomasAI.IFM.Application.Api.Server.RecoveryChildProbe.dll");
         Assert.True(File.Exists(assembly), "The referenced recovery child probe must be built before verification.");
         using var child = new Process { StartInfo = new ProcessStartInfo("dotnet")
         {

@@ -62,6 +62,12 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
 
         _ = GetDescriptorMap();
         var current = Interlocked.CompareExchange(ref _context, context, null);
+        if (current is EventActorContext retired && retired.RealtimeGeneration.Token.IsCancellationRequested)
+        {
+            if (!ReferenceEquals(Interlocked.CompareExchange(ref _context, context, current), current))
+                throw new InvalidOperationException("Realtime projector ownership changed during replacement.");
+            return ValueTask.CompletedTask;
+        }
         if (current is not null && !ReferenceEquals(current, context))
         {
             throw new InvalidOperationException(

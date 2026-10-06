@@ -9,9 +9,14 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// implements the <see cref="IActor"/> interface for the specified actor type.</remarks>
 /// <param name="actorResolver">A function that takes a <see cref="Type"/> representing the actor type and returns an instance of the actor. The
 /// returned object must implement the <see cref="IActor"/> interface.</param>
-public class ActorFactory(Func<Type, object> actorResolver)
+public class ActorFactory(Func<Type, object> actorResolver, Func<Type, IActor>? realtimeReplacement = null)
     : IActorFactory
 {
+    /// <inheritdoc />
+    public IActor CreateRealtimeReplacement(Type actorType)
+        => realtimeReplacement?.Invoke(actorType)
+            ?? throw new NotSupportedException("Fresh realtime actor construction is not configured.");
+
     public IActor GetActor(Type actorType)
         => (actorResolver.Invoke(actorType) as IActor)!;
 }

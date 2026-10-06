@@ -8,6 +8,8 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// </summary>
 internal interface IScheduledActorThreadQueue
 {
+    bool TryClaimProcessing();
+    void ReleaseProcessing();
     bool IsRetired { get; }
     bool IsScheduled { get; }
     bool TryWrite(IActorMessage message, CancellationToken cancellationToken);

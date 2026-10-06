@@ -139,3 +139,13 @@ For BrokerAccount, the required path is `BrokerAccountChangedEvent.BrokerAccount
 ## Structured operation logging
 
 Follow [Structured logging conventions](Structured-Logging-Conventions.md) for selected boundaries, method/argument fields, performance gating and OTLP correlation. Do not instrument every command compute/state application or every realtime event.
+
+## Portfolio command computation and financial persistence
+
+Portfolio, Fund, and Financial Policy lifecycle extensions compute immutable, business-named changes before applying an event. A rejected computation retains `RejectionCode` and `RejectionReason`; failure guards call `command.UpdateFailed(ref errorMsg, businessReason)`. The default switch arm is the single `state.Update(command.Create...Event(change), command)` expression. Event factories explicitly set the originating `CommandId`. Computation does not populate pending events or modify authoritative collections.
+
+Fund composition calculations use an isolated workspace restored from defensive business snapshots. Only the owning Fund state's `Apply` event switch changes its authoritative order/composition collection. This includes manual drafts, risk authorization, terminal outcomes, cancellation and expiration. Source-event replay must reconstruct the same accepted state.
+
+The existing Portfolio event-store adapter commits the accepted pending source event with command metadata and its expected revision before projection. Calculation records are never stored as an alternate event schema. Published MessagePack keys and financial replay identities remain unchanged.
+
+Ledger configuration/posting, capacity lifecycle and emulator submission retain the [qualified enlisted financial Command path](Actor-Implementation-Conventions.md#portfolio-financial-handoff-and-maintenance-conventions---2026-09-08). Their current authority and revision are read inside the financial transaction fence. Pure posting/capacity computations execute there; accepted business state, receipt, history/outbox and source event commit together. Do not replace that path with a detached in-memory `Update`, or treat notification/projection as financial commitment. Replay checks the original receipt before allocating new identities; unknown commits retain their existing reconciliation semantics.

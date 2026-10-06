@@ -19,13 +19,16 @@ public static class FuturesMarketPriceUpdated
     /// <summary>Processes a normalized market-price update through the minimal Daily ITI ingress boundary.</summary>
     /// <param name="event">The routed normalized futures market-price event.</param>
     /// <param name="context">The typed realtime actor context.</param>
+    /// <param name="cancellationToken">Stops ingress processing without recalling an accepted downstream command.</param>
     /// <returns><see langword="true"/> when the event was handled or intentionally ignored.</returns>
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesMarketPriceUpdatedRealtimeEvent @event,
-        IFuturesItiSignalRealtimeContext context)
+        IFuturesItiSignalRealtimeContext context,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var telemetry = context.Telemetry;
         var trade = @event.Price.Trade;
@@ -65,8 +68,12 @@ public static class FuturesMarketPriceUpdated
             FuturesItiSignalRealtimeLogging.CommandGenerated(
                 context.Logger, sourceEventId, commandId, contractId, valueDate);
             await GenerateAsync(context, sourceEventId, commandId, contractId, valueDate,
-                tradeTimestamp, futuresPrice, vxPrice, eventTime).ConfigureAwait(false);
+                tradeTimestamp, futuresPrice, vxPrice, eventTime, cancellationToken).ConfigureAwait(false);
             return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception exception)
         {
@@ -114,10 +121,12 @@ public static class FuturesMarketPriceUpdated
         DateTime tradeTimestamp,
         double futuresPrice,
         double vxPrice,
-        DateTime eventTime)
+        DateTime eventTime,
+        CancellationToken cancellationToken)
     {
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var result = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesItiSignalAsync(
                 context,
                 contractId,
@@ -127,7 +136,8 @@ public static class FuturesMarketPriceUpdated
                 futuresPrice,
                 vxPrice,
                 commandId,
-                valueDate).ConfigureAwait(false);
+                valueDate).AsTask().WaitAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
 
             if (result is ServiceFailed<GuidResult> failed)
             {
@@ -143,6 +153,10 @@ public static class FuturesMarketPriceUpdated
             context.Telemetry.RecordCommandAccepted();
             context.HealthEvidence.Record(
                 "ITI", Scope, "Healthy", "Daily ITI command accepted; no signal change is a valid result.", eventTime);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception exception)
         {

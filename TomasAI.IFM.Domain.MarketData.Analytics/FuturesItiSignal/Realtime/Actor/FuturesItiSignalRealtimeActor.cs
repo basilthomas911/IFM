@@ -70,6 +70,20 @@ public class FuturesItiSignalRealtimeActor(
     }
 
     /// <inheritdoc />
+    protected override async ValueTask ReceiveAsync(
+        IEventActorContext<FuturesItiSignalRealtimeActor> context,
+        IEvent @event,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(@event);
+        cancellationToken.ThrowIfCancellationRequested();
+        _ = ResolveMappedEventHandler(@event, _receiveMap);
+        _ = await ((FuturesMarketPriceUpdatedRealtimeEvent)@event)
+            .ExecuteAsync(TypedContext, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     protected override async ValueTask OnExceptionAsync(
         IEventActorContext<FuturesItiSignalRealtimeActor> context,
         ActorThreadId threadId,

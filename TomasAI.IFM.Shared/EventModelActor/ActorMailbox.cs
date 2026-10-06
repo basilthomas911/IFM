@@ -22,7 +22,8 @@ public class ActorMailbox : IActorMailbox
         IActorSupervisor supervisor,
         ActorMailboxId id,
         int maxRetainedIdleQueues = ActorAdmissionOptions.ExistingRetainedIdleMailboxesPerActor,
-        ActorAdmissionController? admissionController = null)
+        ActorAdmissionController? admissionController = null,
+        long initialGeneration = 1)
     {
         _id = IsArgumentNull.Set(id);
         _metrics = new ActorMetricsStore(_id);
@@ -30,7 +31,7 @@ public class ActorMailbox : IActorMailbox
             supervisor,
             maxRetainedIdleQueues,
             admissionController,
-            _metrics);
+            _metrics, initialGeneration);
     }
 
     public ActorMailboxId Id

@@ -137,6 +137,7 @@ public sealed class MarketOutlookHotCache : IMarketOutlookHotCache, IMarketOutlo
         Func<MarketOutlookInputState, MarketOutlookInputState> update,
         Func<MarketOutlookInputState, MarketOutlookReadModel> compose)
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         ArgumentNullException.ThrowIfNull(entityId);
         ArgumentNullException.ThrowIfNull(components);
         ArgumentNullException.ThrowIfNull(update);

@@ -214,6 +214,47 @@ public sealed class LivePipelineProbeIntegrationTests
         Assert.Contains(result.Checks, x => x.Component == "Databento feed" && x.Status == "Healthy");
     }
 
+    [Theory]
+    [InlineData("ITI route")]
+    [InlineData("ITI ingress")]
+    public async Task ItiRecoveryUsesSerializedRestartRatherThanStopThenStart(string component)
+    {
+        await using var fixture = await Fixture.Create();
+        var id = new ActorMailboxId(ActorType.Realtime, "FuturesItiSignalRealtime");
+        fixture.Actors.ActorExists(id).Returns(true);
+        fixture.Actors.Children.Returns(new Dictionary<ActorMailboxId, IActor>());
+        await fixture.Probe.RecoverDownstreamAsync(new(component, "ES", "Degraded", "stale", DateTime.UtcNow), fixture.Date, default);
+        await fixture.Actors.Received(1).RestartAsync(id, Arg.Any<CancellationToken>());
+        await fixture.Actors.DidNotReceiveWithAnyArgs().StopAsync(default!, default);
+        await fixture.Actors.DidNotReceiveWithAnyArgs().StartAsync(default!, default);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ItiRecoveryReplacesEvenWhileOldBacklogIsCompleting(bool recentProgress)
+    {
+        await using var fixture = await Fixture.Create();
+        var id = new ActorMailboxId(ActorType.Realtime, "FuturesItiSignalRealtime");
+        var thread = new ActorThreadId(ActorType.Realtime, id.Name, "ES");
+        var entry = new ActorMailboxMetricsSnapshot(thread, 100, 2048, 100, 100, 0, 0, 0, 0, 0, 0,
+            true, ActorMailboxLifecycleState.Running, 1, true, "Updated", null, null,
+            DateTime.UtcNow.AddMinutes(recentProgress ? 0 : -5), null, "", "", 1);
+        var metrics = Substitute.For<IActorMetricsStore>();
+        metrics.CaptureSnapshot().Returns(new ActorMetricsSnapshot(id, DateTime.UtcNow, [entry], 1));
+        var mailbox = Substitute.For<IActorMailbox>();
+        mailbox.Metrics.Returns(metrics);
+        mailbox.ThreadQueues.Returns(Substitute.For<IActorThreadQueues>());
+        mailbox.ThreadQueues.IsAccepting.Returns(true);
+        var actor = Substitute.For<IActor>();
+        actor.IsRunning.Returns(true);
+        actor.Mailbox.Returns(mailbox);
+        fixture.Actors.ActorExists(id).Returns(true);
+        fixture.Actors.Children.Returns(new Dictionary<ActorMailboxId, IActor> { [id] = actor });
+        await fixture.Probe.RecoverDownstreamAsync(new("ITI ingress", "ES", "Degraded", "stale", DateTime.UtcNow), fixture.Date, default);
+        await fixture.Actors.Received(1).RestartAsync(id, Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task Targeted_chart_recovery_starts_missing_timer_without_resetting_dataset()
     {

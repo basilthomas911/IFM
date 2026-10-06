@@ -157,14 +157,17 @@ public sealed class PortfolioFinancialPolicyCommandActor(
                     command is ActivateAndAssignPortfolioFinancialPolicyCommand && limit.Enabled, cancellationToken);
             }
         var receive = ResolveMappedCommandHandler(command, _receiveMap);
-        return await receive(this, command, state, principal, cancellationToken).ConfigureAwait(false);
+        var result = await receive(this, command, state, principal, cancellationToken).ConfigureAwait(false);
+        return !result.Success && result.ErrorCode == command.ErrorCode
+            ? new ServiceFailed<GuidResult>(PortfolioErrorCodes.ValidationFailed, result.ErrorMessage)
+            : result;
     }
 
     async ValueTask<ServiceResult<GuidResult>> CommitPolicyMutationAsync(
         PolicyActorState state,
         ICommand<PortfolioFinancialPolicyId> command,
         string principal,
-        Func<bool, DateTime, IPortfolioFinancialPolicyDomainEvent> createEvent,
+        Func<bool, DateTime, ServiceResult<GuidResult>> applyPolicyChange,
         Func<IPortfolioFinancialPolicyDomainEvent, bool>? isIdempotencyConflict,
         CancellationToken cancellationToken)
     {
@@ -178,7 +181,9 @@ public sealed class PortfolioFinancialPolicyCommandActor(
         var now = DateTime.UtcNow;
         var currentPortfolio = await events.LoadPortfolioAsync(new PortfolioId(state.PolicyId.PortfolioId), cancellationToken).ConfigureAwait(false);
         var referenced = currentPortfolio.Current?.ActivePolicyId == state.PolicyId.PolicyId;
-        var domainEvent = createEvent(referenced, now);
+        var acceptance = applyPolicyChange(referenced, now);
+        if (!acceptance.Success) return acceptance;
+        var domainEvent = state.Aggregate.PendingEvent ?? throw new InvalidOperationException("Policy handler accepted without applying a source event.");
         await events.AppendPolicyAsync(state.PolicyId, domainEvent, domainEvent.Revision - 1, cancellationToken: cancellationToken).ConfigureAwait(false);
         await projector.DomainEventsProjectionAsync(new DomainEventCollection([domainEvent])).ConfigureAwait(false);
         if (domainEvent is DraftPortfolioFinancialPolicyDeletedEvent)

@@ -39,6 +39,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     Task? _shutdownTask;
     int _disposed;
     int _isReady;
+    readonly ConcurrentDictionary<ActorMailboxId, long> realtimeMailboxGenerations = new();
 
     public SupervisorRuntimeContext RuntimeContext { get; } = new();
 
@@ -209,7 +210,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             this,
             mailboxId,
             _admissionOptions.RetainedIdleMailboxesPerActor,
-            _admissionController);
+            _admissionController, realtimeMailboxGenerations.GetOrAdd(mailboxId, 1));
 
     /// <summary>
     /// Retrieves an actor thread for the specified thread id from the internal thread pool.
@@ -327,6 +328,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             actor,
             async () =>
             {
+                actor = _children[mailboxId];
                 await actor.StartAsync(this, cancellationToken).ConfigureAwait(false);
                 actor.Mailbox.ThreadQueues.ResumeAdmission();
             },
@@ -352,6 +354,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             actor,
             async () =>
             {
+                actor = _children[mailboxId];
                 actor.Mailbox.ThreadQueues.PauseAdmission();
                 _logger.LogInformation("Actor admission closed; ActorMailboxId={ActorMailboxId}; Method={Method}", mailboxId, nameof(StopAsync));
                 if (!await actor.Mailbox.ThreadQueues
@@ -371,6 +374,8 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
         cancellationToken.ThrowIfCancellationRequested();
         if (!_children.TryGetValue(mailboxId, out var actor))
             throw new InvalidOperationException($"Actor with mailbox id '{mailboxId}' not found.");
+        if (IsDisposableRealtimeActor(actor))
+            return ReplaceRealtimeAsync(mailboxId, cancellationToken);
         return RuntimeContext.RestartAsync(
             actor,
             async () =>
@@ -380,7 +385,17 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
                 if (!await actor.Mailbox.ThreadQueues
                     .WaitForIdleAsync(ShutdownDrainTimeout, cancellationToken)
                     .ConfigureAwait(false))
+                {
+                    // No stop has occurred; realtime processing can continue the accepted backlog.
+                    // Command/event actors retain their closed-admission failure policy.
+                    if (mailboxId.ActorType == ActorType.Realtime && actor.IsRunning)
+                    {
+                        actor.Mailbox.ThreadQueues.ResumeAdmission();
+                        _logger.LogWarning("{Method} deferred before actor stop; ActorMailboxId={ActorMailboxId}; admission reopened after drain timeout; Timeout={Timeout}",
+                            nameof(RestartAsync), mailboxId, ShutdownDrainTimeout);
+                    }
                     throw new TimeoutException($"Actor '{actor.Id}' did not drain before restart.");
+                }
                 await actor.StopAsync(cancellationToken).ConfigureAwait(false);
             },
             async () =>
@@ -389,6 +404,46 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
                 actor.Mailbox.ThreadQueues.ResumeAdmission();
             },
             cancellationToken);
+    }
+
+    static bool IsDisposableRealtimeActor(IActor actor)
+        => actor is IReplaceableRealtimeActor && RealtimeActorResetPolicy.CanReplace(actor.GetType(), actor.Id.ActorType);
+
+    async ValueTask ReplaceRealtimeAsync(ActorMailboxId mailboxId, CancellationToken cancellationToken)
+        => _ = await TryReplaceRealtimeAsync(mailboxId, null, -1, cancellationToken).ConfigureAwait(false);
+
+    async ValueTask<bool> TryReplaceRealtimeAsync(ActorMailboxId mailboxId, ActorThreadId? expectedThread,
+        long expectedGeneration, CancellationToken cancellationToken)
+    {
+        var replaced = false;
+        await RuntimeContext.ReplaceRealtimeAsync(mailboxId, async oldActor =>
+        {
+            if (expectedThread is not null && expectedGeneration >= 0
+                && oldActor.Mailbox.ThreadQueues.GetGeneration(expectedThread.Value) != expectedGeneration)
+                return oldActor;
+            // Construct first: a factory failure must not retire a healthy actor.
+            var replacement = _container.Resolve<IActorFactory>().CreateRealtimeReplacement(oldActor.GetType());
+            if (ReferenceEquals(oldActor, replacement) || !IsDisposableRealtimeActor(replacement))
+                throw new InvalidOperationException("Realtime replacement must have a fresh disposable actor context.");
+            oldActor.Mailbox.ThreadQueues.PauseAdmission();
+            ((IReplaceableRealtimeActor)oldActor).RetireRealtimeGeneration();
+            if (oldActor.Mailbox.ThreadQueues is not ActorThreadQueues queues)
+                throw new InvalidOperationException("Realtime replacement requires supervised actor queues.");
+            var nextGeneration = checked(queues.MaximumGeneration + 1);
+            realtimeMailboxGenerations.AddOrUpdate(mailboxId, nextGeneration, (_, previous) => Math.Max(nextGeneration, checked(previous + 1)));
+            queues.DiscardRealtimeWork();
+            if (_threadStateByMailbox.TryRemove(mailboxId, out var states))
+                foreach (var threadId in states.Keys) _threadState.TryRemove(threadId, out _);
+            await replacement.StartAsync(this, cancellationToken).ConfigureAwait(false);
+            if (!_children.TryUpdate(mailboxId, replacement, oldActor))
+                throw new InvalidOperationException("Realtime actor ownership changed during replacement.");
+            replacement.Mailbox.ThreadQueues.ResumeAdmission();
+            _logger.LogWarning("Realtime actor generation replaced without draining; Method={Method}; ActorMailboxId={ActorMailboxId}; GenerationId={GenerationId}",
+                nameof(ReplaceRealtimeAsync), mailboxId, ((IReplaceableRealtimeActor)replacement).RealtimeGeneration.Id);
+            replaced = true;
+            return replacement;
+        }, cancellationToken).ConfigureAwait(false);
+        return replaced;
     }
 
     public ValueTask<bool> PauseAsync(
@@ -442,6 +497,8 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     {
         if (!_children.TryGetValue(threadId.MailboxId, out var actor))
             throw new InvalidOperationException($"Actor with mailbox id '{threadId.MailboxId}' not found.");
+        if (IsDisposableRealtimeActor(actor))
+            return TryReplaceRealtimeAsync(threadId.MailboxId, threadId, expectedGeneration, cancellationToken);
         return RuntimeContext.RunMailboxOperationAsync(
             threadId,
             async () =>

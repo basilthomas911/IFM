@@ -229,6 +229,25 @@ public sealed class FuturesItiSignalRealtimeActorTests
     }
 
     [Fact]
+    public async Task CancellationReleasesIngressWithoutAcceptingLateCommandResult()
+    {
+        var context = Context(out _, out var telemetry);
+        var completion = new TaskCompletionSource<ServiceResult<GuidResult>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        context.RequestAsync<GenerateFuturesItiSignalCommand, FuturesItiSignalEntityId>(
+                Arg.Any<GenerateFuturesItiSignalCommand>())
+            .Returns(_ => new ValueTask<ServiceResult<GuidResult>>(completion.Task));
+        using var cancellation = new CancellationTokenSource();
+        var processing = Event().ExecuteAsync(context, cancellation.Token).AsTask();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => processing.WaitAsync(TimeSpan.FromSeconds(2)));
+        completion.SetResult(new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid())));
+        telemetry.GetSnapshot().AcceptedCommands.Should().Be(0);
+        telemetry.GetSnapshot().Failures.Should().Be(0);
+    }
+
+    [Fact]
     public async Task GenerationFailureIsRecordedBeforeHandlerReturns()
     {
         var context = Context(out _, out var telemetry);

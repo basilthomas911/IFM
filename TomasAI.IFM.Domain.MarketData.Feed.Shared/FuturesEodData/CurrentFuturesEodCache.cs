@@ -22,6 +22,7 @@ public sealed class CurrentFuturesEodCache
     /// <summary>Publishes an ordered live snapshot and returns its persistence version.</summary>
     public long Publish(FuturesEodDataV2ReadModel snapshot)
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         var version = Interlocked.Increment(ref revision);
         var now = DateTime.UtcNow;
         latestDates.TryGetValue(snapshot.ContractId, out var previousDate);

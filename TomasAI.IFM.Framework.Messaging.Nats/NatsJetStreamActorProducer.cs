@@ -165,6 +165,7 @@ public class NatsJetStreamActorProducer(
             using var operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(
                 cancellationToken,
                 operationStopping.Token);
+            TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
             var acknowledgement = await _js.PublishAsync(
                 subject,
                 message,

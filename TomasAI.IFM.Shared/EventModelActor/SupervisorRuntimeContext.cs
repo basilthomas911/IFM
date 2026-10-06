@@ -218,7 +218,7 @@ public sealed class SupervisorRuntimeContext : IActorFailureSink, IActorRuntimeM
         await entry.Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (actor.IsRunning)
+            if (entry.Actor.IsRunning)
             {
                 entry.State = SupervisorActorLifecycleState.Running;
                 return;
@@ -261,7 +261,7 @@ public sealed class SupervisorRuntimeContext : IActorFailureSink, IActorRuntimeM
         await entry.Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (!actor.IsRunning)
+            if (!entry.Actor.IsRunning)
             {
                 entry.State = SupervisorActorLifecycleState.Stopped;
                 return;
@@ -334,6 +334,30 @@ public sealed class SupervisorRuntimeContext : IActorFailureSink, IActorRuntimeM
         {
             entry.Gate.Release();
         }
+    }
+
+    /// <summary>Serializes replacement with lifecycle operations without awaiting the retired handler.</summary>
+    internal async ValueTask ReplaceRealtimeAsync(ActorMailboxId id, Func<IActor, ValueTask<IActor>> replace,
+        CancellationToken cancellationToken)
+    {
+        if (!_actors.TryGetValue(id, out var entry)) throw new InvalidOperationException($"Actor '{id}' is unavailable.");
+        await entry.Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            entry.State = SupervisorActorLifecycleState.Restarting;
+            var previous = entry.Actor;
+            entry.Actor = await replace(previous).ConfigureAwait(false);
+            if (!ReferenceEquals(previous, entry.Actor)) Interlocked.Increment(ref entry.Generation);
+            entry.State = SupervisorActorLifecycleState.Running;
+        }
+        catch (Exception error)
+        {
+            entry.State = SupervisorActorLifecycleState.Quarantined;
+            RecordFailure(id, new(id.ActorType, id.Name, "lifecycle"), "ReplaceRealtime",
+                ActorFailureStage.Restart, error);
+            throw;
+        }
+        finally { entry.Gate.Release(); }
     }
 
     public SupervisorRuntimeSnapshot CaptureSnapshot(DateTime? fromUtc = null, DateTime? toUtc = null)
@@ -476,7 +500,8 @@ public sealed class SupervisorRuntimeContext : IActorFailureSink, IActorRuntimeM
         var processing = mailboxes.Any(mailbox => mailbox.IsProcessing);
         var status = !actor.IsRunning
             ? SupervisorActorHealthStatus.Red
-            : processing || queueDepth > 0
+            : processing || queueDepth > 0 || actor.Mailbox?.ThreadQueues?.IsAccepting == false
+                || mailboxes.Any(mailbox => !mailbox.IsAdmissionOpen)
                 ? SupervisorActorHealthStatus.Yellow
                 : SupervisorActorHealthStatus.Green;
         var type = actor.GetType();
@@ -501,7 +526,7 @@ public sealed class SupervisorRuntimeContext : IActorFailureSink, IActorRuntimeM
 
     sealed class ActorEntry(IActor actor)
     {
-        internal readonly IActor Actor = actor;
+        internal IActor Actor = actor;
         internal readonly SemaphoreSlim Gate = new(1, 1);
         internal volatile SupervisorActorLifecycleState State = SupervisorActorLifecycleState.Registered;
         internal long Generation;

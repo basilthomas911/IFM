@@ -11,7 +11,8 @@ public sealed class ActorThreadQueues(
     IActorSupervisor supervisor,
     int maxRetainedIdleQueues = ActorAdmissionOptions.ExistingRetainedIdleMailboxesPerActor,
     ActorAdmissionController? admissionController = null,
-    ActorMetricsStore? metrics = null) : IActorThreadQueues
+    ActorMetricsStore? metrics = null,
+    long initialGeneration = 1) : IActorThreadQueues
 {
     readonly IActorSupervisor _supervisor = IsArgumentNull.Set(supervisor);
     readonly ActorAdmissionController _admissionController =
@@ -30,6 +31,8 @@ public sealed class ActorThreadQueues(
     int _accepting = 1;
 
     public int Count => _threadQueues.Count;
+    /// <summary>Gets the highest generation retained by this actor, including retired entity queues.</summary>
+    public long MaximumGeneration => Math.Max(initialGeneration, _generations.Values.DefaultIfEmpty(initialGeneration).Max());
     public bool IsAccepting => Volatile.Read(ref _accepting) != 0;
 
     public bool Write(IActorMessage message)
@@ -223,7 +226,7 @@ public sealed class ActorThreadQueues(
             {
                 var generation = _generations.TryGetValue(threadId, out var restartedGeneration)
                     ? restartedGeneration
-                    : 1;
+                    : initialGeneration;
                 _metrics?.RegisterMailbox(threadId, created, generation);
                 return created;
             }
@@ -236,7 +239,19 @@ public sealed class ActorThreadQueues(
         => _threadQueues.TryGetValue(threadId, out queue);
 
     public long GetGeneration(ActorThreadId threadId)
-        => _generations.TryGetValue(threadId, out var generation) ? generation : 1;
+        => _generations.TryGetValue(threadId, out var generation) ? generation : initialGeneration;
+
+    /// <summary>Discards accepted disposable realtime work after its owning actor generation has been retired.</summary>
+    public void DiscardRealtimeWork()
+    {
+        PauseAdmission();
+        foreach (var pair in _threadQueues)
+        {
+            if (pair.Key.ActorType != ActorType.Realtime)
+                throw new InvalidOperationException("Durable actor work cannot be discarded.");
+            pair.Value.Stop();
+        }
+    }
 
     public void PauseAdmission()
     {
@@ -350,7 +365,7 @@ public sealed class ActorThreadQueues(
             .Remove(new(threadId, queue)))
             return false;
         Interlocked.Decrement(ref _publishedOrPendingQueues);
-        _generations.AddOrUpdate(threadId, 2, static (_, generation) => generation + 1);
+        _generations.AddOrUpdate(threadId, initialGeneration + 1, static (_, generation) => generation + 1);
         if (_metrics is not null)
             _metrics.GetOrRegister(threadId, queue).SetLifecycle(ActorMailboxLifecycleState.Retired);
         _metrics?.RemoveMailbox(threadId, queue);

@@ -121,12 +121,12 @@ public sealed class PortfolioCommandActor(
         };
 
     static readonly IReadOnlyDictionary<Type, Func<PortfolioCommandActor, ICommand, PortfolioActorState,
-        DateTime, string, CancellationToken, ValueTask<IPortfolioDomainEvent>>> _receiveMap =
+        DateTime, string, CancellationToken, ValueTask<ServiceResult<GuidResult>>>> _receiveMap =
         new Dictionary<Type, Func<PortfolioCommandActor, ICommand, PortfolioActorState,
-            DateTime, string, CancellationToken, ValueTask<IPortfolioDomainEvent>>>
+            DateTime, string, CancellationToken, ValueTask<ServiceResult<GuidResult>>>>
         {
             [typeof(CreatePortfolioCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult<IPortfolioDomainEvent>(((CreatePortfolioCommand)command).Execute(state.Aggregate, now, principal)),
+                ValueTask.FromResult<ServiceResult<GuidResult>>(((CreatePortfolioCommand)command).Execute(state.Aggregate, now, principal)),
             [typeof(AddPortfolioVersionCommand)] = static (_, command, state, now, principal, _) =>
                 ValueTask.FromResult(((AddPortfolioVersionCommand)command).Execute(state.Aggregate, now, principal)),
             [typeof(ChangePortfolioOperatingStateCommand)] = static (_, command, state, now, principal, _) =>
@@ -184,7 +184,9 @@ public sealed class PortfolioCommandActor(
         }
         var now = DateTime.UtcNow;
         var receive = ResolveMappedCommandHandler(command, _receiveMap);
-        var domainEvent = await receive(this, command, state, now, principal, cancellationToken).ConfigureAwait(false);
+        var acceptance = await receive(this, command, state, now, principal, cancellationToken).ConfigureAwait(false);
+        if (!acceptance.Success) return acceptance;
+        var domainEvent = state.Aggregate.PendingEvent ?? throw new InvalidOperationException("Portfolio handler accepted without applying a source event.");
         await _events.AppendPortfolioAsync(
             state.PortfolioId,
             domainEvent,

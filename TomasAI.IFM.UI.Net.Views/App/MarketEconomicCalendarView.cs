@@ -20,6 +20,14 @@ public partial class MarketEconomicCalendarView : DarkTradingView, IAsyncFormCon
     {
         InitializeComponent();
         DashboardTypography.ApplyFamilyAndSize(this);
+        // Reserve the details row before assigning remaining height to the scrolling list.
+        Padding = new Padding(0, 0, 0, 4);
+        pnlCalendarDetails.Dock = DockStyle.Bottom;
+        pnlCalendarDetails.AutoSize = true;
+        pnlCalendarDetails.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        pnlCalendarDetails.RowStyles[0].SizeType = SizeType.AutoSize;
+        lstEconomicCalendar.Dock = DockStyle.Fill;
+        lstEconomicCalendar.BringToFront();
         txtCalendarDate.AccessibleName = "Economic calendar date";
         ddlCountryCodes.AccessibleName = "Economic calendar country";
         lstEconomicCalendar.AccessibleName = "Economic calendar list";

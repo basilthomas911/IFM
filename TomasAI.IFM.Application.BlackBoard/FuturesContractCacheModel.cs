@@ -42,8 +42,10 @@ public class FuturesContractCacheModel(IRedisCache redisCache, IJsonSerializer j
     /// <param name="futuresContract"></param>
     public void Set(FuturesContractId futuresContractId, FuturesContractV3ReadModel futuresContract)
     {
+        TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
         var key = $"{CacheName}:{futuresContractId}";
         var value = _jsonSerializer.Serialize(futuresContract);
+        TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
         _redisCache.Set(key, value);
     }
 }

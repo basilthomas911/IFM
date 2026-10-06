@@ -15,6 +15,7 @@ using NSubstitute;
 
 namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Workflow;
 
+[Trait("Infrastructure", "SelfContained")]
 public sealed class PortfolioCompositionIntegrationTests
 {
     static readonly DateTime Now = new(2026, 8, 30, 16, 0, 0, DateTimeKind.Utc);

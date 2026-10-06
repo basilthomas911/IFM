@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.UI.Net.Services.MarketData;
+using TomasAI.IFM.UI.Net.Services.MarketData;
 using System;
 using System.Reflection;
 using System.Linq;
@@ -75,6 +75,9 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
         tabTradeBlotter.ShowCloseButtons = true;
         tabTradeBlotter.TabCloseRequested += tabTradeBlotter_TabCloseRequested;
         DashboardTypography.ApplyFamilyAndSize(operationViewSplitter);
+        pnlAppView.AutoSize = false;
+        pnlAppView.AutoScroll = true;
+        pnlAppView.Layout += LayoutEconomicCalendar;
         operationViewSplitter.Paint += DashboardSplitter_Paint;
         marketViewSplitter.Paint += DashboardSplitter_Paint;
         marketDataFeedHealthIndicator.IsLink = true;
@@ -691,6 +694,22 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
             0,
             0);
         toolStrip1.PerformLayout();
+    }
+
+    /// <summary>Keeps the calendar and status area inside the dashboard at smaller window heights.</summary>
+    private void LayoutEconomicCalendar(object? sender, LayoutEventArgs e)
+    {
+        var calendarMinimum = LogicalToDeviceUnits(120);
+        var statusMinimum = LogicalToDeviceUnits(80);
+        var fixedHeight = pnlMarketOutlook.Height + pnlMarketData.Height;
+        var calendarHeight = Math.Clamp(
+            pnlAppView.ClientSize.Height - fixedHeight - statusMinimum,
+            calendarMinimum, LogicalToDeviceUnits(245));
+        var minimumContentSize = new Size(0, fixedHeight + calendarMinimum + statusMinimum);
+        if (pnlAppView.AutoScrollMinSize != minimumContentSize)
+            pnlAppView.AutoScrollMinSize = minimumContentSize;
+        if (pnlEconomicCalendar.Height != calendarHeight)
+            pnlEconomicCalendar.Height = calendarHeight;
     }
 
     private void InitializeDashboardSplitters()

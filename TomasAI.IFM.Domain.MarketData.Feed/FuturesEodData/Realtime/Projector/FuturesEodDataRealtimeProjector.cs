@@ -41,6 +41,7 @@ public sealed class FuturesEodDataRealtimeProjector(
             {
                 spool = new(configuration?["MarketData:FuturesEodHistorySpoolPath"]
                     ?? Path.Combine(AppContext.BaseDirectory, "History", "FuturesEod"));
+                using var persistenceScope = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterIndependentPersistence();
                 writer = WriteBatchesAsync();
                 if (spool.Pending > 0) SignalWriter();
             }

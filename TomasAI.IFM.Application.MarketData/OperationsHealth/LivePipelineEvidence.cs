@@ -31,6 +31,7 @@ public sealed class LivePipelineEvidence(TimeProvider time)
         && latest.AllowsNewDecisions;
     public void Record(string component, string scope, string status, string reason, DateTime? progress = null)
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         lock (gate)
         {
             var key = component + "/" + scope;

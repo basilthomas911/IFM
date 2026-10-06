@@ -37,6 +37,7 @@ public class FuturesEodDataRangeCacheModel(IRedisCache redisCache, IJsonSerializ
             if (futuresEodData is not null)
             {
                 value = _jsonSerializer.Serialize(futuresEodData);
+                TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
                 _redisCache.Set(key, value);
             }
         }
@@ -50,7 +51,8 @@ public class FuturesEodDataRangeCacheModel(IRedisCache redisCache, IJsonSerializ
                 if (futuresEodData is not null)
                 {
                     value = _jsonSerializer.Serialize(futuresEodData);
-                    _redisCache.Set(key, value);
+                    TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
+                _redisCache.Set(key, value);
                 }
             }
         }
@@ -69,6 +71,7 @@ public class FuturesEodDataRangeCacheModel(IRedisCache redisCache, IJsonSerializ
     {
         var cacheId = FuturesEodDataId.Create(contractId, valueDate);
         var key = $"{CacheName}:{cacheId.Format()}";
+        TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
         _redisCache.Remove(key);
     }
 }

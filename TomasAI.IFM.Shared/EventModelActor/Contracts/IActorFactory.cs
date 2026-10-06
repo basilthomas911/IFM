@@ -11,4 +11,7 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 public interface IActorFactory
 {
     IActor GetActor(Type actorType);
+    /// <summary>Constructs a fresh disposable realtime actor and its actor-owned dependencies.</summary>
+    IActor CreateRealtimeReplacement(Type actorType)
+        => throw new NotSupportedException("Fresh realtime actor construction is not configured.");
 }

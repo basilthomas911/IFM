@@ -10,6 +10,14 @@ namespace TomasAI.IFM.Domain.Portfolio.Fund.Command;
 internal static class FundActivationQualification
 {
     /// <summary>Returns the current parent-Portfolio and assignment evidence for one Fund transition.</summary>
+    /// <param name="id">The id business input.</param>
+    /// <param name="aggregate">The current authoritative business state.</param>
+    /// <param name="events">The authoritative event store used for lookup and commit.</param>
+    /// <param name="referenceQueries">The reference catalog used to qualify exact business selections.</param>
+    /// <param name="qualifyCatalog">The qualify catalog business input.</param>
+    /// <param name="cancellationToken">Cancels pre-commit work; an uncertain commit must be reconciled.</param>
+    /// <returns>The operation result.</returns>
+    /// <exception cref="OperationCanceledException">Cancellation interrupts pre-commit work; committed or uncertain operations require reconciliation.</exception>
     internal static async ValueTask<FundActivationContext> EvaluateAsync(
         PortfolioFundId id,
         PortfolioFundAggregate aggregate,

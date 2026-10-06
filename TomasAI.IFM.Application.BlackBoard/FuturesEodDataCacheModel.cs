@@ -41,8 +41,10 @@ public class FuturesEodDataCacheModel(IRedisCache redisCache, IJsonSerializer js
     /// <param name="futuresEodData"></param>
     public void Set(string contractId, DateOnly valueDate, FuturesEodDataV2ReadModel futuresEodData)
     {
+        TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
         var key = $"{CacheName}:{contractId}. {valueDate:yyyyMMdd}";
         var value = _jsonSerializer.Serialize(futuresEodData);
+        TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
         _redisCache.Set(key, value);
     }
 }

@@ -1596,3 +1596,18 @@ Scheduled unconsumed expiry uses a durable operational dispatch journal and the 
 ## Structured operation logging
 
 Follow [Structured logging conventions](Structured-Logging-Conventions.md) for selected boundaries, method/argument fields, performance gating and OTLP correlation. Do not instrument every command compute/state application or every realtime event.
+
+
+## Disposable realtime recovery in the development API process
+
+Market-data Feed and Analytics Realtime actors use supervisor generation replacement for targeted recovery. Command, Event, Function and financial Trade actors retain their existing durable lifecycle. An accepted downstream command is not recalled or discarded when its realtime caller is retired.
+
+- Serialize replacement per actor with other actor lifecycle operations. Construct a fresh actor and context before invalidating the existing generation; never reuse singleton context state.
+- Close admission, retire the generation, discard queued payloads and release admission reservations. Do not wait for active handlers to drain. Release pooled worker ownership on cancellation and observe the abandoned handler separately; dispose its active payload only after that handler exits.
+- Distinguish actor generations from provider dataset generations. Keep observable mailbox generations monotonic and use a unique actor-lifetime identifier for fences.
+- Carry the actor lifetime through actor-owned tasks and local Market Outlook submissions. Guard authoritative in-memory cache commits, context dispatch and NATS publication. Short synchronous in-memory commits may use `RealtimeActorGeneration.EnterMutation`; never hold that guard across an await or Redis/database/network I/O.
+- Reattach routes with the new context. Previously seeded command state and shared authoritative live snapshots remain available; independently owned EOD history persistence continues without becoming a live-admission dependency.
+- Perform at most three targeted soft-reset attempts, checking actual pipeline health on subsequent audits. A requested restart alone is not evidence of recovery. Persisting unhealthy checks escalate to the existing hard-reset recovery owner, whose terminal failure shuts down the API.
+- A running actor with closed admission must not appear healthy merely because its queue is empty.
+
+This is logical abandonment and effect fencing, not forced termination of a managed thread. Already accepted transport/storage operations may complete. Complete process termination remains the hard failure boundary. See [event modeling conventions](Actor-Event-Modeling-Conventions.md) for authoritative state and durable financial event ownership.

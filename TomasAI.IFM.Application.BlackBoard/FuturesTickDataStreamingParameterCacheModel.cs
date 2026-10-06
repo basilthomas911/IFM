@@ -35,8 +35,10 @@ public class FuturesTickDataStreamingParameterCacheModel(IRedisCache redisCache)
     /// <param name="futuresTickDataStreamingParameter"></param>
     public void Set(int requestId, FuturesTickDataStreamingParameter futuresTickDataStreamingParameter)
     {
+        TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
         var key = $"{CacheName}:{requestId}";
         var value = JsonConvert.SerializeObject(futuresTickDataStreamingParameter, Formatting.None);
+        TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
         _redisCache.Set(key, value);
     }
 }

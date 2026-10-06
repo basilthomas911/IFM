@@ -22,6 +22,15 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
     readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorId);
     readonly ConcurrentDictionary<ActorThreadId, ActorMessageInfo> _messageInfo = new();
 
+    /// <summary>Owns the generation of this context; replacement never reuses it.</summary>
+    public RealtimeActorGeneration RealtimeGeneration { get; } = new();
+
+    void EnsureCurrentGeneration()
+    {
+        if (ActorId.ActorType == ActorType.Realtime) RealtimeGeneration.Token.ThrowIfCancellationRequested();
+        RealtimeActorGeneration.ThrowIfRetired();
+    }
+
     IActorProducer? _producer;
     readonly ActorEventPublisher _eventPublisher = new(supervisor, actorId);
 
@@ -50,6 +59,7 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
     /// <returns>true if the message information was successfully set; otherwise, false.</returns>
     public bool SetMessageInfo(ActorThreadId threadId, ActorMessageInfo info)
     {
+        using var mutation = RealtimeActorGeneration.EnterMutation();
         _messageInfo[threadId] = info;
         return true;
     }
@@ -74,8 +84,11 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
     public ValueTask<ServiceResult<TResult>> RequestAsync<TResult, TQuery>(TQuery query)
         where TQuery : class, IQuery<TResult>
         where TResult : class
-        => (_producer ??= _supervisor.GetProducer(_actorId))
+    {
+        EnsureCurrentGeneration();
+        return (_producer ??= _supervisor.GetProducer(_actorId))
             .RequestAsync<TResult, TQuery>(query.Subject, query);
+    }
 
     /// <summary>
     /// Sends a command to the actor and awaits a service result containing the command id.
@@ -87,8 +100,11 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
     public ValueTask<ServiceResult<GuidResult>> RequestAsync<TCommand, TEntityId>(TCommand command)
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
-        => (_producer ??= _supervisor.GetProducer(_actorId))
+    {
+        EnsureCurrentGeneration();
+        return (_producer ??= _supervisor.GetProducer(_actorId))
             .RequestAsync<TCommand, TEntityId, GuidResult>(command.Subject, command, command.EntityId);
+    }
 
     /// <inheritdoc />
     public ValueTask<ServiceResult<TResult>> RequestFunctionAsync<TCommand, TEntityId, TResult>(
@@ -97,12 +113,12 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
         where TResult : class
-        => (_producer ??= _supervisor.GetProducer(_actorId))
+    {
+        EnsureCurrentGeneration();
+        return (_producer ??= _supervisor.GetProducer(_actorId))
             .RequestFunctionAsync<TCommand, TEntityId, TResult>(
-                command.Subject,
-                command,
-                command.EntityId,
-                cancellationToken);
+                command.Subject, command, command.EntityId, cancellationToken);
+    }
 
     /// <summary>
     /// Sends an event to the actor via the configured producer.
@@ -114,6 +130,7 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
+        EnsureCurrentGeneration();
         var started = ActorRuntimeMetrics.StartStage();
         try
         {
@@ -146,6 +163,7 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
     {
+        EnsureCurrentGeneration();
         var result = await (_producer ??= _supervisor.GetProducer(_actorId))
             .RequestAsync<TCommand, TEntityId, GuidResult>(
                 command.Subject,

@@ -101,7 +101,8 @@ public sealed class EmulatorActorWorkflowIntegrationTests
     {
         var order = new Harness().Order(TradeStrategyKind.FuturesOutright);
         var reader = new MessagePackReader(MessagePackSerializer.Serialize(order));
-        Assert.Equal(28, reader.ReadArrayHeader());
+        // Later contracts may append evidence fields; the legacy fixture ends before keys 26 and 27.
+        Assert.True(reader.ReadArrayHeader() >= 28);
         var buffer = new System.Buffers.ArrayBufferWriter<byte>();
         var writer = new MessagePackWriter(buffer);
         writer.WriteArrayHeader(26);

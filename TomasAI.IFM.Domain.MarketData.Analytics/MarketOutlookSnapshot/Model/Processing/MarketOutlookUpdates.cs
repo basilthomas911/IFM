@@ -239,11 +239,16 @@ public sealed class MarketOutlookUpdateProcessor(
                 Interlocked.Increment(ref processing);
                 try
                 {
+                    using var generationScope = update.ActorGeneration?.Enter();
                     await ProcessAsync(update, stoppingToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
                     break;
+                }
+                catch (OperationCanceledException) when (update.ActorGeneration?.Token.IsCancellationRequested == true)
+                {
+                    // Retired setup inputs are discarded; newer updates continue immediately.
                 }
                 catch (Exception exception)
                 {

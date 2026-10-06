@@ -95,12 +95,22 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                           && recovery.LastAttemptUtc is { } attempted
                           && now - attempted >= options.RecoveryObservationWindow))
                 .ToArray();
+            var exhaustedDownstream = downstreamRecoveries.Where(pair => pair.Value.Attempts >= 3
+                && pair.Value.State is "Failed" or "Requested"
+                && pair.Value.LastAttemptUtc is { } last && now - last >= DownstreamRecoveryDelay)
+                .Select(pair => pair.Key).ToArray();
             var forcedResetDue = options.ForceOneHardResetAfterStartup
                 && !forcedHardResetRequested
                 && now - monitorStartedUtc >= options.HardResetDelay;
-            if (!recoveryEpisodeTerminal && (dueUpstream.Length > 0 || forcedResetDue))
+            if (!recoveryEpisodeTerminal && (dueUpstream.Length > 0 || exhaustedDownstream.Length > 0 || forcedResetDue))
             {
                 forcedHardResetRequested = true;
+                foreach (var target in exhaustedDownstream)
+                    downstreamRecoveries[target] = downstreamRecoveries[target] with
+                    { State = "EscalatedToHardReset", LastAttemptUtc = now };
+                if (exhaustedDownstream.Length > 0)
+                    logger.LogWarning("Realtime recovery exhausted three soft resets; Method={Method}; Targets={Targets}; invoking existing hard reset policy.",
+                        nameof(CheckOnceAsync), string.Join(", ", exhaustedDownstream));
                 if (forcedResetDue)
                     logger.LogWarning(
                         "{Component}.{Method} "+"The configured five-minute startup boundary was reached. Performing the one-shot complete hard reset.",nameof(LivePipelineMonitor),nameof(CheckOnceAsync));
@@ -177,7 +187,7 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
         {
             var target = DownstreamTarget(check)!;
             if (!downstreamRecoveries.TryGetValue(target, out var state)
-                || state.Attempts > 0
+                || (state.Attempts >= 3 || state.State == "EscalatedToHardReset")
                 || now - state.UnhealthySinceUtc < DownstreamRecoveryDelay
                 || state.LastAttemptUtc is { } last && now - last < DownstreamRecoveryDelay)
                 continue;

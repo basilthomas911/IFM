@@ -80,6 +80,7 @@ public sealed class FuturesItiSignalRuntimeTelemetry(TimeProvider timeProvider)
     /// <summary>Records receipt of one normalized market-price event.</summary>
     public void RecordMarketPriceReceived(DateTime eventTimeUtc)
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         Interlocked.Increment(ref marketPriceEvents);
         Interlocked.Exchange(ref lastMarketPriceTicks, Normalize(eventTimeUtc).Ticks);
     }
@@ -87,12 +88,14 @@ public sealed class FuturesItiSignalRuntimeTelemetry(TimeProvider timeProvider)
     /// <summary>Records an intentionally ignored market-price event.</summary>
     public void RecordFiltered(string reason)
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         Interlocked.Increment(ref filteredEvents);
     }
 
     /// <summary>Records an eligible current ES trade that requires Daily ITI evaluation.</summary>
     public void RecordEligibleEsTrade(DateTime eventTimeUtc)
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         Interlocked.Increment(ref eligibleEsTradeEvents);
         Interlocked.Exchange(ref lastEligibleEsTradeTicks, Normalize(eventTimeUtc).Ticks);
     }
@@ -109,6 +112,7 @@ public sealed class FuturesItiSignalRuntimeTelemetry(TimeProvider timeProvider)
     /// <summary>Records dispatch of a Daily Generate command.</summary>
     public void RecordCommandRequested()
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         Interlocked.Exchange(ref inputUnavailableActive, 0);
         Interlocked.Increment(ref commandRequests);
         SetOutcome(FuturesItiRuntimeOutcome.CommandRequested, "Daily Generate command requested.");
@@ -117,6 +121,7 @@ public sealed class FuturesItiSignalRuntimeTelemetry(TimeProvider timeProvider)
     /// <summary>Records an accepted Generate command reply.</summary>
     public void RecordCommandAccepted()
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         Interlocked.Increment(ref acceptedCommands);
         Interlocked.Exchange(ref lastCommandAcceptedTicks, UtcNowTicks());
         SetOutcome(FuturesItiRuntimeOutcome.CommandAccepted, "Generate command accepted.");
@@ -125,6 +130,7 @@ public sealed class FuturesItiSignalRuntimeTelemetry(TimeProvider timeProvider)
     /// <summary>Records valid evaluation that produced no material signal change.</summary>
     public void RecordNoChange()
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         Interlocked.Increment(ref noChangeCommands);
         SetOutcome(FuturesItiRuntimeOutcome.CommandAcceptedNoChange, "Generate command completed with no material signal change.");
     }
@@ -132,6 +138,7 @@ public sealed class FuturesItiSignalRuntimeTelemetry(TimeProvider timeProvider)
     /// <summary>Records creation of a material signal state transition before durable save.</summary>
     public void RecordSignalChanged()
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         Interlocked.Increment(ref changedSignals);
         SetOutcome(FuturesItiRuntimeOutcome.SignalChanged, "Material ITI signal change created.");
     }
@@ -139,6 +146,7 @@ public sealed class FuturesItiSignalRuntimeTelemetry(TimeProvider timeProvider)
     /// <summary>Records successful durable commit of an ITI source event.</summary>
     public void RecordEventCommitted()
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         Interlocked.Increment(ref committedEvents);
         Interlocked.Exchange(ref lastEventCommittedTicks, UtcNowTicks());
         SetOutcome(FuturesItiRuntimeOutcome.EventCommitted, "ITI source event committed.");
@@ -147,6 +155,7 @@ public sealed class FuturesItiSignalRuntimeTelemetry(TimeProvider timeProvider)
     /// <summary>Records successful durable projection and terminal completion publication.</summary>
     public void RecordProjectionCompleted()
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         Interlocked.Increment(ref projectionCompletions);
         Interlocked.Exchange(ref lastProjectionCompletedTicks, UtcNowTicks());
         SetOutcome(FuturesItiRuntimeOutcome.ProjectionCompleted, "ITI projection completed.");
@@ -155,6 +164,7 @@ public sealed class FuturesItiSignalRuntimeTelemetry(TimeProvider timeProvider)
     /// <summary>Records successful processing of an ITI Generate completion.</summary>
     public void RecordCompletionHandled()
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         Interlocked.Increment(ref handledCompletions);
         Interlocked.Exchange(ref lastCompletionHandledTicks, UtcNowTicks());
         SetOutcome(FuturesItiRuntimeOutcome.CompletionHandled, "ITI completion handled.");
@@ -163,6 +173,7 @@ public sealed class FuturesItiSignalRuntimeTelemetry(TimeProvider timeProvider)
     /// <summary>Records a timeframe-driven strategy workflow request.</summary>
     public void RecordWorkflowRequested()
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         Interlocked.Increment(ref workflowRequests);
         Interlocked.Exchange(ref lastWorkflowRequestedTicks, UtcNowTicks());
         SetOutcome(FuturesItiRuntimeOutcome.WorkflowRequested, "Strategy workflow requested.");
@@ -171,6 +182,7 @@ public sealed class FuturesItiSignalRuntimeTelemetry(TimeProvider timeProvider)
     /// <summary>Records one classified processing failure.</summary>
     public void RecordFailure(string reason)
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         Interlocked.Increment(ref failures);
         SetOutcome(FuturesItiRuntimeOutcome.Failed, reason);
     }

@@ -78,6 +78,34 @@ public sealed class SupervisorRuntimeContextTests
             .Should().Be(SupervisorActorLifecycleState.Stopped);
     }
 
+    [Theory]
+    [InlineData(ActorType.Realtime, true)]
+    [InlineData(ActorType.Command, false)]
+    [InlineData(ActorType.Event, false)]
+    public async Task RestartDrainTimeout_ReopensOnlyRealtimeAdmissionBeforeAnyStop(ActorType actorType, bool reopens)
+    {
+        await using var supervisor = new ActorSupervisor(Mock.Of<IContainerInstance>(), NullLogger<ActorSupervisor>.Instance);
+        var id = new ActorMailboxId(actorType, "DrainTimeout");
+        var queues = new Mock<IActorThreadQueues>();
+        queues.Setup(value => value.WaitForIdleAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        var mailbox = new Mock<IActorMailbox>();
+        mailbox.SetupGet(value => value.ThreadQueues).Returns(queues.Object);
+        mailbox.SetupGet(value => value.Metrics).Returns(new ActorMetricsStore(id));
+        var actor = new Mock<IActor>();
+        actor.SetupGet(value => value.Id).Returns(id);
+        actor.SetupGet(value => value.Mailbox).Returns(mailbox.Object);
+        actor.SetupGet(value => value.IsRunning).Returns(true);
+        supervisor.AddActor(actor.Object);
+
+        await Assert.ThrowsAsync<TimeoutException>(() => supervisor.RestartAsync(id).AsTask());
+
+        queues.Verify(value => value.PauseAdmission(), Times.Once);
+        queues.Verify(value => value.ResumeAdmission(), reopens ? Times.Once() : Times.Never());
+        actor.Verify(value => value.StopAsync(It.IsAny<CancellationToken>()), Times.Never);
+        actor.Verify(value => value.StartAsync(It.IsAny<IActorSupervisor>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     [Fact]
     public void FailureHistory_PreservesPrimaryAndSecondaryEvidenceWithinDateRange()
     {

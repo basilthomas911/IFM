@@ -22,6 +22,7 @@ internal sealed class ActorEventPublisher(
         where TEntityId : IActorEntityId
     {
         ArgumentNullException.ThrowIfNull(@event);
+        RealtimeActorGeneration.ThrowIfRetired();
         var subject = @event.Subject;
         return subject.ActorType.GetDeliveryType() switch
         {
@@ -56,6 +57,7 @@ internal sealed class ActorEventPublisher(
         if (!actorExists)
             await producer.StartAsync(subject.ActorId, cancellationToken).ConfigureAwait(false);
 
+        RealtimeActorGeneration.ThrowIfRetired();
         await producer.SendAsync<TEvent, TEntityId>(subject, @event, cancellationToken).ConfigureAwait(false);
     }
 }

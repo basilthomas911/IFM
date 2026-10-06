@@ -72,8 +72,8 @@ public sealed class LivePipelineIntegrationTests
         host.Time.Advance(TimeSpan.FromMinutes(5));
         await host.Monitor.CheckOnceAsync(default);
         Assert.Equal(0, host.Probe.Resets);
-        Assert.Single(host.Probe.DownstreamRecoveries,
-            check => check.Component == component && check.Scope == scope);
+        Assert.Equal(2, host.Probe.DownstreamRecoveries.Count(
+            check => check.Component == component && check.Scope == scope));
     }
 
     [Fact]
@@ -90,6 +90,31 @@ public sealed class LivePipelineIntegrationTests
         Assert.Equal(1, check.RecoveryAttempts);
         Assert.Contains("Failed: Injected chart restart rejection", check.RecoveryState);
         Assert.Equal(0, host.Probe.Resets);
+    }
+
+    [Fact]
+    public async Task FailedItiRecoveryRetriesAfterCooldownAndStopsAtThreeAttempts()
+    {
+        await using var host = await Harness.StartAsync();
+        host.Probe.Failure = "ITI ingress";
+        host.Probe.FailureScope = "ES";
+        host.Probe.RecoveryFailure = new TimeoutException("ITI restart drain timed out before stop");
+        await host.Monitor.CheckOnceAsync(default);
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            host.Time.Advance(TimeSpan.FromMinutes(1));
+            await host.Monitor.CheckOnceAsync(default);
+            Assert.Equal(attempt, host.Probe.DownstreamRecoveries.Count);
+            await host.Monitor.CheckOnceAsync(default);
+            Assert.Equal(attempt, host.Probe.DownstreamRecoveries.Count);
+        }
+        host.Time.Advance(TimeSpan.FromMinutes(5));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(3, host.Probe.DownstreamRecoveries.Count);
+        Assert.Equal(1, host.Probe.Resets);
+        host.Time.Advance(TimeSpan.FromMinutes(1));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal(1, host.Probe.Resets);
     }
 
     [Theory]

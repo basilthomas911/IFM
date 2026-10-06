@@ -15,6 +15,7 @@ internal sealed class FuturesEodTradeWorker
     readonly Func<FuturesTickTradeDataInsertedEvent, ValueTask<bool>> _process;
     readonly ILogger _logger;
     readonly Task _run;
+    readonly CancellationToken generationToken = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.Current?.Token ?? default;
     long _pending;
     long _processed;
 
@@ -39,7 +40,7 @@ internal sealed class FuturesEodTradeWorker
         Interlocked.Increment(ref _pending);
         try
         {
-            await _queue.Writer.WriteAsync(new WorkItem(trade, null, null, Stopwatch.GetTimestamp(), Activity.Current?.Context ?? default)).ConfigureAwait(false);
+            await _queue.Writer.WriteAsync(new WorkItem(trade, null, null, Stopwatch.GetTimestamp(), Activity.Current?.Context ?? default), generationToken).ConfigureAwait(false);
         }
         catch
         {
@@ -53,7 +54,7 @@ internal sealed class FuturesEodTradeWorker
         Interlocked.Increment(ref _pending);
         try
         {
-            await _queue.Writer.WriteAsync(new WorkItem(null, operation, null, Stopwatch.GetTimestamp(), Activity.Current?.Context ?? default)).ConfigureAwait(false);
+            await _queue.Writer.WriteAsync(new WorkItem(null, operation, null, Stopwatch.GetTimestamp(), Activity.Current?.Context ?? default), generationToken).ConfigureAwait(false);
         }
         catch
         {
@@ -79,8 +80,9 @@ internal sealed class FuturesEodTradeWorker
     {
         try
         {
-            await foreach (var item in _queue.Reader.ReadAllAsync().ConfigureAwait(false))
+            await foreach (var item in _queue.Reader.ReadAllAsync(generationToken).ConfigureAwait(false))
             {
+                generationToken.ThrowIfCancellationRequested();
                 if (item.Barrier is { } barrier)
                 {
                     barrier.TrySetResult();
@@ -88,7 +90,7 @@ internal sealed class FuturesEodTradeWorker
                 }
                 if (item.Operation is { } operation)
                 {
-                    try { await operation().ConfigureAwait(false); }
+                    try { await AwaitGenerationAsync(operation().AsTask()).ConfigureAwait(false); }
                     finally { Interlocked.Decrement(ref _pending); }
                     continue;
                 }
@@ -99,7 +101,7 @@ internal sealed class FuturesEodTradeWorker
                     TomasAI.IFM.Shared.EventModelActor.ActorTrace.Source.StartActivity("eod.process", ActivityKind.Consumer, item.TraceContext);
                 try
                 {
-                    if (!await _process(trade).ConfigureAwait(false))
+                    if (!await AwaitGenerationAsync(_process(trade).AsTask()).ConfigureAwait(false))
                         throw new InvalidOperationException(
                             $"EOD projection rejected trade {trade.Id} ({trade.TickDataId}).");
                     var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
@@ -116,6 +118,15 @@ internal sealed class FuturesEodTradeWorker
                 }
             }
         }
+        catch (OperationCanceledException) when (generationToken.IsCancellationRequested)
+        {
+            _queue.Writer.TryComplete();
+            while (_queue.Reader.TryRead(out var item))
+            {
+                item.Barrier?.TrySetCanceled(generationToken);
+                if (item.Barrier is null) Interlocked.Decrement(ref _pending);
+            }
+        }
         catch (Exception exception)
         {
             _logger.LogError(exception,
@@ -126,6 +137,29 @@ internal sealed class FuturesEodTradeWorker
                 item.Barrier?.TrySetException(exception);
             throw;
         }
+    }
+
+    async Task AwaitGenerationAsync(Task work)
+    {
+        try { await work.WaitAsync(generationToken).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (generationToken.IsCancellationRequested && !work.IsCompleted)
+        {
+            _ = ObserveAbandonedAsync(work);
+            throw;
+        }
+    }
+
+    async Task<T> AwaitGenerationAsync<T>(Task<T> work)
+    {
+        await AwaitGenerationAsync((Task)work).ConfigureAwait(false);
+        return await work.ConfigureAwait(false);
+    }
+
+    async Task ObserveAbandonedAsync(Task work)
+    {
+        try { await work.ConfigureAwait(false); }
+        catch (OperationCanceledException) { }
+        catch (Exception error) { _logger.LogWarning(error, "Retired EOD worker operation completed with an error."); }
     }
 
     readonly record struct WorkItem(FuturesTickTradeDataInsertedEvent? Trade,

@@ -272,6 +272,7 @@ public class NatsActorProducer(
 
             // Deserialize the typed reply directly from NATS's receive sequence;
             // do not materialize an intermediate reply byte[].
+            TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
             var reply = await _nc!.RequestAsync<TQuery, ServiceResult<TResult>>(
                 subject.ToString(),
                  query,
@@ -377,6 +378,7 @@ public class NatsActorProducer(
         var started = NatsMessagingMetrics.StartOperation();
         try
         {
+            TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
             await _nc!.PublishAsync(
                 subject,
                 message,

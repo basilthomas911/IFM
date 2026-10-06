@@ -15,6 +15,17 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// </remarks>
 public sealed class ActorThreadQueueSpscRing : IActorThreadQueue, IScheduledActorThreadQueue, IDisposable
 {
+    readonly object retirementGate = new();
+    int processingOwner;
+    bool IScheduledActorThreadQueue.TryClaimProcessing()
+    {
+        lock (retirementGate)
+            return ((IScheduledActorThreadQueue)this).IsScheduled
+                && !((IScheduledActorThreadQueue)this).IsRetired
+                && Interlocked.CompareExchange(ref processingOwner, 1, 0) == 0;
+    }
+    void IScheduledActorThreadQueue.ReleaseProcessing() => Volatile.Write(ref processingOwner, 0);
+
     const int DefaultCapacity = 8192;
     const int Created = 0;
     const int Active = 1;
@@ -401,7 +412,9 @@ public sealed class ActorThreadQueueSpscRing : IActorThreadQueue, IScheduledActo
     }
 
     bool IScheduledActorThreadQueue.TryRead(out IActorMessage? message)
-        => TryReadPublished(out message);
+    {
+        lock (retirementGate) return TryReadPublished(out message);
+    }
 
     bool TryReadPublished(out IActorMessage? message)
     {
@@ -428,6 +441,12 @@ public sealed class ActorThreadQueueSpscRing : IActorThreadQueue, IScheduledActo
 
     bool CompleteDrain()
     {
+        lock (retirementGate) return CompleteDrainCore();
+    }
+
+    bool CompleteDrainCore()
+    {
+        Volatile.Write(ref processingOwner, 0);
         if (!_ring.IsEmpty)
             return true;
 
@@ -475,6 +494,11 @@ public sealed class ActorThreadQueueSpscRing : IActorThreadQueue, IScheduledActo
     }
 
     public void Stop()
+    {
+        lock (retirementGate) StopCore();
+    }
+
+    void StopCore()
     {
         Volatile.Write(ref _stopRequested, 1);
         Interlocked.Exchange(ref _lifecycle, Retired);

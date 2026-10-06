@@ -15,13 +15,23 @@ public sealed class FinancialCommandState(ActorThreadId id) : IActorState
 public static class FinancialCommandLifecycle
 {
     /// <summary>An audit reservation is not a financial receipt. Re-enter validated handling to recover the original operation.</summary>
+    /// <param name="command">The concrete business command and originating identity.</param>
+    /// <param name="token">The token business input.</param>
+    /// <returns>The operation result.</returns>
     public static ValueTask<bool> ReconcileFinancialDuplicateAsync(this ICommand command, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         return ValueTask.FromResult(command is IFinancialRequest);
     }
+    /// <summary>Handles Load Financial State Async at the command boundary.</summary>
+    /// <param name="command">The concrete business command and originating identity.</param>
+    /// <returns>The operation result.</returns>
     public static ValueTask<IActorState> LoadFinancialStateAsync(this ICommand command)
         => ValueTask.FromResult<IActorState>(new FinancialCommandState(command.Subject.ThreadId));
+    /// <summary>Handles Financial Command Failure at the command boundary.</summary>
+    /// <param name="exception">The exception business input.</param>
+    /// <param name="logger">The logger business input.</param>
+    /// <returns>The operation result.</returns>
     public static ValueTask<ServiceResult<GuidResult>> FinancialCommandFailure(this Exception exception, ILogger? logger = null)
     {
         if (exception is CommandAuditPayloadConflictException)

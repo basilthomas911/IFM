@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Command;
 
+[Trait("Infrastructure", "SelfContained")]
 public sealed class PortfolioRiskReplayTests
 {
     [Fact]

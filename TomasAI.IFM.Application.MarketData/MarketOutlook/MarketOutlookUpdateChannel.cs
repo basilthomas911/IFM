@@ -33,6 +33,8 @@ public enum MarketOutlookUpdateKind : byte
 /// </summary>
 public abstract record MarketOutlookUpdate
 {
+    /// <summary>Originating disposable actor lifetime, carried only inside this process.</summary>
+    public TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration? ActorGeneration { get; init; }
     internal long QueueSequence { get; init; }
     public required Guid UpdateId { get; init; }
     public abstract MarketOutlookUpdateKind Kind { get; }
@@ -391,6 +393,7 @@ public sealed class MarketOutlookUpdateChannel : IMarketOutlookUpdateWriter, IMa
 
     public MarketOutlookUpdateSubmission Submit(MarketOutlookUpdate update)
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         ArgumentNullException.ThrowIfNull(update);
         var now = DateTime.UtcNow;
         // Observe each analytic's output separately at the existing local ingress boundary.
@@ -414,7 +417,8 @@ public sealed class MarketOutlookUpdateChannel : IMarketOutlookUpdateWriter, IMa
         if (analytic is { } analyticStage)
             SafeRecord(new(analyticStage, MarketDataOperationOutcome.Completed, update.Kind,
                 update.UpdateId, now, MarketDataAsOfUtc: update.MarketDataAsOfUtc));
-        var accepted = update with { QueueSequence = Interlocked.Increment(ref queueSequence) };
+        var accepted = update with { QueueSequence = Interlocked.Increment(ref queueSequence),
+            ActorGeneration = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.Current };
         pendingReceivedTicks[accepted.QueueSequence] = UtcTicks(accepted.ReceivedAtUtc);
         SafeRecord(new(
             MarketDataOperationStage.MarketOutlookChannel,

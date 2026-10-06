@@ -15,6 +15,17 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// </remarks>
 public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThreadQueue, IDisposable
 {
+    readonly object retirementGate = new();
+    int processingOwner;
+    bool IScheduledActorThreadQueue.TryClaimProcessing()
+    {
+        lock (retirementGate)
+            return ((IScheduledActorThreadQueue)this).IsScheduled
+                && !((IScheduledActorThreadQueue)this).IsRetired
+                && Interlocked.CompareExchange(ref processingOwner, 1, 0) == 0;
+    }
+    void IScheduledActorThreadQueue.ReleaseProcessing() => Volatile.Write(ref processingOwner, 0);
+
     const int DefaultCapacity = 8192;
     const int Created = 0;
     const int Active = 1;
@@ -331,6 +342,11 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
 
     bool IScheduledActorThreadQueue.TryRead(out IActorMessage? message)
     {
+        lock (retirementGate) return ReadForScheduler(out message);
+    }
+
+    bool ReadForScheduler(out IActorMessage? message)
+    {
         var reader = _channel?.Reader;
         if (reader is not null)
             return TryReadCore(reader, out message);
@@ -362,6 +378,12 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
 
     bool CompleteDrain()
     {
+        lock (retirementGate) return CompleteDrainCore();
+    }
+
+    bool CompleteDrainCore()
+    {
+        Volatile.Write(ref processingOwner, 0);
         if (Count != 0)
             return true;
 
@@ -416,6 +438,11 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
     }
 
     public void Stop()
+    {
+        lock (retirementGate) StopCore();
+    }
+
+    void StopCore()
     {
         Volatile.Write(ref _stopRequested, 1);
         Interlocked.Exchange(ref _lifecycle, Retired);

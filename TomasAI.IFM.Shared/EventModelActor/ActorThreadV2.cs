@@ -193,6 +193,19 @@ sealed class ActorThreadV2(
             return;
         }
 
+        if (!scheduled.TryClaimProcessing()) return;
+        var ownsProcessing = true;
+        void ReleaseOwnership()
+        {
+            if (!ownsProcessing) return;
+            ownsProcessing = false;
+            scheduled.ReleaseProcessing();
+        }
+        var generation = RealtimeActorResetPolicy.CanReplace(actor.GetType(), threadId.ActorType)
+            ? (actor as IReplaceableRealtimeActor)?.RealtimeGeneration : null;
+        using var executionCancellation = generation is null ? null
+            : CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, generation.Token);
+        var handlerToken = executionCancellation?.Token ?? cancellationToken;
         Id = threadId;
         try
         {
@@ -200,7 +213,7 @@ sealed class ActorThreadV2(
             {
                 var processed = 0;
                 while (processed < MaxBatchSize
-                       && !cancellationToken.IsCancellationRequested
+                       && !handlerToken.IsCancellationRequested
                        && scheduled.TryRead(out var message))
                 {
                     using var trace = ActorTrace.Start(message!);
@@ -216,6 +229,7 @@ sealed class ActorThreadV2(
                         informationEntryLogged = true;
                     }
                     var deliverySucceeded = false;
+                    var deferredCleanup = false;
                     Guid? escapedFailureId = null;
                     var mailboxMetrics = (actor.Mailbox.Metrics as ActorMetricsStore)
                         ?.GetOrRegister(threadId, queue);
@@ -232,7 +246,18 @@ sealed class ActorThreadV2(
                         {
                             if (admitted)
                             {
-                                await actor.HandleMessageAsync(message!, threadId, cancellationToken).ConfigureAwait(false);
+                                var handling = actor.HandleMessageAsync(message!, threadId, handlerToken).AsTask();
+                                try
+                                {
+                                    if (generation is null) await handling.ConfigureAwait(false);
+                                    else await handling.WaitAsync(handlerToken).ConfigureAwait(false);
+                                }
+                                catch (OperationCanceledException) when (generation is not null && handlerToken.IsCancellationRequested && !handling.IsCompleted)
+                                {
+                                    deferredCleanup = true;
+                                    _ = ObserveRetiredHandlerAsync(handling, message!);
+                                    throw;
+                                }
                                 ActorRuntimeMetrics.RecordProcessed(threadId.ActorType);
                                 deliverySucceeded = mailboxMetrics?.RecordSucceeded() ?? true;
                             }
@@ -244,7 +269,7 @@ sealed class ActorThreadV2(
                             }
                         }
                     }
-                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    catch (OperationCanceledException) when (handlerToken.IsCancellationRequested)
                     {
                         outcome = "Cancelled";
                         if (!informationEntryLogged)
@@ -275,7 +300,7 @@ sealed class ActorThreadV2(
                     }
                     finally
                     {
-                        if (message is IActorDeliveryCompletion delivery)
+                        if (!deferredCleanup && message is IActorDeliveryCompletion delivery)
                         {
                             try
                             {
@@ -300,7 +325,7 @@ sealed class ActorThreadV2(
                         }
                         try
                         {
-                            message?.Dispose();
+                            if (!deferredCleanup) message?.Dispose();
                         }
                         catch (Exception disposalFailure)
                         {
@@ -331,12 +356,15 @@ sealed class ActorThreadV2(
                 }
 
                 _state = ActorThreadState.WaitingForMessage;
+                if (handlerToken.IsCancellationRequested || scheduled.IsRetired) return;
+                ownsProcessing = false; // CompleteDrain atomically releases queue ownership.
                 if (!scheduled.CompleteDrain())
                 {
                     actor.Mailbox.ThreadQueues.ReleaseThreadQueue(threadId);
                     return;
                 }
 
+                ReleaseOwnership();
                 if (_readyQueue.Schedule(threadId))
                     return;
 
@@ -346,6 +374,9 @@ sealed class ActorThreadV2(
                     return;
                 }
 
+                ownsProcessing = scheduled.TryClaimProcessing();
+                if (!ownsProcessing) return;
+
                 // Graceful pool shutdown: the ready queue no longer accepts another batch, so this worker retains
                 // ownership and drains the mailbox before its processing task completes.
             }
@@ -353,11 +384,30 @@ sealed class ActorThreadV2(
         catch
         {
             _state = ActorThreadState.WaitingForMessage;
-            if (scheduled.CompleteDrain())
+            var mayComplete = ownsProcessing;
+            ownsProcessing = false;
+            if (mayComplete && !scheduled.IsRetired && scheduled.CompleteDrain())
                 _readyQueue.Schedule(threadId);
             else
                 actor.Mailbox.ThreadQueues.ReleaseThreadQueue(threadId);
             throw;
+        }
+        finally { ReleaseOwnership(); }
+    }
+
+    async Task ObserveRetiredHandlerAsync(Task handler, IActorMessage message)
+    {
+        try { await handler.ConfigureAwait(false); }
+        catch (OperationCanceledException) { }
+        catch (Exception error)
+        {
+            _logger.LogWarning(error, "Retired realtime handler completed with an error; Method={Method}; Subject={Subject}",
+                nameof(ObserveRetiredHandlerAsync), message.Subject);
+        }
+        finally
+        {
+            try { message.Dispose(); }
+            catch (Exception error) { _logger.LogWarning(error, "Retired realtime payload cleanup failed."); }
         }
     }
 

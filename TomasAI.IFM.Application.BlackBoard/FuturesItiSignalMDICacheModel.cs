@@ -47,7 +47,8 @@ public class FuturesItiSignalMDICacheModel
             if (futuresItiMDIDistribution is null)
                 return [];
             value = _jsonSerializer.Serialize(futuresItiMDIDistribution);
-            _redisCache.Set(key, value);
+            TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
+        _redisCache.Set(key, value);
         }
         return _jsonSerializer.Deserialize<FuturesItiSignalMDIV2ReadModel[]>(value) ?? [];
     }
@@ -61,12 +62,14 @@ public class FuturesItiSignalMDICacheModel
     /// <returns></returns>
     public void Set(string contractId, DateOnly valueDate, FuturesItiSignalMDIV2ReadModel[] futuresItiSignalMDIViewModel)
     {
+        TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
         var key = $"{CacheName}:{contractId}. {valueDate:yyyyMMdd}";
         var value = _redisCache.Get(key);
         if (!string.IsNullOrEmpty(value))
         {
             value = _jsonSerializer.Serialize(futuresItiSignalMDIViewModel);
-            _redisCache.Set(key, value);
+            TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
+        _redisCache.Set(key, value);
         }
     }
 }
