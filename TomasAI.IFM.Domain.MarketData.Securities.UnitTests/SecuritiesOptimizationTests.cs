@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using NSubstitute;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
@@ -41,10 +41,11 @@ public class SecuritiesOptimizationTests
         var state = CreateStateWith(SampleData.FuturesOptionContract1);
         var command = CreateAddCommand(SampleData.FuturesOptionContract1, overwrite: false);
 
-        var act = () => command.Execute(state);
+        var result = command.Execute(state);
 
-        act.Should().Throw<Exception>()
-            .WithMessage("*already exists*");
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("already exists");
+        state.Events.Should().ContainSingle();
     }
 
     [Fact]

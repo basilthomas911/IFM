@@ -1,35 +1,53 @@
-using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.State;
+﻿using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Model;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command;
 
+/// <summary>Handles AddFuturesOptionContracts through pure computation and state-owned event application.</summary>
 public static class AddFuturesOptionContracts
 {
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="e"></param>
-    /// <param name="state"></param>
-    /// <returns></returns>
-    public static ServiceResult<GuidResult> Execute(this AddFuturesOptionContractsCommand e, FuturesOptionContractCommandState state)
-       => e.UpdateResult(() => state.Update(e.CreateFuturesOptionContractsAddedEvent(), e));
+    /// <summary>Computes the contract change and applies one source event after failure guards pass.</summary>
+    /// <param name="command">The originating command containing contract business inputs.</param>
+    /// <param name="state">The owning command state; mutation occurs only through Update and Apply.</param>
+    /// <returns>The command identity on success, or a business rejection or event-application failure.</returns>
+    public static ServiceResult<GuidResult> Execute(this AddFuturesOptionContractsCommand command, FuturesOptionContractCommandState state)
+    {
+        var errorMsg = $"{command.CommandName}: unable to apply FuturesOptionContractsAddedEvent";
+        var updated = command.Compute(out var futuresOptionContractBatchAddition) switch
+        {
+            _ => state.Update(command.CreateFuturesOptionContractsAddedEvent(futuresOptionContractBatchAddition), command)
+        };
+        return updated
+            ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
+            : command.UpdateFailed(errorMsg);
+    }
 
-    /// <summary>
-    /// Creates a <see cref="FuturesOptionContractsAddedEvent"/> from an <see cref="AddFuturesOptionContractsCommand"/>.
-    /// </summary>
-    /// <param name="e">The source bulk-add command containing entity identifiers, contracts payload, and origin metadata.</param>
-    /// <returns>A fully-populated contracts-added event ready to be applied to actor state.</returns>
-    internal static FuturesOptionContractsAddedEvent CreateFuturesOptionContractsAddedEvent(this AddFuturesOptionContractsCommand e)
+    /// <summary>Computes immutable proposed contract values without changing state or pending events.</summary>
+    /// <param name="command">The requested contract change.</param>
+    /// <param name="futuresOptionContractBatchAddition">The proposed business values and acceptance decision.</param>
+    /// <returns>True when computation completes; acceptance is guarded before event application.</returns>
+    internal static bool Compute(this AddFuturesOptionContractsCommand command, out FuturesOptionContractBatchAddition futuresOptionContractBatchAddition)
+    {
+        futuresOptionContractBatchAddition = new(command.Contracts);
+        return true;
+    }
+
+    /// <summary>Creates a source event carrying the computed business values and originating command identity.</summary>
+    /// <param name="command">The originating command supplying routing and audit metadata.</param>
+    /// <param name="futuresOptionContractBatchAddition">The accepted proposed contract change.</param>
+    /// <returns>The source event to apply through the owning state.</returns>
+    internal static FuturesOptionContractsAddedEvent CreateFuturesOptionContractsAddedEvent(this AddFuturesOptionContractsCommand command, FuturesOptionContractBatchAddition futuresOptionContractBatchAddition)
         => new()
         {
-            CommandId = e.CommandId,
-            Subject = new ActorSubject(ActorType.Event, FuturesOptionContractsAddedEvent.Actor, FuturesOptionContractsAddedEvent.Verb, e.EntityId.Format()),
-            EntityId = e.EntityId,
-            Contracts = e.Contracts,
-            CreatedOn = e.OriginatedOn,
-            CreatedBy = e.OriginatedBy
+            CommandId = command.CommandId,
+            Subject = new ActorSubject(ActorType.Event, FuturesOptionContractsAddedEvent.Actor, FuturesOptionContractsAddedEvent.Verb, command.EntityId.Format()),
+            EntityId = command.EntityId,
+            Contracts = futuresOptionContractBatchAddition.FuturesOptionContracts,
+            CreatedOn = command.OriginatedOn,
+            CreatedBy = command.OriginatedBy
         };
 }

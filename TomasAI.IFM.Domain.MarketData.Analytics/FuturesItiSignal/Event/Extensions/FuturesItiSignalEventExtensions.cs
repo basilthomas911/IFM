@@ -22,9 +22,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend;
-using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend.Queries;
-using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Extensions;
 
@@ -228,80 +225,7 @@ public static class FuturesItiSignalEventExtensions
         return symbol;
     }
 
-    /// <summary>
-    /// Retrieves the predicted trend delta for the specified trend data.
-    /// </summary>
-    /// <remarks>This method performs an asynchronous request and may return null if the operation is
-    /// unsuccessful or if no data is available for the specified parameters.</remarks>
-    /// <param name="context">The event actor context used to perform the request and access actor capabilities.</param>
-    /// <param name="trendData">The trend delta data used as input for the prediction.</param>
-    /// <returns>A task representing the asynchronous operation. The result contains the predicted trend delta,
-    /// or null if no data is found.</returns>
-    public static async ValueTask<double> GetPredictedTrendDeltaAsync(this IEventActorContext context, FuturesItiSignalV2ReadModel e)
-    {
-        var symbol = new FuturesContractIdParser(e.ContractId).Symbol;
-        var trendData = new FuturesItiTrendDeltaDataReadModel(
-               symbol: symbol,
-               valueDate: e.ValueDate,
-               timestamp: e.IntrinsicTime,
-               sequenceId: 0,
-               trendDelta: 0,
-               trendDirection: e.IntrinsicTimeTrend == IntrinsicTimeTrendType.UpTrend ? 1 : 0,
-               trendDirectionMode: GetTrendDirectionMode(e.IntrinsicTimeMode),
-               futuresPrice: Convert.ToSingle(e.IntrinsicPrice),
-               trendExtreme: Convert.ToSingle(e.TrendExtreme),
-               futuresRsi: 0
-           );
-        double predictedTrendDelta = 0.0;
-        var entityId = new FuturesItiTrendEntityId(trendData.Symbol, trendData.ValueDate);
-        GetPredictedTrendDeltaQuery query = new(trendData)
-        {
-            Subject = new ActorSubject(ActorType.Query, GetPredictedTrendDeltaQuery.Actor, GetPredictedTrendDeltaQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ErrorCode = GetPredictedTrendDeltaQuery.ErrorId
-        };
-        var serviceResult = await context.RequestAsync<ScalarValue<double>, GetPredictedTrendDeltaQuery>(query);
-        if (serviceResult.Success && serviceResult.Value is not null)
-            predictedTrendDelta = serviceResult.Value.AsDouble;
-        return predictedTrendDelta;
 
-        static int GetTrendDirectionMode(IntrinsicTimeModeType e)
-               => e switch
-               {
-                   IntrinsicTimeModeType.TrendDirectionChanged => 0,
-                   IntrinsicTimeModeType.TrendExtremeChanged => 1,
-                   IntrinsicTimeModeType.TrendReversalChanged => -1,
-                   _ => 0
-               };
-    }
-
-    /// <summary>
-    /// Retrieves the futures ITI trend coastline counters for a specified contract, value date, symbol, and predicted trend delta.
-    /// </summary>
-    /// <remarks>This method performs an asynchronous request and may return null if the operation is
-    /// unsuccessful or if no data is available for the specified parameters.</remarks>
-    /// <param name="context">The event actor context used to perform the request and access actor capabilities.</param>
-    /// <param name="contractId">The unique identifier of the futures contract for which coastline counters are requested.</param>
-    /// <param name="valueDate">The date for which the coastline counters are retrieved.</param>
-    /// <param name="symbol">The ticker symbol for the futures contract.</param>
-    /// <param name="predictedTrendDelta">The predicted trend delta value used as input for coastline counter retrieval.</param>
-    /// <returns>A task representing the asynchronous operation. The result contains the coastline counters view model,
-    /// or null if no data is found.</returns>
-    public static async ValueTask<FuturesItiTrendCoastLineCountersReadModel?> GetFuturesItiTrendCoastLineCountersAsync(this IEventActorContext context, string contractId, DateOnly valueDate, string symbol, double predictedTrendDelta)
-    {
-        var coastLineCounters = default(FuturesItiTrendCoastLineCountersReadModel);
-        var entityId = new FuturesItiTrendEntityId(symbol, valueDate);
-        GetFuturesItiTrendCoastLineCountersQuery query = new(contractId, valueDate, symbol, predictedTrendDelta)
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesItiTrendCoastLineCountersQuery.Actor, GetFuturesItiTrendCoastLineCountersQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ErrorCode = GetFuturesItiTrendCoastLineCountersQuery.ErrorId
-        };
-        var serviceResult = await context.RequestAsync<FuturesItiTrendCoastLineCountersReadModel, GetFuturesItiTrendCoastLineCountersQuery>(query);
-        if (serviceResult.Success && serviceResult.Value is not null)
-            coastLineCounters = serviceResult.Value;
-        return coastLineCounters;
-    }
 
     /// <summary>
     /// Updates the futures trade signal for a specified contract and value date using end-of-day data and associated

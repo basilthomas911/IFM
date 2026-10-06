@@ -1,12 +1,13 @@
-﻿namespace TomasAI.IFM.Framework.SequenceId;
+namespace TomasAI.IFM.Framework.SequenceId;
 
 public enum SequenceName
 {
     FuturesTickData_TickId,
     FuturesOptionTickData_TickId,
     FuturesItiSignal_SequenceId,
-    FuturesItiTrendClassData_SequenceId,
-    FuturesItiTrendDeltaData_SequenceId,
+    // Retired predictive-data slots preserve the numeric identities of later sequence names.
+    ReservedPredictiveClassData_SequenceId,
+    ReservedPredictiveDeltaData_SequenceId,
     FuturesTradeSignal_SequenceId,
     SpreadDistribution_Id,
     TradePlan_SequenceId,
@@ -39,8 +40,8 @@ public static class SequenceNameExtensions
         SequenceName.FuturesTickData_TickId => nameof(SequenceName.FuturesTickData_TickId),
         SequenceName.FuturesOptionTickData_TickId => nameof(SequenceName.FuturesOptionTickData_TickId),
         SequenceName.FuturesItiSignal_SequenceId => nameof(SequenceName.FuturesItiSignal_SequenceId),
-        SequenceName.FuturesItiTrendClassData_SequenceId => nameof(SequenceName.FuturesItiTrendClassData_SequenceId),
-        SequenceName.FuturesItiTrendDeltaData_SequenceId => nameof(SequenceName.FuturesItiTrendDeltaData_SequenceId),
+        SequenceName.ReservedPredictiveClassData_SequenceId => nameof(SequenceName.ReservedPredictiveClassData_SequenceId),
+        SequenceName.ReservedPredictiveDeltaData_SequenceId => nameof(SequenceName.ReservedPredictiveDeltaData_SequenceId),
         SequenceName.FuturesTradeSignal_SequenceId => nameof(SequenceName.FuturesTradeSignal_SequenceId),
         SequenceName.SpreadDistribution_Id => nameof(SequenceName.SpreadDistribution_Id),
         SequenceName.TradePlan_SequenceId => nameof(SequenceName.TradePlan_SequenceId),

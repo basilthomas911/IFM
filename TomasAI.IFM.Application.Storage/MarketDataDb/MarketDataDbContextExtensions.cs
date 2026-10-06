@@ -29,8 +29,6 @@ using TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
 using TomasAI.IFM.Domain.MarketData.Shared.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend;
-using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend.ViewModels;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
@@ -1643,37 +1641,6 @@ internal static class MarketDataDbContextExtensions
                 fiftyDMA: e.FiftyDMA,
                 twoHundredDMA: e.TwoHundredDMA
             );
-    }
-
-    extension(IEnumerable<double> source)
-    {
-        /// <summary>
-        /// Performs the <c>CalculateStatistics</c> operation for MarketDataDb persistence.
-        /// </summary>
-        internal FuturesItiTrendModelDataStatistics CalculateStatistics()
-        {
-            var values = source.OrderBy(e => e).ToArray();
-            if (values.Length == 0)
-                return FuturesItiTrendModelDataStatistics.Empty;
-            var mean = values.Average();
-            var variance = values.Average(e => Math.Pow(e - mean, 2));
-            var stdDev = Math.Sqrt(variance);
-            var median =
-                values.Length % 2 == 0
-                    ? (values[values.Length / 2 - 1] + values[values.Length / 2]) / 2
-                    : values[values.Length / 2];
-            var skewness = stdDev == 0 ? 0 : values.Average(e => Math.Pow((e - mean) / stdDev, 3));
-            return new FuturesItiTrendModelDataStatistics(
-                values.Length,
-                values[^1],
-                mean,
-                median,
-                values[0],
-                skewness,
-                stdDev,
-                variance
-            );
-        }
     }
 
     extension(MarketDataDownloadCursor cursor)

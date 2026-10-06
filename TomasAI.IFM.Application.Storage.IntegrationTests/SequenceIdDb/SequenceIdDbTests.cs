@@ -75,7 +75,7 @@ public class SequenceIdDbTests : IClassFixture<SequenceIdFixture>
     {
         var firstGenerator = new PostgresSequenceIdGenerator(_testFixture.Db);
         var secondGenerator = new PostgresSequenceIdGenerator(_testFixture.Db);
-        var sequenceName = SequenceName.FuturesItiTrendDeltaData_SequenceId;
+        var sequenceName = SequenceName.FuturesIntraDay_SequenceId;
 
         var first = Enumerable.Range(0, 250)
             .Select(async _ => await firstGenerator.GetSequenceIdAsync(sequenceName));

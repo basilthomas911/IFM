@@ -259,29 +259,7 @@ CREATE TABLE IF NOT EXISTS market_data_download_log (
             PRIMARY KEY ((asset_type_id, contract_id), value_date, aggregation_time, sequence_id)
         ) WITH CLUSTERING ORDER BY (value_date ASC, aggregation_time ASC, sequence_id ASC);
         """;
-    public const string CreateFuturesItiTrendDeltaModelTable = """
-        CREATE TABLE IF NOT EXISTS futures_iti_trend_delta_model (
-            symbol TEXT,
-            valueDate DATE,
-            count INT,
-            endDate DATE,
-            lossFunction DOUBLE,
-            maximum DOUBLE,
-            mean DOUBLE,
-            meanAbsoluteError DOUBLE,
-            meanSquaredError DOUBLE,
-            median DOUBLE,
-            minimum DOUBLE,
-            modelData BLOB,
-            rootMeanSquaredError DOUBLE,
-            rSquared DOUBLE,
-            skewness DOUBLE,
-            startDate DATE,
-            stdDev DOUBLE,
-            variance DOUBLE,
-            PRIMARY KEY (symbol, valueDate)
-        ) WITH CLUSTERING ORDER BY (valueDate ASC);
-        """;
+
 
     public const string CreateFuturesRsiSignalTable = """
         CREATE TABLE IF NOT EXISTS futures_rsi_signal (
@@ -1068,60 +1046,8 @@ CREATE TABLE IF NOT EXISTS market_data_download_log (
     );
     """;
 
-    public const string CreateFuturesItiTrendClassDataTable = """
-    CREATE TABLE IF NOT EXISTS futures_iti_trend_class_data (
-    symbol TEXT,
-    valueDate DATE,
-    timestamp TIMESTAMP,
-    sequenceId BIGINT,
-    trendClass FLOAT,
-    trendDirection FLOAT,
-    trendDirectionMode FLOAT,
-    trendDelta FLOAT,
-    futuresRSI FLOAT,
-    PRIMARY KEY (symbol, valueDate, sequenceId)
-    ) WITH CLUSTERING ORDER BY (valueDate ASC, sequenceId ASC);
-    """;
 
-    public const string CreateFuturesItiTrendDeltaDataTable = """
-    CREATE TABLE IF NOT EXISTS futures_iti_trend_delta_data (
-    symbol text,
-    valueDate date,
-    timestamp timestamp,
-    sequenceId bigint,
-    trendDelta float,
-    trendDirection float,
-    trendDirectionMode float,
-    futuresPrice float,
-    trendExtreme float,
-    futuresRSI float,
-    PRIMARY KEY (symbol, valueDate, sequenceId)
-    ) WITH CLUSTERING ORDER BY (valueDate ASC, sequenceId ASC);
-    """;
 
-    public const string CreateFuturesItiTrendClassModelTable = """
-    CREATE TABLE IF NOT EXISTS futures_iti_trend_class_model (
-    symbol text,
-    valueDate date,
-    startDate date,
-    endDate date,
-    count int,
-    maximum double,
-    mean double,
-    median double,
-    minimum double,
-    skewness double,
-    stdDev double,
-    variance double,
-    accuracy double,
-    areaUnderPrecisionRecallCurve double,
-    areaUnderRocCurve double,
-    entropy double,
-    f1Score double,
-    modelData blob,
-    PRIMARY KEY (symbol, valueDate)
-    );
-    """;
 
     public const string CreateFuturesRsiSignal_SignalTypeIndex = """
     CREATE INDEX IF NOT EXISTS futures_rsi_signal_signaltype ON futures_rsi_signal(signalType);

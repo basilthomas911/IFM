@@ -7,7 +7,6 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
@@ -107,8 +106,6 @@ public interface IMarketDataDbWriteContext
     Task InsertFuturesOptionTickPriceDataAsync(FuturesOptionTickDataV2ReadModel e);
     Task InsertFuturesOptionTickDataAsync(ICollection<FuturesOptionTickDataV2ReadModel> e);
     Task InsertFuturesItiSignalAsync(FuturesItiSignalV2ReadModel e);
-    Task InsertFuturesItiTrendClassModelAsync(FuturesItiTrendClassModelReadModel e);
-    Task InsertFuturesItiTrendDeltaModelAsync(FuturesItiTrendDeltaModelReadModel e);
     Task InsertFuturesRsiSignalAsync(FuturesRsiSignalReadModel e);
     /// <summary>Persists one EMA10/20/50/200 signal projection.</summary>
     Task InsertFuturesEmaSignalAsync(FuturesEmaSignalReadModel signal, CancellationToken cancellationToken = default);

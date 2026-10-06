@@ -17,8 +17,6 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSigna
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend;
-using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend.ViewModels;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
 using System.Security.Cryptography;
@@ -164,15 +162,12 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
         where TDataRecord : IObjectDataRecord => e.GetDateOnly(0);
     internal static int MapToMaxIntrinsicTimeGroupId<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => e.GetInt(0);
-    internal static FuturesItiTrendDeltaDataReadModel MapToFuturesItiTrendDeltaData<TDataRecord>(TDataRecord e)
-        where TDataRecord : IObjectDataRecord => new(symbol: e.GetString(0), valueDate: e.GetDateOnly(1), timestamp: e.GetDateTime(2), sequenceId: e.GetLong(3), trendDelta: e.GetFloat(4), trendDirection: e.GetFloat(5), trendDirectionMode: e.GetInt(6), futuresPrice: e.GetFloat(7), trendExtreme: e.GetFloat(8), futuresRsi: e.GetFloat(9));
-    internal static FuturesItiTrendClassDataReadModel MapToFuturesItiTrendClassData(IObjectDataRecord e) => new(symbol: e.GetString(0), valueDate: e.GetDateOnly(1), timestamp: e.GetDateTime(2), sequenceId: e.GetLong(3), trendClass: e.GetFloat(4), trendDirection: e.GetFloat(5), trendDirectionMode: e.GetInt(6), trendDelta: e.GetFloat(7), futuresRsi: e.GetFloat(8));
+
+
     internal static FuturesItiSignalV2ReadModel MapToFuturesItiTimeFrameState<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), timePeriod: e.GetEnum<TimeFrameType>(2), sequenceId: e.GetLong(3), intrinsicTime: e.GetDateTime(4), intrinsicTimeGroupId: e.GetInt(5), intrinsicTimeLength: e.GetDouble(6), intrinsicPrice: e.GetDouble(7), intrinsicTimeTrend: e.GetEnum<IntrinsicTimeTrendType>(8), intrinsicTimeMode: e.GetEnum<IntrinsicTimeModeType>(9), trendPrice: e.GetDouble(10), trendExtreme: e.GetDouble(11), trendReversal: e.GetDouble(12), trendDelta: e.GetDouble(13), targetDelta: e.GetDouble(14), lambda: e.GetDouble(15), tradingDays: e.GetInt(16), threshold: e.GetDouble(17), upTrendTrigger: e.GetDouble(18), downTrendTrigger: e.GetDouble(19), tradeState: e.GetEnum<IntrinsicTimeTradeState>(20), timeFrameStartValueDate: e.GetDateOnly(21), bandAnchorPrice: e.GetDouble(22), bandPercentage: e.GetDouble(23), bandSize: e.GetDouble(24), bandLevel: e.GetDouble(25), reversalLevel: e.GetDouble(26));
-    internal static FuturesItiTrendDeltaModelReadModel MapToFuturesItiTrendDeltaModel<TDataRecord>(TDataRecord e)
-        where TDataRecord : IObjectDataRecord => new(symbol: e.GetString(0), valueDate: e.GetDateOnly(1), startDate: e.GetDateOnly(2), endDate: e.GetDateOnly(3), count: e.GetInt(4), maximum: e.GetDouble(5), mean: e.GetDouble(6), median: e.GetDouble(7), minimum: e.GetDouble(8), skewness: e.GetDouble(9), stdDev: e.GetDouble(10), variance: e.GetDouble(11), meanAbsoluteError: e.GetDouble(12), meanSquaredError: e.GetDouble(13), rootMeanSquaredError: e.GetDouble(14), lossFunction: e.GetDouble(15), rSquared: e.GetDouble(16), modelData: e.GetBytes(17));
-    internal static FuturesItiTrendClassModelReadModel MapToFuturesItiTrendClassModel<TDataRecord>(TDataRecord e)
-        where TDataRecord : IObjectDataRecord => new(symbol: e.GetString(0), valueDate: e.GetDateOnly(1), startDate: e.GetDateOnly(2), endDate: e.GetDateOnly(3), count: e.GetInt(4), maximum: e.GetDouble(5), mean: e.GetDouble(6), median: e.GetDouble(7), minimum: e.GetDouble(8), skewness: e.GetDouble(9), stdDev: e.GetDouble(10), variance: e.GetDouble(11), accuracy: e.GetDouble(12), areaUnderPrecisionRecallCurve: e.GetDouble(13), areaUnderRocCurve: e.GetDouble(14), entropy: e.GetDouble(15), f1Score: e.GetDouble(16), modelData: e.GetBytes(17));
+
+
     internal static double MapToRsi<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => e.GetDouble(0);
     internal static long MapToMaxSequenceId<TDataRecord>(TDataRecord e)
@@ -1284,56 +1279,9 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
         return closingPrices;
     }
 
-    /// <summary>
-    /// return futures iti trend delta data by date range
-    /// </summary>
-    /// <param name = "symbol"></param>
-    /// <param name = "startDate"></param>
-    /// <param name = "endDate"></param>
-    public async Task<ICollection<FuturesItiTrendDeltaDataReadModel>> GetFuturesItiTrendDeltaDataAsync(string symbol, DateOnly startDate, DateOnly endDate) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiTrendDeltaData)}", MarketDataDbCql.GetFuturesItiTrendDeltaData)
-        .SetParameters(new GetFuturesItiTrendDeltaData(symbol, startDate, endDate))
-        .ExecuteQueryAsync(MapToFuturesItiTrendDeltaData);
-    /// <summary>
-    /// return futures iti trend class data by date range
-    /// </summary>
-    /// <param name = "symbol"></param>
-    /// <param name = "startDate"></param>
-    /// <param name = "endDate"></param>
-    /// <returns></returns>
-    public async Task<ICollection<FuturesItiTrendClassDataReadModel>> GetFuturesItiTrendClassDataAsync(string symbol, DateOnly startDate, DateOnly endDate) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiTrendClassData)}", MarketDataDbCql.GetFuturesItiTrendClassData)
-        .SetParameters(new GetFuturesItiTrendClassData(symbol, startDate, endDate))
-        .ExecuteQueryAsync(MapToFuturesItiTrendClassData);
-    /// <summary>
-    /// return futures iti trend delta model
-    /// </summary>
-    /// <param name = "symbol"></param>
-    /// <param name = "valueDate"></param>
-    public async Task<FuturesItiTrendDeltaModelReadModel> GetFuturesItiTrendDeltaModelAsync(string symbol, DateOnly valueDate)
-    {
-        var db = _dbFactory.MarketDataDb;
-        var maxValueDate = await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiTrendDeltaModelMaxValueDate)}", MarketDataDbCql.GetFuturesItiTrendDeltaModelMaxValueDate)
-            .SetParameters(new GetFuturesItiTrendDeltaModelMaxValueDate(symbol, valueDate))
-            .ExecuteScalarAsync(MapToMaxValueDate);
-        return await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiTrendDeltaModel)}", MarketDataDbCql.GetFuturesItiTrendDeltaModel)
-            .SetParameters(new GetFuturesItiTrendDeltaModel(symbol, valueDate: maxValueDate))
-            .ExecuteSingleAsync(MapToFuturesItiTrendDeltaModel!);
-    }
 
-    /// <summary>
-    /// return futures iti trend class model
-    /// </summary>
-    /// <param name = "symbol"></param>
-    /// <param name = "valueDate"></param>
-    public async Task<FuturesItiTrendClassModelReadModel> GetFuturesItiTrendClassModelAsync(string symbol, DateOnly valueDate)
-    {
-        var db = _dbFactory.MarketDataDb;
-        var maxValueDate = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiTrendClassModelMaxValueDate)}", MarketDataDbCql.GetFuturesItiTrendClassModelMaxValueDate)
-            .SetParameters(new GetFuturesItiTrendClassModelMaxValueDate(symbol, valueDate))
-            .ExecuteScalarAsync(MapToMaxValueDate!);
-        return await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiTrendClassModel)}", MarketDataDbCql.GetFuturesItiTrendClassModel)
-            .SetParameters(new GetFuturesItiTrendClassModel(symbol, valueDate: maxValueDate))
-            .ExecuteSingleAsync(MapToFuturesItiTrendClassModel!);
-    }
+
+
 
     /// <summary>
     /// Inserts a new record into the futures_eod_data_index table if it does not already exist.
@@ -1343,22 +1291,8 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     public async Task InsertFuturesEodDataIndexAsync(FuturesEodDataIndexReadModel e) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEodDataIndex)}", MarketDataDbCql.InsertFuturesEodDataIndex)
         .SetParameters(new InsertFuturesEodDataIndex(valueDate: e.ValueDate, contractId: e.ContractId))
         .ExecuteCommandAsync();
-    /// <summary>
-    /// insert futures iti trend delta model
-    /// </summary>
-    /// <param name = "e"></param>
-    /// <returns></returns>
-    public async Task InsertFuturesItiTrendDeltaModelAsync(FuturesItiTrendDeltaModelReadModel e) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiTrendDeltaModel)}", MarketDataDbCql.InsertFuturesItiTrendDeltaModel)
-        .SetParameters(new InsertFuturesItiTrendDeltaModel(symbol: e.Symbol, valueDate: e.ValueDate, startDate: e.StartDate, endDate: e.EndDate, count: e.Count, maximum: e.Maximum, mean: e.Mean, median: e.Median, minimum: e.Minimum, skewness: e.Skewness, stdDev: e.StdDev, variance: e.Variance, meanAbsoluteError: e.MeanAbsoluteError, meanSquaredError: e.MeanSquaredError, rootMeanSquaredError: e.RootMeanSquaredError, lossFunction: e.LossFunction, rSquared: e.RSquared, modelData: e.ModelData))
-        .ExecuteCommandAsync();
-    /// <summary>
-    /// insert funtures iti trend class model
-    /// </summary>
-    /// <param name = "e"></param>
-    /// <returns></returns>
-    public async Task InsertFuturesItiTrendClassModelAsync(FuturesItiTrendClassModelReadModel e) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiTrendClassModel)}", MarketDataDbCql.InsertFuturesItiTrendClassModel)
-        .SetParameters(new InsertFuturesItiTrendClassModel(symbol: e.Symbol, valueDate: e.ValueDate, startDate: e.StartDate, endDate: e.EndDate, count: e.Count, maximum: e.Maximum, mean: e.Mean, median: e.Median, minimum: e.Minimum, skewness: e.Skewness, stdDev: e.StdDev, variance: e.Variance, accuracy: e.Accuracy, areaUnderPrecisionRecallCurve: e.AreaUnderPrecisionRecallCurve, areaUnderRocCurve: e.AreaUnderRocCurve, entropy: e.Entropy, f1Score: e.F1Score, modelData: e.ModelData))
-        .ExecuteCommandAsync();
+
+
     /// <summary>
     /// Inserts a Futures TDI Signal asynchronously into the database.
     /// </summary>
@@ -1525,47 +1459,8 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     public async Task InsertMarketHolidayAsync(MarketHolidayReadModel e) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketHoliday)}", MarketDataDbCql.InsertMarketHoliday)
         .SetParameters(new InsertMarketHoliday(currencyType: e.CurrencyType.ToStringFast(), holidayDate: e.HolidayDate, description: e.Description))
         .ExecuteCommandAsync();
-    /// <summary>
-    /// load futures iti trend class  data by date range into
-    /// </summary>
-    /// <param name = "e"></param>
-    public async Task<FuturesItiTrendModelDataStatistics> LoadFuturesItiTrendClassDataAsync(string symbol, DateOnly startDate, DateOnly endDate)
-    {
-        var db = _dbFactory.MarketDataDb;
-        var dbReader = db as IMarketDataDbReadContext;
-        var futuresItiSignals = await dbReader!.GetFuturesItiSignalTrendClassDataAsync(symbol, startDate, endDate);
-        var sourceSignals = futuresItiSignals.GroupBy(e => (e.ContractId, e.ValueDate, e.IntrinsicTimeGroupId)).Select(e => e.OrderByDescending(signal => signal.SequenceId).First()).ToArray();
-        if (sourceSignals.Length == 0)
-            return FuturesItiTrendModelDataStatistics.Empty;
-        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesItiTrendClassData)}", MarketDataDbCql.DeleteFuturesItiTrendClassData)
-            .SetParameters(new DeleteFuturesItiTrendClassData(symbol, startDate, endDate))
-            .ExecuteCommandAsync();
-        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiTrendClassData)}", MarketDataDbCql.InsertFuturesItiTrendClassData)
-            .SetParameters(sourceSignals.Select(e => new InsertFuturesItiTrendClassData(symbol, e.ValueDate, e.IntrinsicTime, e.SequenceId, (float)e.IntrinsicTimeGroupId, (float)e.IntrinsicTimeTrend, (float)e.IntrinsicTimeMode, (float)e.TrendDelta, 0f)))
-            .ExecuteCommandAsync();
-        return MarketDataDbContextExtensions.CalculateStatistics(sourceSignals.Select(e => (double)e.IntrinsicTimeGroupId));
-    }
 
-    /// <summary>
-    /// load futures iti trend delta data by date range into
-    /// </summary>
-    /// <param name = "e"></param>
-    public async Task<FuturesItiTrendModelDataStatistics> LoadFuturesItiTrendDeltaDataAsync(string symbol, DateOnly startDate, DateOnly endDate)
-    {
-        var db = _dbFactory.MarketDataDb;
-        var dbReader = db as IMarketDataDbReadContext;
-        var futuresItiSignals = await dbReader!.GetFuturesItiSignalTrendDeltaDataAsync(symbol, startDate, endDate);
-        var sourceSignals = futuresItiSignals.GroupBy(e => (e.ContractId, e.ValueDate, e.IntrinsicTimeGroupId)).Select(e => e.OrderByDescending(signal => signal.SequenceId).First()).ToArray();
-        if (sourceSignals.Length == 0)
-            return FuturesItiTrendModelDataStatistics.Empty;
-        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesItiTrendDeltaData)}", MarketDataDbCql.DeleteFuturesItiTrendDeltaData)
-            .SetParameters(new DeleteFuturesItiTrendDeltaData(symbol, startDate, endDate))
-            .ExecuteCommandAsync();
-        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiTrendDeltaData)}", MarketDataDbCql.InsertFuturesItiTrendDeltaData)
-            .SetParameters(sourceSignals.Select(e => new InsertFuturesItiTrendDeltaData(symbol, e.ValueDate, e.IntrinsicTime, e.SequenceId, (float)e.TrendDelta, (float)e.IntrinsicTimeTrend, (float)e.IntrinsicTimeMode, (float)e.IntrinsicPrice, (float)e.TrendExtreme, 0f)))
-            .ExecuteCommandAsync();
-        return MarketDataDbContextExtensions.CalculateStatistics(sourceSignals.Select(e => e.TrendDelta));
-    }
+
 
     /// <summary>Allocates stable history IDs before records are durably spooled and submitted to storage.</summary>
     public async Task PrepareRealtimeFuturesEodBatchAsync(IReadOnlyList<BufferedFuturesEodRow> rows)

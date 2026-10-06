@@ -34,6 +34,7 @@ public class SpreadDistributionJobCommandState
         return domainEvent switch
         {
             SpreadDistributionJobSubmittedEvent e => On(e),
+            SpreadDistributionJobInProgressEvent => true,
             SpreadDistributionJobStatusUpdatedEvent e => On(e),
             SpreadDistributionJobsInProgressDeletedEvent e => On(e),
             _ => false
@@ -43,7 +44,6 @@ public class SpreadDistributionJobCommandState
     /// <summary>
     /// Checks if a spread distribution job is in progress for the given id.
     /// </summary>
-    /// <param name="id">The spread distribution entity identifier.</param>
     /// <returns><see langword="true"/> if a job is in progress; otherwise, <see langword="false"/>.</returns>
     public bool IsJobStatusInProgress
         => _spreadDistributionJob?.InProgress ?? false;
@@ -54,7 +54,6 @@ public class SpreadDistributionJobCommandState
     /// <param name="e">The spread distribution submitted event.</param>
     bool On(SpreadDistributionJobSubmittedEvent e)
     {
-        EventInitHelper.SetProperty(e, nameof(SpreadDistributionJobSubmittedEvent.SpreadDistributionJob), e.SpreadDistributionJob with { JobStatus = SpreadDistributionJobStatus.InProgress, InProgress = true });
         _spreadDistributionJob = e.SpreadDistributionJob;
         return true;
     }

@@ -1,50 +1,56 @@
-using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Exceptions;
-using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.State;
+﻿using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Model;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command;
 
+/// <summary>Handles AddFuturesOptionContract through pure computation and state-owned event application.</summary>
 public static class AddFuturesOptionContract
 {
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="e"></param>
-    /// <param name="state"></param>
-    /// <returns></returns>
-    /// <exception cref="AddFuturesOptionContractException"></exception>
-    public static ServiceResult<GuidResult> Execute(this AddFuturesOptionContractCommand e, FuturesOptionContractCommandState state)
-        => e switch
+    /// <summary>Computes the contract change and applies one source event after failure guards pass.</summary>
+    /// <param name="command">The originating command containing contract business inputs.</param>
+    /// <param name="state">The owning command state; mutation occurs only through Update and Apply.</param>
+    /// <returns>The command identity on success, or a business rejection or event-application failure.</returns>
+    public static ServiceResult<GuidResult> Execute(this AddFuturesOptionContractCommand command, FuturesOptionContractCommandState state)
+    {
+        var errorMsg = $"{command.CommandName}: unable to apply FuturesOptionContractAddedEvent";
+        var updated = command.Compute(state.FuturesOptionContractExists(command.Contract.ContractId, command.Overwrite), out var futuresOptionContractAddition) switch
         {
-            _ when state.FuturesOptionContractExists(e.Contract.ContractId, e.Overwrite) => throw new AddFuturesOptionContractException(e.FuturesOptionContractExistsErrorMsg()),
-            _ => e.UpdateResult(() => state.Update(e.CreateFuturesOptionContractAddedEvent(), e))
+            _ when !futuresOptionContractAddition.Accepted
+                => command.UpdateFailed(ref errorMsg, $"{command.CommandName}: contract {command.Contract.ContractId} already exists"),
+            _ => state.Update(command.CreateFuturesOptionContractAddedEvent(futuresOptionContractAddition), command)
         };
+        return updated
+            ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
+            : command.UpdateFailed(errorMsg);
+    }
 
-    /// <summary>
-    /// Creates a <see cref="FuturesOptionContractAddedEvent"/> from an <see cref="AddFuturesOptionContractCommand"/>.
-    /// </summary>
-    /// <param name="e">The source add command containing entity identifiers, payload, and origin metadata.</param>
-    /// <returns>A fully-populated added event ready to be applied to actor state.</returns>
-    internal static FuturesOptionContractAddedEvent CreateFuturesOptionContractAddedEvent(this AddFuturesOptionContractCommand e)
+    /// <summary>Computes immutable proposed contract values without changing state or pending events.</summary>
+    /// <param name="command">The requested contract change.</param>
+    /// <param name="contractChangeRejected">Whether the existing contract state rejects this operation under its overwrite policy.</param>
+    /// <param name="futuresOptionContractAddition">The proposed business values and acceptance decision.</param>
+    /// <returns>True when computation completes; acceptance is guarded before event application.</returns>
+    internal static bool Compute(this AddFuturesOptionContractCommand command, bool contractChangeRejected, out FuturesOptionContractAddition futuresOptionContractAddition)
+    {
+        futuresOptionContractAddition = new(command.Contract, !contractChangeRejected);
+        return true;
+    }
+
+    /// <summary>Creates a source event carrying the computed business values and originating command identity.</summary>
+    /// <param name="command">The originating command supplying routing and audit metadata.</param>
+    /// <param name="futuresOptionContractAddition">The accepted proposed contract change.</param>
+    /// <returns>The source event to apply through the owning state.</returns>
+    internal static FuturesOptionContractAddedEvent CreateFuturesOptionContractAddedEvent(this AddFuturesOptionContractCommand command, FuturesOptionContractAddition futuresOptionContractAddition)
         => new()
         {
-            CommandId = e.CommandId,
-            Subject = new ActorSubject(ActorType.Event, FuturesOptionContractAddedEvent.Actor, FuturesOptionContractAddedEvent.Verb, e.EntityId.Format()),
-            EntityId = e.EntityId,
-            Contract = e.Contract,
-            CreatedOn = e.OriginatedOn,
-            CreatedBy = e.OriginatedBy
+            CommandId = command.CommandId,
+            Subject = new ActorSubject(ActorType.Event, FuturesOptionContractAddedEvent.Actor, FuturesOptionContractAddedEvent.Verb, command.EntityId.Format()),
+            EntityId = command.EntityId,
+            Contract = futuresOptionContractAddition.FuturesOptionContract,
+            CreatedOn = command.OriginatedOn,
+            CreatedBy = command.OriginatedBy
         };
-
-    /// <summary>
-    /// Returns the error message for an attempt to add a futures option contract that already exists.
-    /// </summary>
-    /// <param name="e">The add command that triggered the duplicate-contract error.</param>
-    /// <returns>A descriptive error message string.</returns>
-    internal static string FuturesOptionContractExistsErrorMsg(this AddFuturesOptionContractCommand e)
-        => $"{e.CommandName}: contractId {e.Contract.ContractId} already exists";
-
 }

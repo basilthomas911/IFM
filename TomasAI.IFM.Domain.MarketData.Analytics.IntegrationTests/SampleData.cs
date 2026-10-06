@@ -9,7 +9,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests;
@@ -39,8 +38,6 @@ public static class SampleData
     public static FuturesItiSignalEntityId EntityId
         => new(ContractId, ValueDate, TimePeriod);
 
-    public static FuturesItiTrendCoastLineCountersReadModel CoastLineCounters
-        => new(upTrendCount: 3, downTrendCount: 3);
 
     public static GenerateFuturesItiSignalCommand GenerateCommand
         => new(

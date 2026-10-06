@@ -25,8 +25,7 @@ $runningProcessNames = @(
     'TomasAI.IFM.Application.ServerManager.SchedulerHost',
     'TomasAI.IFM.Application.ScheduledTask.FuturesMarketClose',
     'TomasAI.IFM.Application.ScheduledTask.FuturesMarketOpen',
-    'TomasAI.IFM.Application.ScheduledTask.SetClosingPrice',
-    'ScheduledTask.TrainFuturesItiPredictiveModel'
+    'TomasAI.IFM.Application.ScheduledTask.SetClosingPrice'
 )
 $runningProcesses = Get-Process -Name $runningProcessNames -ErrorAction SilentlyContinue
 if ($runningProcesses) {
@@ -82,11 +81,6 @@ $applications = @(
         Name = 'Set Closing Price'
         Project = 'TomasAI.IFM.Application.ScheduledTask.SetClosingPrice\TomasAI.IFM.Application.ScheduledTask.SetClosingPrice.csproj'
         Destination = 'Tasks\SetClosingPrice'
-    },
-    [pscustomobject]@{
-        Name = 'Train Futures ITI Predictive Model'
-        Project = 'TomasAI.ScheduledTasks\SceduledTask.TrainFuturesItiPredictiveModel\ScheduledTask.TrainFuturesItiPredictiveModel.csproj'
-        Destination = 'Tasks\TrainFuturesItiPredictiveModel'
     },
     [pscustomobject]@{
         # Keep Server Manager last so an accidental launch cannot race incomplete API/UI deployment.

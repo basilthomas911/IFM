@@ -1,48 +1,56 @@
-using TomasAI.IFM.Shared.EventModelActor;
+﻿using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
-using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.State;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Model;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command;
 
+/// <summary>Handles RemoveFuturesContract through pure computation and state-owned event application.</summary>
 public static class RemoveFuturesContract
 {
-    /// <summary>
-    /// Removes a futures contract from the specified command state if it exists.
-    /// </summary>
-    /// <param name="e">The remove command containing the details of the futures contract to be removed.</param>
-    /// <param name="state">The current state of the futures contract commands to update.</param>
-    /// <returns>true if the futures contract was successfully removed; otherwise, false.</returns>
-    /// <exception cref="RemoveFuturesContractException">Thrown if the specified futures contract does not exist in the current state.</exception>
-    public static ServiceResult<GuidResult> Execute(this RemoveFuturesContractCommand e, FuturesContractCommandState state)
-        => e switch
+    /// <summary>Computes the contract change and applies one source event after failure guards pass.</summary>
+    /// <param name="command">The originating command containing contract business inputs.</param>
+    /// <param name="state">The owning command state; mutation occurs only through Update and Apply.</param>
+    /// <returns>The command identity on success, or a business rejection or event-application failure.</returns>
+    public static ServiceResult<GuidResult> Execute(this RemoveFuturesContractCommand command, FuturesContractCommandState state)
+    {
+        var errorMsg = $"{command.CommandName}: unable to apply FuturesContractRemovedEvent";
+        var updated = command.Compute(state.FuturesContractDoesNotExist(command.ContractId, command.Overwrite), out var futuresContractRemoval) switch
         {
-            _ when state.FuturesContractDoesNotExist(e.ContractId, e.Overwrite) => throw new RemoveFuturesContractException(e.FuturesContractDoesNotExistErrorMsg()),
-            _ => e.UpdateResult(() => state.Update(e.CreateFuturesContractRemovedEvent(), e))
+            _ when !futuresContractRemoval.Accepted
+                => command.UpdateFailed(ref errorMsg, $"{command.CommandName}: contract {command.ContractId} does not exist"),
+            _ => state.Update(command.CreateFuturesContractRemovedEvent(futuresContractRemoval), command)
         };
+        return updated
+            ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
+            : command.UpdateFailed(errorMsg);
+    }
 
-    /// <summary>
-    /// Creates a <see cref="FuturesContractRemovedEvent"/> from a <see cref="RemoveFuturesContractCommand"/>.
-    /// </summary>
-    /// <param name="e">The source remove command containing entity identifiers and origin metadata.</param>
-    /// <returns>A fully-populated removed event ready to be applied to actor state.</returns>
-    internal static FuturesContractRemovedEvent CreateFuturesContractRemovedEvent(this RemoveFuturesContractCommand e)
+    /// <summary>Computes immutable proposed contract values without changing state or pending events.</summary>
+    /// <param name="command">The requested contract change.</param>
+    /// <param name="contractChangeRejected">Whether the existing contract state rejects this operation under its overwrite policy.</param>
+    /// <param name="futuresContractRemoval">The proposed business values and acceptance decision.</param>
+    /// <returns>True when computation completes; acceptance is guarded before event application.</returns>
+    internal static bool Compute(this RemoveFuturesContractCommand command, bool contractChangeRejected, out FuturesContractRemoval futuresContractRemoval)
+    {
+        futuresContractRemoval = new(command.ContractId, !contractChangeRejected);
+        return true;
+    }
+
+    /// <summary>Creates a source event carrying the computed business values and originating command identity.</summary>
+    /// <param name="command">The originating command supplying routing and audit metadata.</param>
+    /// <param name="futuresContractRemoval">The accepted proposed contract change.</param>
+    /// <returns>The source event to apply through the owning state.</returns>
+    internal static FuturesContractRemovedEvent CreateFuturesContractRemovedEvent(this RemoveFuturesContractCommand command, FuturesContractRemoval futuresContractRemoval)
         => new()
         {
-            Subject = new ActorSubject(ActorType.Event, FuturesContractRemovedEvent.Actor, FuturesContractRemovedEvent.Verb, e.EntityId.Format()),
-            EntityId = e.EntityId,
-            ContractId = e.ContractId,
-            DeletedOn = e.OriginatedOn,
-            DeletedBy = e.OriginatedBy
+            CommandId = command.CommandId,
+            Subject = new ActorSubject(ActorType.Event, FuturesContractRemovedEvent.Actor, FuturesContractRemovedEvent.Verb, command.EntityId.Format()),
+            EntityId = command.EntityId,
+            ContractId = futuresContractRemoval.FuturesContractId,
+            DeletedOn = command.OriginatedOn,
+            DeletedBy = command.OriginatedBy
         };
-
-    /// <summary>
-    /// Returns the error message for an attempt to remove a futures contract that does not exist.
-    /// </summary>
-    /// <param name="e">The remove command that triggered the missing-contract error.</param>
-    /// <returns>A descriptive error message string.</returns>
-    internal static string FuturesContractDoesNotExistErrorMsg(this RemoveFuturesContractCommand e)
-        => $"{e.CommandName}: contract {e.ContractId} does not exist";
 }

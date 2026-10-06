@@ -46,7 +46,8 @@ public enum LogSourceType
     Reference,
     MarketDataAnalytics,
     TradePlacement,
-    PredictiveModel,
+    // Reserved for historical log-source identities; predictive model runtime is retired.
+    ReservedPredictiveModel,
     FuturesBarDataEvent,
     FuturesEodDataEvent,
     FuturesOptionTickDataEvent,
@@ -100,7 +101,7 @@ public static class LogSourceTypeExtensions
         LogSourceType.Reference => nameof(LogSourceType.Reference),
         LogSourceType.MarketDataAnalytics => nameof(LogSourceType.MarketDataAnalytics),
         LogSourceType.TradePlacement => nameof(LogSourceType.TradePlacement),
-        LogSourceType.PredictiveModel => nameof(LogSourceType.PredictiveModel),
+        LogSourceType.ReservedPredictiveModel => nameof(LogSourceType.ReservedPredictiveModel),
         LogSourceType.FuturesBarDataEvent => nameof(LogSourceType.FuturesBarDataEvent),
         LogSourceType.FuturesEodDataEvent => nameof(LogSourceType.FuturesEodDataEvent),
         LogSourceType.FuturesOptionTickDataEvent => nameof(LogSourceType.FuturesOptionTickDataEvent),

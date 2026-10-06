@@ -1,63 +1,89 @@
-﻿using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.Model;
+using TomasAI.IFM.Domain.OptionPricer.Shared;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Events;
-using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.State;
 
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command;
 
+/// <summary>Computes SubmitSpreadDistributionJob business values and applies the resulting source event.</summary>
 public static class SubmitSpreadDistributionJob
 {
-    /// <summary>
-    /// Executes the <see cref="SubmitSpreadDistributionJobCommand"/> against the current <see cref="SpreadDistributionJobCommandState"/>.
-    /// </summary>
-    /// <param name="e">The submit spread distribution job command to execute.</param>
-    /// <param name="state">The current state of the spread distribution job.</param>
-    /// <returns>true if the job was successfully submitted; otherwise, an exception is thrown.</returns>
-    public static ServiceResult<GuidResult> Execute(this SubmitSpreadDistributionJobCommand e, SpreadDistributionJobCommandState state)
-       => e switch
-       {
-           _ when !state.IsJobStatusInProgress
-               => e.UpdateResult(() => state.Update(e.CreateSpreadDistributionJobSubmittedEvent(), e)),
-           _ => e.UpdateResult(() => state.Update(e.CreateSpreadDistributionJobInProgressEvent(state.SpreadDistributionJob!), e))
-       };
+    /// <summary>Computes proposed business values, checks failure guards, and applies one source event.</summary>
+    /// <param name="command">The originating command supplying business inputs and identity.</param>
+    /// <param name="state">The owning state; mutations occur through Update and Apply.</param>
+    /// <returns>The command identity on success, otherwise the business or application failure.</returns>
+    public static ServiceResult<GuidResult> Execute(this SubmitSpreadDistributionJobCommand command, SpreadDistributionJobCommandState state)
+    {
+        var errorMsg = $"{command.CommandName}: unable to apply SpreadDistributionJobSubmittedEvent";
+        var updated = command.Compute(state.SpreadDistributionJob, out var spreadDistributionChange) switch
+        {
+            _ => state.Update(command.CreateSpreadDistributionJobEvent(spreadDistributionChange), command)
+        };
+        return updated
+            ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
+            : command.UpdateFailed(errorMsg);
+    }
+
+    /// <summary>Computes immutable business values without changing state or pending events.</summary>
+    /// <param name="command">The requested business operation.</param>
+    /// <param name="activeSpreadDistributionJob">The current job whose active submission must be preserved.</param>
+    /// <param name="spreadDistributionChange">The computed business values to carry in the event.</param>
+    /// <returns>True when computation completes; acceptance is checked before application.</returns>
+    internal static bool Compute(this SubmitSpreadDistributionJobCommand command, SpreadDistributionJobReadModel? activeSpreadDistributionJob, out SpreadDistributionJobSubmission spreadDistributionChange)
+    {
+        spreadDistributionChange = new(activeSpreadDistributionJob is { InProgress: true } ? activeSpreadDistributionJob : command.SpreadDistributionJob with { JobStatus = SpreadDistributionJobStatus.InProgress, InProgress = true }, activeSpreadDistributionJob?.InProgress == true);
+        return true;
+    }
+
+    /// <summary>Selects the appropriate job event while preserving an existing active submission.</summary>
+    /// <param name="command">The originating command supplying identity and routing metadata.</param>
+    /// <param name="spreadDistributionChange">The computed submission and active-job decision.</param>
+    /// <returns>The source event representing the submission outcome.</returns>
+    internal static IEvent CreateSpreadDistributionJobEvent(this SubmitSpreadDistributionJobCommand command, SpreadDistributionJobSubmission spreadDistributionChange)
+        => spreadDistributionChange.AlreadyInProgress
+            ? command.CreateSpreadDistributionJobInProgressEvent(spreadDistributionChange)
+            : command.CreateSpreadDistributionJobSubmittedEvent(spreadDistributionChange);
 
     /// <summary>
     /// Creates a <see cref="SpreadDistributionJobSubmittedEvent"/> from a
     /// <see cref="SubmitSpreadDistributionJobCommand"/>.
     /// Embeds the full <see cref="SpreadDistributionJobReadModel"/> payload from the command into the event.
     /// </summary>
-    /// <param name="e">The command carrying the spread distribution job to submit.</param>
+    /// <param name="command">The command carrying the spread distribution job to submit.</param>
     /// <returns>A fully populated <see cref="SpreadDistributionJobSubmittedEvent"/>.</returns>
-    internal static SpreadDistributionJobSubmittedEvent CreateSpreadDistributionJobSubmittedEvent(this SubmitSpreadDistributionJobCommand e)
+    /// <param name="spreadDistributionChange">The computed job submission payload.</param>
+    internal static SpreadDistributionJobSubmittedEvent CreateSpreadDistributionJobSubmittedEvent(this SubmitSpreadDistributionJobCommand command, SpreadDistributionJobSubmission spreadDistributionChange)
          => new()
          {
-             CommandId = e.CommandId,
-             Subject = new ActorSubject(ActorType.Event, SpreadDistributionJobSubmittedEvent.Actor, SpreadDistributionJobSubmittedEvent.Verb, e.EntityId.Format()),
-             EntityId = e.EntityId,
-             SpreadDistributionJob = e.SpreadDistributionJob,
-             CreatedBy = e.OriginatedBy,
-             CreatedOn = e.OriginatedOn
+             CommandId = command.CommandId,
+             Subject = new ActorSubject(ActorType.Event, SpreadDistributionJobSubmittedEvent.Actor, SpreadDistributionJobSubmittedEvent.Verb, command.EntityId.Format()),
+             EntityId = command.EntityId,
+             SpreadDistributionJob = spreadDistributionChange.SpreadDistributionJob,
+             CreatedBy = command.OriginatedBy,
+             CreatedOn = command.OriginatedOn
          };
 
     /// <summary>
     /// Creates a <see cref="SpreadDistributionJobInProgressEvent"/> from a
     /// <see cref="SubmitSpreadDistributionJobCommand"/> when a job is already running for the entity.
-    /// Uses the current <paramref name="spreadDistributionJob"/> read model rather than the one embedded
+    /// Uses the current <paramref name="spreadDistributionChange"/> read model rather than the one embedded
     /// in the command, preserving the active job state.
     /// </summary>
-    /// <param name="e">The submit command that triggered the in-progress transition.</param>
-    /// <param name="spreadDistributionJob">The current read model of the job already in progress.</param>
+    /// <param name="command">The submit command that triggered the in-progress transition.</param>
+    /// <param name="spreadDistributionChange">The current read model of the job already in progress.</param>
     /// <returns>A fully populated <see cref="SpreadDistributionJobInProgressEvent"/>.</returns>
-    internal static SpreadDistributionJobInProgressEvent CreateSpreadDistributionJobInProgressEvent(this SubmitSpreadDistributionJobCommand e, SpreadDistributionJobReadModel spreadDistributionJob)
+    internal static SpreadDistributionJobInProgressEvent CreateSpreadDistributionJobInProgressEvent(this SubmitSpreadDistributionJobCommand command, SpreadDistributionJobSubmission spreadDistributionChange)
         => new()
         {
-            CommandId = e.CommandId,
-            Subject = new ActorSubject(ActorType.Event, SpreadDistributionJobInProgressEvent.Actor, SpreadDistributionJobInProgressEvent.Verb, e.EntityId.Format()),
-            EntityId = e.EntityId,
-            SpreadDistributionJob = spreadDistributionJob,
-            CreatedBy = e.OriginatedBy,
-            CreatedOn = e.OriginatedOn
+            CommandId = command.CommandId,
+            Subject = new ActorSubject(ActorType.Event, SpreadDistributionJobInProgressEvent.Actor, SpreadDistributionJobInProgressEvent.Verb, command.EntityId.Format()),
+            EntityId = command.EntityId,
+            SpreadDistributionJob = spreadDistributionChange.SpreadDistributionJob,
+            CreatedBy = command.OriginatedBy,
+            CreatedOn = command.OriginatedOn
         };
 }

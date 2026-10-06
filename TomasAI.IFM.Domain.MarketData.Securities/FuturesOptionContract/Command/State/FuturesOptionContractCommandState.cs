@@ -1,5 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Model;
-using TomasAI.IFM.Shared.EventModelActor;
+﻿using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
@@ -16,7 +15,7 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command
 public class FuturesOptionContractCommandState
     : BaseEventSourceActorState<FuturesOptionContractCommandState>, IEventSourceActorState<FuturesOptionContractCommandState>
 {
-    readonly FuturesOptionContractModel _model = new();
+    readonly HashSet<string> futuresOptionContractIds = new(StringComparer.Ordinal);
 
     public override ActorThreadId Id { get; set; }
 
@@ -40,7 +39,7 @@ public class FuturesOptionContractCommandState
     /// <param name="e"></param>
     bool On(FuturesOptionContractAddedEvent e)
     {
-        _model.Add(e.Contract.ContractId);
+        futuresOptionContractIds.Add(e.Contract.ContractId);
         return true;
     }
 
@@ -56,7 +55,7 @@ public class FuturesOptionContractCommandState
     {
         foreach (var contract in e.Contracts)
         {
-            _model.Add(contract.ContractId);
+            futuresOptionContractIds.Add(contract.ContractId);
         }
         return true;
     }
@@ -69,8 +68,8 @@ public class FuturesOptionContractCommandState
     /// <returns><see langword="true"/> to indicate the event was successfully processed.</returns>
     bool On(FuturesOptionContractChangedEvent e)
     {
-        _model.Remove(e.OriginalContractId);
-        _model.Add(e.Contract.ContractId);
+        futuresOptionContractIds.Remove(e.OriginalContractId);
+        futuresOptionContractIds.Add(e.Contract.ContractId);
         return true;
     }
 
@@ -81,7 +80,7 @@ public class FuturesOptionContractCommandState
     /// <returns><see langword="true"/> to indicate the operation was successfully processed.</returns>
     bool On(FuturesOptionContractRemovedEvent e)
     {
-        _model.Remove(e.ContractId);
+        futuresOptionContractIds.Remove(e.ContractId);
         return true;
     }
 
@@ -93,7 +92,7 @@ public class FuturesOptionContractCommandState
     /// <returns><see langword="true"/> when the contract already exists and overwrite was not requested; otherwise,
     /// <see langword="false"/>.</returns>
     internal bool FuturesOptionContractExists(string futuresOptionContractId, bool overwrite)
-        => _model.ContainsKey(futuresOptionContractId) && !overwrite;
+        => futuresOptionContractIds.Contains(futuresOptionContractId) && !overwrite;
 
     /// <summary>
     /// Determines whether a futures option contract does not exist in the current model.
@@ -103,6 +102,6 @@ public class FuturesOptionContractCommandState
     /// <returns><see langword="true"/> when the contract does not exist and overwrite was not requested; otherwise,
     /// <see langword="false"/>.</returns>
     internal bool FuturesOptionContractDoesNotExist(string futuresOptionContractId, bool overwrite)
-        => !_model.ContainsKey(futuresOptionContractId) && !overwrite;
+        => !futuresOptionContractIds.Contains(futuresOptionContractId) && !overwrite;
 
 }

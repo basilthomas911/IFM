@@ -18,7 +18,6 @@ public sealed class ActorMessageContractConventionInventoryTests(ITestOutputHelp
         "TomasAI.IFM.Domain.MarketData.Shared",
         "TomasAI.IFM.Domain.OptionPricer.Shared",
         "TomasAI.IFM.Domain.Portfolio.Shared",
-        "TomasAI.IFM.Domain.PredictiveModel.Shared",
         "TomasAI.IFM.Domain.Reference.Shared",
         "TomasAI.IFM.Domain.Strategy.Contracts.Shared",
         "TomasAI.IFM.Domain.SystemAdmin.Shared",

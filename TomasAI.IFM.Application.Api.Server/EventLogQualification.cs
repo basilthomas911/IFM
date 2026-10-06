@@ -76,7 +76,7 @@ public sealed class EventLogQualification
         foreach (var key in new[] { "Trade", "Fund", "Reference", "OptionPricer", "MarketData", "Securities" })
             settings[$"ConnectionStrings:{key}DbConnection"] =
                 $"Contact Points=127.0.0.1;Port={scyllaPort};Default Keyspace=ifm_synthetic_{runId}_{key.ToLowerInvariant()}";
-        foreach (var key in new[] { "TelemetryServerBaseUri", "PredictiveModelServerBaseUri" })
+        foreach (var key in new[] { "TelemetryServerBaseUri" })
             settings[$"AppSettings:{key}"] = HttpUrl;
         Settings = settings;
     }

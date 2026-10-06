@@ -227,8 +227,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.Trade.Sh
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.Reference.Shared", "TomasAI.IFM.Domain.Reference.Shared\TomasAI.IFM.Domain.Reference.Shared.csproj", "{E1929A55-A779-4805-BAE9-025B7E71DB11}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.PredictiveModel.Shared", "TomasAI.IFM.Domain.PredictiveModel.Shared\TomasAI.IFM.Domain.PredictiveModel.Shared.csproj", "{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.SystemAdmin.Shared", "TomasAI.IFM.Domain.SystemAdmin.Shared\TomasAI.IFM.Domain.SystemAdmin.Shared.csproj", "{DA149AE8-EF84-46BF-AAD5-C1CD700F7F78}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.OptionPricer.Shared", "TomasAI.IFM.Domain.OptionPricer.Shared\TomasAI.IFM.Domain.OptionPricer.Shared.csproj", "{864D31A0-D11E-4B40-8FAD-4E513A581105}"
@@ -298,8 +296,6 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Application.ScheduledTask.FuturesMarketOpen", "TomasAI.IFM.Application.ScheduledTask.FuturesMarketOpen\TomasAI.IFM.Application.ScheduledTask.FuturesMarketOpen.csproj", "{2A812B05-3715-4C83-96F3-D1AFEA8E1101}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Application.ScheduledTask.SetClosingPrice", "TomasAI.IFM.Application.ScheduledTask.SetClosingPrice\TomasAI.IFM.Application.ScheduledTask.SetClosingPrice.csproj", "{BA3836AA-1F21-4752-AA78-72FC950BD1F3}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScheduledTask.TrainFuturesItiPredictiveModel", "TomasAI.ScheduledTasks\SceduledTask.TrainFuturesItiPredictiveModel\ScheduledTask.TrainFuturesItiPredictiveModel.csproj", "{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud", "TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud\TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.csproj", "{41243BBE-F542-4B82-B9D1-F049FFFEE98B}"
 EndProject
@@ -2311,26 +2307,6 @@ Global
 		{E1929A55-A779-4805-BAE9-025B7E71DB11}.Release|x64.Build.0 = Release|Any CPU
 		{E1929A55-A779-4805-BAE9-025B7E71DB11}.Release|x86.ActiveCfg = Release|Any CPU
 		{E1929A55-A779-4805-BAE9-025B7E71DB11}.Release|x86.Build.0 = Release|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Debug|ARM.ActiveCfg = Debug|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Debug|ARM.Build.0 = Debug|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Debug|ARM64.ActiveCfg = Debug|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Debug|ARM64.Build.0 = Debug|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Debug|x64.Build.0 = Debug|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Debug|x86.Build.0 = Debug|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Release|Any CPU.Build.0 = Release|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Release|ARM.ActiveCfg = Release|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Release|ARM.Build.0 = Release|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Release|ARM64.ActiveCfg = Release|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Release|ARM64.Build.0 = Release|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Release|x64.ActiveCfg = Release|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Release|x64.Build.0 = Release|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Release|x86.ActiveCfg = Release|Any CPU
-		{5EBE94D4-31EB-4EF9-8359-8169FF753ACE}.Release|x86.Build.0 = Release|Any CPU
 		{DA149AE8-EF84-46BF-AAD5-C1CD700F7F78}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{DA149AE8-EF84-46BF-AAD5-C1CD700F7F78}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DA149AE8-EF84-46BF-AAD5-C1CD700F7F78}.Debug|ARM.ActiveCfg = Debug|Any CPU
@@ -3031,26 +3007,6 @@ Global
 		{BA3836AA-1F21-4752-AA78-72FC950BD1F3}.Release|x64.Build.0 = Release|Any CPU
 		{BA3836AA-1F21-4752-AA78-72FC950BD1F3}.Release|x86.ActiveCfg = Release|Any CPU
 		{BA3836AA-1F21-4752-AA78-72FC950BD1F3}.Release|x86.Build.0 = Release|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Debug|ARM.ActiveCfg = Debug|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Debug|ARM.Build.0 = Debug|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Debug|ARM64.ActiveCfg = Debug|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Debug|ARM64.Build.0 = Debug|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Debug|x64.Build.0 = Debug|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Debug|x86.Build.0 = Debug|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Release|Any CPU.Build.0 = Release|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Release|ARM.ActiveCfg = Release|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Release|ARM.Build.0 = Release|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Release|ARM64.ActiveCfg = Release|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Release|ARM64.Build.0 = Release|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Release|x64.ActiveCfg = Release|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Release|x64.Build.0 = Release|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Release|x86.ActiveCfg = Release|Any CPU
-		{A8588AFD-A1D0-46A2-B6C6-696AECA4E3F5}.Release|x86.Build.0 = Release|Any CPU
 		{41243BBE-F542-4B82-B9D1-F049FFFEE98B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{41243BBE-F542-4B82-B9D1-F049FFFEE98B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{41243BBE-F542-4B82-B9D1-F049FFFEE98B}.Debug|ARM.ActiveCfg = Debug|Any CPU

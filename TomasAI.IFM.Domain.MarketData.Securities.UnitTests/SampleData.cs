@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -12,7 +12,6 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
-using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.UnitTests;
 
@@ -239,49 +238,7 @@ public class SampleData
         optionType: "Put"
     );
 
-    public static FuturesItiTrendClassModelReadModel FuturesItiTrendClassModel => new
-    (
-        symbol: "SYM",
-        valueDate: new DateOnly(2025, 2, 17),
-        startDate: new DateOnly(2025, 1, 1),
-        endDate: new DateOnly(2025, 1, 31),
-        count: 100,
-        maximum: 10.0,
-        mean: 5.0,
-        median: 5.0,
-        minimum: 1.0,
-        skewness: 0.5,
-        stdDev: 2.0,
-        variance: 4.0,
-        accuracy: 0.95,
-        areaUnderPrecisionRecallCurve: 0.85,
-        areaUnderRocCurve: 0.9,
-        entropy: 0.1,
-        f1Score: 0.8,
-        modelData: Encoding.UTF8.GetBytes("SampleModelData")
-    );
 
-    public static FuturesItiTrendDeltaModelReadModel FuturesItiTrendDeltaModel => new
-    (
-        symbol: "SYM",
-        valueDate: new DateOnly(2025, 2, 17),
-        startDate: new DateOnly(2025, 1, 1),
-        endDate: new DateOnly(2025, 1, 31),
-        count: 100,
-        maximum: 10.0,
-        mean: 5.0,
-        median: 5.0,
-        minimum: 1.0,
-        skewness: 0.5,
-        stdDev: 2.0,
-        variance: 4.0,
-        meanAbsoluteError: 0.1,
-        meanSquaredError: 0.2,
-        rootMeanSquaredError: 0.3,
-        lossFunction: 0.4,
-        rSquared: 0.95,
-        modelData: Encoding.UTF8.GetBytes("SampleModelData")
-    );
 
     public static FuturesOptionTickDataV2ReadModel FuturesOptionTickData => new
    (

@@ -184,14 +184,8 @@ internal readonly record struct DeleteFuturesItiSignalByTrendModeMonth(string co
 {
     public object Bind() => new object?[] { contractId, intrinsicTimeTrend, intrinsicTimeMode, yearMonth, valueDate, sequenceId, timePeriod, intrinsicTimeGroupId };
 }
-internal readonly record struct DeleteFuturesItiTrendClassData(string symbol, DateOnly startDate, DateOnly endDate) : IBindValue
-{
-    public object Bind() => new object?[] { symbol, startDate, endDate };
-}
-internal readonly record struct DeleteFuturesItiTrendDeltaData(string symbol, DateOnly startDate, DateOnly endDate) : IBindValue
-{
-    public object Bind() => new object?[] { symbol, startDate, endDate };
-}
+
+
 internal readonly record struct DeleteFuturesOptionTickData(string contractId, DateOnly valueDate) : IBindValue
 {
     public object Bind() => new object?[] { contractId, valueDate };
@@ -282,30 +276,12 @@ internal readonly record struct GetFuturesItiSignalContractIdsByDate(DateOnly va
 {
     public object Bind() => new object?[] { valueDate };
 }
-internal readonly record struct GetFuturesItiTrendClassData(string symbol, DateOnly startDate, DateOnly endDate) : IBindValue
-{
-    public object Bind() => new object?[] { symbol, startDate, endDate };
-}
-internal readonly record struct GetFuturesItiTrendClassModel(string symbol, DateOnly valueDate) : IBindValue
-{
-    public object Bind() => new object?[] { symbol, valueDate };
-}
-internal readonly record struct GetFuturesItiTrendClassModelMaxValueDate(string symbol, DateOnly valueDate) : IBindValue
-{
-    public object Bind() => new object?[] { symbol, valueDate };
-}
-internal readonly record struct GetFuturesItiTrendDeltaData(string symbol, DateOnly startDate, DateOnly endDate) : IBindValue
-{
-    public object Bind() => new object?[] { symbol, startDate, endDate };
-}
-internal readonly record struct GetFuturesItiTrendDeltaModel(string symbol, DateOnly valueDate) : IBindValue
-{
-    public object Bind() => new object?[] { symbol, valueDate };
-}
-internal readonly record struct GetFuturesItiTrendDeltaModelMaxValueDate(string symbol, DateOnly valueDate) : IBindValue
-{
-    public object Bind() => new object?[] { symbol, valueDate };
-}
+
+
+
+
+
+
 internal readonly record struct GetFuturesOptionTickData(string contractId, DateOnly valueDate, long tickId) : IBindValue
 {
     public object Bind() => new object?[] { contractId, valueDate, tickId };
@@ -605,22 +581,10 @@ internal readonly record struct GetFuturesItiTimeFrameState(string contractId, s
 {
     public object Bind() => new object?[] { contractId, timePeriod, calendarBucketStart };
 }
-internal readonly record struct InsertFuturesItiTrendClassData(string symbol, DateOnly valueDate, DateTime timestamp, long sequenceId, float trendClass, float trendDirection, float trendDirectionMode, float trendDelta, float futuresRSI) : IBindValue
-{
-    public object Bind() => new object?[] { symbol, valueDate, timestamp, sequenceId, trendClass, trendDirection, trendDirectionMode, trendDelta, futuresRSI };
-}
-internal readonly record struct InsertFuturesItiTrendDeltaData(string symbol, DateOnly valueDate, DateTime timestamp, long sequenceId, float trendDelta, float trendDirection, float trendDirectionMode, float futuresPrice, float trendExtreme, float futuresRSI) : IBindValue
-{
-    public object Bind() => new object?[] { symbol, valueDate, timestamp, sequenceId, trendDelta, trendDirection, trendDirectionMode, futuresPrice, trendExtreme, futuresRSI };
-}
-internal readonly record struct InsertFuturesItiTrendClassModel(string symbol, DateOnly valueDate, DateOnly startDate, DateOnly endDate, int count, double maximum, double mean, double median, double minimum, double skewness, double stdDev, double variance, double accuracy, double areaUnderPrecisionRecallCurve, double areaUnderRocCurve, double entropy, double f1Score, byte[] modelData) : IBindValue
-{
-    public object Bind() => new object?[] { symbol, valueDate, startDate, endDate, count, maximum, mean, median, minimum, skewness, stdDev, variance, accuracy, areaUnderPrecisionRecallCurve, areaUnderRocCurve, entropy, f1Score, modelData };
-}
-internal readonly record struct InsertFuturesItiTrendDeltaModel(string symbol, DateOnly valueDate, DateOnly startDate, DateOnly endDate, int count, double maximum, double mean, double median, double minimum, double skewness, double stdDev, double variance, double meanAbsoluteError, double meanSquaredError, double rootMeanSquaredError, double lossFunction, double rSquared, byte[] modelData) : IBindValue
-{
-    public object Bind() => new object?[] { symbol, valueDate, startDate, endDate, count, maximum, mean, median, minimum, skewness, stdDev, variance, meanAbsoluteError, meanSquaredError, rootMeanSquaredError, lossFunction, rSquared, modelData };
-}
+
+
+
+
 internal readonly record struct InsertFuturesMacdSignal(
     string contractId,
     DateOnly valueDate,
