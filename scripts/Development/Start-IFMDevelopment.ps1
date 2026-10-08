@@ -24,7 +24,7 @@ if (-not $NoBuild) {
         "TomasAI.IFM.Application.ServerManager\TomasAI.IFM.Application.ServerManager.csproj"
     )
     foreach ($project in $projects) {
-        & dotnet build (Join-Path $repositoryRoot $project) --configuration $Configuration --nologo
+        & dotnet build (Join-Path $repositoryRoot $project) --configuration $Configuration -m:1 --nologo
         if ($LASTEXITCODE -ne 0) {
             throw "Build failed for '$project'."
         }
@@ -35,6 +35,11 @@ $managerPath = Join-Path $repositoryRoot `
     "TomasAI.IFM.Application.ServerManager\bin\Debug\net10.0-windows7.0\IFMServerManager.exe"
 if (-not (Test-Path -LiteralPath $managerPath)) {
     throw "Development Server Manager was not found at '$managerPath'. Build without -NoBuild first."
+}
+
+$schedulerSettings = Join-Path $repositoryRoot ".artifacts/scheduled-tasks/development/scheduler.settings.json"
+if (Test-Path -LiteralPath $schedulerSettings) {
+    & (Join-Path $repositoryRoot "scripts/ScheduledTasks/Start-IFMDevelopmentScheduler.ps1")
 }
 
 $priorEnvironment = [Environment]::GetEnvironmentVariable("DOTNET_ENVIRONMENT")

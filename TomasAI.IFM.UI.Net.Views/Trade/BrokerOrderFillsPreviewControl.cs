@@ -619,10 +619,10 @@ public class BrokerOrderFillsPreviewControl : DarkTradingView
         using var background = new SolidBrush(selected ? Color.FromArgb(52, 65, 85) : _orderTree.BackColor);
         args.Graphics.FillRectangle(background, new Rectangle(bounds.X, bounds.Y, Math.Max(bounds.Width + 18, 1), bounds.Height));
         var text = args.Node.Text.TrimEnd(' ', '●');
-        TextRenderer.DrawText(args.Graphics, text, _orderTree.Font, bounds, Color.White,
+        TextRenderer.DrawText(args.Graphics, text, _orderTree.Font, bounds, args.Node.ForeColor.IsEmpty ? _orderTree.ForeColor : args.Node.ForeColor,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
         if (args.Node.Parent is not null) return;
-        var color = args.Node.Tag?.ToString() switch
+        var color = !args.Node.ForeColor.IsEmpty ? args.Node.ForeColor : args.Node.Tag?.ToString() switch
         {
             "Filled" => Green,
             "Cancelled" => Red,
@@ -949,7 +949,7 @@ public sealed class BrokerTradePreviewControl : BrokerOrderFillsPreviewControl
             selector.Enabled = _canEditOrderType;
         }
         SetField("Broker route", route); SetField("Directed venue", venue); SetField("Combo tick", tick);
-        SetField("SMART", "Not configured"); SetField("Route check", _data?.BrokerAccount is { } account ? $"{account.QualificationStatus} / {account.Gate}" : "Account qualification unavailable");
+        SetField("SMART", "Not configured"); SetField("Route check", _data?.BrokerAccount is { } account ? account.DevelopmentQualificationsExempt ? "Development emulator - qualification exempt" : $"{account.QualificationStatus} / {account.Gate}" : "Account qualification unavailable");
         ExecutionSelector("Time in force").Enabled = _canEditOrderType;
         ExecutionSelector("Pace").Enabled = _canEditOrderType && algorithm != "None";
         }
@@ -1093,8 +1093,14 @@ public sealed class OrderFillsPreviewControl : BrokerOrderFillsPreviewControl
         };
     }
 
+    /// <summary>Persists and refreshes the owning setup trade after all submitted opening executions fill.</summary>
+    public event Func<Task>? OpeningOrdersFilled;
+    private bool _reportingOpeningFill;
+    private bool _openingFillReported;
+
     public void BindSubmittedOrders(IReadOnlyList<TradeOrderDefinition> orders)
     {
+        _openingFillReported = false;
         _orderIds = orders.Select(x => x.Id).Distinct().ToArray();
         _orders.Clear(); _executions.Clear(); _executionEvents.Clear(); _brokerEvents.Clear();
         _executionStatus.Text = "Order submitted; waiting for execution notifications";
@@ -1180,6 +1186,24 @@ public sealed class OrderFillsPreviewControl : BrokerOrderFillsPreviewControl
             if (_orderTree.Nodes.Count == 0) _detail.SelectedObject = new { Status = "No broker orders submitted" };
         }
         finally { _orderTree.EndUpdate(); }
+        if (!_openingFillReported && !_reportingOpeningFill && OpeningOrdersFilled is not null
+            && _orderIds.Length > 0 && _orderIds.All(id => _executions.Values.Any(execution =>
+                execution.TradeOrderId == id && execution.PositionType == TradeOrderPositionType.Opening
+                && execution.Status == OrderExecutionStatus.Filled
+                && execution.OrderQuantity > 0 && execution.CumulativeFilledQuantity == execution.OrderQuantity)))
+            UiExceptionReporter.Observe(ReportOpeningFillAsync(), nameof(ReportOpeningFillAsync), this);
+    }
+
+    /// <summary>Reports completion once; a failed Portfolio command can be retried on the next refresh.</summary>
+    private async Task ReportOpeningFillAsync()
+    {
+        _reportingOpeningFill = true;
+        try
+        {
+            foreach (Func<Task> handler in OpeningOrdersFilled!.GetInvocationList()) await handler();
+            _openingFillReported = true;
+        }
+        finally { _reportingOpeningFill = false; }
     }
 
     private Task StartNotificationsAsync() => _notifications?.StartAsync().AsTask() ?? Task.CompletedTask;

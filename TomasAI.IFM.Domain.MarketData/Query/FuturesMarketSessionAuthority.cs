@@ -6,7 +6,7 @@ namespace TomasAI.IFM.Domain.MarketData.Query;
 /// <summary>
 /// Owns the API process's immutable, monotonically versioned futures-session decision.
 /// </summary>
-public sealed class FuturesMarketSessionAuthority : IFuturesMarketSessionAuthority
+public sealed class FuturesMarketSessionAuthority : IFuturesMarketSessionAuthority, ICompletedFuturesEndOfDayProjection
 {
     readonly object _gate = new();
     readonly TimeProvider _timeProvider;
@@ -49,6 +49,19 @@ public sealed class FuturesMarketSessionAuthority : IFuturesMarketSessionAuthori
         }
     }
 
+    /// <summary>Applies a persisted whole-session EOD completion and immediately refreshes the public session projection.</summary>
+    public bool ApplyCompletedEndOfDay(DateOnly completedValueDate)
+    {
+        lock (_gate)
+        {
+            if (_valueDateProvider is not ICompletedFuturesEndOfDayProjection projection)
+                throw new InvalidOperationException("Operational provider does not support EOD completion projection.");
+            var changed = projection.ApplyCompletedEndOfDay(completedValueDate);
+            if (changed) Refresh();
+            return changed;
+        }
+    }
+
     MarketSessionReadModel CreateSnapshot(DateTimeOffset now, long revision)
         => GetMarketSession.Calculate(now, _valueDateProvider.GetValueDate(now)) with
         {
@@ -62,6 +75,7 @@ public sealed class FuturesMarketSessionAuthority : IFuturesMarketSessionAuthori
         => current.OperationalValueDate != candidate.OperationalValueDate
            || current.ActiveValueDate != candidate.ActiveValueDate
            || current.State != candidate.State
+           || current.IsEndOfDayPending != candidate.IsEndOfDayPending
            || current.SessionStartUtc != candidate.SessionStartUtc
            || current.SessionEndUtc != candidate.SessionEndUtc
            || current.NextTransitionUtc != candidate.NextTransitionUtc;

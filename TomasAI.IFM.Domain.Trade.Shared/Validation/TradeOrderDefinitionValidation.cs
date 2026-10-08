@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Validation;
@@ -127,7 +127,8 @@ public static class TradeOrderDefinitionValidation
             RuleFor(leg => leg.ContractKey).NotNull();
             RuleFor(leg => leg.Expiry).Must(expiry => expiry is null || expiry != default(DateOnly));
             RuleFor(leg => leg.Strike).Must(strike => strike is null || strike > 0);
-            RuleFor(leg => leg.PutCall).Must(putCall => putCall is null || putCall is 0 or 1);
+            RuleFor(leg => leg.PutCall).Must(putCall => putCall is null || putCall is 1 or 2)
+                .WithMessage("PutCall must be 1 (Call), 2 (Put), or null for a non-option leg.");
             RuleFor(leg => leg.CashMultiplier).GreaterThanOrEqualTo(0);
         }
     }

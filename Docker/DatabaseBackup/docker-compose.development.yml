@@ -15,12 +15,18 @@ services:
       Nats__JetStreamEventListener__DurableConsumerNamePrefix: ${IFM_BACKUP_CONSUMER_PREFIX:-ifm-database-backup-development}
       Nats__JetStreamEventListener__DeliverPolicy: ${IFM_BACKUP_DELIVER_POLICY:-1}
       Nats__JetStreamProducer__Url: ${IFM_NATS_URL:-nats://host.docker.internal:4222}
+      DatabaseBackup__OutputRoot: /var/lib/ifm/database-backup/output
       DatabaseBackup__Host__HostId: ${IFM_BACKUP_HOST_ID:-development-database-backup-host}
       DatabaseBackup__EnvironmentId: ${IFM_ENVIRONMENT:-development}
       DatabaseBackup__Sources__LocalWorkstation__Enabled: ${IFM_BACKUP_ENABLED:-true}
       DatabaseBackup__Sources__LocalWorkstation__DryRun: ${IFM_BACKUP_DRY_RUN:-false}
       DatabaseBackup__Sources__LocalWorkstation__PostgreSqlEnabled: ${IFM_POSTGRES_BACKUP_ENABLED:-true}
-      DatabaseBackup__Sources__LocalWorkstation__ScyllaEnabled: ${IFM_SCYLLA_BACKUP_ENABLED:-false}
+      DatabaseBackup__Sources__LocalWorkstation__ScyllaEnabled: ${IFM_SCYLLA_BACKUP_ENABLED:-true}
+      DatabaseBackup__PostgreSql__FreshTargetProfiles__development-on-demand__Host: 127.0.0.1
+      DatabaseBackup__PostgreSql__FreshTargetProfiles__development-on-demand__Port: "55433"
+      DatabaseBackup__PostgreSql__FreshTargetProfiles__development-on-demand__Database: postgres
+      DatabaseBackup__PostgreSql__FreshTargetProfiles__development-on-demand__AllowedLogicalTargets__0: development-restore
+      DatabaseBackup__PostgreSql__FreshTargetProfiles__development-on-demand__StartupTimeout: "00:05:00"
       DatabaseBackup__Scylla__ManagerApiUrl: ${IFM_SCYLLA_MANAGER_API_URL:-http://host.docker.internal:5080/api/v1}
       DatabaseBackup__Scylla__PortableSnapshot__Enabled: ${IFM_SCYLLA_PORTABLE_SNAPSHOT_ENABLED:-true}
       DatabaseBackup__Scylla__PortableSnapshot__ServiceUrl: ${IFM_SCYLLA_MINIO_URL:-http://host.docker.internal:19000}
@@ -30,6 +36,9 @@ services:
     ports:
       - "127.0.0.1:${IFM_BACKUP_HEALTH_PORT:-8088}:8080"
     volumes:
+      - type: bind
+        source: ${IFM_BACKUP_OUTPUT_ROOT:-../../.artifacts/database-backup/output}
+        target: /var/lib/ifm/database-backup/output
       - type: bind
         source: ${IFM_BACKUP_ROOT:-E:/IFM/DatabaseBackup}/journal
         target: /var/lib/ifm/database-backup/journal

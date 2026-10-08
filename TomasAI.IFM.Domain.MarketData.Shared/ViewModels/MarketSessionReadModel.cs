@@ -20,6 +20,8 @@ public sealed record MarketSessionReadModel
     [Key(7)] public long Revision { get; init; }
     [Key(8)] public DateTime AsOfUtc { get; init; }
     [Key(9)] public FuturesMarketState State { get; init; }
+    /// <summary>Gets whether a new clock session is withheld because the previous operational date has not completed EOD.</summary>
+    [Key(10)] public bool IsEndOfDayPending { get; init; }
 
     [IgnoreMember] public bool IsMarketOpen => State != FuturesMarketState.Closed;
     [IgnoreMember] public bool IsLiveTrading => State == FuturesMarketState.LiveTrading;

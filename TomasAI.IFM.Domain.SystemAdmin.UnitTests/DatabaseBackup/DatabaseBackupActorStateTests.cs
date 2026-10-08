@@ -315,6 +315,25 @@ public sealed class DatabaseBackupActorStateTests
         outbox.Pending.Should().BeEmpty();
     }
 
+    [Fact]
+    public void On_demand_restore_materializes_executable_target_in_all_source_events()
+    {
+        var state = new DatabaseBackupCommandState();
+        var command = new RequestDatabaseRestoreDrillCommand
+        {
+            CommandId = Guid.NewGuid(), EntityId = new(Guid.NewGuid()), Request = Request(),
+            Source = BackupSource.LocalWorkstation, ProtectionSetId = new("core-postgresql"),
+            RestorePointId = new("verified-development-backup"),
+            DisposableTargetProfile = "development-on-demand", ValidationProfile = "development-restore"
+        };
+        state.Execute(command);
+        var events = state.Events.OfType<DatabaseBackupEventContract>().ToArray();
+        events.Should().HaveCount(3).And.OnlyContain(item => item.CommandId == command.CommandId);
+        events.Should().OnlyContain(item => item.FreshTarget != null && item.FreshTarget.Profile == "development-on-demand" && item.FreshTarget.LogicalTarget == "development-restore" && item.RestoreClass == DatabaseRestoreClass.Drill);
+        var execution = DatabaseBackupStateRepository.ToExecutionEvent(events.Last());
+        execution!.FreshTarget.Should().Be(new DatabaseFreshTargetDescriptor("development-on-demand", "development-restore"));
+    }
+
     static RequestDatabaseBackupCommand RequestBackup(DatabaseRecoveryOperationId operationId) => new()
     {
         CommandId = Guid.NewGuid(),

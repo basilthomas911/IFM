@@ -1,4 +1,4 @@
-using System.IO.Pipes;
+﻿using System.IO.Pipes;
 using MessagePack;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using NSubstitute;
@@ -33,16 +33,24 @@ public sealed class OptionTradeRetentionTests
         var admissions = new DatasetWorkerAdmissionRegistry();
         admissions.Admit(new(envelope.Dataset, envelope.ValueDate, envelope.WorkerInstanceId, envelope.GenerationId, 1));
         var store = new GatedStore();
-        var ingress = new DatasetPublicationIngress(admissions, Substitute.For<ITickAggregationEventPublisher>(),
+        var publisher = Substitute.For<ITickAggregationEventPublisher>();
+        var ingress = new DatasetPublicationIngress(admissions, publisher,
             Substitute.For<IMarketDataOperationsRecorder>(), optionTrades: store);
         var accepting = ingress.AcceptAsync(envelope, timeout.Token).AsTask();
         Assert.False(accepting.IsCompleted);
         Assert.False(retained.IsCompleted);
+        Assert.Empty(publisher.ReceivedCalls());
         store.Completed.SetResult();
         Assert.True(await accepting);
         await OptionTradeAcknowledgment.WriteAsync(ackServer, envelope.PublicationSequence, Generation, true, timeout.Token);
         await retained;
         Assert.Equal(Evidence(), store.Value);
+        await publisher.Received(1).PublishAsync(
+            Arg.Is<TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickTradeDataChangedEvent>(tick =>
+                tick.TickDataId.ContractId == Evidence().Source.ContractId &&
+                tick.TradeData.Price == Evidence().Source.Price &&
+                tick.TradeData.SourceSequence == 99 && tick.SourceGenerationId == Generation),
+            Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -79,6 +87,20 @@ public sealed class OptionTradeRetentionTests
         }));
         Assert.Null(store.Value);
     }
+    [Fact]
+    public void Retransmission_preserves_event_identity_and_native_source_timestamps()
+    {
+        var evidence = Evidence();
+        var first = evidence.ToRealtimeEvent();
+        var replay = (evidence with { Source = evidence.Source with
+        { ReceiveNanoseconds = evidence.Source.ReceiveNanoseconds + 1000, GenerationId = Guid.NewGuid() } }).ToRealtimeEvent();
+        Assert.Equal(first.Id, replay.Id);
+        Assert.Equal(first.CommandId, replay.CommandId);
+        Assert.Equal(evidence.Source.EventNanoseconds, first.TradeData.EventTimestampNanoseconds);
+        Assert.Equal(evidence.Source.ReceiveNanoseconds, first.TradeData.ReceiveTimestampNanoseconds);
+        Assert.Equal(evidence.Source.ValueDate, first.EntityId.ValueDate);
+    }
+
     sealed class GatedStore : IOptionTradeEvidenceWriter
     {
         public TaskCompletionSource Completed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

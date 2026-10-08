@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
@@ -24,7 +24,8 @@ public class FuturesOptionTickDataEventActor(IEventActorContext<FuturesOptionTic
     protected IFuturesOptionTickDataEventContext EventContext { get; } = IsArgumentNull.Set(actorContext as IFuturesOptionTickDataEventContext, nameof(actorContext))!;
     readonly ILogger<FuturesOptionTickDataEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     readonly FuturesOptionTickDataEventParameters _eventParameters = new(
-        ((IFuturesOptionTickDataEventContext)actorContext).MarketDataApi, ((IFuturesOptionTickDataEventContext)actorContext).StatusConsoleWriter, actorContext.Logger);
+        ((IFuturesOptionTickDataEventContext)actorContext).MarketDataApi, ((IFuturesOptionTickDataEventContext)actorContext).StatusConsoleWriter, actorContext.Logger)
+        { QualifiedFeeds = ((IFuturesOptionTickDataEventContext)actorContext).QualifiedFeeds };
     readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesOptionTickDataEventContext, IEventActorContext, FuturesOptionTickDataEventParameters, ILogger<FuturesOptionTickDataEventActor>, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesOptionTickDataEventContext, IEventActorContext, FuturesOptionTickDataEventParameters, ILogger<FuturesOptionTickDataEventActor>, ValueTask<bool>>>()
     {
         [typeof(FuturesOptionTickDataStreamingStartedEvent)] = async (evt, context, eventApi, eventParams, logger) =>
@@ -51,9 +52,11 @@ public class FuturesOptionTickDataEventActor(IEventActorContext<FuturesOptionTic
         {
             try
             {
-                await _eventParameters.MarketDataApi.StopStreamingFuturesOptionTickDataAsync(
-                    registration.Key.ContractId,
-                    registration.Key.Owner).ConfigureAwait(false);
+                if (_eventParameters.QualifiedFeeds is { } feeds)
+                    await feeds.ReleaseAsync(registration.Key.Owner, registration.Key.ContractId).ConfigureAwait(false);
+                else
+                    await _eventParameters.MarketDataApi.StopStreamingFuturesOptionTickDataAsync(
+                        registration.Key.ContractId, registration.Key.Owner).ConfigureAwait(false);
             }
             catch (TomasAI.IFM.Application.MarketData.Contracts.MarketDataApiNotRunningException)
             {

@@ -1,9 +1,10 @@
-﻿using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.Trade.Futures.Command.State;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Futures;
 using TomasAI.IFM.Shared.EventSourcing;
 
+using TomasAI.IFM.Domain.Trade.Futures.Command.Model;
 namespace TomasAI.IFM.Domain.Trade.Futures.Command;
 
 public static class CreateFuturesTrade
@@ -16,50 +17,69 @@ public static class CreateFuturesTrade
     /// <returns>A successful result with a state-change event, or the first rejected business rule.</returns>
     public static ServiceResult<GuidResult> Execute(
         this CreateFuturesTradeCommand command,
-        FuturesTradeCommandState state) => command switch
+        FuturesTradeCommandState state)
+    {
+        var errorMsg = "EstablishedTrade.STATE.APPLY_FAILED: unable to apply CreateFuturesTrade event";
+        var updated = command.Compute(state, out var tradeChange) switch
         {
-            _ when state.Current is { } current &&
+            _ when tradeChange.RejectionReason is not null => command.UpdateFailed(ref errorMsg, tradeChange.RejectionReason),
+            _ when tradeChange.EstablishedTradeDefinition is null => command.UpdateFailed(ref errorMsg, "EstablishedTrade: the proposed trade definition is missing."),
+            _ => state.Update(command.CreateFuturesTradeChangedEvent(tradeChange), command)
+        };
+        return updated ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId)) : command.UpdateFailed(errorMsg);
+    }
+
+    /// <summary>Computes the proposed established trade definition without mutating actor state.</summary>
+    /// <param name="command">The originating create command.</param>
+    /// <param name="trade">The established futures-trade state.</param>
+    /// <param name="isInitialEstablishment">Whether the event first establishes the trade.</param>
+    /// <returns>The immutable proposed established trade change.</returns>
+    static EstablishedTradeChange CalculateTradeChange(
+        this CreateFuturesTradeCommand command,
+        EstablishedTradeDefinition trade,
+        bool isInitialEstablishment) => new(trade, isInitialEstablishment);
+    /// <summary>Computes an established trade definition without changing state.</summary>
+    /// <param name="command">The concrete trade lifecycle intent.</param>
+    /// <param name="state">The current established trade owner.</param>
+    /// <param name="tradeChange">The proposed trade definition or business rejection.</param>
+    /// <returns>True when the proposed trade change is accepted.</returns>
+    internal static bool Compute(this CreateFuturesTradeCommand command, FuturesTradeCommandState state, out EstablishedTradeChange tradeChange)
+    {
+        tradeChange = command switch
+        {
+            _ when state.EstablishedTradeDefinition is { } current &&
                    current.Id == command.Trade.Id &&
                    current.ExecutionAttemptId == command.Trade.ExecutionAttemptId =>
-                command.UpdatedOk(() => state.Update(
-                    command.CreateFuturesTradeChangedEvent(current, false),
-                    command)),
-            _ when state.Current is not null =>
-                command.UpdateFailed(
-                    "TRADE.ALREADY_EXISTS;A different established Trade already owns this identity."),
+                command.CalculateTradeChange(current, false),
+            _ when state.EstablishedTradeDefinition is not null =>
+                new EstablishedTradeChange(null, RejectionReason: "TRADE.ALREADY_EXISTS;A different established Trade already owns this identity."),
             _ when !command.Trade.Id.IsValid ||
                    command.Trade.SourceComponentId == Guid.Empty ||
                    command.Trade.ExecutionAttemptId == Guid.Empty ||
                    command.Trade.Legs.Length == 0 ||
                    command.Trade.OriginalFills.Length == 0 ||
                    command.Trade.EstablishedAtUtc.Kind != DateTimeKind.Utc =>
-                command.UpdateFailed(
-                    "TRADE.INVALID;Trade identity, component, execution, UTC time, Legs, and OriginalFills are required."),
+                new EstablishedTradeChange(null, RejectionReason: "TRADE.INVALID;Trade identity, component, execution, UTC time, Legs, and OriginalFills are required."),
             _ when command.Trade.AssetFamily != TradeAssetFamily.Futures =>
-                command.UpdateFailed(
-                    "TRADE.TYPE_MISMATCH;Futures Trade requires Futures asset family."),
+                new EstablishedTradeChange(null, RejectionReason: "TRADE.TYPE_MISMATCH;Futures Trade requires Futures asset family."),
             _ when command.Trade.StrategyKind != TradeStrategyKind.FuturesOutright =>
-                command.UpdateFailed(
-                    "TRADE.TYPE_MISMATCH;Futures Trade requires FuturesOutright strategy."),
-            _ => command.UpdatedOk(() => state.Update(
-                command.CreateFuturesTradeChangedEvent(command.Trade, true),
-                command))
+                new EstablishedTradeChange(null, RejectionReason: "TRADE.TYPE_MISMATCH;Futures Trade requires FuturesOutright strategy."),
+            _ => command.CalculateTradeChange(command.Trade, true)
         };
-
-    /// <summary>Creates the private event containing the accepted futures-trade state.</summary>
-    /// <param name="command">The originating create command.</param>
-    /// <param name="trade">The established futures-trade state.</param>
-    /// <param name="isInitialEstablishment">Whether the event first establishes the trade.</param>
-    /// <returns>The private futures-trade state-change event.</returns>
-    static FuturesTradeChangedEvent CreateFuturesTradeChangedEvent(
-        this CreateFuturesTradeCommand command,
-        EstablishedTradeDefinition trade,
-        bool isInitialEstablishment) => new()
+        return tradeChange.RejectionReason is null;
+    }
+    /// <summary>Creates the source event with the originating command identity.</summary>
+    /// <param name="command">The originating command.</param>
+    /// <param name="tradeChange">The accepted immutable trade change.</param>
+    /// <returns>The event ready for state application.</returns>
+    internal static FuturesTradeChangedEvent CreateFuturesTradeChangedEvent(this CreateFuturesTradeCommand command, EstablishedTradeChange tradeChange)
+        => new()
         {
+            CommandId = command.CommandId,
             Subject = new(ActorType.Event, "FuturesTradeEvent", FuturesTradeChangedEvent.Verb, command.EntityId.Format()),
             ReceivedOn = DateTime.UtcNow,
             EntityId = command.EntityId,
-            State = trade,
-            IsInitialEstablishment = isInitialEstablishment
+            EstablishedTradeDefinition = tradeChange.EstablishedTradeDefinition!,
+            IsInitialEstablishment = tradeChange.IsInitialEstablishment
         };
 }

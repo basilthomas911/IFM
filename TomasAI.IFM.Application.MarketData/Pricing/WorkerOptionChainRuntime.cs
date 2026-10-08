@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.DataBento;
@@ -15,6 +15,7 @@ namespace TomasAI.IFM.Application.MarketData.Pricing;
 /// </summary>
 public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMarketSource
 {
+    readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> individualContracts = new(StringComparer.Ordinal);
     readonly Guid generation;
     readonly DateOnly valueDate;
     readonly string dataset;
@@ -38,7 +39,8 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
     public WorkerOptionChainRuntime(Guid generation, DateOnly valueDate, IDatabentoFeedFactory feeds,
         DatabentoFeedOptions options, ITickAggregationService aggregation, IDatabentoLastPriceStore prices,
         TimeProvider? time = null, Action<string>? terminalFault = null, OptionPricingRefreshPolicy? refreshPolicy = null,
-        IOptionTradeEvidenceWriter? tradeEvidence = null)
+        IOptionTradeEvidenceWriter? tradeEvidence = null,
+        TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher? optionObservations = null)
     {
         if (generation == Guid.Empty) throw new ArgumentException("A dataset generation is required.");
         this.generation = generation; this.valueDate = valueDate; dataset = options.Dataset;
@@ -48,7 +50,9 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
         this.refreshPolicy.Validate();
         production = options.DeploymentProfile == FeedDeploymentProfile.Production;
         pricing = new(inputs, generation, this.refreshPolicy, ReadUnderlying, clock, terminalFault, tradeEvidence);
-        sessions = new(feeds, options, aggregation, prices, pricing, new TransientSink(), state);
+        sessions = new(feeds, options, aggregation, prices, pricing, optionObservations is null
+            ? new TransientSink()
+            : new IndividualOptionObservationPublisher(generation, inputs, optionObservations, individualContracts.ContainsKey, clock), state, time: clock);
         expiryLoop = ExpireAsync();
     }
 
@@ -92,10 +96,12 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                     return Failure("ConflictingDefinition");
                 underlying = contract.UnderlyingContractId;
             }
+            if (request.SeparateContractConnection && request.Options.Length != 1) return Failure("IndividualOptionRequired");
             var ordered = request.Options.OrderBy(x => x.Pricing.Contract.ContractId, StringComparer.Ordinal).ToImmutableArray();
-            var digest = PricingSemanticHash.Compute(new { request.MaturityDate, Options = ordered });
+            var digest = PricingSemanticHash.Compute(new { request.MaturityDate, request.SeparateContractConnection, Options = ordered });
             if (scopes.TryGetValue(request.ScopeId, out var existing))
             {
+                if ((!string.IsNullOrEmpty(existing.Key.OptionContractId)) != request.SeparateContractConnection) return Failure("ConflictingConnectionMode");
                 if (existing.Leases.Count >= 128 && !existing.Leases.ContainsKey(request.LeaseId)) return Failure("LeaseCapacity");
                 if (state.GetSession(existing.Key).Count != ordered.Length) return Failure("ChainUnavailable");
                 if (existing.Digest != digest)
@@ -118,7 +124,8 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                     existing.Leases[request.LeaseId] = request.LeaseExpiresAtUtc;
                 return new(true, null, digest);
             }
-            var key = new OptionChainSessionKey(underlying!, request.MaturityDate);
+            var key = new OptionChainSessionKey(underlying!, request.MaturityDate,
+                request.SeparateContractConnection ? ordered[0].Pricing.Contract.ContractId : "");
             // A physical session has one canonical scope; a second scope cannot alter or release it.
             if (scopes.Values.Any(s => s.Key == key)) return Failure("ConflictingChainScope");
             if (scopes.Count >= 8 || scopes.Values.Sum(s => s.Options.Length) + ordered.Length > 2048) return Failure("ChainCapacity");
@@ -135,12 +142,14 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                 Definition = Definition(o, request.MaturityDate)
             }).ToArray();
             foreach (var option in ordered) inputs.Set(new(option.Pricing, quote));
+            if (request.SeparateContractConnection) individualContracts.TryAdd(key.OptionContractId, 0);
             try
             {
                 foreach (var route in routes) pricing.Register(route);
                 await sessions.StartAsync(new()
                 {
                     FuturesContractId = underlying!,
+                    OptionContractId = key.OptionContractId,
                     ValueDate = valueDate,
                     Routes = routes,
                     Subscription = new()
@@ -158,8 +167,8 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
             }
             catch
             {
-                try { await sessions.StopAsync(underlying!, request.MaturityDate).ConfigureAwait(false); }
-                finally { foreach (var option in ordered) { inputs.Remove(option.Pricing.Contract.ContractId); pricing.Remove(option.Pricing.Contract.ContractId); } }
+                try { await sessions.StopAsync(underlying!, request.MaturityDate, key.OptionContractId).ConfigureAwait(false); }
+                finally { foreach (var option in ordered) RemoveUnownedPricing(option.Pricing.Contract.ContractId); }
                 throw;
             }
         }
@@ -321,13 +330,24 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
     async Task RemoveAsync(string id, Scope scope)
     {
         scopes.Remove(id);
-        try { await sessions.StopAsync(scope.Key.FuturesContractId, scope.Key.MaturityDate).ConfigureAwait(false); }
+        try { await sessions.StopAsync(scope.Key.FuturesContractId, scope.Key.MaturityDate, scope.Key.OptionContractId).ConfigureAwait(false); }
         catch (Exception exception)
         {
             terminalFault?.Invoke($"Option-chain shutdown failed: {exception.GetType().Name}");
             throw;
         }
-        finally { foreach (var option in scope.Options) { inputs.Remove(option.Pricing.Contract.ContractId); pricing.Remove(option.Pricing.Contract.ContractId); } }
+        finally { foreach (var option in scope.Options) RemoveUnownedPricing(option.Pricing.Contract.ContractId); }
+    }
+
+    /// <summary>Releases cached pricing only after the last physical scope referencing the contract ends.</summary>
+    /// <param name="contractId">The option whose final owner may have ended.</param>
+    void RemoveUnownedPricing(string contractId)
+    {
+        if (scopes.Values.Any(scope => scope.Options.Any(option => option.Pricing.Contract.ContractId == contractId)))
+            return;
+        individualContracts.TryRemove(contractId, out _);
+        inputs.Remove(contractId);
+        pricing.Remove(contractId);
     }
 
     public async ValueTask DisposeAsync()

@@ -44,7 +44,7 @@ internal static class PortfolioDbFinancialSupport
     }
 
     internal static async Task<(FinancialBookConfiguration Book, long Revision, string State)> LockAuthorityAsync(
-        EnlistedEventTransaction db, int portfolioId, long? expectedRevision, CancellationToken token)
+        EnlistedEventTransaction db, int portfolioId, long? expectedRevision, CancellationToken token, FinancialDevelopmentPolicy? developmentPolicy = null)
     {
         using var trace = FinancialTelemetry.ActivitySource.StartActivity("financial.authority.lock");
         var lockStarted = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -53,7 +53,8 @@ internal static class PortfolioDbFinancialSupport
         Require(rows.Count == 1, FinancialReasons.AuthorityDenied, "Financial authority is not configured.");
         var result = rows[0];
         Require(expectedRevision is null || result.Revision == expectedRevision, FinancialReasons.RevisionConflict, "Financial state changed; a new confirmed attempt must use current authority.");
-        return result;
+        var tradingBook = developmentPolicy?.TradingBook(result.Book) ?? result.Book;
+        return (tradingBook, result.Revision, tradingBook.DevelopmentQualificationsExempt ? "Active" : result.State);
     }
 
     internal static async Task ValidateFundSourcesAsync(EnlistedEventTransaction db, FinancialBookConfiguration book,
@@ -62,7 +63,7 @@ internal static class PortfolioDbFinancialSupport
         using var trace = FinancialTelemetry.ActivitySource.StartActivity("financial.authority.validate_fund_sources");
         var fund = book.Funds.SingleOrDefault(x => x.FundId == fundId);
         Require(fund is not null, FinancialReasons.AuthorityDenied, "Fund does not belong to this financial book.");
-        if (!spending) return; // Authenticated financial facts still post after a mandate is suspended.
+        if (!spending || book.DevelopmentQualificationsExempt) return; // Authenticated financial facts still post after a mandate is suspended.
         Require(book.MigrationQualified && fund!.CanSpend && fund.Reference.ValidUntilUtc > DateTime.UtcNow,
             FinancialReasons.AuthorityRevoked, "Current financial authority does not permit spending.");
         await Check($"Portfolio.{book.PortfolioId}", fund.PortfolioStreamVersion);

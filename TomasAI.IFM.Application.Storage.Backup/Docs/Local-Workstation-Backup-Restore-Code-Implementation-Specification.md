@@ -2,9 +2,9 @@
 
 **Status:** Phase 10 development implementation, runtime qualification, and incremental-backup extension complete
 
-**Version:** 1.6
+**Version:** 1.7
 
-**Date:** 2026-08-18
+**Date:** 2026-10-07
 
 **Implementation target:** `BackupSource.LocalWorkstation`
 
@@ -1390,6 +1390,48 @@ For each phase, the implementing agent must:
 | Self-reference recovery gap | immutable destination run evidence plus controlled reconciliation |
 | Future AWS compatibility | destination-neutral application ports and source-neutral serialized contracts |
 
+## Backup administration UI implementation plan (2026-10-07)
+
+**Status:** Implementation is present. Focused UI, domain, host/projection and isolated native tests passed; the single combined UI-to-native-host acceptance run remains unqualified. See verification below.
+**Scope:** Restore Backup navigation; implement Logs/Setup for both sources; validate local backup/restore with
+isolated fixtures and FlaUI. AWS live qualification and production restore/cutover are outside this increment.
+
+| Stage | Implementation | Acceptance evidence |
+| --- | --- | --- |
+| 1. Restore navigation and inventory | Register `BackupDatabases` idempotently through the reference command API; preserve Scheduled Tasks. Map existing policy, operation, progress and restore contracts to the two-source UI; identify host-owned settings. | Both entries visible; no duplicate registrations; documented ownership and contract gaps. |
+| 2. Run history and retained output | Add bounded operation-history/phase/output queries where absent; project safe run metadata and progress observations. Persist/redact host output artifacts and expose authorized, paged access. Include backup and restore operations. | Paging, missing artifacts, remote output, access boundaries, redaction and selection cancellation verified; actor messages stay bounded. |
+| 3. Logs UI and progress | Build Logs-first view with exactly two roots, date hierarchy, run rows and terminal ScyllaDB/PostgreSQL leaves, status circles, timestamps, mode/lineage and output pane. Wire live notifications; preserve selection. Report measured progress or explicit milestones with throttling. | Local FlaUI verifies hierarchy, color plus text, changing progress, selected output, terminal states and paging; no fabricated 100%. |
+| 4. Setup and command wiring | Build AWS/Local source tabs. Connect policy editing, backup modes, cancellation, restore/drill requests and fresh-target selection to existing APIs. Reuse Scheduled Tasks scheduling; display host settings/readiness without arbitrary file editing. Distinguish accepted/applied policy. | Source switching preserves inputs; invalid settings rejected; stale policy revisions handled; disabled/unqualified AWS state visible; no secrets rendered. |
+| 5. Disposable native fixtures | Provision a small dedicated PostgreSQL 17+ source and fresh restore targets; prepare isolated Scylla/Manager fixtures where supported. Separate network/volumes/vault/protection-set/credential profiles from development. Verify these boundaries before execution. | Fixture manifest lists resource identities and confirms no current development database is a source or target. |
+| 6. Full and incremental end-to-end tests | Via the local UI request full backup, await confirmed completion and restore into a fresh target. Change fixture rows, request incremental, restore the verified chain and compare inserts/updates/deletes. Verify Scylla complete/deduplicated snapshots when supported. Trace UI to actors to host to output/results. | FlaUI screenshots and operation IDs; native verification; restored row comparisons; base/parent lineage; progress/output during runs. Unsupported incremental prerequisites explicitly reported. |
+| 7. Regression and delivery | Verify failed/cancelled operations, missing output, historical log reload and source isolation; build affected projects and run focused meaningful tests. Update validation report and per-stage completion/blocker status; remove only fixture resources. | Reviewable build/test results, local end-to-end report and remaining blockers; AWS readiness is not inferred from local success. |
+
+### Implementation boundaries
+
+- Extend `DatabaseBackupUiModels`, `IDatabaseBackupService`, `DatabaseBackupService`, `DatabaseBackupViewModel`
+  and `BackupDatabasesView` using the established Scheduled Tasks tab/tree/output pattern.
+- Reuse `IDatabaseBackupCommandApi` backup/restore/drill/cancellation/policy methods; add typed source-neutral
+  queries for history/output only where existing query contracts lack the required data.
+- Preserve the current backup projection store and host journal. Do not move backup state into UI objects or
+  reuse Scheduled Task output directories as if they were backup operation artifacts.
+- Keep backup success, verification, restore validation, and cutover distinct. A restore test never overwrites a
+  development database or requests production cutover.
+- Existing restore approval semantics remain; determine the applicable development fixture flow through existing
+  commands. Do not silently bypass safeguards while connecting the UI.
+- Read-only AWS setup/log contract tests can run without cloud mutations. If retained AWS output is unavailable,
+  display that limitation; do not fabricate logs or label AWS fully qualified.
+
+### Progress and test evidence
+
+Capture operation IDs and timestamps for request, acceptance, each phase/progress update, verified backup completion,
+restore request, restore validation and terminal outcome. Correlate these across UI, actor projections and host artifacts.
+For every progress row identify measured versus milestone values. Verify logs remain readable after view reopen and
+that a failed run retains its last percentage and diagnostic output. Use fixture data small enough for development
+acceptance while waiting for real completion rather than assuming elapsed time means success.
+
+The decisive local test is not merely a green UI row: fresh targets must contain the expected full and incremental
+fixture contents. Native compatibility and isolated Scylla Manager availability are checked before promising those tests.
+
 ## 29. Revision history
 
 | Version | Date | Change |
@@ -1410,3 +1452,73 @@ For each phase, the implementing agent must:
 | 1.4 | 2026-08-13 | Confirmed Docker Desktop's `CustomWslDistroDir` as `D:\Docker\wsl\data` and corrected the encryption evidence target. The elevated `C:` result is non-applicable, and `manage-bde -status D:` reports that `D:` is not a valid BitLocker volume. Gate 10 awaits alternative encryption evidence or encrypted-storage remediation. |
 | 1.5 | 2026-08-13 | Clarified the environment boundary: workstation development storage may be unencrypted, while production backup storage still requires encryption at rest. Added independent PostgreSQL/Scylla native-source selection and the `E:\IFM\DatabaseBackup` development composition/runbook. |
 | 1.6 | 2026-08-18 | Implemented source-neutral Full/Automatic/Incremental requests, bounded chain planning, PostgreSQL 17 native incrementals and combined restore, Scylla Manager deduplicated-snapshot semantics, signed manifest/catalog lineage, dependency-safe retention, SystemAdmin projection fields, UI/Console/ScheduledTask selection, and deterministic plus Docker-native validation. |
+| 1.7 | 2026-10-07 | Added the planned shared Backup Logs/Setup makeover, two-source configuration, bounded output and honest progress reporting, with disposable Local Workstation full/incremental restore acceptance and no AWS live qualification claim. |
+
+
+### Backup UI verification amendment (2026-10-07)
+
+The final hierarchy is **Source ? Year ? Month ? Day ? Run ? ScyllaDB / PostgreSQL**.
+The two database nodes are final leaves, with engine-specific status, last progress milestone and outcome.
+Phase observations and paged retained stdout/stderr are displayed on the right. Host output is bounded,
+redacted, and addressed by source plus operation identity. Setup reads explicitly allowlisted host metadata;
+policy edits use existing revision-matched command contracts. Backup cancellation and fresh-target restore
+validation requests use command APIs. Acceptance is distinguished from operation completion.
+
+Verification performed against disposable fixtures (development databases were not backup or restore targets):
+
+| Check | Result | Evidence in repository `.artifacts` |
+| --- | --- | --- |
+| Local dashboard FlaUI, tree leaves, success color, output and responsiveness | 1 passed | `backup-flaui-verified.log` |
+| Backup domain contracts and routes | 66 passed | `backup-domain-final.log` |
+| Host composition, NATS notifications and PostgreSQL projection/history queries | 2 passed, separate disposable PostgreSQL database | `backup-host-isolated-final.log` |
+| Output redaction, paging, source isolation and safe setup fields | 1 passed | `backup-output-tests.log` |
+| PostgreSQL native full/incremental/fresh-target recovery cases | 4 passed | `backup-native-20261007.log` |
+| Scylla native snapshot and fresh disposable-node restore | 1 passed | `backup-scylla-native.log` |
+
+These tests validate separate boundaries; the FlaUI test uses a substituted API and does **not** prove one
+continuous UI ? API ? production backup host ? native full/incremental restore workflow. Scylla Manager
+incremental/deduplicated backup is also not qualified by the native SSTable restore test. AWS live tests
+were excluded as requested. Old operations cannot acquire stdout that was never retained.
+
+Deployment requires the rebuilt backup host and its output bind mount to match the API's
+`DatabaseBackup:OutputRoot` (default repository `.artifacts/database-backup/output`). The rebuilt Docker host was deployed with the original environment preserved and passed its readiness check. It now publishes setup metadata and operation output through that mount. Old output is not retroactively recreated. Backup navigation registration was confirmed in the persisted reference catalog, and normal development API/UI/scheduler startup was restored.
+A complete UI/native acceptance run needs dedicated fixture-only backup/restore profiles and an isolated
+host/message namespace; the currently configured live host must not be used to satisfy that test with the
+current development databases.
+
+## Development on-demand operation (2026-10-07)
+
+Development on-demand PostgreSQL backup and fresh-copy restore are enabled independently of the
+remaining combined UI/native qualification work. The host is enabled, PostgreSQL is enabled and dry-run
+is disabled. Scylla on-demand backup is also enabled on the development host. Scylla Manager status and backup
+dry-run validation succeeded from that host for `read-model-scylla`. The existing keyspace patterns
+include application read models and trade plans. AWS backup admission remains disabled.
+Scylla fresh-target restore remains a separately configured workflow; enabling backup does not qualify it.
+
+The dashboard combines the host's configured protection sets with persisted operation history, so a
+first backup can be requested before any history exists. Disabled engine sets cannot be checked.
+Changing the selected set refreshes its latest verified/restore-tested points and clears the previous
+set's restore input. Source/selection revisions fence obsolete refresh responses.
+
+For Local Workstation PostgreSQL, choose `core-postgresql` and request Full, Automatic or Incremental.
+A full physical backup includes the development PostgreSQL cluster. Incremental mode requires an
+eligible verified base; Automatic lets the native engine resolve the appropriate mode.
+Restore uses the selected verified point, target profile `development-on-demand` and copy name
+`development-restore`. The source events carry `FreshTarget` and `RestoreClass=Drill`, allowing the
+existing host orchestrator to execute the request. This is a fresh-copy restore in the host restore
+workspace, validated using PostgreSQL on internal port 55433; it does not replace the active database.
+Production restore/cutover approval remains a separate workflow.
+
+Verification: 67 backup domain tests, 2 on-demand service tests and 1 dashboard FlaUI test passed.
+The Docker host passed readiness and published the `development-on-demand` profile. The earlier
+statement that no disposable restore profiles existed was incorrect: `disposable-validation` was
+already present. The explicit development profile makes ordinary on-demand usage available.
+A continuous native workflow invoked through the live UI remains separate from these component tests.
+
+### Both databases available for development backup
+
+Under Local Workstation Setup, check both `core-postgresql` and `read-model-scylla`, then
+Request Backup. The UI submits one operation per protection set, using the selected mode;
+monitor each database's outcome in Logs. Scylla uses Manager snapshots/deduplicated SSTable
+storage, rather than a PostgreSQL physical incremental chain. Scylla backup validation selected
+the configured application keyspaces on the live development node without scheduling a backup.

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
@@ -31,6 +31,13 @@ public sealed class CompositionRoutePlanTests
         var saved = JsonSerializer.Deserialize<CompositionRoutePlan>(JsonSerializer.Serialize(plan))!;
         saved.Validate();
         Assert.Equal(plan.PlanId, saved.PlanId);
+        var individual = (plan with { SeparateContractConnection = true }).Seal();
+        individual.Validate();
+        Assert.NotEqual(plan.PlanId, individual.PlanId);
+        var restoredIndividual = JsonSerializer.Deserialize<CompositionRoutePlan>(JsonSerializer.Serialize(individual))!;
+        restoredIndividual.Validate();
+        Assert.True(restoredIndividual.SeparateContractConnection);
+        Assert.DoesNotContain("SeparateContractConnection", JsonSerializer.Serialize(plan));
         Assert.Equal(c.InstrumentId, saved.Options[0].Definition.Instrument.InstrumentId);
         Assert.Throws<InvalidDataException>(() => (saved with { MaturityDate = new(2026, 10, 3) }).Validate());
     }

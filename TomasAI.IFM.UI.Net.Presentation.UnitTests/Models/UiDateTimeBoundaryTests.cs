@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
@@ -62,6 +63,53 @@ public class UiDateTimeBoundaryTests
             ValueDate,
             UtcStart,
             UtcEnd);
+    }
+
+    [Theory]
+    [InlineData("ES")]
+    [InlineData("VX")]
+    public async Task FuturesBarWindow_IncludesEndedSessionAfterValueDateRollover(string symbol)
+    {
+        var api = Substitute.For<IMarketDataFeedQueryApi>();
+        var end = new DateTime(2026, 10, 7, 22, 15, 0, DateTimeKind.Utc);
+        var start = end.AddHours(-6);
+        var endedDate = new DateOnly(2026, 10, 7);
+        var activeDate = endedDate.AddDays(1);
+        FuturesBarDataReadModel Bar(DateOnly date, DateTime timestamp, decimal price) => new(
+            "contract", symbol, date, timestamp, BarRateType.FifteenSeconds, price, 0, 0);
+        var previous = Bar(endedDate, end.AddHours(-5), 100m);
+        var current = Bar(activeDate, end.AddMinutes(-1), 101m);
+        api.GetFuturesBarDataAsync("contract", symbol, endedDate, start, end)
+            .Returns(new ServiceOk<FuturesBarDataReadModel[]>([previous, Bar(endedDate, start.AddSeconds(-1), 99m)]));
+        api.GetFuturesBarDataAsync("contract", symbol, activeDate, start, end)
+            .Returns(new ServiceOk<FuturesBarDataReadModel[]>([current]));
+        FuturesBarDataReadModel[] result = [];
+
+        await new MarketDataFeedQueryService(api).GetFuturesBarWindowAsync(
+            "contract", symbol, activeDate, start, end, values => result = values);
+
+        Assert.Equal(new[] { previous, current }, result);
+        await api.Received(1).GetFuturesBarDataAsync("contract", symbol, endedDate, start, end);
+        await api.Received(1).GetFuturesBarDataAsync("contract", symbol, activeDate, start, end);
+        Assert.Equal(2, api.ReceivedCalls().Count());
+    }
+
+    [Fact]
+    public async Task FuturesBarWindow_AfterMidnightReadsOnlyRelevantDatesAndKeepsUtcWindow()
+    {
+        var api = Substitute.For<IMarketDataFeedQueryApi>();
+        var end = new DateTime(2026, 10, 8, 5, 0, 0, DateTimeKind.Utc);
+        var start = end.AddHours(-6);
+        var date = new DateOnly(2026, 10, 8);
+        api.GetFuturesBarDataAsync("contract", "ES", Arg.Any<DateOnly>(), start, end)
+            .Returns(new ServiceOk<FuturesBarDataReadModel[]>([]));
+
+        await new MarketDataFeedQueryService(api).GetFuturesBarWindowAsync(
+            "contract", "ES", date, start, end, _ => { });
+
+        await api.Received(1).GetFuturesBarDataAsync("contract", "ES", date.AddDays(-1), start, end);
+        await api.Received(1).GetFuturesBarDataAsync("contract", "ES", date, start, end);
+        Assert.Equal(2, api.ReceivedCalls().Count());
     }
 
     [Fact]

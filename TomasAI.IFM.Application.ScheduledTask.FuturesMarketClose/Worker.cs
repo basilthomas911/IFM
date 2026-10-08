@@ -1,3 +1,9 @@
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.ServiceApi;
+using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -20,7 +26,13 @@ public sealed class Worker(
     INatsJetStreamEndOfDayMaintenance jetStreamMaintenance,
     IDatabaseBackupCommandApi databaseBackupCommandApi,
     IActorProducer actorProducer,
-    IConfiguration configuration) : OneShotScheduledTaskWorker(lifetime, outcome, logger)
+    IConfiguration configuration,
+    IMarketDataQueryApi marketQueries,
+    IMarketDataFeedCommandApi feedCommands,
+    IScheduledTaskQueryApi taskQueries,
+    IStrategyPositionCommandApi positions,
+    ScheduledTaskEventCompletion completion,
+    ScheduledTaskBusinessReceipts receipts) : OneShotScheduledTaskWorker(lifetime, outcome, logger)
 {
     protected override async Task ExecuteTaskAsync(CancellationToken stoppingToken)
     {
@@ -29,13 +41,35 @@ public sealed class Worker(
             stoppingToken).ConfigureAwait(false);
         try
         {
-            logger.LogInformation("Recording the IFM end-of-day lifecycle request before JetStream maintenance and protection-set backup submission.");
-            var shutdownResult = await applicationCommandApi
-                .ShutdownApplicationAsync(DateOnly.FromDateTime(DateTime.UtcNow))
-                .ConfigureAwait(false);
-            if (!shutdownResult.Success)
-                throw new InvalidOperationException(
-                    $"The application shutdown command was rejected: {shutdownResult.ErrorMessage}");
+            await receipts.WaitForRunningAsync(stoppingToken);
+            using var closeDeadline = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+            closeDeadline.CancelAfter(TimeSpan.FromMinutes(10));
+            var session = await marketQueries.GetMarketSessionAsync().WaitAsync(closeDeadline.Token);
+            if (!session.Success || session.Value is null) throw new InvalidOperationException("Market session could not be loaded: " + session.ErrorMessage);
+            var valueDate = session.Value.OperationalValueDate;
+            var closeBoundary = FuturesTradingValueDate.GetSessionEndUtc(valueDate).UtcDateTime;
+            if (session.Value.IsMarketOpen || closeBoundary > DateTime.UtcNow)
+                throw new InvalidOperationException("Market close requires an ended session; the operational date cannot advance early.");
+            await completion.ExecuteAsync<MarketDataFeedStoppedCompleteEvent,MarketDataFeedStoppedFailEvent>(
+                MarketDataFeedStoppedCompleteEvent.Actor, MarketDataFeedStoppedCompleteEvent.Verb, MarketDataFeedStoppedFailEvent.Verb,
+                () => feedCommands.StopMarketDataFeedAsync(valueDate), closeDeadline.Token);
+            await receipts.RecordAsync(valueDate, "FeedsStopped", "Correlated market feed stop completed before any EOD command.", closeDeadline.Token);
+            byte[]? pagingState = null;
+            var finalized = new HashSet<Guid>();
+            do
+            {
+                var page = await taskQueries.GetScheduledMarketPositionsAsync(new() { ValueDate = valueDate, PageSize = 100, PagingState = pagingState }, closeDeadline.Token);
+                if (!page.Success || page.Value is null) throw new InvalidOperationException("Open positions could not be loaded: " + page.ErrorMessage);
+                foreach (var position in page.Value.Positions)
+                {
+                    if (!finalized.Add(position.Id.PositionId)) continue;
+                    var result = await positions.EndOfDayAsync(position.Id, position.StrategyKind, valueDate, closeBoundary, closeDeadline.Token);
+                    if (!result.Success) throw new InvalidOperationException($"EOD source commitment failed for {position.Id.Format()}: {result.ErrorMessage}");
+                }
+                pagingState = page.Value.PagingState;
+            } while (pagingState is { Length: > 0 });
+            await receipts.RecordAsync(valueDate, "PositionsFinalized", $"All {finalized.Count} position EOD commands committed successfully. History projection is independently reported.", closeDeadline.Token);
+            logger.LogInformation("{Component}.{Method} EOD source commitments completed for {ValueDate} {PositionCount}; operational date may now advance.", nameof(Worker), nameof(ExecuteTaskAsync), valueDate, finalized.Count);
             Exception? purgeFailure = null;
             try
             {

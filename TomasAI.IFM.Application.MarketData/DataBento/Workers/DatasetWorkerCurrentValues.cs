@@ -172,6 +172,23 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
                             return false;
                         break;
                     }
+                case DatasetPublicationKind.OptionQuoteObservation:
+                    {
+                        var value = MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(envelope.Payload);
+                        if (value.OptionMarketPriceObservation is not { PriceBasis: OptionMarketPriceBasis.QuoteMidpoint } observation
+                            || value.AssetTypeId != AssetTypeId.FuturesOption || value.Dataset != envelope.Dataset
+                            || !Matches(state, observation.UnderlyingContractId, value.TickDataId.ValueDate)
+                            || value.EntityId.ContractId != value.TickDataId.ContractId
+                            || observation.OptionTickData.ContractId != value.TickDataId.ContractId
+                            || observation.OptionTickData.ValueDate != envelope.ValueDate
+                            || value.PublisherId == 0 || value.InstrumentId == 0 || observation.SourceSequence <= 0
+                            || observation.SourceSequence != value.TickDataId.SequenceId
+                            || observation.EventAtUtc.Kind != DateTimeKind.Utc
+                            || !double.IsFinite(observation.OptionTickData.OptionPrice) || observation.OptionTickData.OptionPrice <= 0
+                            || observation.OptionTickData.BidPrice <= 0 || observation.OptionTickData.AskPrice < observation.OptionTickData.BidPrice)
+                            return false;
+                        break;
+                    }
                 case DatasetPublicationKind.MarketPrice:
                     {
                         var marketPriceEvent = MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(envelope.Payload);

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+﻿using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.Interop;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
@@ -31,6 +31,7 @@ public sealed class DatabentoOptionChainSessionManager :
     private readonly TimeSpan _startTimeout;
     private readonly TimeSpan _stopTimeout;
     private readonly TimeSpan _pollTimeout;
+    private readonly TimeProvider _time;
     private readonly Dictionary<OptionChainSessionKey, Session> _sessions = [];
     private int _disposed;
 
@@ -46,6 +47,7 @@ public sealed class DatabentoOptionChainSessionManager :
     /// <param name="startTimeout">The maximum duration allowed to start a session.</param>
     /// <param name="stopTimeout">The maximum duration allowed to stop and drain a session.</param>
     /// <param name="pollTimeout">The maximum time spent waiting for the next feed batch.</param>
+    /// <param name="time">The local ingestion clock, independent of the provider event and receive clocks.</param>
     public DatabentoOptionChainSessionManager(
         IDatabentoFeedFactory feeds,
         DatabentoFeedOptions feedOptions,
@@ -57,7 +59,8 @@ public sealed class DatabentoOptionChainSessionManager :
         int capacity = 8,
         TimeSpan? startTimeout = null,
         TimeSpan? stopTimeout = null,
-        TimeSpan? pollTimeout = null)
+        TimeSpan? pollTimeout = null,
+        TimeProvider? time = null)
     {
         _feeds = feeds ?? throw new ArgumentNullException(nameof(feeds));
         _feedOptions = feedOptions ?? throw new ArgumentNullException(nameof(feedOptions));
@@ -71,6 +74,7 @@ public sealed class DatabentoOptionChainSessionManager :
         _startTimeout = startTimeout ?? TimeSpan.FromSeconds(30);
         _stopTimeout = stopTimeout ?? TimeSpan.FromSeconds(30);
         _pollTimeout = pollTimeout ?? TimeSpan.FromMilliseconds(50);
+        _time = time ?? TimeProvider.System;
     }
 
     public int ActiveSessionCount
@@ -90,8 +94,11 @@ public sealed class DatabentoOptionChainSessionManager :
         cancellationToken.ThrowIfCancellationRequested();
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         ValidateRequest(request);
+        if (!string.IsNullOrEmpty(request.OptionContractId) &&
+            (request.Routes.Count != 1 || request.Routes[0].FuturesOptionContractId != request.OptionContractId))
+            throw new ArgumentException("An isolated option connection requires exactly its named contract.", nameof(request));
         var key = new OptionChainSessionKey(
-            request.FuturesContractId, request.Subscription.MaturityDate);
+            request.FuturesContractId, request.Subscription.MaturityDate, request.OptionContractId);
         var status = _aggregation.GetTickerStatus(request.FuturesContractId);
         if (!status.ServiceRunning || !status.TickerConfigured || !status.TickerRunning)
             throw new InvalidOperationException(
@@ -145,16 +152,25 @@ public sealed class DatabentoOptionChainSessionManager :
         }
     }
 
+    /// <summary>Stops the chain connection while leaving independently owned option-leg connections active.</summary>
+    /// <param name="futuresContractId">The underlying futures contract.</param>
+    /// <param name="maturityDate">The chain maturity.</param>
+    /// <returns>Whether a chain connection was removed.</returns>
+    public Task<bool> StopAsync(string futuresContractId, DateOnly maturityDate)
+        => StopAsync(futuresContractId, maturityDate, "");
+
     /// <summary>Stops the market data component asynchronously.</summary>
     /// <param name="futuresContractId">The underlying futures contract identifier.</param>
     /// <param name="maturityDate">The maturity date.</param>
+    /// <param name="optionContractId">The isolated leg contract, or empty for the chain connection.</param>
     /// <returns>An awaitable that completes when the operation finishes.</returns>
     public async Task<bool> StopAsync(
         string futuresContractId,
-        DateOnly maturityDate)
+        DateOnly maturityDate,
+        string optionContractId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(futuresContractId);
-        var key = new OptionChainSessionKey(futuresContractId, maturityDate);
+        var key = new OptionChainSessionKey(futuresContractId, maturityDate, optionContractId);
         Session? session;
         lock (_sync)
         {
@@ -247,7 +263,10 @@ public sealed class DatabentoOptionChainSessionManager :
                         quote.AskCount,
                         quote.Header.Sequence,
                         FromUnixNanoseconds(quote.Header.EventTimestampNanoseconds),
-                        FromUnixNanoseconds(quote.Header.ReceiveTimestampNanoseconds));
+                        FromUnixNanoseconds(quote.Header.ReceiveTimestampNanoseconds))
+                    {
+                        LocalReceivedAtUtc = _time.GetUtcNow()
+                    };
                     var enriched = new LastQuoteTickWithGreeksSnapshot(
                         tick, _enricher.EnrichQuote(route, tick));
                     if (!_lastPrices.TryUpdateQuoteWithGreeks(enriched))
@@ -300,7 +319,7 @@ public sealed class DatabentoOptionChainSessionManager :
         List<Exception>? failures = null;
         foreach (var session in sessions)
         {
-            try { await StopAsync(session.FuturesContractId, session.MaturityDate).ConfigureAwait(false); }
+            try { await StopAsync(session.FuturesContractId, session.MaturityDate, session.OptionContractId).ConfigureAwait(false); }
             catch (Exception exception) { (failures ??= []).Add(exception); }
         }
         if (failures is not null)

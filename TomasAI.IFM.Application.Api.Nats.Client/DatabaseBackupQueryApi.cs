@@ -13,6 +13,10 @@ public sealed class DatabaseBackupQueryApi(IActorProducer actorProducer) : IData
 {
     readonly IActorProducer _actorProducer = actorProducer ?? throw new ArgumentNullException(nameof(actorProducer));
 
+    /// <inheritdoc />
+    public ValueTask<ServiceResult<DatabaseBackupSetupReadModel>> GetBackupSetupAsync(GetDatabaseBackupSetupQuery query, CancellationToken cancellationToken = default) => SendAsync<GetDatabaseBackupSetupQuery, DatabaseBackupSetupReadModel>(query, cancellationToken);
+    /// <inheritdoc />
+    public ValueTask<ServiceResult<DatabaseBackupLogReadModel>> GetBackupLogAsync(GetDatabaseBackupLogQuery query, CancellationToken cancellationToken = default) => SendAsync<GetDatabaseBackupLogQuery, DatabaseBackupLogReadModel>(query, cancellationToken);
     public ValueTask<ServiceResult<DatabaseProtectionSetReadModel[]>> GetProtectionSetsAsync(GetDatabaseProtectionSetsQuery query, CancellationToken cancellationToken = default) => SendAsync<GetDatabaseProtectionSetsQuery, DatabaseProtectionSetReadModel[]>(query, cancellationToken);
     public ValueTask<ServiceResult<DatabaseBackupPolicyReadModel>> GetPolicyAsync(GetDatabaseBackupPolicyQuery query, CancellationToken cancellationToken = default) => SendAsync<GetDatabaseBackupPolicyQuery, DatabaseBackupPolicyReadModel>(query, cancellationToken);
     public ValueTask<ServiceResult<DatabaseBackupOperationReadModel>> GetBackupOperationAsync(GetDatabaseBackupOperationQuery query, CancellationToken cancellationToken = default) => SendAsync<GetDatabaseBackupOperationQuery, DatabaseBackupOperationReadModel>(query, cancellationToken);
@@ -51,6 +55,8 @@ public sealed class DatabaseBackupQueryApi(IActorProducer actorProducer) : IData
     static IDatabaseBackupQuery Normalize(IDatabaseBackupQuery query, DatabaseRecoveryOperationId id, ActorSubject subject)
         => query switch
         {
+            GetDatabaseBackupSetupQuery q => q with { EntityId = id, Subject = subject },
+            GetDatabaseBackupLogQuery q => q with { EntityId = id, Subject = subject },
             GetDatabaseProtectionSetsQuery q => q with { EntityId = id, Subject = subject },
             GetDatabaseBackupPolicyQuery q => q with { EntityId = id, Subject = subject },
             GetDatabaseBackupOperationQuery q => q with { EntityId = id, Subject = subject },

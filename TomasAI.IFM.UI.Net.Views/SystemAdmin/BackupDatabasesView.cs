@@ -13,6 +13,7 @@ public partial class BackupDatabasesView : DarkTradingView, IAsyncFormControl
     readonly Label _backupModeLabel = new();
     readonly ComboBox _backupMode = new();
     Task? _initializeTask;
+    bool _bindingState;
 
     /// <summary>Creates the database-backup view.</summary>
     public BackupDatabasesView(DatabaseBackupViewModel viewModel)
@@ -21,6 +22,7 @@ public partial class BackupDatabasesView : DarkTradingView, IAsyncFormControl
         InitializeComponent();
         clbDatabases.ItemCheck += clbDatabases_ItemCheck;
         ConfigureModeControls();
+        CreateBackupTabs();
     }
 
     /// <inheritdoc />
@@ -32,6 +34,8 @@ public partial class BackupDatabasesView : DarkTradingView, IAsyncFormControl
 
     async ValueTask IAsyncFormControl.CloseAsync()
     {
+        _outputCancellation.Cancel();
+        _logsCancellation.Cancel();
         Unsubscribe();
         await _viewModel.StopAsync(CancellationToken.None);
         await _viewModel.DisposeAsync();
@@ -48,10 +52,13 @@ public partial class BackupDatabasesView : DarkTradingView, IAsyncFormControl
             _initializeTask ??= _viewModel.InitializeAsync(CancellationToken.None);
             await _initializeTask;
             BindState();
+            await RefreshLogsAsync();
+            await RefreshSetupHealthAsync(BackupSource.LocalWorkstation);
         }
         catch (Exception exception)
         {
-            this.ShowErrorMessage(exception.Message, "Database Backup");
+            UiExceptionReporter.Report(exception, nameof(BackupDatabasesView), nameof(BackupDatabasesView_Load), this);
+            _logStatus.Text = exception.Message;
         }
     }
 
@@ -124,7 +131,7 @@ public partial class BackupDatabasesView : DarkTradingView, IAsyncFormControl
     void StateChanged() => this.Post(BindState);
 
     void ShowSafeError(string message)
-        => this.Post(() => this.ShowErrorMessage(message, "Database Backup"));
+        => this.Post(() => _logStatus.Text = message);
 
     void RefreshRequested(Guid operationId)
         => this.Post(() => UiExceptionReporter.Observe(RefreshOnUiAsync(), nameof(RefreshOnUiAsync), this));
@@ -138,31 +145,45 @@ public partial class BackupDatabasesView : DarkTradingView, IAsyncFormControl
     void BindState()
     {
         Cursor = _viewModel.IsBusy ? Cursors.WaitCursor : Cursors.Default;
-        var selected = clbDatabases.SelectedItem?.ToString();
-        var checkedIds = clbDatabases.CheckedItems.Cast<object>()
-            .Select(item => item.ToString()).Where(item => item is not null).ToHashSet();
-        clbDatabases.Items.Clear();
-        foreach (var protectionSet in _viewModel.State.ProtectionSets)
+        _sources.Enabled = !_viewModel.IsBusy;
+        _bindingState = true;
+        try
         {
-            var index = clbDatabases.Items.Add(protectionSet.Id);
-            clbDatabases.SetItemChecked(index, checkedIds.Contains(protectionSet.Id));
+            var selected = clbDatabases.SelectedItem?.ToString();
+            var checkedIds = clbDatabases.CheckedItems.Cast<object>()
+                .Select(item => item.ToString()).Where(item => item is not null).ToHashSet();
+            clbDatabases.Items.Clear();
+            foreach (var protectionSet in _viewModel.State.ProtectionSets)
+            {
+                var index = clbDatabases.Items.Add(protectionSet.Id);
+                clbDatabases.SetItemChecked(index, checkedIds.Contains(protectionSet.Id));
+            }
+            clbDatabases.AccessibleName = "Database protection sets; catalog: "
+                + string.Join(", ", _viewModel.State.ProtectionSets.Select(item => item.Id));
+            if (clbDatabases.Items.Count > 0)
+            {
+                var selectedIndex = selected is null
+                    ? 0
+                    : Math.Max(0, clbDatabases.Items.IndexOf(selected));
+                clbDatabases.SelectedIndex = selectedIndex;
+            }
         }
-        clbDatabases.AccessibleName = "Database protection sets; catalog: "
-            + string.Join(", ", _viewModel.State.ProtectionSets.Select(item => item.Id));
-        if (clbDatabases.Items.Count > 0)
-        {
-            var selectedIndex = selected is null
-                ? 0
-                : Math.Max(0, clbDatabases.Items.IndexOf(selected));
-            clbDatabases.SelectedIndex = selectedIndex;
-        }
+        finally { _bindingState = false; }
         clbDatabases.Enabled = !_viewModel.IsBusy && clbDatabases.Items.Count > 0;
         btnRun.Enabled = !_viewModel.IsBusy && clbDatabases.CheckedItems.Count > 0;
         BindOperationStatus(clbDatabases.SelectedItem?.ToString());
+        if (!_viewModel.IsBusy) UiExceptionReporter.Observe(RefreshLogsAsync(), nameof(RefreshLogsAsync), this);
     }
 
     void clbDatabases_ItemCheck(object? sender, ItemCheckEventArgs e)
     {
+        var protectionSet = clbDatabases.Items[e.Index]?.ToString();
+        if (e.NewValue == CheckState.Checked && !_viewModel.State.ProtectionSets.Any(item => item.Id == protectionSet && item.Enabled))
+        {
+            e.NewValue = CheckState.Unchecked;
+            _setupStatus.Text = "This protection set is disabled on the backup host.";
+            return;
+        }
         var checkedCount = clbDatabases.CheckedItems.Count;
         if (e.CurrentValue != CheckState.Checked && e.NewValue == CheckState.Checked)
             checkedCount++;
@@ -178,6 +199,7 @@ public partial class BackupDatabasesView : DarkTradingView, IAsyncFormControl
             return;
         var latestVerified = _viewModel.State.LatestVerified;
         var latestRestoreTested = _viewModel.State.LatestRestoreTested;
+        if (string.IsNullOrWhiteSpace(_restorePoint.Text) && latestVerified is not null) _restorePoint.Text = latestVerified.RestorePointId;
         lbStatusMessages.Items.Add(latestVerified is null
             ? "Latest verified point: none"
             : $"Latest verified point: {latestVerified.RestorePointId} ({EasternTime.FromUtc(latestVerified.VerifiedUtc):g})");
@@ -199,26 +221,18 @@ public partial class BackupDatabasesView : DarkTradingView, IAsyncFormControl
         await _viewModel.RefreshAsync();
     }
 
-    async void radDiffBackup_CheckedChanged(object sender, EventArgs e)
-    {
-        if (!radDiffBackup.Checked) return;
-        _viewModel.SelectSource(BackupSource.LocalWorkstation);
-        await _viewModel.RefreshAsync();
-    }
-
-    async void radFullBackup_CheckedChanged(object sender, EventArgs e)
-    {
-        if (!radFullBackup.Checked) return;
-        _viewModel.SelectSource(BackupSource.AwsCloud);
-        await _viewModel.RefreshAsync();
-    }
+    // Source tabs own selection. The hidden compatibility radio buttons must not race their queries.
+    void radDiffBackup_CheckedChanged(object sender, EventArgs e) { }
+    void radFullBackup_CheckedChanged(object sender, EventArgs e) { }
 
     void nudCommandTimeout_ValueChanged(object sender, EventArgs e) { }
 
-    void clbDatabases_SelectedIndexChanged(object sender, EventArgs e)
+    async void clbDatabases_SelectedIndexChanged(object sender, EventArgs e)
     {
+        if (_bindingState) return;
+        _restorePoint.Clear();
         var protectionSet = clbDatabases.SelectedItem?.ToString();
         _viewModel.SelectProtectionSet(protectionSet);
-        BindOperationStatus(protectionSet);
+        await _viewModel.RefreshAsync();
     }
 }

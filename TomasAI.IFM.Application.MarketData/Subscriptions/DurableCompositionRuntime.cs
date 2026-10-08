@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
@@ -139,7 +139,7 @@ public sealed class DurableCompositionRuntime(IDurableSubscriptionIntentStore st
                     {
                         var acquired = await discovery.AcquireAsync(new(Guid.NewGuid(), generation, valueDate,
                             plan.MaturityDate, clock.GetUtcNow().AddSeconds(120), plan.Options, true,
-                            plan.Calendar!, plan.Publication!, plan.Conversion!), ct, refreshAutomatically: false).ConfigureAwait(false);
+                            plan.Calendar!, plan.Publication!, plan.Conversion!, plan.SeparateContractConnection), ct, refreshAutomatically: false).ConfigureAwait(false);
                         bootstrap = acquired.Lease;
                         if (acquired.Failure is not null || bootstrap is null || bootstrap.ScopeId != id)
                             throw new CompositionMarketSourceException(acquired.Failure?.Code ?? "RoutePlanChanged");

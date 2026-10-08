@@ -9,6 +9,8 @@ public interface ISystemAdminDbReadContext
     ValueTask<DatabaseBackupProjectionCheckpointReadModel?> GetDatabaseBackupProjectionCheckpointAsync(
         string projectorName,
         CancellationToken cancellationToken = default);
+    /// <summary>Reads phase observations after the specified persisted revision.</summary>
+    ValueTask<DatabaseBackupPhaseReadModel[]> GetBackupPhasesAsync(GetDatabaseBackupLogQuery query, CancellationToken cancellationToken) => throw new NotSupportedException("Backup phase paging is unavailable.");
     ValueTask<DatabaseProtectionSetReadModel[]> GetProtectionSetsAsync(GetDatabaseProtectionSetsQuery query, CancellationToken cancellationToken);
     ValueTask<DatabaseBackupPolicyReadModel?> GetPolicyAsync(GetDatabaseBackupPolicyQuery query, CancellationToken cancellationToken);
     ValueTask<DatabaseBackupOperationReadModel?> GetBackupOperationAsync(GetDatabaseBackupOperationQuery query, CancellationToken cancellationToken);

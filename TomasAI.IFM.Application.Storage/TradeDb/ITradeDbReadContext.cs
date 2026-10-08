@@ -34,6 +34,8 @@ public interface ITradeDbReadContext
     Task<QueryPage<StrategyPositionSnapshot>> GetStrategyPositionHistoryAsync(Guid positionId, DateTime fromUtc, DateTime toUtc, int pageSize, byte[]? pagingState = null, CancellationToken token = default);
     Task<ICollection<OpenPositionRouteReadModel>> GetOpenPositionRoutesAsync(string contractId, CancellationToken token = default);
     Task<ICollection<OpenPositionRouteReadModel>> GetOpenPositionRouteSnapshotAsync(CancellationToken token = default);
+    /// <summary>Reads one bounded recovery-route page for dated session finalization.</summary>
+    Task<QueryPage<OpenPositionRouteReadModel>> GetOpenPositionRoutePageAsync(int pageSize, byte[]? pagingState = null, CancellationToken token = default);
     Task<MarketConditionReadModel?> GetMarketConditionAsync(StrategyWorkflowId workflowId);
     Task<MarketConditionReadModel?> GetMarketConditionAsync(StrategyWorkflowId workflowId, CancellationToken cancellationToken);
     Task<ICollection<MarketConditionReadModel>> GetMarketConditionHistoryAsync(int fundId, string instrumentRoot, TimeFrameType targetHorizon, DateTime beforeUtc, int pageSize);

@@ -64,7 +64,9 @@ public abstract record UpdatePositionLegMarketPriceCommand : PositionCommand
 [Union(2, typeof(EndOfDayVerticalSpreadPositionCommand))]
 [Union(3, typeof(CloseVerticalSpreadPositionCommand))]
 public abstract record TimedPositionCommand : PositionCommand
-{ [Key(4)] public DateTime EffectiveAtUtc { get; init; } }
+{
+    [Key(4)] public DateTime EffectiveAtUtc { get; init; }
+}
 [MessagePackObject]
 [Union(0, typeof(CorrectIronCondorPositionBasisCommand))]
 [Union(1, typeof(CorrectVerticalSpreadPositionBasisCommand))]

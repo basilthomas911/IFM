@@ -94,7 +94,6 @@ public partial class TradeOrderEditorForm
         ConfigureCompactLayout();
         btnSubmitOrder.Visible = false;
         btnEndOfDay.Visible = false;
-        ddlTradeState.SelectedIndexChanged += ddlTradeState_SelectedIndexChanged;
         _appRoot = appRoot;
         _referenceDataService = referenceDataService;
     }
@@ -729,7 +728,6 @@ public partial class TradeOrderEditorForm
         lstTrades.BeginUpdate();
         try
         {
-            ddlTradeState.Items.Clear();
             var trades = _viewModel.FundOrderTrades;
             var sameRows = lstTrades.Items.Count == trades.Count;
             for (var index = 0; sameRows && index < trades.Count; index++)
@@ -793,8 +791,7 @@ public partial class TradeOrderEditorForm
         btnCompleteOrder.Enabled = _viewModel.CanCompleteOrder;
         btnAddTrade.Enabled = _viewModel.CanAddTrade;
         btnRemoveTrade.Enabled = _viewModel.CanRemoveTrade;
-        btnChangeTradeState.Enabled = _viewModel.CanChangeTradeState && ddlTradeState.Items.Count > 0;
-        ddlTradeState.Enabled = _viewModel.CanChangeTradeState && ddlTradeState.Items.Count > 0;
+        btnChangeTradeState.Enabled = false;
         btnEndOfDay.Enabled = _viewModel.SelectedPortfolio is not null && _viewModel.SelectedFundOrderTrade is not null;
         btnSubmitOrder.Enabled = _viewModel.CanSubmitOrder;
         cbLiveFeed.Enabled = _viewModel.CanUseLiveFeed;
@@ -803,8 +800,6 @@ public partial class TradeOrderEditorForm
         btnAddTrade.Visible = true;
         btnRemoveTrade.Visible = true;
         btnChangeTradeState.Visible = true;
-        ddlTradeState.Visible = true;
-        lblTradeStateTarget.Visible = true;
     }
     async Task ClearTradeOrderControlAsync()
     {
@@ -870,9 +865,20 @@ public partial class TradeOrderEditorForm
                     fundOrderTrade,
                     _viewModel.SelectedPortfolio?.PortfolioId ?? 0,
                     historicalReadOnly: false,
-                    workflowControl: workflowControl)
+                    workflowControl: workflowControl,
+                    liveFeedEnabled: cbLiveFeed.Checked)
                 {
                     Name = workflowControl.Name
+                };
+                blotter.OpeningOrdersFilled += async () =>
+                {
+                    // Use the selected setup identity, not the separately allocated execution order identity.
+                    await _viewModel.LoadCanonicalOrdersAsync();
+                    var owningOrder = _viewModel.CanonicalOrders.Single(value => value.OrderId == fundOrderTrade.OrderId);
+                    await _viewModel.ChangeManualTradeStateAsync(owningOrder, fundOrderTrade.TradeId, TradeState.Open);
+                    await _viewModel.SelectCanonicalOrderAsync(fundOrderTrade.OrderId);
+                    _viewModel.SelectFundOrderTrade(_viewModel.FundOrderTrades.ToList()
+                        .FindIndex(value => value.TradeId == fundOrderTrade.TradeId));
                 };
                 blotter.SubmitOpeningRequested += async (_, _) =>
                     await SubmitTradeOrderAsync(OrderActionType.Open);
@@ -886,6 +892,7 @@ public partial class TradeOrderEditorForm
                 blotter.Dock = DockStyle.Fill;
                 pnlTradeBlotter.Controls.Add(blotter);
                 AlignTradePositionHeader();
+                if (cbLiveFeed.Checked) await blotter.SetLiveFeedAsync(true);
             }
             if (lstTradeOrders.SelectedIndices.Count > 0)
             {
@@ -944,12 +951,32 @@ public partial class TradeOrderEditorForm
     async void btnLoadOrder_Click(object sender, EventArgs e)
         => await ObserveAsync(LoadTradeOrderAsync);
 
+    /// <summary>The exact established-trade projection accepted by Load Trade.</summary>
+    public EstablishedTradeDefinition? LoadedTrade { get; private set; }
+
+    /// <summary>Loads the selected Open or Closed trade before accepting navigation to its trade view.</summary>
+    public async Task LoadTradeAsync()
+    {
+        var selected = _viewModel.SelectedFundOrderTrade;
+        if (selected is null) return;
+        var loaded = await _viewModel.LoadTradeAsync();
+        if (_viewModel.SelectedFundOrderTrade?.Id != selected.Id) return;
+        LoadedTrade = loaded;
+        DialogResult = DialogResult.OK;
+        Close();
+    }
+
     async Task LoadTradeOrderAsync()
     {
         var trade = _viewModel.SelectedFundOrderTrade;
         if (trade is null) return;
         switch (trade.TradeState)
         {
+            case TradeState.Open:
+            case TradeState.Closed:
+            case TradeState.OrderCompleted:
+                await LoadTradeAsync();
+                break;
             case TradeState.TradeToOpen:
             case TradeState.TradeToClose:
                 DialogResult = DialogResult.OK;
@@ -1046,7 +1073,6 @@ public partial class TradeOrderEditorForm
             _viewModel.SelectFundOrderTrade(index);
             await _viewModel.RefreshSelectedTradeFillEvidenceAsync();
             var trade = _viewModel.GetFundOrderTrade(index)!;
-            LoadTradeStateTargets(trade.TradeState);
             foreach (var control in new Control[] { dtpTradeDate, ddlOrderActionType })
                 control.Enabled = trade.TradeState == TradeState.NewTrade;
             txtTradeId.Text = trade.TradeId.ToString();
@@ -1262,39 +1288,6 @@ public partial class TradeOrderEditorForm
         dialog.ShowDialog(this);
     }
 
-    async void btnChangeTradeState_Click(object sender, EventArgs e)
-    {
-        var trade = _viewModel.SelectedFundOrderTrade;
-        if (trade is null || ddlTradeState.SelectedItem is null)
-            return;
-        if (!Enum.TryParse<TradeState>(ddlTradeState.SelectedItem.ToString(), out var targetState))
-            return;
-        var order = _viewModel.CanonicalOrders.Single(value => value.OrderId == trade.OrderId);
-        await ObserveAsync(() => _viewModel.ChangeManualTradeStateAsync(order, trade.TradeId, targetState));
-    }
-
-    void LoadTradeStateTargets(TradeState currentState)
-    {
-        ddlTradeState.Items.Clear();
-        foreach (var state in Enum.GetValues<TradeState>().Where(state => state != currentState))
-            ddlTradeState.Items.Add(state.ToStringFast());
-        var preferred = currentState == TradeState.NewTrade ? TradeState.OrderSubmitted.ToStringFast() : null;
-        ddlTradeState.SelectedIndex = preferred is null
-            ? (ddlTradeState.Items.Count > 0 ? 0 : -1)
-            : ddlTradeState.Items.IndexOf(preferred);
-        UpdateTradeStateSelectorAccessibility();
-    }
-
-    void ddlTradeState_SelectedIndexChanged(object? sender, EventArgs e)
-        => UpdateTradeStateSelectorAccessibility();
-
-    void UpdateTradeStateSelectorAccessibility()
-    {
-        ddlTradeState.AccessibleDescription = string.Join(", ", ddlTradeState.Items.Cast<object>());
-        ddlTradeState.AccessibleName = $"Trade state selector; selected={ddlTradeState.SelectedItem}; "
-            + $"catalog: {ddlTradeState.AccessibleDescription}";
-    }
-
     void btnCreateFund_Click(object sender, EventArgs e)
         => this.ShowErrorMessage("Create Portfolio Funds from Portfolio Administration.", "Portfolio Fund");
 
@@ -1355,8 +1348,9 @@ public partial class TradeOrderEditorForm
     {
         UpdateLiveFeedAppearance();
 
-        var tradeOrderControl = pnlTradeBlotter.Controls[0] as ITradeOrderControl;
-        await ObserveAsync(() => tradeOrderControl!.SetLiveFeedAsync(cbLiveFeed.Checked));
+        var tradeOrderControl = pnlTradeBlotter.Controls.OfType<ITradeOrderControl>().SingleOrDefault();
+        if (tradeOrderControl is not null)
+            await ObserveAsync(() => tradeOrderControl.SetLiveFeedAsync(cbLiveFeed.Checked));
     }
 
     void UpdateLiveFeedAppearance()

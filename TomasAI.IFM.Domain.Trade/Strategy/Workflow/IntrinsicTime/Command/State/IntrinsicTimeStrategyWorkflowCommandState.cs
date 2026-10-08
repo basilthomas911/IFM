@@ -25,7 +25,19 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
     : BaseEventSourceActorState<IntrinsicTimeStrategyWorkflowCommandState>,
       IEventSourceActorState<IntrinsicTimeStrategyWorkflowCommandState>
 {
-    IntrinsicTimeStrategyWorkflowView? _currentView;
+    /// <summary>Applies an already validated ordered workflow snapshot batch.</summary>
+    /// <param name="workflowEvents">The command-owned source events.</param>
+    /// <param name="command">The originating workflow command.</param>
+    /// <returns>True when all snapshots apply, including an idempotent empty batch.</returns>
+    internal bool Update(IReadOnlyList<WorkflowStrategyStateUpdatedEvent> workflowEvents, ICommand command)
+    {
+        if (workflowEvents.Any(sourceEvent => sourceEvent.CommandId != command.CommandId)) return false;
+        foreach (var sourceEvent in workflowEvents)
+            if (!Update(sourceEvent, command)) return false;
+        return true;
+    }
+
+    IntrinsicTimeStrategyWorkflowView? _workflowDefinition;
     IntrinsicTimeStrategyWorkflowState? _latestWorkflow;
     FuturesItiSignalGeneratedEvent? _activeTriggerEvent;
     ImmutableDictionary<StrategyWorkflowStage, Guid> _processedPipelineEventIds
@@ -42,11 +54,14 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
     public IntrinsicTimeStrategyWorkflowEntityId EntityId { get; private set; } = new();
 
     /// <summary>Gets whether an authoritative state-update snapshot has been applied.</summary>
-    public bool HasAuthoritativeSnapshot => _currentView is not null;
+    public bool HasAuthoritativeSnapshot => _workflowDefinition is not null;
 
     /// <summary>Gets a defensive copy of the latest authoritative workflow view.</summary>
-    public IntrinsicTimeStrategyWorkflowView? CurrentView
-        => _currentView is null ? null : CloneView(_currentView);
+    public IntrinsicTimeStrategyWorkflowView? CurrentView => WorkflowDefinition;
+
+    /// <summary>Gets a defensive copy of the authoritative workflow definition.</summary>
+    public IntrinsicTimeStrategyWorkflowView? WorkflowDefinition
+        => _workflowDefinition is null ? null : CloneView(_workflowDefinition);
 
     /// <summary>Gets the PostgreSQL stream version observed when this state was loaded.</summary>
     public long PersistedStreamVersion { get; private set; }
@@ -201,7 +216,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             return false;
 
         using (WorkflowTrace.Start("workflow.state.clone_view", e.State))
-            _currentView = CloneView(e.State);
+            _workflowDefinition = CloneView(e.State);
         using (WorkflowTrace.Start("workflow.state.legacy_view", e.State))
             _latestWorkflow = ToLegacyWorkflow(e.State);
         _activeTriggerEvent = e.State.Status == WorkflowStrategyMachineStatus.Started

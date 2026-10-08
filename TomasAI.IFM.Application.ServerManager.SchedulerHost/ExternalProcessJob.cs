@@ -18,7 +18,9 @@ public sealed class ScheduledTaskExecutionService(
     DependencyProbeService dependencies,
     ActiveRunRegistry activeRuns,
     IHostApplicationLifetime applicationLifetime,
-    ILogger<ScheduledTaskExecutionService> logger)
+    SchedulerOwnershipLease ownership,
+    ILogger<ScheduledTaskExecutionService> logger,
+    ActorScheduledTaskRunCoordinator? actorRuns = null)
 {
     public const string TaskKeyData = "taskKey";
     public const string ScheduleDefinitionIdData = "scheduleDefinitionId";
@@ -30,6 +32,17 @@ public sealed class ScheduledTaskExecutionService(
 
     public async Task ExecuteAsync(IJobExecutionContext context)
     {
+        if (options.ActorManaged)
+        {
+            if (context.MergedJobDataMap.GetString(ActorScheduleRuntime.ManagedData) != "true")
+            {
+                logger.LogWarning("Legacy Quartz job {JobKey} cannot execute until it is adopted by System Admin actors.", context.JobDetail.Key);
+                return;
+            }
+            await (actorRuns ?? throw new InvalidOperationException("Actor run coordinator is required.")).ExecuteAsync(context);
+            return;
+        }
+        await ownership.EnsureOwnedAsync(context.CancellationToken);
         var taskKey = context.MergedJobDataMap.GetString(TaskKeyData)
             ?? throw new InvalidOperationException("Quartz job data does not contain taskKey.");
         var task = catalog.GetRequired(taskKey);

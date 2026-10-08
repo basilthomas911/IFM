@@ -972,21 +972,13 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
     /// </summary>
     /// <param name="contractId">The ID of the futures option contract to retrieve</param>
     /// <returns>The futures option contract with the specified ID</returns>
-    public async Task<FuturesOptionContractReadModel?> GetFuturesOptionContractAsync(string contractId)
-    {
-        var contracts = await DbFactory.SecuritiesDb
-            .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesOptionContract)}", SecuritiesDbCql.GetFuturesOptionContract)
-            .SetParameters(new GetFuturesOptionContract(contractId))
-            .ExecuteQueryAsync(MapToFuturesOptionContract!);
-        return contracts.Count switch
-        {
-            0 => null,
-            1 => contracts.First(),
-            _ => throw new StorageException(
-                $"SecuritiesDb canonical futures-option contractId '{contractId}' is ambiguous across {contracts.Count} rows.")
-        };
-    }
+    public Task<FuturesOptionContractReadModel?> GetFuturesOptionContractAsync(string contractId)
+        => GetFuturesOptionContractAsync(contractId, CancellationToken.None);
 
+    /// <summary>Reads an exact canonical option definition, including the currently published startup definition cache.</summary>
+    /// <param name="contractId">The established leg's unchanged canonical contract identity.</param>
+    /// <param name="cancellationToken">Cancels reference storage reads.</param>
+    /// <returns>The exact saved definition, or null when neither reference source contains it.</returns>
     public async Task<FuturesOptionContractReadModel?> GetFuturesOptionContractAsync(
         string contractId,
         CancellationToken cancellationToken)
@@ -997,10 +989,41 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
             .ExecuteQueryAsync(MapToFuturesOptionContract!, cancellationToken);
         return contracts.Count switch
         {
-            0 => null,
+            0 => await GetPublishedFuturesOptionContractAsync(contractId, cancellationToken).ConfigureAwait(false),
             1 => contracts.First(),
             _ => throw new StorageException(
                 $"SecuritiesDb canonical futures-option contractId '{contractId}' is ambiguous across {contracts.Count} rows.")
+        };
+    }
+
+    /// <summary>Resolves one established leg from its symbol/expiry partition in the active published definition generation.</summary>
+    /// <param name="contractId">The exact canonical option ID; it is used only to locate and filter saved provider definitions.</param>
+    /// <param name="cancellationToken">Cancels the bounded symbol/expiry read.</param>
+    /// <returns>The stored provider definition; no reference data is synthesized or republished.</returns>
+    private async Task<FuturesOptionContractReadModel?> GetPublishedFuturesOptionContractAsync(
+        string contractId, CancellationToken cancellationToken)
+    {
+        FuturesOptionContractId identity;
+        try { identity = new FuturesOptionContractId(contractId); }
+        catch (Exception error) when (error is ArgumentException or InvalidOperationException) { return null; }
+        var expiry = DateOnly.FromDateTime(identity.MaturityDate);
+        var db = DbFactory.SecuritiesDb;
+        var published = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOptionContractExpiryCalendarState)}",
+                SecuritiesDbCql.GetOptionContractExpiryCalendarState)
+            .SetParameters(new GetOptionContractExpiryCalendarState(identity.Symbol))
+            .ExecuteSingleAsync(MapToOptionExpiryCalendarState!, cancellationToken).ConfigureAwait(false);
+        if (published is null || expiry < published.CoverageFrom || expiry > published.CoverageThrough) return null;
+        var definitions = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetCachedOptionContractDefinitions)}",
+                SecuritiesDbCql.GetCachedOptionContractDefinitions)
+            .SetParameters(new GetCachedOptionContractDefinitions(identity.Symbol, published.Generation, expiry))
+            .ExecuteQueryAsync(MapToCachedOptionContractDefinition!, cancellationToken).ConfigureAwait(false);
+        var exact = definitions.Where(row => row?.Definition.ContractId == contractId)
+            .Select(row => row!.Definition).ToArray();
+        return exact.Length switch
+        {
+            0 => null,
+            1 => exact[0],
+            _ => throw new StorageException($"SecuritiesDb published futures-option contractId '{contractId}' is ambiguous across {exact.Length} definitions.")
         };
     }
 

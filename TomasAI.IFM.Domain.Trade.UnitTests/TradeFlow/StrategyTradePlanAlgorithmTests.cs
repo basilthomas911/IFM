@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function.State;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Plan.Model;
@@ -111,7 +111,7 @@ public sealed class StrategyTradePlanAlgorithmTests
     }
 
     [Fact]
-    public void Stable_stream_state_replays_a_duplicate_and_exposes_the_previous_plan_to_a_later_command()
+    public void Single_snapshot_state_recognizes_its_command_and_carries_only_the_latest_revision_to_a_later_request()
     {
         var position = Position(TradeStrategyKind.IronCondor, 4);
         var entityId = new PositionIronCondorTradePlanId(position.Id, ValueDate);
@@ -136,14 +136,13 @@ public sealed class StrategyTradePlanAlgorithmTests
         state.TryComplete(completed, original).Should().BeTrue();
         state.IsCompleted.Should().BeTrue();
         state.Matches(original).Should().BeTrue();
-        state.LastPersistedEventId.Should().Be(42);
 
         var later = Command(entityId, position with { PositionSequence = 2 }, Guid.NewGuid());
         state.Prepare(later);
 
         state.IsCompleted.Should().BeFalse();
         state.CompletedEvent.Should().BeNull();
-        state.PreviousPlan.Should().BeSameAs(snapshot);
+        state.LatestPlanRevision.Should().Be(snapshot.PlanRevision);
     }
 
     [Fact]

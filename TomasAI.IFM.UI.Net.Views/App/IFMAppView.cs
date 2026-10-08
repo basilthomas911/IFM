@@ -1,4 +1,4 @@
-using TomasAI.IFM.UI.Net.Services.MarketData;
+﻿using TomasAI.IFM.UI.Net.Services.MarketData;
 using System;
 using System.Reflection;
 using System.Linq;
@@ -496,7 +496,10 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
                         if (tabTradeBlotter.TabPages[index].Text == tabPageName)
                         {
                             var tabPage = tabTradeBlotter.TabPages[index];
-                            _tradeBlotter = TradeBlotterFactory.Create(
+                            _tradeBlotter = dlg.LoadedTrade is { } establishedTrade
+                                ? TradeBlotterFactory.CreateEstablished(tabPage, _appRoot, dlg.Fund, dlg.FundOrder,
+                                    dlg.FundOrderTrade, establishedTrade, [.. _viewModel.BaseContracts])
+                                : TradeBlotterFactory.Create(
                                 tabPage,
                                 _appRoot,
                                 dlg.Fund,
@@ -504,11 +507,13 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
                                 dlg.FundOrderTrade,
                                 _viewModel.ValueDate,
                                 [.. _viewModel.BaseContracts],
+                                historicalReadOnly: dlg.FundOrderTrade.TradeState is TomasAI.IFM.Domain.Trade.Shared.TradeState.Closed
+                                    or TomasAI.IFM.Domain.Trade.Shared.TradeState.OrderCompleted,
                                 portfolioId: dlg.PortfolioId);
                             if (_tradeBlotter is not null)
                             {
                                 DashboardTypography.ApplyFamilyAndSize(_tradeBlotter);
-                                ((IFormControl)_tradeBlotter)?.Open();
+                                if (_tradeBlotter is IFormControl formControl) formControl.Open();
                             }
                             tabPage.UseVisualStyleBackColor = false;
                             tabPage.BackColor = Color.Black;

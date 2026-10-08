@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
@@ -164,6 +164,111 @@ public sealed class TradeOrderEditorViewModelTests
             Message = "manual order was rejected",
             Caption = "Add Order Error",
         });
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task LoadTradeAsync_UsesPersistedExecutionIdentity_AndRejectsUnlinkedSetup(bool linked)
+    {
+        var firstOrder = new FundOrderProjectionReadModel
+        {
+            PortfolioId = 1201,
+            FundId = 5401,
+            OrderId = 16201,
+            AggregateVersion = 1,
+            CreatedOnUtc = new DateTime(2026, 9, 18, 12, 0, 0, DateTimeKind.Utc),
+            Status = "Draft",
+        };
+        var secondOrder = firstOrder with
+        {
+            OrderId = 16202,
+            CreatedOnUtc = firstOrder.CreatedOnUtc.AddMinutes(-1),
+        };
+        var firstTrade = new FundOrderTradeProjectionReadModel
+        {
+            PortfolioId = 1201,
+            FundId = 5401,
+            OrderId = 16201,
+            TradeId = 9101,
+            TradeType = TradeType.ShortIronCondor.ToString(),
+            TradeState = TradeState.Open.ToString(),
+            ExecutionOrderId = linked ? 1701 : 0,
+            ExecutionTradeId = linked ? 1101 : 0,
+            TradeAction = TradeAction.Sell.ToString(),
+            BaseContractId = "ESZ26",
+        };
+        var secondTrade = firstTrade with { OrderId = 16202, TradeId = 9102 };
+        var firstReply = new TaskCompletionSource<ServiceResult<PortfolioPage<FundOrderTradeProjectionReadModel>>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var queries = Substitute.For<IPortfolioQueryApi>();
+        queries.GetPortfoliosAsync(
+                Arg.Any<PortfolioOperatingState?>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<PortfolioPage<PortfolioReadModel>>(new()
+            {
+                Items = [new PortfolioReadModel
+                {
+                    PortfolioId = 1201,
+                    PortfolioVersion = 2,
+                    OperatingState = PortfolioOperatingState.Active,
+                }],
+            }));
+        queries.GetFundsAsync(
+                1201, Arg.Any<FundOperatingState?>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<PortfolioPage<FundMandateReadModel>>(new()
+            {
+                Items = [new FundMandateReadModel
+                {
+                    PortfolioId = 1201,
+                    FundId = 5401,
+                    FundMandateVersion = 1,
+                    OperatingState = FundOperatingState.Active,
+                }],
+            }));
+        queries.GetOrdersAsync(
+                1201, 5401, Arg.Any<DateOnly>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<PortfolioPage<FundOrderProjectionReadModel>>(new()
+            {
+                Items = [firstOrder, secondOrder],
+            }));
+        queries.GetOrderTradesAsync(16201, 200, Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(_ => firstReply.Task);
+        queries.GetOrderTradesAsync(16202, 200, Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<PortfolioPage<FundOrderTradeProjectionReadModel>>(new()
+            {
+                Items = [secondTrade],
+            }));
+        var services = Substitute.For<IUiServiceCatalog>();
+        services.PortfolioQueries.Returns(queries);
+        services.PortfolioFundCommands.Returns(Substitute.For<IPortfolioFundCommandApi>());
+        var appRoot = Substitute.For<IAppRoot>();
+        appRoot.Services.Returns(services);
+        var viewModel = new TradeOrderEditorViewModel(
+            appRoot, new DateOnly(2026, 9, 18), [], Substitute.For<IReferenceDataService>());
+        await viewModel.LoadOperation.ExecuteAsync();
+
+        await viewModel.SelectCanonicalOrderAsync(16202);
+        var actualId = new TradeEntityId(1201, 5401, 1701, 1101);
+        var actualTrade = new EstablishedTradeDefinition
+        {
+            Id = actualId, StrategyKind = TradeStrategyKind.IronCondor,
+            Status = EstablishedTradeStatus.Open,
+        };
+        var establishedQueries = Substitute.For<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IEstablishedTradeQueryApi>();
+        services.EstablishedTrades.Returns(establishedQueries);
+        establishedQueries.GetAsync(actualId, TradeStrategyKind.IronCondor, Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<EstablishedTradeDefinition>(actualTrade));
+        if (linked)
+        {
+            (await viewModel.LoadTradeAsync()).Should().BeSameAs(actualTrade);
+            await establishedQueries.Received(1).GetAsync(actualId, TradeStrategyKind.IronCondor, Arg.Any<CancellationToken>());
+        }
+        else
+        {
+            await FluentActions.Awaiting(() => viewModel.LoadTradeAsync()).Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("*no persisted execution link*");
+            establishedQueries.ReceivedCalls().Should().BeEmpty();
+        }
     }
 
     [Fact]

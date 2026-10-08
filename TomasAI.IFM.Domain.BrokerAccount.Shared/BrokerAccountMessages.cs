@@ -142,6 +142,8 @@ public sealed record BrokerAccountDefinition
     [Key(11)] public DateTime ChangedAtUtc { get; init; }
     [Key(12)] public int Revision { get; init; }
     [Key(13)] public string Reason { get; init; } = string.Empty;
+    /// <summary>Server-derived Development emulator exemption; persisted evidence remains unchanged.</summary>
+    [Key(14)] public bool DevelopmentQualificationsExempt { get; init; }
 }
 
 /// <summary>Transports one immutable framework account snapshot through the BrokerAccount event mailbox.</summary>

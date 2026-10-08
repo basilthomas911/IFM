@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.UI.Net.Models.Portfolio;
+using TomasAI.IFM.UI.Net.Models.Portfolio;
 using System.Security.Cryptography;
 using System.Text;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -859,14 +859,14 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             if (!account.Success || account.Value is null)
                 throw new InvalidOperationException(
                     $"The emulator broker account is unavailable ({account.ErrorCode}): {account.ErrorMessage}");
-            if (account.Value.Gate != BrokerAccountOperationalGate.Open ||
+            if (!account.Value.DevelopmentQualificationsExempt && (account.Value.Gate != BrokerAccountOperationalGate.Open ||
                 account.Value.QualificationStatus != BrokerAccountQualificationStatus.Accepted ||
-                account.Value.ApprovalId == Guid.Empty)
+                account.Value.ApprovalId == Guid.Empty))
                 throw new InvalidOperationException(
                     $"The emulator broker account is not accepted for opening trades. " +
                     $"Qualification={account.Value.QualificationStatus}; Gate={account.Value.Gate}; " +
                     $"Reason={account.Value.Reason}");
-            approvalReference = account.Value.ApprovalId.ToString("N");
+            approvalReference = account.Value.DevelopmentQualificationsExempt ? "DevelopmentEmulatorQualificationExempt" : account.Value.ApprovalId.ToString("N");
         }
         return new PortfolioOrderCandidate
         {

@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
@@ -35,9 +35,10 @@ public static class FuturesOptionTickDataStreamingStopped
             var owner = FuturesOptionTickDataStreamingStarted.CreateOwner(
                 e.EntityId,
                 e.ContractId);
-            _ = await p.MarketDataApi.StopStreamingFuturesOptionTickDataAsync(
-                e.ContractId,
-                owner).ConfigureAwait(false);
+            if (p.QualifiedFeeds is { } feeds)
+                await feeds.ReleaseAsync(owner, e.ContractId).ConfigureAwait(false);
+            else
+                _ = await p.MarketDataApi.StopStreamingFuturesOptionTickDataAsync(e.ContractId, owner).ConfigureAwait(false);
             p.Streams.Untrack(e.ContractId, owner);
             await eventApi.SendFuturesOptionTickDataStreamingStoppedCompleteAsync(e);
 

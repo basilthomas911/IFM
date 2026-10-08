@@ -202,3 +202,8 @@ internal sealed record StatisticsProjectionRow(
     BackupSource Source,
     long Revision,
     DatabaseRecoveryRunStatistics Statistics);
+
+internal readonly record struct PhasePageParameter(Guid OperationId, long AfterRevision, int PageSize) : IBindValue
+{
+    public object Bind() => Values(Uuid(OperationId), Bigint(AfterRevision), Integer(PageSize));
+}

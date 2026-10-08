@@ -1,4 +1,4 @@
-# Actor Event Modeling Conventions
+﻿# Actor Event Modeling Conventions
 
 **Status:** Initial high-level convention  
 **Applies to:** Command, query, and event extension handlers; domain command actors, their event-sourced states, event projectors, and public lifecycle events
@@ -149,3 +149,9 @@ Fund composition calculations use an isolated workspace restored from defensive 
 The existing Portfolio event-store adapter commits the accepted pending source event with command metadata and its expected revision before projection. Calculation records are never stored as an alternate event schema. Published MessagePack keys and financial replay identities remain unchanged.
 
 Ledger configuration/posting, capacity lifecycle and emulator submission retain the [qualified enlisted financial Command path](Actor-Implementation-Conventions.md#portfolio-financial-handoff-and-maintenance-conventions---2026-09-08). Their current authority and revision are read inside the financial transaction fence. Pure posting/capacity computations execute there; accepted business state, receipt, history/outbox and source event commit together. Do not replace that path with a detached in-memory `Update`, or treat notification/projection as financial commitment. Replay checks the original receipt before allocating new identities; unknown commits retain their existing reconciliation semantics.
+
+## Iron Condor monitoring snapshot persistence
+
+A trade-plan snapshot is a full point-in-time payload. Save its source event first. When loading the plan stream, read only the last persisted snapshot event and apply that payload; do not replay preceding plans or retain a rolling plan cache. Scylla snapshot/history projection is a separate single attempt. Log and drop failed writes without retries, replay, reconciliation or secondary-write repair. The source log and Scylla history may differ. Project the committed payload directly without rereading or validating its source event. A failed projection does not undo its source commit or trigger resubmission when that snapshot is loaded. Query actors continue reading persisted Scylla snapshots.
+
+Apply this explicitly scoped monitoring policy together with [Actor Implementation Conventions](Actor-Implementation-Conventions.md). Financial trade, position and order execution persistence keep their existing policies.

@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
@@ -21,9 +21,10 @@ public sealed class TradePlanDbContext(
         logger),
       ITradePlanDbContext
 {
+    private readonly ILogger<DbProvider> tradePlanLogger = logger;
+
     /// <summary>Gets the Trade Plan database connection-setting name.</summary>
-    public const string TradePlanDbConnection =
-        Application.Storage.TradeDb.TradeDbContext.TradeDbConnection;
+    public const string TradePlanDbConnection = "TradePlanDbConnection";
 
     /// <summary>Gets the concrete Trade Plan database context.</summary>
     public override TradePlanDbContext Database => this;
@@ -59,66 +60,18 @@ public sealed class TradePlanDbContext(
         StrategyTradePlanSnapshot plan,
         CancellationToken cancellationToken = default)
     {
-        plan.Position.Id.RequireTradePlanScope(
-            plan.Position.StrategyKind,
-            plan.ValueDate);
-        if (!plan.MaterialChange)
-            return;
-
-        var id = plan.Position.Id.Trade;
-        var table = plan.Position.StrategyKind.ToTradePlanTable();
-        var selectStatement = TradePlanDbCql.SelectExactPlan.ForTable(table);
-        var selectParameters = new GetExactTradePlan(
-            id.PortfolioId,
-            id.FundId,
-            id.OrderId,
-            id.TradeId,
-            plan.Position.Id.PositionId,
-            plan.ValueDate,
-            plan.PlanRevision);
-        var existing = await Database
-            .Use($"{nameof(TradePlanDbCql)}.{nameof(TradePlanDbCql.SelectExactPlan)}", selectStatement)
-            .SetParameters(selectParameters)
-            .ExecuteSingleAsync(MapToContentHash, cancellationToken)
-            .ConfigureAwait(false);
-
-        var payload = MessagePackBinarySerializer.Shared.Serialize(plan);
-        if (existing is not null)
+        try
         {
-            if (!string.Equals(existing, plan.ContentHash, StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException(
-                    "Trade Plan projection revision conflicts with a different content hash.");
-            }
-
             await this
-                .ProjectActivityAsync(plan, payload, cancellationToken)
+                .WriteTradePlanOnceAsync(plan, cancellationToken)
                 .ConfigureAwait(false);
-            return;
         }
-
-        var insertStatement = TradePlanDbCql.InsertPlan.ForTable(table);
-        var insertParameters = new InsertTradePlan(
-            id.PortfolioId,
-            id.FundId,
-            id.OrderId,
-            id.TradeId,
-            plan.Position.Id.PositionId,
-            plan.ValueDate,
-            plan.PlanRevision,
-            plan.CalculatedAtUtc,
-            plan.State.ToString(),
-            plan.RequiresExit,
-            plan.ContentHash,
-            payload);
-        await Database
-            .Use($"{nameof(TradePlanDbCql)}.{nameof(TradePlanDbCql.InsertPlan)}", insertStatement)
-            .SetParameters(insertParameters)
-            .ExecuteCommandAsync(cancellationToken)
-            .ConfigureAwait(false);
-        await this
-            .ProjectActivityAsync(plan, payload, cancellationToken)
-            .ConfigureAwait(false);
+        catch (Exception exception)
+        {
+            tradePlanLogger.LogError(exception,
+                "{MethodName}: dropping trade plan after persistence failure. PositionId={PositionId} PlanRevision={PlanRevision} ValueDate={ValueDate}",
+                nameof(ProjectMaterialAsync), plan.Position.Id, plan.PlanRevision, plan.ValueDate);
+        }
     }
 
     /// <inheritdoc />

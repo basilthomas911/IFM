@@ -9,7 +9,9 @@ namespace TomasAI.IFM.Application.Api.Server;
 public sealed class FuturesMarketSessionAuthorityHostedService(
     FuturesMarketSessionAuthority authority,
     TimeProvider timeProvider,
-    ILogger<FuturesMarketSessionAuthorityHostedService> logger) : BackgroundService
+    ILogger<FuturesMarketSessionAuthorityHostedService> logger,
+    TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.IScheduledTaskReadStore? taskReads = null,
+    IHostEnvironment? environment = null) : BackgroundService
 {
     static readonly TimeSpan ReconciliationInterval = TimeSpan.FromMinutes(1);
     static readonly TimeSpan BoundarySettleDelay = TimeSpan.FromMilliseconds(100);
@@ -18,6 +20,7 @@ public sealed class FuturesMarketSessionAuthorityHostedService(
     {
         try
         {
+            await RestoreCompletedEndOfDayAsync(cancellationToken).ConfigureAwait(false);
             var snapshot = authority.Refresh();
             logger.LogInformation(
                 "{Component}.{Method} "+"Authoritative futures session initialized at revision {Revision}: operational {OperationalValueDate}, active {ActiveValueDate}, state {MarketState}, next transition {NextTransitionUtc}.",nameof(FuturesMarketSessionAuthorityHostedService),nameof(StartAsync),                snapshot.Revision,                snapshot.OperationalValueDate,                snapshot.ActiveValueDate,                snapshot.State,                snapshot.NextTransitionUtc);
@@ -56,6 +59,7 @@ public sealed class FuturesMarketSessionAuthorityHostedService(
                     return;
                 }
 
+                await RestoreCompletedEndOfDayAsync(stoppingToken).ConfigureAwait(false);
                 var previousRevision = current.Revision;
                 var refreshed = authority.Refresh();
                 if (refreshed.Revision != previousRevision)
@@ -73,6 +77,24 @@ public sealed class FuturesMarketSessionAuthorityHostedService(
         {
             logger.LogError(
                 exception,                "{Component}.{Method} "+"Futures market-session authority failed unexpectedly; the API host will remain running.",nameof(FuturesMarketSessionAuthorityHostedService),nameof(ExecuteAsync));
+        }
+    }
+    /// <summary>Restores the latest persisted successful close, retaining the held date when storage is unavailable.</summary>
+    private async Task RestoreCompletedEndOfDayAsync(CancellationToken cancellationToken)
+    {
+        if (taskReads is null || environment is null) return;
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        try
+        {
+            var completed = await taskReads.GetCompletedEndOfDayAsync(environment.EnvironmentName, deadline.Token).ConfigureAwait(false);
+            if (completed is { } valueDate) authority.ApplyCompletedEndOfDay(valueDate);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "{Component}.{Method} EOD completion could not be restored for {Environment}; operational value date remains {ValueDate}",
+                nameof(FuturesMarketSessionAuthorityHostedService), nameof(RestoreCompletedEndOfDayAsync), environment.EnvironmentName, authority.Current.OperationalValueDate);
         }
     }
 }

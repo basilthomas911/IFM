@@ -18,15 +18,17 @@ public sealed class IronCondorTradePositionRealtimeActor(
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
-            [PositionChangedEvent.Verb] = static message => message.AsEvent<IronCondorPositionChangedEvent>()!
+            [PositionChangedEvent.Verb] = static message => message.AsEvent<IronCondorPositionChangedEvent>()!,
+            [IronCondorMonitoringInputsChangedEvent.Verb] = static message => message.AsEvent<IronCondorMonitoringInputsChangedEvent>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    static readonly IReadOnlyDictionary<Type, Func<IronCondorPositionChangedEvent,
+    static readonly IReadOnlyDictionary<Type, Func<IEvent,
         IIronCondorTradePositionRealtimeContext, ValueTask>> _receiveMap =
-        new Dictionary<Type, Func<IronCondorPositionChangedEvent,
+        new Dictionary<Type, Func<IEvent,
             IIronCondorTradePositionRealtimeContext, ValueTask>>
         {
-            [typeof(IronCondorPositionChangedEvent)] = static (@event, context) => @event.ExecuteAsync(context)
+            [typeof(IronCondorPositionChangedEvent)] = static (@event, context) => ((IronCondorPositionChangedEvent)@event).ExecuteAsync(context),
+            [typeof(IronCondorMonitoringInputsChangedEvent)] = static (@event, context) => ((IronCondorMonitoringInputsChangedEvent)@event).ExecuteAsync(context)
         }.ToFrozenDictionary();
 
     protected override IEvent ParseMessage(IEventActorContext<IronCondorTradePositionRealtimeActor> context,
@@ -34,7 +36,7 @@ public sealed class IronCondorTradePositionRealtimeActor(
 
     protected override ValueTask ReceiveAsync(IEventActorContext<IronCondorTradePositionRealtimeActor> context,
         IEvent domainEvent) => ResolveMappedEventHandler(domainEvent, _receiveMap)(
-            (IronCondorPositionChangedEvent)domainEvent, _context);
+            domainEvent, _context);
 
     protected override ValueTask OnExceptionAsync(IEventActorContext<IronCondorTradePositionRealtimeActor> context,
         ActorThreadId threadId, IEvent domainEvent, Exception exception)

@@ -16,4 +16,7 @@ public interface IStrategyPositionCommandApi
         TradeStrategyKind strategyKind,
         DateTime effectiveAtUtc,
         CancellationToken cancellationToken = default);
+    /// <summary>Seals the explicit ended exchange date after feeds are confirmed stopped.</summary>
+    Task<ServiceResult<Guid>> EndOfDayAsync(StrategyPositionId positionId, TradeStrategyKind strategyKind,
+        DateOnly valueDate, DateTime closeBoundaryUtc, CancellationToken cancellationToken = default);
 }

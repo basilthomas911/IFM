@@ -29,6 +29,8 @@ public sealed record DatabaseBackupOperationReadModel
     [Key(10)] public DateTimeOffset? CompletedUtc { get; init; }
     [Key(11)] public string SafeDiagnosticReference { get; init; } = string.Empty;
     [Key(12)] public DatabaseBackupLineage? BackupLineage { get; init; }
+    /// <summary>Gets the engine recorded by native run statistics.</summary>
+    [Key(13)] public DatabaseEngine Engine { get; init; }
 }
 
 [MessagePackObject]

@@ -5,10 +5,12 @@ using TomasAI.IFM.Application.ServerManager.Contracts;
 
 namespace TomasAI.IFM.Application.ServerManager.SchedulerHost;
 
+/// <summary>Runs a catalog task with bounded lifetime, descendant containment and output capture.</summary>
 public sealed class ScheduledProcessRunner(
     SchedulerHostOptions hostOptions,
     ILogger<ScheduledProcessRunner> logger)
 {
+    /// <summary>Launches only the approved task and reports interruption without implying business rollback.</summary>
     public async Task<ScheduledProcessResult> RunAsync(
         ScheduledTaskCatalogDefinition task,
         ScheduledProcessIdentity identity,
@@ -18,91 +20,114 @@ public sealed class ScheduledProcessRunner(
         CancellationToken cancellationToken,
         int? maximumRuntimeSeconds = null)
     {
-        var startInfo = CreateStartInfo(task, identity);
-        using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
-        using var jobObject = new WindowsJobObject();
+        var runtimeSeconds = maximumRuntimeSeconds ?? task.MaximumRuntimeSeconds;
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(runtimeSeconds);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(runtimeSeconds));
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+        using var outputLifetime = new CancellationTokenSource();
+        using var process = new Process { StartInfo = CreateStartInfo(task, identity), EnableRaisingEvents = true };
+        IScheduledProcessContainment? containment = null;
+        StreamWriter? stdout = null;
+        StreamWriter? stderr = null;
+        Task<OutputPumpResult>? stdoutPump = null;
+        Task<OutputPumpResult>? stderrPump = null;
+        int? pid = null;
+        DateTimeOffset? startedAt = null;
+        var state = ScheduledRunState.Failed;
+        string? detail = null;
+        int? exitCode = null;
+        var output = new[] { new OutputPumpResult(0, false), new OutputPumpResult(0, false) };
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            containment = ScheduledProcessContainment.Create();
+            containment.Prepare(process.StartInfo);
+            stdout = CreateWriter(stdoutPath);
+            stderr = CreateWriter(stderrPath);
             if (!process.Start())
-            {
-                return new ScheduledProcessResult(ScheduledRunState.Failed, null, null, null, "Process.Start returned false.");
-            }
-
-            try
-            {
-                jobObject.Assign(process);
-            }
-            catch
-            {
-                process.Kill(entireProcessTree: true);
-                throw;
-            }
-
-            var processStartedAt = new DateTimeOffset(process.StartTime.ToUniversalTime());
-            await onStarted(process.Id, processStartedAt, cancellationToken);
-
-            await using var stdout = CreateWriter(stdoutPath);
-            await using var stderr = CreateWriter(stderrPath);
-            var stdoutPump = PumpAsync(process.StandardOutput, stdout);
-            var stderrPump = PumpAsync(process.StandardError, stderr);
-
-            var runtimeSeconds = maximumRuntimeSeconds ?? task.MaximumRuntimeSeconds;
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(runtimeSeconds));
-            using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
-            ScheduledRunState? interruptedState = null;
-            string? detail = null;
-            try
-            {
-                await process.WaitForExitAsync(lifetime.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                var timedOut = timeout.IsCancellationRequested;
-                detail = timeout.IsCancellationRequested
-                    ? $"Maximum runtime of {runtimeSeconds} seconds was exceeded."
-                    : "Scheduler cancellation was requested.";
-                var stoppedCooperatively = await RequestGracefulStopAsync(process, task, identity.ControlPipeName);
-                if (!process.HasExited)
-                {
-                    jobObject.Terminate();
-                }
-
-                await process.WaitForExitAsync(CancellationToken.None);
-                interruptedState = timedOut
-                    ? ScheduledRunState.TimedOut
-                    : stoppedCooperatively
-                        ? ScheduledRunState.Cancelled
-                        : ScheduledRunState.ForceTerminated;
-            }
-
-            var output = await Task.WhenAll(stdoutPump, stderrPump);
-            if (interruptedState is not null)
-            {
-                return new ScheduledProcessResult(
-                    interruptedState.Value,
-                    process.Id,
-                    processStartedAt,
-                    process.ExitCode,
-                    detail,
-                    output[0].Truncated,
-                    output[1].Truncated);
-            }
-
-            var succeeded = task.SuccessExitCodes.Contains(process.ExitCode);
-            return new ScheduledProcessResult(
-                succeeded ? ScheduledRunState.Succeeded : ScheduledRunState.Failed,
-                process.Id,
-                processStartedAt,
-                process.ExitCode,
-                succeeded ? null : $"Process exited with unapproved code {process.ExitCode}.",
-                output[0].Truncated,
-                output[1].Truncated);
+                throw new InvalidOperationException("SchedulerHost.PROCESS.START_FAILED; Process.Start returned false.");
+            pid = process.Id;
+            startedAt = new DateTimeOffset(process.StartTime.ToUniversalTime());
+            containment.Assign(process);
+            stdoutPump = PumpAsync(process.StandardOutput, stdout, outputLifetime.Token);
+            stderrPump = PumpAsync(process.StandardError, stderr, outputLifetime.Token);
+            // A failed log sink must not leave a child blocked forever on its redirected pipe.
+            _ = stdoutPump.ContinueWith(_ => CancelLifetime(lifetime), CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            _ = stderrPump.ContinueWith(_ => CancelLifetime(lifetime), CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            await onStarted(pid.Value, startedAt.Value, lifetime.Token)
+                .WaitAsync(TimeSpan.FromSeconds(hostOptions.ProcessStartTimeoutSeconds), lifetime.Token);
+            await process.WaitForExitAsync(lifetime.Token);
+            exitCode = process.ExitCode;
+            state = task.SuccessExitCodes.Contains(exitCode.Value) ? ScheduledRunState.Succeeded : ScheduledRunState.Failed;
+            detail = state == ScheduledRunState.Succeeded ? null : $"Process exited with unapproved code {exitCode}.";
+        }
+        catch (OperationCanceledException)
+        {
+            var cooperative = pid is not null
+                && await RequestGracefulStopAsync(process, task, identity.ControlPipeName);
+            state = timeout.IsCancellationRequested ? ScheduledRunState.TimedOut
+                : cooperative ? ScheduledRunState.Cancelled : ScheduledRunState.ForceTerminated;
+            detail = timeout.IsCancellationRequested ? $"Maximum runtime of {runtimeSeconds} seconds was exceeded."
+                : "Scheduler cancellation was requested.";
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "Scheduled task {TaskKey} failed during process execution.", task.TaskKey);
-            return new ScheduledProcessResult(ScheduledRunState.Failed, null, null, null, exception.Message);
+            detail = exception.Message;
+            logger.LogError(exception,
+                "Method {Method} task {TaskKey} run {RunId} runtime {RuntimeSeconds} failed during process execution.",
+                nameof(RunAsync), task.TaskKey, identity.RunId, runtimeSeconds);
         }
+        finally
+        {
+            try
+            {
+                // Always retire descendants, including after a successful parent exit or callback failure.
+                containment?.Terminate();
+                if (pid is not null)
+                {
+                    await process.WaitForExitAsync(CancellationToken.None)
+                        .WaitAsync(TimeSpan.FromSeconds(hostOptions.ProcessTerminationTimeoutSeconds));
+                    exitCode = process.ExitCode;
+                }
+            }
+            catch (Exception exception)
+            {
+                state = ScheduledRunState.Failed;
+                detail = $"SchedulerHost.PROCESS.EXIT_UNCERTAIN; {exception.Message}";
+                logger.LogError(exception, "Method {Method} task {TaskKey} run {RunId} exit was not confirmed.",
+                    nameof(RunAsync), task.TaskKey, identity.RunId);
+            }
+
+            if (stdoutPump is not null && stderrPump is not null)
+            {
+                try
+                {
+                    output = await Task.WhenAll(stdoutPump, stderrPump)
+                        .WaitAsync(TimeSpan.FromSeconds(hostOptions.OutputDrainTimeoutSeconds));
+                }
+                catch (Exception exception)
+                {
+                    outputLifetime.Cancel();
+                    state = ScheduledRunState.Failed;
+                    detail = $"SchedulerHost.PROCESS.OUTPUT_INCOMPLETE; {exception.Message}";
+                    _ = Task.WhenAll(stdoutPump, stderrPump).ContinueWith(t => _ = t.Exception,
+                        CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+                }
+            }
+            outputLifetime.Cancel();
+            stdout?.Dispose();
+            stderr?.Dispose();
+            try { containment?.Dispose(); }
+            catch (Exception exception)
+            {
+                state = ScheduledRunState.Failed;
+                detail = $"SchedulerHost.PROCESS.CONTAINMENT_UNCERTAIN; {exception.Message}";
+                logger.LogError(exception, "Method {Method} run {RunId} containment cleanup failed.", nameof(RunAsync), identity.RunId);
+            }
+        }
+        return new ScheduledProcessResult(state, pid, startedAt, exitCode, detail, output[0].Truncated, output[1].Truncated);
     }
 
     private ProcessStartInfo CreateStartInfo(
@@ -125,8 +150,8 @@ public sealed class ScheduledProcessRunner(
         }
 
         var inheritedNames = task.EnvironmentAllowlist
-            .Concat(["SystemRoot", "WINDIR", "TEMP", "TMP"])
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Concat(OperatingSystem.IsWindows() ? ["SystemRoot", "WINDIR", "TEMP", "TMP"] : new[] { "PATH", "TMPDIR", "LANG", "LC_ALL", "TZ" })
+            .Distinct((OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal))
             .ToArray();
         var inheritedValues = inheritedNames
             .Select(name => (Name: name, Value: System.Environment.GetEnvironmentVariable(name)))
@@ -143,7 +168,12 @@ public sealed class ScheduledProcessRunner(
         startInfo.Environment["IFM_SCHEDULED_ATTEMPT_ID"] = identity.AttemptId.ToString("D");
         startInfo.Environment["IFM_SCHEDULED_FIRE_UTC"] = identity.ScheduledFireUtc.ToString("O");
         startInfo.Environment["IFM_SCHEDULED_ORIGIN"] = identity.Origin.ToString();
+        startInfo.Environment["IFM_SCHEDULED_DEFINITION_ID"] = identity.ScheduleId.ToString("D");
+        startInfo.Environment["IFM_SCHEDULED_HOST_ID"] = identity.HostId;
+        startInfo.Environment["IFM_SCHEDULED_CORRELATION_ID"] = identity.OperationCommandId.ToString("D");
         startInfo.Environment["IFM_ENVIRONMENT"] = hostOptions.Environment;
+        startInfo.Environment["DOTNET_ENVIRONMENT"] = hostOptions.Environment;
+        startInfo.Environment["ASPNETCORE_ENVIRONMENT"] = hostOptions.Environment;
         startInfo.Environment["IFM_TASK_CONTROL_PIPE"] = identity.ControlPipeName;
         return startInfo;
     }
@@ -159,30 +189,56 @@ public sealed class ScheduledProcessRunner(
         };
     }
 
-    private async Task<OutputPumpResult> PumpAsync(StreamReader reader, StreamWriter writer)
+    /// <summary>Reads in fixed buffers and retains at most the configured line and stream bounds.</summary>
+    private async Task<OutputPumpResult> PumpAsync(StreamReader reader, StreamWriter writer, CancellationToken cancellationToken)
     {
+        var buffer = new char[4096];
+        var line = new StringBuilder();
         long bytesWritten = 0;
         var truncated = false;
-        while (await reader.ReadLineAsync() is { } line)
+        var lineTruncated = false;
+
+        async Task FlushLineAsync()
         {
-            var bounded = line.Length <= hostOptions.MaximumOutputLineCharacters
-                ? line
-                : line[..hostOptions.MaximumOutputLineCharacters] + " [LINE TRUNCATED]";
-            var rendered = $"{DateTimeOffset.UtcNow:O} {bounded}";
+            var rendered = $"{DateTimeOffset.UtcNow:O} {line}" + (lineTruncated ? " [LINE TRUNCATED]" : "");
             var bytes = Encoding.UTF8.GetByteCount(rendered) + Environment.NewLine.Length;
             if (!truncated && bytesWritten + bytes <= hostOptions.MaximumOutputBytesPerStream)
             {
-                await writer.WriteLineAsync(rendered);
+                await writer.WriteLineAsync(rendered.AsMemory(), cancellationToken);
                 bytesWritten += bytes;
             }
             else if (!truncated)
             {
                 truncated = true;
-                await writer.WriteLineAsync($"{DateTimeOffset.UtcNow:O} [OUTPUT TRUNCATED: configured stream limit reached]");
+                await writer.WriteLineAsync($"{DateTimeOffset.UtcNow:O} [OUTPUT TRUNCATED: configured stream limit reached]".AsMemory(), cancellationToken);
             }
+            line.Clear();
+            lineTruncated = false;
         }
 
+        while (true)
+        {
+            var count = await reader.ReadAsync(buffer.AsMemory(), cancellationToken);
+            if (count == 0) break;
+            for (var index = 0; index < count; index++)
+            {
+                var character = buffer[index];
+                if (character == '\n') await FlushLineAsync();
+                else if (character != '\r')
+                {
+                    if (line.Length < hostOptions.MaximumOutputLineCharacters) line.Append(character);
+                    else lineTruncated = true;
+                }
+            }
+        }
+        if (line.Length > 0 || lineTruncated) await FlushLineAsync();
         return new OutputPumpResult(bytesWritten, truncated);
+    }
+
+    private static void CancelLifetime(CancellationTokenSource lifetime)
+    {
+        try { lifetime.Cancel(); }
+        catch (ObjectDisposedException) { }
     }
 
     private static async Task<bool> RequestGracefulStopAsync(
@@ -248,7 +304,10 @@ public sealed record ScheduledProcessIdentity(
     Guid AttemptId,
     ScheduledRunOrigin Origin,
     DateTimeOffset ScheduledFireUtc,
-    string ControlPipeName = "");
+    string ControlPipeName = "",
+    Guid ScheduleId = default,
+    string HostId = "",
+    Guid OperationCommandId = default);
 
 public sealed record ScheduledProcessResult(
     ScheduledRunState State,

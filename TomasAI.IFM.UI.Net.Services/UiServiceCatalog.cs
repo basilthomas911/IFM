@@ -28,6 +28,7 @@ public sealed class UiServiceCatalog(
     IBrokerOrderQueryApi brokerOrders,
     IBrokerOrderCommandApi brokerOrderCommands,
     IOrderExecutionQueryApi orderExecutions,
+    IEstablishedTradeQueryApi establishedTrades,
     IOrderExecutionNotificationService orderExecutionNotifications,
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi referenceQueries,
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceCommandApi referenceCommands,
@@ -79,6 +80,8 @@ public sealed class UiServiceCatalog(
     public IBrokerOrderCommandApi BrokerOrderCommands { get; } = brokerOrderCommands;
     /// <inheritdoc />
     public IOrderExecutionQueryApi OrderExecutions { get; } = orderExecutions;
+    /// <inheritdoc />
+    public IEstablishedTradeQueryApi EstablishedTrades { get; } = establishedTrades;
     public IOrderExecutionNotificationService OrderExecutionNotifications { get; } = orderExecutionNotifications;
     public TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi ReferenceQueries { get; } = referenceQueries;
     public TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceCommandApi ReferenceCommands { get; } = referenceCommands;

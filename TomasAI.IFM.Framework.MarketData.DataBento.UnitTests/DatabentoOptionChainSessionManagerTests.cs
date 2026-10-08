@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+﻿using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.Interop;
@@ -37,11 +37,14 @@ public sealed class DatabentoOptionChainSessionManagerTests
             pollTimeout: TimeSpan.FromMilliseconds(5));
         var request = Request();
 
+        var beforeReceipt = DateTimeOffset.UtcNow;
         Assert.True(await manager.StartAsync(request));
         Assert.False(await manager.StartAsync(request));
         await publisher.Completed.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.Single(publisher.Quotes);
+        Assert.InRange(publisher.Quotes[0].Tick.LocalReceivedAtUtc, beforeReceipt, DateTimeOffset.UtcNow);
+        Assert.NotEqual(publisher.Quotes[0].Tick.ReceiveTimestamp, publisher.Quotes[0].Tick.LocalReceivedAtUtc);
         Assert.Single(publisher.Trades);
         var key = new OptionChainSessionKey("ES-202609", Maturity);
         Assert.True(state.TryGet(key, "ES20260918C6500", out var observed));
@@ -164,6 +167,46 @@ public sealed class DatabentoOptionChainSessionManagerTests
         await manager.StopAsync("ES-202609", Maturity);
     }
 
+    [Fact]
+    public async Task Four_individual_legs_use_four_connections_and_release_only_the_selected_leg()
+    {
+        var feeds = Enumerable.Range(0, 4).Select(_ => new FakeChainFeed()).ToArray();
+        var factory = new FakeFactory(feeds);
+        using var prices = new DatabentoLastPriceStore(ValueDate, 8);
+        var state = new OptionChainStateStore();
+        await using var manager = new DatabentoOptionChainSessionManager(factory,
+            DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.SyntheticCi, "GLBX.MDP3"),
+            new FakeAggregation(), prices, new FakeEnricher(), new CapturingChainPublisher(0), state);
+        for (var index = 0; index < 4; index++)
+        {
+            var original = Request();
+            var id = $"leg-{index}";
+            var definition = original.Routes[0].Definition with
+            { Instrument = new InstrumentKey(7, (uint)(43 + index)), RawSymbol = $"fixture-{index}" };
+            var request = original with
+            {
+                OptionContractId = id,
+                Routes = [new() { FuturesOptionContractId = id, Definition = definition }],
+                Subscription = original.Subscription with { ResolvedContracts = [definition] }
+            };
+            Assert.True(await manager.StartAsync(request));
+            Assert.False(await manager.StartAsync(request));
+        }
+        Assert.Equal(4, factory.CreateCount);
+        Assert.Equal(4, manager.ActiveSessionCount);
+        Assert.False(await manager.StopAsync("ES-202609", Maturity));
+        Assert.True(await manager.StopAsync("ES-202609", Maturity, "leg-1"));
+        Assert.Equal(3, manager.ActiveSessionCount);
+        Assert.True(feeds[1].Disposed);
+        Assert.False(feeds[0].Disposed);
+        Assert.False(feeds[2].Disposed);
+        Assert.False(feeds[3].Disposed);
+        Assert.Single(state.GetSession(new("ES-202609", Maturity, "leg-0")));
+        await manager.DisposeAsync();
+        Assert.Equal(0, manager.ActiveSessionCount);
+        Assert.All(feeds, feed => Assert.True(feed.Disposed));
+    }
+
     private static DatabentoOptionChainSessionRequest Request()
     {
         var definition = new OptionContractDefinition
@@ -263,13 +306,13 @@ public sealed class DatabentoOptionChainSessionManagerTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
-    private sealed class FakeFactory(FakeChainFeed feed) : IDatabentoFeedFactory
+    private sealed class FakeFactory(params FakeChainFeed[] feeds) : IDatabentoFeedFactory
     {
         internal int CreateCount { get; private set; }
         public IDatabentoOptionChainFeed CreateOptionChainFeed(DatabentoFeedOptions options)
         {
             CreateCount++;
-            return feed;
+            return feeds[Math.Min(CreateCount - 1, feeds.Length - 1)];
         }
         public IDatabentoTickerFeed CreateTickerFeed(DatabentoFeedOptions options) =>
             throw new NotSupportedException();

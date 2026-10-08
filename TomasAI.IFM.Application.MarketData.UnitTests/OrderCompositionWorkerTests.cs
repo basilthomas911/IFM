@@ -55,6 +55,30 @@ public sealed partial class OrderCompositionWorkerTests
         Assert.Equal(1, feed.Stops);
     }
 
+    [Fact]
+    public async Task Provider_clock_lead_preserves_native_times_but_prices_with_local_option_receipt()
+    {
+        using var prices = Prices(); using var feed = new ChainFeed(); var clock = new MutableClock();
+        await using var runtime = Runtime(Factory(feed), prices, clock);
+        var request = Request();
+        request = request with { Options = [new(Context() with { MaximumSourceClockLeadMilliseconds = 2000 }, 5000, true)] };
+        Assert.True((await runtime.AcquireAsync(request, default)).Active);
+        var providerTime = At.AddMilliseconds(750);
+        prices.TryUpdateQuote(new("ES-future", Date, 4999.75m, 10, 1, 5000.25m, 10, 1, 2, providerTime, providerTime)
+            { LocalReceivedAtUtc = At });
+        feed.Push(QuoteRecord(3, 10, providerTime));
+        await Until(() => prices.GetFuturesOptionReader("ES-option-call", Date).TryGetLastQuoteWithGreeks(out _));
+
+        var result = await new MarketCompositionSnapshotProvider(runtime, clock).CaptureAsync(
+            new(Guid.NewGuid(), request.ScopeId, "Daily", Generation, At, At.AddSeconds(2), true), default);
+
+        Assert.Null(result.Failure);
+        var instrument = Assert.Single(result.Snapshot!.Instruments);
+        Assert.NotNull(instrument.Valuation);
+        Assert.Equal(providerTime, instrument.Instrument.Quote!.EventAtUtc);
+        Assert.Equal(At, instrument.Instrument.Quote.ReceivedAtUtc);
+    }
+
     static readonly DateOnly Date = DateOnly.FromDateTime(At.UtcDateTime);
     [Fact]
     public async Task Unreviewed_test_refresh_policy_cannot_allocate_production_option_feed()

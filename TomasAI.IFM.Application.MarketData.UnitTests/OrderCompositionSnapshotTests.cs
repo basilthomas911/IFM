@@ -135,6 +135,51 @@ public sealed class OrderCompositionSnapshotTests
         Assert.Equal(1000, Assert.Single(result.Snapshot!.Instruments).Instrument.Pricing!.MaximumQuoteAgeMilliseconds);
     }
 
+    [Theory]
+    [InlineData(false, 2000, 750, false, true)]
+    [InlineData(false, 0, 750, false, false)]
+    [InlineData(false, 2000, 2001, false, false)]
+    [InlineData(false, 2000, 750, true, false)]
+    [InlineData(true, 2000, 750, false, true)]
+    [InlineData(true, 0, 750, false, false)]
+    [InlineData(true, 2000, 2001, false, false)]
+    [InlineData(true, 2000, 750, true, false)]
+    public async Task Snapshot_honors_qualified_source_clock_policy_and_never_admits_future_local_receipt(
+        bool allowMissing, int permittedLead, int sourceLead, bool futureReceipt, bool usable)
+    {
+        var original = Instrument();
+        var option = original with
+        {
+            Pricing = original.Pricing! with { MaximumSourceClockLeadMilliseconds = permittedLead },
+            Quote = original.Quote! with
+            {
+                EventAtUtc = At.AddMilliseconds(sourceLead),
+                ReceivedAtUtc = futureReceipt ? At.AddTicks(1) : At
+            },
+            Underlying = original.Underlying! with { EventAtUtc = At.AddMilliseconds(sourceLead) }
+        };
+        var result = await Provider(new CompositionMarketPage("scope/v1", Generation, 1, [option], null))
+            .CaptureAsync(Request() with { AllowMissingOptionQuotes = allowMissing }, default);
+
+        if (allowMissing)
+        {
+            Assert.Null(result.Failure);
+            var row = Assert.Single(result.Snapshot!.Instruments);
+            Assert.Equal(usable, row.Instrument.Quote is not null);
+            Assert.Equal(usable, row.Valuation is not null);
+        }
+        else if (usable)
+        {
+            Assert.Null(result.Failure);
+            Assert.NotNull(Assert.Single(result.Snapshot!.Instruments).Valuation);
+        }
+        else
+        {
+            Assert.Null(result.Snapshot);
+            Assert.Equal("InvalidQuote", result.Failure?.Code);
+        }
+    }
+
     [Fact]
     public async Task Caller_cancellation_is_not_a_success_or_domain_failure()
     {

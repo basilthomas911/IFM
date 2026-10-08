@@ -21,6 +21,7 @@ public sealed class SchedulerOperationsService(
         ScheduleDefinitionInputDto input,
         CancellationToken cancellationToken)
     {
+        if (options.ActorManaged) throw new InvalidOperationException("System Admin actors exclusively manage adopted schedules; this compatibility endpoint is read-only.");
         var validation = RequireValid(input);
         var task = catalog.GetRequired(input.TaskKey);
         var result = await store.CreateScheduleAsync(
@@ -41,6 +42,7 @@ public sealed class SchedulerOperationsService(
         ScheduleDefinitionInputDto input,
         CancellationToken cancellationToken)
     {
+        if (options.ActorManaged) throw new InvalidOperationException("System Admin actors exclusively manage adopted schedules; this compatibility endpoint is read-only.");
         var validation = RequireValid(input);
         var task = catalog.GetRequired(input.TaskKey);
         var result = await store.UpdateScheduleAsync(
@@ -63,6 +65,7 @@ public sealed class SchedulerOperationsService(
         string? reason,
         CancellationToken cancellationToken)
     {
+        if (options.ActorManaged) throw new InvalidOperationException("System Admin actors exclusively manage adopted schedules; this compatibility endpoint is read-only.");
         var requiredReason = RequireReason(reason);
         var schedule = await store.GetScheduleAsync(input.ScheduleDefinitionId, cancellationToken);
         var task = catalog.GetRequired(schedule.TaskKey);
@@ -96,6 +99,7 @@ public sealed class SchedulerOperationsService(
         string? reason,
         CancellationToken cancellationToken)
     {
+        if (options.ActorManaged) throw new InvalidOperationException("System Admin actors exclusively manage adopted schedules; this compatibility endpoint is read-only.");
         var result = await store.DeleteScheduleAsync(
             requestId,
             actor,
@@ -114,6 +118,7 @@ public sealed class SchedulerOperationsService(
         string? reason,
         CancellationToken cancellationToken)
     {
+        if (options.ActorManaged) throw new InvalidOperationException("System Admin actors exclusively manage adopted schedules; this compatibility endpoint is read-only.");
         var schedule = await store.GetScheduleAsync(scheduleId, cancellationToken);
         _ = catalog.GetRequired(schedule.TaskKey);
         return await store.QueueRunRequestAsync(
@@ -138,6 +143,7 @@ public sealed class SchedulerOperationsService(
         string? reason,
         CancellationToken cancellationToken)
     {
+        if (options.ActorManaged) throw new InvalidOperationException("System Admin actors exclusively manage adopted schedules; this compatibility endpoint is read-only.");
         var prior = await store.GetRunAsync(priorRunId, cancellationToken);
         if (prior.State is ScheduledRunState.Planned or ScheduledRunState.Starting or ScheduledRunState.Running
             or ScheduledRunState.Cancelling or ScheduledRunState.Succeeded or ScheduledRunState.Abandoned)
@@ -169,6 +175,7 @@ public sealed class SchedulerOperationsService(
         string? reason,
         CancellationToken cancellationToken)
     {
+        if (options.ActorManaged) throw new InvalidOperationException("System Admin actors exclusively manage adopted schedules; this compatibility endpoint is read-only.");
         var run = await store.GetRunAsync(runId, cancellationToken);
         if (run.State is not (ScheduledRunState.Planned or ScheduledRunState.Starting or ScheduledRunState.Running))
         {

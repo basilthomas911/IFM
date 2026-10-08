@@ -7,6 +7,11 @@ public sealed class SchedulerHostOptions
 {
     public string Environment { get; set; } = "Development";
 
+    /// <summary>Gets or sets the stable actor catalog target for this runtime host.</summary>
+    public string HostId { get; set; } = "development";
+    /// <summary>Gets or sets whether System Admin actors exclusively own configuration and run admission.</summary>
+    public bool ActorManaged { get; set; }
+
     public string SchedulerName { get; set; } = "IFM-Scheduler";
 
     public string PipeName { get; set; } = "IFM.ServerManager.Scheduler.v1";
@@ -23,6 +28,10 @@ public sealed class SchedulerHostOptions
     public int MaximumConcurrentProcesses { get; set; } = 2;
 
     public int ShutdownTimeoutSeconds { get; set; } = 45;
+
+    public int ProcessStartTimeoutSeconds { get; set; } = 10;
+    public int ProcessTerminationTimeoutSeconds { get; set; } = 5;
+    public int OutputDrainTimeoutSeconds { get; set; } = 5;
 
     public int RecentRunLimit { get; set; } = 200;
 
@@ -62,7 +71,8 @@ public sealed class SchedulerHostOptions
         if (MaximumConcurrentProcesses <= 0 || ShutdownTimeoutSeconds <= 0 || RecentRunLimit <= 0
             || MaximumOutputLineCharacters <= 0 || MaximumOutputBytesPerStream <= 0
             || SuccessfulRunRetentionDays <= 0 || FailedRunRetentionDays <= 0
-            || MinimumFreeDiskBytes <= 0 || HealthProbeIntervalSeconds <= 0)
+            || MinimumFreeDiskBytes <= 0 || HealthProbeIntervalSeconds <= 0
+            || ProcessStartTimeoutSeconds <= 0 || ProcessTerminationTimeoutSeconds <= 0 || OutputDrainTimeoutSeconds <= 0)
         {
             throw new InvalidOperationException("Scheduler concurrency, shutdown, output, retention, and recent-run limits must be positive.");
         }
@@ -71,6 +81,9 @@ public sealed class SchedulerHostOptions
         {
             throw new InvalidOperationException("Successful-run retention cannot exceed failed-run retention.");
         }
+
+        if (UseOperatorGroupPipeAcl && !OperatingSystem.IsWindows())
+            throw new InvalidOperationException("Windows operator-group pipe ACLs are unavailable on this platform.");
 
         if (UseOperatorGroupPipeAcl
             && AllowedOperatorGroups.Count == 0)
@@ -248,8 +261,9 @@ public sealed class ScheduledTaskCatalogDefinition
         var canonicalRootWithoutSeparator = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar);
         var canonicalRoot = canonicalRootWithoutSeparator + Path.DirectorySeparatorChar;
         var canonicalValue = Path.GetFullPath(value);
-        if (!string.Equals(canonicalValue, canonicalRootWithoutSeparator, StringComparison.OrdinalIgnoreCase)
-            && !canonicalValue.StartsWith(canonicalRoot, StringComparison.OrdinalIgnoreCase))
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (!string.Equals(canonicalValue, canonicalRootWithoutSeparator, comparison)
+            && !canonicalValue.StartsWith(canonicalRoot, comparison))
         {
             throw new InvalidOperationException($"Path '{canonicalValue}' escapes deployment root '{canonicalRoot}'.");
         }

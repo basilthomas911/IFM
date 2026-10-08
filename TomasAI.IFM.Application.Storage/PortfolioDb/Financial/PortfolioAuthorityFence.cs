@@ -12,7 +12,7 @@ public interface IPortfolioAuthorityFence
 }
 
 /// <summary>Existing Portfolio/Fund/policy writers participate in the same financial admission lock.</summary>
-public sealed class PortfolioAuthorityFence(IPostgresEventTransaction transactions) : IPortfolioAuthorityFence
+public sealed class PortfolioAuthorityFence(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null) : IPortfolioAuthorityFence
 {
     public Task AppendAsync(int portfolioId, int? fundId, string stream, IEvent domainEvent, long expectedRevision, bool changesAuthority, CancellationToken token = default)
         => transactions.ExecuteAsync(async (db, ct) =>
@@ -28,7 +28,8 @@ public sealed class PortfolioAuthorityFence(IPostgresEventTransaction transactio
         {
             using var validateTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.portfolio_fence.validate_authorization");
             Require(rows.Count == 1, FinancialReasons.AuthorityDenied, "Financial authority is required for Fund approval.");
-            await FundRiskAuthorizationStore.ValidateAsync(db, portfolioId, fundId, authorization, rows[0].Book, rows[0].State, ct);
+            await FundRiskAuthorizationStore.ValidateAsync(db, portfolioId, fundId, authorization, developmentPolicy?.TradingBook(rows[0].Book) ?? rows[0].Book,
+                developmentPolicy?.IsDevelopmentEnvironment == true && rows[0].Book.Environment == "Emulator" ? "Active" : rows[0].State, ct);
         }
         if (domainEvent is IFundRiskTerminalEvent { TerminalRisk: { } terminal })
         {

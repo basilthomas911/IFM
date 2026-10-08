@@ -21,6 +21,22 @@
 !TomasAI.IFM.Shared/
 !TomasAI.IFM.Shared/**
 
+
+# Shared contract dependencies used by scheduled market tasks.
+!TomasAI.IFM.Domain.MarketData.Analytics.Shared/
+!TomasAI.IFM.Domain.MarketData.Analytics.Shared/**
+!TomasAI.IFM.Domain.MarketData.Shared/
+!TomasAI.IFM.Domain.MarketData.Shared/**
+!TomasAI.IFM.Domain.Portfolio.Shared/
+!TomasAI.IFM.Domain.Portfolio.Shared/**
+!TomasAI.IFM.Domain.Strategy.Contracts.Shared/
+!TomasAI.IFM.Domain.Strategy.Contracts.Shared/**
+!TomasAI.IFM.Domain.Trade.Shared/
+!TomasAI.IFM.Domain.Trade.Shared/**
+
 **/bin/
 **/obj/
 **/.git/
+
+**/.artifacts/
+**/TestResults/

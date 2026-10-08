@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
@@ -38,14 +38,16 @@ public static class FuturesOptionTickDataStreamingStarted
             if (!runtime.IsRunning || runtime.ActiveValueDate != e.ValueDate)
                 throw new InvalidOperationException(
                     "The Databento watchdog must start and qualify the value-date runtime before an option route is attached.");
-            _ = await p.MarketDataApi.GetFuturesOptionContractAsync(
-                e.Contract.ContractId)
-                ?? throw new InvalidOperationException(
-                    $"Futures option contract '{e.Contract.ContractId}' is not configured in the active market-data epoch.");
             var owner = CreateOwner(e.EntityId, e.Contract.ContractId);
-            _ = await p.MarketDataApi.StartStreamingFuturesOptionTickDataAsync(
-                e.Contract.ContractId,
-                owner).ConfigureAwait(false);
+            if (p.QualifiedFeeds is { } feeds)
+                await feeds.AcquireAsync(owner, e.Contract, e.ValueDate).ConfigureAwait(false);
+            else
+            {
+                _ = await p.MarketDataApi.GetFuturesOptionContractAsync(e.Contract.ContractId)
+                    ?? throw new InvalidOperationException($"Option contract '{e.Contract.ContractId}' is unavailable.");
+                if (!await p.MarketDataApi.StartStreamingFuturesOptionTickDataAsync(e.Contract.ContractId, owner).ConfigureAwait(false))
+                    throw new InvalidOperationException($"Option contract '{e.Contract.ContractId}' acquisition was rejected.");
+            }
             p.Streams.Track(owner, e.Contract.ContractId, e.Contract);
             await eventApi.SendFuturesOptionTickDataStreamingStartedCompleteAsync(e);
 

@@ -1,6 +1,6 @@
-namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
+﻿namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
 {
-    partial class IronCondorView
+    partial class IronCondorTradeView
     {
         /// <summary> 
         /// Required designer variable.
@@ -2895,7 +2895,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
             dataGridViewTextBoxColumn11.ReadOnly = true;
             dataGridViewTextBoxColumn11.Width = 125;
             // 
-            // IronCondorView
+            // IronCondorTradeView
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
@@ -2905,10 +2905,10 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
             Controls.Add(pnlIronCondor);
             DoubleBuffered = true;
             Margin = new Padding(0);
-            Name = "IronCondorView";
+            Name = "IronCondorTradeView";
             Size = new Size(2729, 1004);
             Load += IronCondorControl_Load;
-            ControlRemoved += IronCondorView_ControlRemoved;
+            ControlRemoved += IronCondorTradeView_ControlRemoved;
             pnlIronCondor.ResumeLayout(false);
             pnlAssetSplitter.Panel1.ResumeLayout(false);
             pnlAssetSplitter.Panel2.ResumeLayout(false);

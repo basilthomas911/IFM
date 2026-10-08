@@ -18,7 +18,11 @@ public sealed record OptionTradeChangedEvent : IEvent<TradeEntityId>
     [Key(5)] public string AggregateId { get; init; } = string.Empty;
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     [Key(7)] public DateTime ReceivedOn { get; init; }
-    [Key(8)] public EstablishedTradeDefinition State { get; init; } = new();
+    [Key(8), Newtonsoft.Json.JsonProperty("State"), System.Text.Json.Serialization.JsonPropertyName("State")]
+    public EstablishedTradeDefinition EstablishedTradeDefinition { get; init; } = new();
+    /// <summary>Retains source compatibility with existing snapshot consumers.</summary>
+    [IgnoreMember, Newtonsoft.Json.JsonIgnore, System.Text.Json.Serialization.JsonIgnore]
+    public EstablishedTradeDefinition State { get => EstablishedTradeDefinition; init => EstablishedTradeDefinition = value; }
     [Key(9)] public bool IsInitialEstablishment { get; init; }
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(OptionTradeChangedEvent);

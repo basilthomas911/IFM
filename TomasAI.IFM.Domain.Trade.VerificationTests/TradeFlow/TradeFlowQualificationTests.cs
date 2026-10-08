@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using MessagePack;
 using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 using TomasAI.IFM.Application.Storage.TradePlanDb.Schema;
@@ -323,10 +323,10 @@ public sealed class TradeFlowQualificationTests
         source[2].Should().Contain(nameof(FuturesTradePlanUpdatedEvent));
         source.Should().OnlyContain(text => text.Contains("DescribeNotification", StringComparison.Ordinal));
 
-        AssertRequiredProjection(
-            new IronCondorTradePlanUpdatedEvent { Plan = new StrategyTradePlanSnapshot { MaterialChange = true } },
-            nameof(FuturesIronCondorTradePositionCommandActor),
-            nameof(IronCondorPositionEventProjector));
+        var monitoringPlan = new IronCondorTradePlanUpdatedEvent { Plan = new StrategyTradePlanSnapshot { MaterialChange = true } };
+        monitoringPlan.RequiresDurableProjection.Should().BeFalse();
+        monitoringPlan.RequiredProjection.Should().Be(new DurableProjectionRequirement(
+            nameof(FuturesIronCondorTradePositionCommandActor), nameof(IronCondorPositionEventProjector), EventProjectorStageType.ApplyProjection));
         AssertRequiredProjection(
             new VerticalSpreadTradePlanUpdatedEvent { Plan = new StrategyTradePlanSnapshot { MaterialChange = true } },
             nameof(FuturesVerticalSpreadTradePositionCommandActor),

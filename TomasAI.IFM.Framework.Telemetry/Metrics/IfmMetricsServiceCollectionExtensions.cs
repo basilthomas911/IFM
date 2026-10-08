@@ -51,6 +51,7 @@ public static class IfmMetricsServiceCollectionExtensions
                 metrics
                     .AddMeter("TomasAI.IFM.MarketData.Eod")
                 .AddMeter("TomasAI.IFM.Logging")
+                .AddMeter("TomasAI.IFM.ScheduledTasks")
                     .AddMeter(ActorMeterName)
                     .AddMeter(NatsMeterName)
                     .AddMeter(EventProjectorMeterName)

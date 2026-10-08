@@ -7,4 +7,8 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../TomasAI.IFM.Application.Api.Nats.Client/TomasAI.IFM.Application.Api.Nats.Client.csproj" />
+    <ProjectReference Include="../TomasAI.IFM.Framework.Messaging.Nats/TomasAI.IFM.Framework.Messaging.Nats.csproj" />
+  </ItemGroup>
 </Project>

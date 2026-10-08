@@ -19,36 +19,48 @@ public sealed class StrategyPositionCommandApi(IActorProducer producer)
         TradeStrategyKind strategyKind,
         DateTime effectiveAtUtc,
         CancellationToken cancellationToken = default)
+        => EndOfDayAsync(positionId, strategyKind,
+            DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(effectiveAtUtc, TomasAI.IFM.Domain.MarketData.Shared.FuturesTradingValueDate.MarketTimeZone)), effectiveAtUtc, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<ServiceResult<Guid>> EndOfDayAsync(StrategyPositionId positionId, TradeStrategyKind strategyKind,
+        DateOnly valueDate, DateTime effectiveAtUtc, CancellationToken cancellationToken = default)
     {
         if (!positionId.IsValid)
             throw new ArgumentException("A valid strategy-position identity is required.", nameof(positionId));
         if (effectiveAtUtc.Kind != DateTimeKind.Utc)
             throw new ArgumentException("The effective time must be UTC.", nameof(effectiveAtUtc));
 
+        if (valueDate == default) throw new ArgumentOutOfRangeException(nameof(valueDate));
+        var identity = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"PositionEndOfDay:{positionId.Format()}:{valueDate:yyyy-MM-dd}"));
+        var commandId = new Guid(identity.AsSpan(0,16));
         return strategyKind switch
         {
             TradeStrategyKind.IronCondor => SendAsync(new EndOfDayIronCondorPositionCommand
             {
-                CommandId = Guid.NewGuid(),
+                CommandId = commandId,
                 Subject = Subject(PositionActorNames.IronCondorCommand,
                     EndOfDayIronCondorPositionCommand.Verb, positionId),
                 EntityId = positionId,
+                ValueDate = valueDate,
                 EffectiveAtUtc = effectiveAtUtc
             }, cancellationToken),
             TradeStrategyKind.VerticalSpread => SendAsync(new EndOfDayVerticalSpreadPositionCommand
             {
-                CommandId = Guid.NewGuid(),
+                CommandId = commandId,
                 Subject = Subject(PositionActorNames.VerticalSpreadCommand,
                     EndOfDayVerticalSpreadPositionCommand.Verb, positionId),
                 EntityId = positionId,
+                ValueDate = valueDate,
                 EffectiveAtUtc = effectiveAtUtc
             }, cancellationToken),
             TradeStrategyKind.FuturesOutright => SendAsync(new EndOfDayFuturesPositionCommand
             {
-                CommandId = Guid.NewGuid(),
+                CommandId = commandId,
                 Subject = Subject(FuturesPositionActorNames.Command,
                     EndOfDayFuturesPositionCommand.Verb, positionId),
                 EntityId = positionId,
+                ValueDate = valueDate,
                 EffectiveAtUtc = effectiveAtUtc
             }, cancellationToken),
             _ => throw new ArgumentException(

@@ -406,8 +406,10 @@ public sealed class TradeBlotterLiveChainTests
         Assert.Equal(7900m, SelectedValue("Strike", 1));
     }
 
-    [Fact]
-    public async Task Market_selection_polls_iv_window_without_starting_legacy_leg_feed()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Market_selection_polls_iv_window_without_starting_legacy_leg_feed(bool initialLiveFeed)
     {
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
@@ -417,7 +419,7 @@ public sealed class TradeBlotterLiveChainTests
             _ = dispatcher.Handle;
             dispatcher.BeginInvoke((Action)(async () =>
             {
-                try { await VerifyAsync(); completed.SetResult(); }
+                try { await VerifyAsync(initialLiveFeed); completed.SetResult(); }
                 catch (Exception error) { completed.SetException(error); }
                 finally { context.ExitThread(); }
             }));
@@ -429,7 +431,7 @@ public sealed class TradeBlotterLiveChainTests
         await completed.Task.WaitAsync(TimeSpan.FromSeconds(20));
     }
 
-    private static async Task VerifyAsync()
+    private static async Task VerifyAsync(bool initialLiveFeed)
     {
         var expiry = new DateOnly(2026, 10, 1);
         var observed = DateTimeOffset.UtcNow;
@@ -440,10 +442,16 @@ public sealed class TradeBlotterLiveChainTests
                 null, null, true, false, observed, null, observed)]);
         var api = Substitute.For<IMarketDataQueryApi>();
         var reads = 0;
+        var requests = new List<GetEvaluatedOptionChainQuery>();
         api.GetEvaluatedOptionChainAsync(Arg.Any<GetEvaluatedOptionChainQuery>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
-                if (!call.Arg<GetEvaluatedOptionChainQuery>().ReleaseOnly) Interlocked.Increment(ref reads);
+                var query = call.Arg<GetEvaluatedOptionChainQuery>();
+                if (!query.ReleaseOnly)
+                {
+                    requests.Add(query);
+                    Interlocked.Increment(ref reads);
+                }
                 return Task.FromResult<ServiceResult<EvaluatedOptionChainReadModel>>(
                     new ServiceOk<EvaluatedOptionChainReadModel>(chain));
             });
@@ -464,11 +472,14 @@ public sealed class TradeBlotterLiveChainTests
         };
         using var legacy = new FailingLegacyFeed();
         using var blotter = new EsTradeBlotterControl(root, fund, order, trade, 0, false,
-            workflowControl: legacy);
+            capabilities: TomasAI.IFM.Application.TradeBroker.Contracts.BrokerCapabilities.Emulator("TEST-EMULATOR"),
+            workflowControl: legacy, liveFeedEnabled: initialLiveFeed);
         blotter.BindAvailableExpiries([expiry], trade.RequestedTradeDate, expiry);
 
         await blotter.SetLiveFeedAsync(true);
         Assert.Equal(1, Volatile.Read(ref reads));
+        Assert.False(requests[^1].AllowFrozenEmulatorPreview);
+        Assert.False(requests[^1].FrozenEmulatorPreviewOnly);
         var grid = (DataGridView)blotter.Controls.Find("marketSelectionGrid", true).Single();
         Assert.Equal(1, grid.RowCount);
         Assert.Equal("ImpliedVolatility5Delta",
@@ -476,6 +487,8 @@ public sealed class TradeBlotterLiveChainTests
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
         while (Volatile.Read(ref reads) < 2) await Task.Delay(50, timeout.Token);
         await blotter.SetLiveFeedAsync(false);
+        Assert.True(requests[^1].AllowFrozenEmulatorPreview);
+        Assert.True(requests[^1].FrozenEmulatorPreviewOnly);
         Assert.Equal(0, legacy.LiveFeedCalls);
     }
 

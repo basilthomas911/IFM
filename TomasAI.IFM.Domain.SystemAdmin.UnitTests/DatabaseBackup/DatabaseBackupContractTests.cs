@@ -121,7 +121,7 @@ public sealed class DatabaseBackupContractTests
             .OrderBy(type => type.FullName)
             .ToArray();
 
-        actorContracts.Should().HaveCount(120);
+        actorContracts.Should().HaveCount(122);
         foreach (var type in actorContracts)
         {
             var instance = Activator.CreateInstance(type)!;

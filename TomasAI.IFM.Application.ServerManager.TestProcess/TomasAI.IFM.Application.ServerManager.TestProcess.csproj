@@ -7,4 +7,5 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.ServerManager.SchedulerHost/TomasAI.IFM.Application.ServerManager.SchedulerHost.csproj" /></ItemGroup>
 </Project>

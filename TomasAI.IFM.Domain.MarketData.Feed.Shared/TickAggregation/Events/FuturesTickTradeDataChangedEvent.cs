@@ -1,4 +1,5 @@
 using MessagePack;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -29,8 +30,9 @@ public sealed record FuturesTickTradeDataChangedEvent : IEvent<TickDataEntityId>
     /// <param name="publisherId">The PublisherId field.</param>
     /// <param name="instrumentId">The InstrumentId field.</param>
     /// <param name="tradeData">The TradeData field.</param>
+    /// <param name="optionMarketPriceObservation">An identified option quote or retained trade; absent on legacy futures messages.</param>
     [SerializationConstructor]
-    public FuturesTickTradeDataChangedEvent(ActorSubject subject, Guid id, TickDataEntityId entityId, long eventId, Guid commandId, string aggregateId, string eventSource, DateTime receivedOn, ushort schemaVersion, TickDataId tickDataId, AssetTypeId assetTypeId, string dataset, DateOnly definitionDate, ushort publisherId, uint instrumentId, FuturesTickTradeData tradeData)
+    public FuturesTickTradeDataChangedEvent(ActorSubject subject, Guid id, TickDataEntityId entityId, long eventId, Guid commandId, string aggregateId, string eventSource, DateTime receivedOn, ushort schemaVersion, TickDataId tickDataId, AssetTypeId assetTypeId, string dataset, DateOnly definitionDate, ushort publisherId, uint instrumentId, FuturesTickTradeData tradeData, OptionMarketPriceObservation? optionMarketPriceObservation = null)
     {
         Subject = subject;
         Id = id;
@@ -48,6 +50,7 @@ public sealed record FuturesTickTradeDataChangedEvent : IEvent<TickDataEntityId>
         PublisherId = publisherId;
         InstrumentId = instrumentId;
         TradeData = tradeData;
+        OptionMarketPriceObservation = optionMarketPriceObservation;
     }
     public const string Actor = "TickAggregationRealtime";
     public const string Verb = "FuturesTickTradeDataChanged";
@@ -67,6 +70,8 @@ public sealed record FuturesTickTradeDataChangedEvent : IEvent<TickDataEntityId>
     [Key(13)] public ushort PublisherId { get; init; }
     [Key(14)] public uint InstrumentId { get; init; }
     [Key(15)] public FuturesTickTradeData TradeData { get; init; }
+    /// <summary>Gets the explicit option market-price basis without representing a quote as traded volume.</summary>
+    [Key(16)] public OptionMarketPriceObservation? OptionMarketPriceObservation { get; init; }
     [IgnoreMember] public string SourceDataset { get; init; } = string.Empty;
     [IgnoreMember] public Guid SourceGenerationId { get; init; }
     [IgnoreMember] public string UserName => string.Empty;

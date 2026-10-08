@@ -12,7 +12,7 @@ public partial class SystemAdminForm : DarkTradingForm, IForm<SystemAdminForm>, 
     IReadOnlyList<LookupTypeUiModel> _visibleFunctionTypes = [];
     bool _closeComplete;
 
-    public SystemAdminForm(IDatabaseBackupService databaseBackupService)
+    public SystemAdminForm(IDatabaseBackupService databaseBackupService, IScheduledTaskService? scheduledTaskService = null)
     {
         InitializeComponent();
         _controlMap = new Dictionary<string, Func<Control>>
@@ -20,7 +20,20 @@ public partial class SystemAdminForm : DarkTradingForm, IForm<SystemAdminForm>, 
             { "BackupDatabases", () => new BackupDatabasesView(
                 new DatabaseBackupViewModel(databaseBackupService)) },
         };
+        if (scheduledTaskService is not null)
+            _controlMap.Add("ScheduledTasks", () => new ScheduledTasksView(new ScheduledTasksViewModel(scheduledTaskService)));
 
+    }
+
+    /// <summary>Keeps the resizable administration dialog within its monitor after DPI scaling.</summary>
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        var workingArea = Screen.FromControl(this).WorkingArea;
+        var width = Math.Min(Width, workingArea.Width);
+        var height = Math.Min(Height, workingArea.Height);
+        Bounds = new Rectangle(Math.Clamp(Left, workingArea.Left, workingArea.Right - width),
+            Math.Clamp(Top, workingArea.Top, workingArea.Bottom - height), width, height);
     }
 
     public void LoadViewModel(SystemAdminViewModel viewModel)

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
@@ -9,6 +9,28 @@ namespace TomasAI.IFM.UI.Net.Views.Trade;
 
 public static class TradeBlotterFactory
 {
+    /// <summary>Creates the existing strategy view using the actual execution-created trade.</summary>
+    /// <param name="parentControl">The host for the strategy view.</param>
+    /// <param name="appRoot">The application service boundary.</param>
+    /// <param name="fund">The owning fund.</param>
+    /// <param name="fundOrder">The selected setup order.</param>
+    /// <param name="setupTrade">The setup row linked to the established trade.</param>
+    /// <param name="trade">The persisted financial trade and its execution evidence.</param>
+    /// <param name="baseContracts">Available underlying futures contracts.</param>
+    /// <returns>The strategy-specific trade view.</returns>
+    public static Control CreateEstablished(Control parentControl, IAppRoot appRoot, PortfolioFundEditorModel fund,
+        PortfolioFundOrderEditorModel fundOrder, PortfolioFundOrderTradeEditorModel setupTrade,
+        EstablishedTradeDefinition trade, ICollection<FuturesContractV3ReadModel> baseContracts)
+        => trade.StrategyKind switch
+        {
+            TradeStrategyKind.IronCondor => new IronCondorTradeView(parentControl,
+                new IronCondorViewModel(appRoot, fund, fundOrder, setupTrade,
+                    DateOnly.FromDateTime(trade.EstablishedAtUtc), baseContracts,
+                    historicalReadOnly: trade.Status == EstablishedTradeStatus.Closed,
+                    portfolioId: trade.Id.PortfolioId, establishedTrade: trade)),
+            _ => new EstablishedTradeView(trade)
+        };
+
     /// <summary>Creates the strategy-specific trade monitor for a selected trade.</summary>
     /// <param name="parentControl">The control that will host the monitor.</param>
     /// <param name="appRoot">The application service boundary.</param>
@@ -28,11 +50,11 @@ public static class TradeBlotterFactory
             case TradeType.ShortIronCondor:
             case TradeType.LongIronCondor:
                 var viewModel = new IronCondorViewModel(appRoot, fund, fundOrder, fundOrderTrade, valueDate, baseContracts, historicalReadOnly: historicalReadOnly, portfolioId: portfolioId);
-                var ironCondor = new IronCondorView(parentControl, viewModel);
+                var ironCondor = new IronCondorTradeView(parentControl, viewModel);
                 blotter = new EsTradeBlotterControl(appRoot, fund, fundOrder, fundOrderTrade,
                     portfolioId, historicalReadOnly, workflowControl: ironCondor)
                 {
-                    Name = "IronCondorView"
+                    Name = "IronCondorTradeView"
                 };
                 break;
             case TradeType.FuturesOutright:

@@ -17,7 +17,8 @@ public sealed record EventProjectionDescriptor
         bool publishProcessingEvent = true,
         bool useDurableReplay = true,
         bool publishProcessingAfterApply = false,
-        bool publishTerminalEvent = true)
+        bool publishTerminalEvent = true,
+        Func<IEvent, CancellationToken, ValueTask<EventProjectionApplyResult>>? applySnapshotAsync = null)
     {
         ArgumentNullException.ThrowIfNull(sourceEventType);
         if (!typeof(IEvent).IsAssignableFrom(sourceEventType))
@@ -25,6 +26,9 @@ public sealed record EventProjectionDescriptor
         if (idempotencyStrategy == EventProjectionIdempotencyStrategy.Unspecified)
             throw new ArgumentOutOfRangeException(nameof(idempotencyStrategy));
 
+        if (applySnapshotAsync is not null && (useDurableReplay || publishTerminalEvent))
+            throw new ArgumentException("Single-attempt snapshot projections cannot use durable replay or claim persistence completion.", nameof(applySnapshotAsync));
+        ApplySnapshotAsync = applySnapshotAsync;
         SourceEventType = sourceEventType;
         IdempotencyStrategy = idempotencyStrategy;
         ApplyAsync = applyAsync ?? throw new ArgumentNullException(nameof(applyAsync));
@@ -41,6 +45,9 @@ public sealed record EventProjectionDescriptor
     public Func<IEvent, ProjectionExecutionContext, ValueTask<EventProjectionApplyResult>> ApplyAsync { get; }
     public Func<IEvent, ICompleteEvent?> CompletedEventFactory { get; }
     public Func<IEvent, Exception, IErrorEvent?> FailedEventFactory { get; }
+    /// <summary>Gets a one-attempt snapshot projection action that uses the already committed source payload directly.</summary>
+    /// <remarks>The repository commits the source event before submission. Projection does not reread or validate that event or reconcile it with target history.</remarks>
+    public Func<IEvent, CancellationToken, ValueTask<EventProjectionApplyResult>>? ApplySnapshotAsync { get; }
     public bool PublishProcessingEvent { get; }
     /// <summary>
     /// Gets whether this event type uses the durable JetStream process/replay workflow. When false, the event is

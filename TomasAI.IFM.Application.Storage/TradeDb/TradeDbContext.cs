@@ -746,7 +746,8 @@ public sealed class TradeDbContext(
                 .SetParameters(new GetTradeLimit(tradeId))
                 .ExecuteSingleAsync(MapToTradeLimit!);
 
-        var tradeTypeLimit = await GetTradeTypeLimitAsync(tradeLimit!.TradeId, tradeLimit.TradeType);
+        if (tradeLimit is null) return null;
+        var tradeTypeLimit = await GetTradeTypeLimitAsync(tradeLimit.TradeId, tradeLimit.TradeType);
         return tradeTypeLimit is not null
             ? tradeLimit with
             {
@@ -2409,11 +2410,12 @@ public sealed class TradeDbContext(
     public async Task InsertTradeLimitAsync(TradeLimitReadModel e)
         => await _dbFactory.TradeDb
                 .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeLimit)}", TradeDbCql.InsertTradeLimit)
-                .SetParameters(new InsertTradeLimitNoMaxLoss(
+                .SetParameters(new InsertTradeLimit(
                     e.TradeId,
                     e.TradeType.ToStringFast(),
                     e.RiskMargin,
                     e.MaxProfit,
+                    e.MaxLoss,
                     e.MaxReturn,
                     e.MaxLossLimit,
                     e.MinProfitLimit,
@@ -2440,11 +2442,12 @@ public sealed class TradeDbContext(
     public async Task InsertTradeLimitsAsync(ICollection<TradeLimitReadModel> tradeLimits)
         => await _dbFactory.TradeDb
                 .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeLimit)}", TradeDbCql.InsertTradeLimit)
-                .SetParameters(tradeLimits.Select(e => new InsertTradeLimitNoMaxLoss(
+                .SetParameters(tradeLimits.Select(e => new InsertTradeLimit(
                     e.TradeId,
                     e.TradeType.ToStringFast(),
                     e.RiskMargin,
                     e.MaxProfit,
+                    e.MaxLoss,
                     e.MaxReturn,
                     e.MaxLossLimit,
                     e.MinProfitLimit,
@@ -2473,11 +2476,12 @@ public sealed class TradeDbContext(
         var rowCount = 0L;
         await _dbFactory.TradeDb
             .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeLimit)}", TradeDbCql.InsertTradeLimit)
-            .SetParameters(GetTradeLimits().Select(e => new InsertTradeLimitNoMaxLoss(
+            .SetParameters(GetTradeLimits().Select(e => new InsertTradeLimit(
                 e.TradeId,
                 e.TradeType.ToStringFast(),
                 e.RiskMargin,
                 e.MaxProfit,
+                e.MaxLoss,
                 e.MaxReturn,
                 e.MaxLossLimit,
                 e.MinProfitLimit,
@@ -4251,13 +4255,14 @@ public sealed class TradeDbContext(
         position.RequireValidIdentity();
         var payload = MessagePackBinarySerializer.Shared.Serialize(position);
         var id = position.Id.Trade;
-        await _dbFactory.TradeDb.Use("TradeFlow.Position.Current", "INSERT INTO strategy_position_current (portfolioId,fundId,orderId,tradeId,positionId,strategyKind,positionSequence,routeGeneration,isOpen,asOfUtc,payload) VALUES (?,?,?,?,?,?,?,?,?,?,?);")
+        var projectionTimestamp = checked((position.AsOfUtc.Ticks - DateTime.UnixEpoch.Ticks) / 10 + position.PositionSequence);
+        await _dbFactory.TradeDb.Use("TradeFlow.Position.Current", "INSERT INTO strategy_position_current (portfolioId,fundId,orderId,tradeId,positionId,strategyKind,positionSequence,routeGeneration,isOpen,asOfUtc,payload) VALUES (?,?,?,?,?,?,?,?,?,?,?) USING TIMESTAMP ?;")
             .SetParameters(new TradeDbValues([id.PortfolioId, id.FundId, id.OrderId, id.TradeId, position.Id.PositionId,
-                position.StrategyKind.ToString(), position.PositionSequence, position.RouteGeneration, position.IsOpen, position.AsOfUtc, payload]))
+                position.StrategyKind.ToString(), position.PositionSequence, position.RouteGeneration, position.IsOpen, position.AsOfUtc, payload, projectionTimestamp]))
             .ExecuteCommandAsync(token)
             .ConfigureAwait(false);
-        await _dbFactory.TradeDb.Use("TradeFlow.Position.History", "INSERT INTO strategy_position_history (positionId,asOfUtc,positionSequence,phase,payload) VALUES (?,?,?,?,?);")
-            .SetParameters(new TradeDbValues([position.Id.PositionId, position.AsOfUtc, position.PositionSequence, position.Phase.ToString(), payload]))
+        await _dbFactory.TradeDb.Use("TradeFlow.Position.History", "INSERT INTO strategy_position_history (positionId,asOfUtc,positionSequence,phase,payload) VALUES (?,?,?,?,?) USING TIMESTAMP ?;")
+            .SetParameters(new TradeDbValues([position.Id.PositionId, position.HistoryAsOfUtc == default ? position.AsOfUtc : position.HistoryAsOfUtc, position.HistoryPositionSequence == 0 ? position.PositionSequence : position.HistoryPositionSequence, position.Phase.ToString(), payload, projectionTimestamp]))
             .ExecuteCommandAsync(token)
             .ConfigureAwait(false);
     }
@@ -4346,6 +4351,17 @@ public sealed class TradeDbContext(
                 row.GetEnum<TradeStrategyKind>(7), row.GetLong(8))), token)
             .ConfigureAwait(false);
         return result;
+    }
+
+    /// <inheritdoc />
+    public Task<QueryPage<OpenPositionRouteReadModel>> GetOpenPositionRoutePageAsync(int pageSize, byte[]? pagingState = null, CancellationToken token = default)
+    {
+        if (pageSize is < 1 or > 500) throw new ArgumentOutOfRangeException(nameof(pageSize));
+        return _dbFactory.TradeDb.Use("TradeFlow.Route.Recovery.Page", "SELECT contractId,portfolioId,fundId,orderId,tradeId,positionId,tradeLegId,tradeType,generation FROM open_position_route_recovery WHERE shard=?;")
+            .SetParameters(new TradeDbValues([(sbyte)0]))
+            .ExecutePageAsync(row => new OpenPositionRouteReadModel(row.GetString(0), new PortfolioFundTradeLeg(
+                row.GetInt(1), row.GetInt(2), row.GetInt(3), row.GetInt(4), row.GetGuid(5), row.GetGuid(6),
+                row.GetEnum<TradeStrategyKind>(7), row.GetLong(8))), pageSize, pagingState, token);
     }
 
     /// <inheritdoc />

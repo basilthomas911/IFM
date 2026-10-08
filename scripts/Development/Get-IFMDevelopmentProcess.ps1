@@ -25,6 +25,7 @@ $entryRoles = @{
     "IFMServerManager.dll" = "manager"
     "TomasAI.IFM.Application.Api.Server.dll" = "api"
     "TomasAI.IFM.UI.Net.dll" = "ui"
+    "TomasAI.IFM.Application.ServerManager.SchedulerHost.dll" = "scheduler"
 }
 
 function Test-SameStartTime {
@@ -39,6 +40,13 @@ function Get-Ownership {
         [string] $HostPath
     )
 
+    if ($Role -eq "scheduler") {
+        $schedulerSessionPath = Join-Path $RepositoryRoot ".artifacts/scheduled-tasks/development/scheduler-session.json"
+        if (-not (Test-Path -LiteralPath $schedulerSessionPath)) { return "Unowned" }
+        try { $schedulerSession = Get-Content -Raw -LiteralPath $schedulerSessionPath | ConvertFrom-Json } catch { return "Ambiguous" }
+        if ($Process.Id -eq $schedulerSession.ProcessId -and (Test-SameStartTime $Process.StartTime ([datetimeoffset]$schedulerSession.StartedAtUtc)) -and [string]::Equals([IO.Path]::GetFullPath($HostPath), [IO.Path]::GetFullPath($schedulerSession.ExecutablePath), [StringComparison]::OrdinalIgnoreCase)) { return "Owned" }
+        return "Unowned"
+    }
     if ($null -eq $session) {
         return "Unowned"
     }
@@ -83,6 +91,7 @@ $results = foreach ($process in Get-Process -ErrorAction SilentlyContinue) {
             "IFMServerManager" { $role = "manager" }
             "TomasAI.IFM.Application.Api.Server" { $role = "api" }
             "TomasAI.IFM.UI.Net" { $role = "ui" }
+            "TomasAI.IFM.Application.ServerManager.SchedulerHost" { $role = "scheduler" }
             "dotnet" {
                 $entryModule = $process.Modules | Where-Object {
                     $entryRoles.ContainsKey($_.ModuleName)

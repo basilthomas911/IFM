@@ -83,6 +83,7 @@ internal sealed class ScyllaManagerProcessRunner(ScyllaBackupOptions options) : 
         }
         var output = await outputTask.ConfigureAwait(false);
         var error = await errorTask.ConfigureAwait(false);
+        TomasAI.IFM.Application.DatabaseBackup.Contracts.DatabaseRecoveryOutputScope.Append($"{invocation.Operation} stdout:\n{output}\nstderr:\n{error}\nExitCode={process.ExitCode}");
         if (process.ExitCode != 0)
             throw new ScyllaManagerOperationException(invocation.Operation, process.ExitCode);
         return new ScyllaManagerProcessResult(output, error, Stopwatch.GetElapsedTime(started));

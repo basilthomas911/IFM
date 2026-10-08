@@ -1,4 +1,5 @@
-﻿using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Domain.Trade.Futures.Position.Command.Model;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Command.State;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Model;
 using TomasAI.IFM.Domain.Trade.Model;
@@ -21,21 +22,14 @@ public static class ChangeTradeLegData
         this ChangeTradeLegDataCommand command,
         FuturesPositionCommandState state)
     {
-        var stateMachine = CreateStateMachine(state);
-        var decision = stateMachine.UpdateLeg(
-            command.TradeLegId,
-            command.ContractId,
-            command.Price,
-            command.SourceSequence,
-            command.EffectiveAtUtc,
-            command.RouteGeneration);
-
-        if (!decision.Accepted || decision.Value is null)
-            return TradeCommandResult.Rejected(command.ErrorCode, decision);
-
-        return command.UpdatedOk(() => state.Update(
-            command.CreateFuturesPositionChangedEvent(decision.Value),
-            command));
+        var errorMsg = "FuturesPosition.STATE.APPLY_FAILED: unable to apply ChangeTradeLegData event";
+        var updated = command.Compute(state, out var positionChange) switch
+        {
+            _ when !positionChange.Accepted => command.UpdateFailed(ref errorMsg, $"{positionChange.RejectionCode};{positionChange.RejectionReason}"),
+            _ when positionChange.PositionSnapshot is null => command.UpdateFailed(ref errorMsg, "FuturesPosition: the computed position snapshot is missing."),
+            _ => state.Update(command.CreateFuturesPositionChangedEvent(positionChange.PositionSnapshot), command)
+        };
+        return updated ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId)) : command.UpdateFailed(errorMsg);
     }
 
     /// <summary>Rehydrates the position calculation model from the current aggregate state.</summary>
@@ -45,7 +39,7 @@ public static class ChangeTradeLegData
         FuturesPositionCommandState state)
     {
         var stateMachine = new StrategyPositionActorStateMachine();
-        if (state.Current is { } current)
+        if (state.PositionSnapshot is { } current)
             stateMachine.Replay(current);
         return stateMachine;
     }
@@ -58,9 +52,29 @@ public static class ChangeTradeLegData
         this ChangeTradeLegDataCommand command,
         StrategyPositionSnapshot snapshot) => new()
         {
+            CommandId = command.CommandId,
             Subject = new(ActorType.Event, "FuturesTradePositionEvent", FuturesPositionChangedEvent.Verb, command.EntityId.Format()),
             ReceivedOn = DateTime.UtcNow,
             EntityId = command.EntityId,
-            State = snapshot
+            PositionSnapshot = snapshot
         };
+    /// <summary>Computes a position change in an isolated calculation workspace.</summary>
+    /// <param name="command">The concrete position intent.</param>
+    /// <param name="state">The authoritative position state, read without mutation.</param>
+    /// <param name="positionChange">The proposed position snapshot or business rejection.</param>
+    /// <returns>True when the position change is accepted.</returns>
+    internal static bool Compute(this ChangeTradeLegDataCommand command, FuturesPositionCommandState state, out PositionChange positionChange)
+    {
+        var stateMachine = CreateStateMachine(state);
+        var positionDecision = stateMachine.UpdateLeg(
+            command.TradeLegId,
+            command.ContractId,
+            command.Price,
+            command.SourceSequence,
+            command.EffectiveAtUtc,
+            command.RouteGeneration);
+
+        positionChange = new(positionDecision.Accepted, positionDecision.Value, positionDecision.Code, positionDecision.Detail);
+        return positionChange.Accepted;
+    }
 }

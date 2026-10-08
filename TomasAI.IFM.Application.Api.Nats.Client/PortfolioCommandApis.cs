@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Portfolio.Shared.Common;
+﻿using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using System.Security.Cryptography;
 using MessagePack;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
@@ -196,7 +196,9 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
             new ChangeManualFundOrderTradeStateCommand(request),
             request.OrderId,
             request.ExpectedOrderVersion + 1,
-            trades => trades.Any(x => x.TradeId == request.TradeId && x.TradeState == request.TradeState),
+            trades => trades.Any(x => x.TradeId == request.TradeId && x.TradeState == request.TradeState
+                && (!request.ExecutionOrderId.HasValue || x.ExecutionOrderId == request.ExecutionOrderId.Value)
+                && (!request.ExecutionTradeId.HasValue || x.ExecutionTradeId == request.ExecutionTradeId.Value)),
             cancellationToken);
 
     /// <summary>Closes a manual Portfolio Fund order after its closing trade completes.</summary>

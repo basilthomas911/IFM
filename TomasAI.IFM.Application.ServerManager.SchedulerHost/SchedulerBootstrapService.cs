@@ -8,6 +8,7 @@ public sealed class SchedulerBootstrapService(
     TaskCatalogProvider catalog,
     ScheduleSeedProvider scheduleSeeds,
     SchedulerStore store,
+    SchedulerOwnershipLease ownership,
     SchedulerBootstrapState bootstrap,
     SchedulerHealthState health,
     ILogger<SchedulerBootstrapService> logger) : IHostedService
@@ -30,9 +31,10 @@ public sealed class SchedulerBootstrapService(
                 FileMode.OpenOrCreate,
                 FileAccess.ReadWrite,
                 FileShare.None);
+            await ownership.AcquireAsync(cancellationToken);
             await migrator.MigrateAsync(cancellationToken);
             await catalog.SynchronizeSnapshotAsync(cancellationToken);
-            await scheduleSeeds.SeedDefinitionsAsync(cancellationToken);
+            if (!options.ActorManaged) await scheduleSeeds.SeedDefinitionsAsync(cancellationToken);
             var abandoned = await store.RecoverIncompleteRunsAsync(cancellationToken);
             bootstrap.Succeeded = true;
             health.Set(

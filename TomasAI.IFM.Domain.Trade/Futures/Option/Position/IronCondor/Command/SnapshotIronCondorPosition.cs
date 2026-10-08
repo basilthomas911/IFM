@@ -8,10 +8,14 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command;
 
 public static class SnapshotIronCondorPosition
 {
+    /// <summary>Acknowledges a resident position so the actor can flush its persistence window.</summary>
+    /// <param name="command">The position snapshot request.</param>
+    /// <param name="state">The authoritative resident position state.</param>
+    /// <returns>Acceptance when a position exists, otherwise its business rejection.</returns>
     public static ServiceResult<GuidResult> Execute(
         this SnapshotIronCondorPositionCommand command,
         IronCondorPositionCommandState state) =>
-        state.Current is not null
+        state.PositionSnapshot is not null
             ? TradeCommandResult.Accepted(command.CommandId)
-            : new ServiceFailed<GuidResult>(command.ErrorCode, "POSITION.NOT_FOUND");
+            : command.UpdateFailed("IronCondorPosition.NOT_FOUND");
 }

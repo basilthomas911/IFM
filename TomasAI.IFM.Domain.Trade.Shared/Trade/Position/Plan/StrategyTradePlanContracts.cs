@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using MessagePack;
@@ -70,6 +70,8 @@ public sealed record StrategyTradePlanSnapshot
     [Key(16)] public TradePlanParameters Parameters { get; init; } = new();
     [Key(17)] public string ContentHash { get; init; } = string.Empty;
     [Key(18)] public DateTime CalculatedAtUtc { get; init; }
+    /// <summary>Gets strategy-specific legacy monitoring values while retaining old generic snapshots.</summary>
+    [Key(19)] public IronCondorTradePlanSnapshot? IronCondorTradePlanSnapshot { get; init; }
 }
 
 [MessagePackObject]
@@ -102,7 +104,10 @@ public readonly record struct FuturesTradePlanId(
 public static class TradePlanContractIdentity
 {
     public static string Fingerprint(this UpdateIronCondorTradePlanCommand command) =>
-        Fingerprint(command.EntityId.Format(), command.Position, command.Parameters, command.SourceEventId);
+        command.IronCondorTradePlanInputs is null
+            ? Fingerprint(command.EntityId.Format(), command.Position, command.Parameters, command.SourceEventId)
+            : Convert.ToHexString(SHA256.HashData(MessagePackSerializer.Serialize(command.IronCondorTradePlanInputs)
+                .Concat(Encoding.UTF8.GetBytes(Fingerprint(command.EntityId.Format(), command.Position, command.Parameters, command.SourceEventId))).ToArray()));
 
     public static string Fingerprint(this UpdateVerticalSpreadTradePlanCommand command) =>
         Fingerprint(command.EntityId.Format(), command.Position, command.Parameters, command.SourceEventId);
@@ -124,7 +129,10 @@ public static class TradePlanContractIdentity
     {
         var value = string.Create(CultureInfo.InvariantCulture,
             $"{plan.Position.Id.Format()}|{plan.Position.PositionSequence}|{plan.CurrentValue}|{plan.TotalPnl}|{plan.ForwardTradePrice}|{plan.ForwardPnl}|{plan.State}|{plan.Action}|{plan.ReasonCode}|{plan.Parameters.Version}");
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
+        var bytes = Encoding.UTF8.GetBytes(value);
+        if (plan.IronCondorTradePlanSnapshot is not null)
+            bytes = bytes.Concat(MessagePackSerializer.Serialize(plan.IronCondorTradePlanSnapshot)).ToArray();
+        return Convert.ToHexString(SHA256.HashData(bytes));
     }
 
     static string Fingerprint(string id, StrategyPositionSnapshot position, TradePlanParameters parameters, Guid sourceEventId)

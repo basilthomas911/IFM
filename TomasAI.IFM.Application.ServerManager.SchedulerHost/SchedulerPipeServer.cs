@@ -47,6 +47,7 @@ public sealed class SchedulerPipeServer(
 
     private NamedPipeServerStream CreatePipe()
     {
+        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("The compatibility dashboard pipe is Windows-only.");
         if (!options.UseOperatorGroupPipeAcl)
         {
             return new NamedPipeServerStream(

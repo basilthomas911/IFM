@@ -453,6 +453,9 @@ public static class Startup
                 .Add("TradeDbConnection", config["IFM_TEST_TRADE_CONNECTION"]
                     ?? config.GetConnectionString("TradeDbConnection")
                     ?? throw new InvalidOperationException("TradeDbConnection must target ScyllaDB for the integration host."), "System.Data.ScyllaDb")
+                .Add("TradePlanDbConnection", config["IFM_TEST_TRADE_PLAN_CONNECTION"]
+                    ?? config.GetConnectionString("TradePlanDbConnection")
+                    ?? throw new InvalidOperationException("TradePlanDbConnection must target ScyllaDB for the integration host."), "System.Data.ScyllaDb")
                 .Add("PortfolioDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("PortfolioDbConnection")
                     ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
             );

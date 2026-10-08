@@ -119,7 +119,8 @@ internal sealed class PipeDatasetWorkerPublisher(
     public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent value) =>
         PublishAsync(value, CancellationToken.None);
     public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent value,
-        CancellationToken cancellationToken) => WriteAsync(DatasetPublicationKind.Trade,
+        CancellationToken cancellationToken) => WriteAsync(value.OptionMarketPriceObservation?.PriceBasis == OptionMarketPriceBasis.QuoteMidpoint
+            ? DatasetPublicationKind.OptionQuoteObservation : DatasetPublicationKind.Trade,
             MessagePackSerializer.Serialize(value), cancellationToken);
 
     public async ValueTask PublishAsync(FuturesTickQuoteDataChangedEvent value,

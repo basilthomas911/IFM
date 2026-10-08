@@ -1,13 +1,15 @@
-using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+﻿using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.OptionChain;
 
 /// <summary>Initializes a new OptionChainSessionKey instance.</summary>
 /// <param name="FuturesContractId">The futures contract id.</param>
 /// <param name="MaturityDate">The maturity date.</param>
+/// <param name="OptionContractId">The exact leg contract for an isolated connection; empty for a chain connection.</param>
 public readonly record struct OptionChainSessionKey(
     string FuturesContractId,
-    DateOnly MaturityDate);
+    DateOnly MaturityDate,
+    string OptionContractId = "");
 
 public sealed record DatabentoOptionChainRoute
 {
@@ -17,6 +19,8 @@ public sealed record DatabentoOptionChainRoute
 
 public sealed record DatabentoOptionChainSessionRequest
 {
+    /// <summary>Gets the single option contract owning this physical connection; empty selects chain mode.</summary>
+    public string OptionContractId { get; init; } = string.Empty;
     public required string FuturesContractId { get; init; }
     public required DateOnly ValueDate { get; init; }
     public required OptionChainSubscription Subscription { get; init; }

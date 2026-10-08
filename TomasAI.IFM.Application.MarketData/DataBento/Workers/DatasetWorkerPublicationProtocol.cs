@@ -1,4 +1,5 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
+using TomasAI.IFM.Application.MarketData.Pricing;
 using MessagePack;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
@@ -17,7 +18,8 @@ public enum DatasetPublicationKind : byte
     MarketPrice = 3,
     SessionStatistics = 4,
     TradeReplayBatch = 5,
-    OptionTradeEvidence = 6
+    OptionTradeEvidence = 6,
+    OptionQuoteObservation = 7
 }
 
 [MessagePackObject]
@@ -252,7 +254,10 @@ public sealed class DatasetPublicationIngress(
                         throw new InvalidDataException("Option trade source and worker envelope disagree.");
                     if (optionTrades is null) throw new InvalidOperationException("Durable option trade writer is unavailable.");
                     await optionTrades.WriteAsync(evidence, generationCancellation).ConfigureAwait(false);
+                    generationCancellation.ThrowIfCancellationRequested();
+                    await publisher.PublishAsync(evidence.ToRealtimeEvent(), generationCancellation).ConfigureAwait(false);
                     break;
+                case DatasetPublicationKind.OptionQuoteObservation:
                 case DatasetPublicationKind.Trade:
                     await publisher.PublishAsync(
                         MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(envelope.Payload) with

@@ -1,4 +1,4 @@
-using MessagePack;
+﻿using MessagePack;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 
 namespace TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
@@ -61,6 +61,10 @@ public sealed record FundOrderTradeProjectionReadModel
     [Key(18)] public string CreatedBy { get; init; } = string.Empty;
     /// <summary>The canonical, provider-independent identifier of the selected futures contract.</summary>
     [Key(19)] public string BaseContractId { get; init; } = string.Empty;
+    /// <summary>The committed execution order created for this setup trade.</summary>
+    [Key(20)] public int ExecutionOrderId { get; init; }
+    /// <summary>The reserved established-trade identifier created by that execution.</summary>
+    [Key(21)] public int ExecutionTradeId { get; init; }
 }
 
 [MessagePackObject(AllowPrivate = true)]

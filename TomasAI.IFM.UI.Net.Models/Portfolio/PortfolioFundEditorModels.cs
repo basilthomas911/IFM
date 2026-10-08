@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
@@ -143,6 +143,8 @@ public sealed record PortfolioFundOrderTradeEditorModel
     public string BaseContractId { get; init; } = string.Empty;
     public DateTime CreatedOnUtc { get; init; }
     public string CreatedBy { get; init; } = string.Empty;
+    public int ExecutionOrderId { get; init; }
+    public int ExecutionTradeId { get; init; }
     public bool? HasFillEvidence { get; init; }
     public PortfolioFundOrderTradeEditorId Id => new(FundId, OrderId, TradeId);
     /// <summary>Gets underlying contract identifiers encoded by the reference.</summary>
@@ -183,7 +185,7 @@ public static class PortfolioFundOrderEditorPolicy
         if (order.Status != nameof(FundCompositionState.Draft) || order.Trades.Length >= MaximumTradeCount) return false;
         if (order.Trades.Length == 0) return true;
         var opening = order.Trades.SingleOrDefault(trade => trade.PrimaryTrade);
-        return opening is not null && opening.TradeState == TradeState.TradeToOpen;
+        return opening is not null && opening.TradeState is TradeState.TradeToOpen or TradeState.Open;
     }
     /// <summary>Returns whether the order may be closed.</summary>
     public static bool CanCloseOrder(PortfolioFundOrderEditorModel order)

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
@@ -133,6 +133,70 @@ public class MarketDataFeedCommandService(
             }
             onCompleted?.Invoke();
         });
+
+    /// <summary>Registers observations and provider startup outcomes before exact leg commands are submitted.</summary>
+    /// <param name="observation">The live leg observation callback.</param>
+    /// <param name="started">The confirmed leg subscription callback.</param>
+    /// <param name="failed">The failed leg subscription callback.</param>
+    /// <returns>The listener startup operation.</returns>
+    /// <summary>Starts the three option monitoring callbacks for an independent trade view owner.</summary>
+    public async Task StartEstablishedOptionLegListenerAsync(Guid ownerId, Func<OptionTradeTickPriceDataUpdatedEvent, ValueTask> observation,
+        Func<FuturesOptionTickDataStreamingStartedCompleteEvent, ValueTask> started,
+        Func<FuturesOptionTickDataStreamingStartedFailEvent, ValueTask> failed)
+        => await _futuresOptionTickDataEventConsumer.StartMonitoringAsync(ownerId, observation, started, failed);
+
+    /// <summary>Stops only the specified view's option monitoring listener.</summary>
+    public async Task StopEstablishedOptionLegListenerAsync(Guid ownerId)
+        => await _futuresOptionTickDataEventConsumer.StopMonitoringAsync(ownerId);
+
+    public async Task StartEstablishedOptionLegListenerAsync(Func<OptionTradeTickPriceDataUpdatedEvent, ValueTask> observation,
+        Func<FuturesOptionTickDataStreamingStartedCompleteEvent, ValueTask> started,
+        Func<FuturesOptionTickDataStreamingStartedFailEvent, ValueTask> failed)
+        => await _futuresOptionTickDataEventConsumer.StartMonitoringAsync(observation, started, failed);
+
+    /// <summary>Starts exact established trade legs through command actors using reviewed persisted definitions.</summary>
+    /// <param name="feedIds">Independent owner identities for the selected legs.</param>
+    /// <param name="baseContracts">Current underlying contracts available to the view.</param>
+    /// <param name="valueDate">The active exchange session.</param>
+    /// <returns>The command submission operation; live readiness is observed from incoming leg data.</returns>
+    public async Task StartEstablishedOptionLegsAsync(Dictionary<FuturesOptionTickEntityId, string> feedIds,
+        ICollection<FuturesContractV3ReadModel> baseContracts, DateOnly valueDate)
+    {
+        var submitted = new List<KeyValuePair<FuturesOptionTickEntityId, string>>();
+        try
+        {
+            foreach (var feed in feedIds)
+            {
+                var result = await _marketDataQueryApi.GetFuturesOptionContractAsync(feed.Value);
+                var contract = result?.Success == true ? result.Value : null;
+                if (contract is null) throw new InvalidOperationException($"OptionMonitoring.REFERENCE.UNAVAILABLE: {feed.Value}");
+                var underlying = baseContracts.SingleOrDefault(value => value.ContractId == contract.UnderlyingContractId)
+                    ?? throw new InvalidOperationException($"OptionMonitoring.UNDERLYING.UNAVAILABLE: {contract.UnderlyingContractId}");
+                var started = await _marketDataFeedCommandApi.StartFuturesOptionTickDataStreamingAsync(
+                    feed.Key, contract, underlying, valueDate,
+                    DateOnly.FromDateTime(contract.ExpirationUtc?.UtcDateTime
+                        ?? throw new InvalidOperationException("OptionMonitoring.EXPIRY.UNAVAILABLE")), 0);
+                if (!started.Success) throw new InvalidOperationException(started.ErrorMessage);
+                submitted.Add(feed);
+            }
+        }
+        catch (Exception subscriptionFailure)
+        {
+            var failures = new List<Exception> { subscriptionFailure };
+            foreach (var feed in submitted)
+            {
+                try
+                {
+                    var stopped = await _marketDataFeedCommandApi.StopFuturesOptionTickDataStreamingAsync(feed.Key, feed.Value);
+                    if (!stopped.Success) failures.Add(new InvalidOperationException(stopped.ErrorMessage));
+                }
+                catch (Exception releaseFailure) { failures.Add(releaseFailure); }
+            }
+            if (failures.Count > 1)
+                throw new AggregateException("OptionMonitoring.SUBSCRIPTION.ROLLBACK_FAILED: one or more leg owners could not be released", failures);
+            throw;
+        }
+    }
 
     /// <summary>
     /// stop streaming futures tick data

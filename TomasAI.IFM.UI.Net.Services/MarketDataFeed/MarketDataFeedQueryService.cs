@@ -86,6 +86,48 @@ public class MarketDataFeedQueryService(IMarketDataFeedQueryApi marketDataFeedQu
                 EasternTime.ToUtc(endDate)),
             onCompleted);
 
+    /// <summary>Reads a timestamp window across session partitions, including the supplied operational date.</summary>
+    /// <param name="contractId">The displayed futures contract.</param>
+    /// <param name="symbol">The displayed futures symbol.</param>
+    /// <param name="valueDate">The operational value date, which may be held until EOD completes.</param>
+    /// <param name="startDate">The inclusive timestamp window start.</param>
+    /// <param name="endDate">The inclusive timestamp window end.</param>
+    /// <param name="onCompleted">Receives the ordered bars after every partition read succeeds.</param>
+    /// <returns>The asynchronous partition reads.</returns>
+    public async Task GetFuturesBarWindowAsync(string contractId, string symbol, DateOnly valueDate,
+        DateTime startDate, DateTime endDate, Action<FuturesBarDataReadModel[]> onCompleted)
+    {
+        var startUtc = EasternTime.ToUtc(startDate);
+        var endUtc = EasternTime.ToUtc(endDate);
+        if (endUtc < startUtc) throw new ArgumentOutOfRangeException(nameof(endDate));
+        var zone = TomasAI.IFM.Domain.MarketData.Shared.FuturesTradingValueDate.MarketTimeZone;
+        var firstDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(startUtc, zone));
+        var lastDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(endUtc, zone));
+        var valueDates = new SortedSet<DateOnly> { valueDate };
+        for (var date = firstDate; date <= lastDate; date = date.AddDays(1))
+        {
+            valueDates.Add(date);
+            var opensUtc = TimeZoneInfo.ConvertTimeToUtc(date.ToDateTime(new TimeOnly(18, 0)), zone);
+            if (opensUtc <= endUtc && date.DayOfWeek is >= DayOfWeek.Sunday and <= DayOfWeek.Thursday)
+                valueDates.Add(date.AddDays(1));
+        }
+
+        var bars = new List<FuturesBarDataReadModel>();
+        foreach (var partitionDate in valueDates)
+        {
+            var completed = false;
+            await GetFuturesBarDataAsync(contractId, symbol, partitionDate, startUtc, endUtc, values =>
+            {
+                bars.AddRange(values);
+                completed = true;
+            });
+            if (!completed) return;
+        }
+        onCompleted([.. bars.Where(bar => bar.BarDate >= startUtc && bar.BarDate <= endUtc)
+            .DistinctBy(bar => (bar.ContractId, bar.Symbol, bar.BarDate, bar.BarRateType))
+            .OrderBy(bar => bar.BarDate)]);
+    }
+
     /// <summary>
     /// return futures option spread data
     /// </summary>

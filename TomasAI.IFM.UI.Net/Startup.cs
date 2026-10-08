@@ -193,9 +193,12 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Contracts.IBrokerAccountCommandApi,
                 BrokerAccountCommandApi>();
             _container!.RegisterSingleton<IDatabaseBackupCommandApi, DatabaseBackupCommandApi>();
+            _container!.RegisterSingleton<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.ServiceApi.IScheduledTaskCommandApi, ScheduledTaskCommandApi>();
+            _container!.RegisterSingleton<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.ServiceApi.IScheduledTaskQueryApi, ScheduledTaskQueryApi>();
             _container!.RegisterSingleton<ITradePlacementCommandApi, TradePlacementCommandApi>();
             _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IStrategyPositionCommandApi,
                 StrategyPositionCommandApi>();
+            _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IEstablishedTradeQueryApi, EstablishedTradeQueryApi>();
             _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.ITradeOrderLifecycleApi,
                 TradeOrderLifecycleApi>();
             _container!.RegisterSingleton<IOptionPricerCommandApi, OptionPricerCommandApi>();
@@ -313,6 +316,7 @@ namespace TomasAI.IFM.UI.Net
             _container!.Register<IEconomicCalendarUIEventConsumer, EconomicCalendarUIEventConsumer>(Lifestyle.Transient);
             _container!.Register<ILookupTypeUIEventConsumer, LookupTypeUIEventConsumer>(Lifestyle.Transient);
             _container!.Register<ISystemAdminUIEventConsumer, SystemAdminUIEventConsumer>(Lifestyle.Transient);
+            _container!.Register<IScheduledTaskUIEventConsumer, ScheduledTaskUIEventConsumer>(Lifestyle.Transient);
             _container!.RegisterSingleton<IApplicationUIEventConsumer, ApplicationUIEventConsumer>();
             _container!.RegisterSingleton<IOptionTradeSpreadBarDataUIEventConsumer, OptionTradeSpreadBarDataUIEventConsumer>();
             _container!.RegisterSingleton<IFuturesItiSignalUIEventConsumer, FuturesItiSignalUIEventConsumer>();
@@ -374,6 +378,7 @@ namespace TomasAI.IFM.UI.Net
             _container.RegisterSingleton<TradePositionFeedEventService>();
             _container.RegisterSingleton<IUiServiceCatalog, UiServiceCatalog>();
             _container!.Register<IDatabaseBackupService, DatabaseBackupService>(Lifestyle.Transient);
+            _container!.Register<IScheduledTaskService, ScheduledTaskService>(Lifestyle.Transient);
             _container.Register<IReferenceDataService, ReferenceDataService>(Lifestyle.Transient);
             _container.Register<IEconomicCalendarService, EconomicCalendarService>(Lifestyle.Transient);
             _container!.RegisterSingleton<YieldCurveRateEditViewModel>();

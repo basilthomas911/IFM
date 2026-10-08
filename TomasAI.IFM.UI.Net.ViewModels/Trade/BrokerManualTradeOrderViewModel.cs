@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 ﻿using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -247,6 +247,20 @@ public sealed class BrokerManualTradeOrderViewModel
                 : ExecutionChannel.Manual,
             cancellationToken).ConfigureAwait(false);
         SubmittedTradeOrders = result.TradeOrders;
+        var executedOrder = result.TradeOrders.Single(value => value.Id.FundId == _trade.FundId);
+        var component = executedOrder.Components.Single();
+        var setup = await _appRoot.Services.PortfolioQueries.GetOrderAsync(_trade.OrderId, cancellationToken);
+        if (!setup.Success || setup.Value is null)
+            throw new InvalidOperationException("The submitted execution could not be linked: setup order is unavailable.");
+        var linked = await _appRoot.Services.PortfolioFundCommands.ChangeManualTradeStateAsync(new()
+        {
+            PortfolioId = _portfolioId, FundId = _trade.FundId, OrderId = _trade.OrderId,
+            TradeId = _trade.TradeId, ExpectedOrderVersion = setup.Value.AggregateVersion,
+            TradeState = TradeState.OrderSubmitted.ToString(), RequestedAtUtc = DateTime.UtcNow,
+            ExecutionOrderId = executedOrder.Id.OrderId, ExecutionTradeId = component.ReservedTradeId
+        }, cancellationToken);
+        if (!linked.Success) throw new InvalidOperationException(
+            "Order submitted, but its setup-to-execution link could not be persisted: " + linked.ErrorMessage);
         return result.PortfolioEventId;
     }
 
@@ -303,13 +317,13 @@ public sealed class BrokerManualTradeOrderViewModel
             if (!account.Success || account.Value is null)
                 throw new InvalidOperationException(
                     $"The emulator account is unavailable ({account.ErrorCode}): {account.ErrorMessage}");
-            if (account.Value.QualificationStatus != BrokerAccountQualificationStatus.Accepted ||
-                account.Value.Gate != BrokerAccountOperationalGate.Open || account.Value.ApprovalId == Guid.Empty)
+            if (!account.Value.DevelopmentQualificationsExempt && (account.Value.QualificationStatus != BrokerAccountQualificationStatus.Accepted ||
+                account.Value.Gate != BrokerAccountOperationalGate.Open || account.Value.ApprovalId == Guid.Empty))
                 throw new InvalidOperationException(
                     $"The emulator account cannot accept opening risk. " +
                     $"Qualification={account.Value.QualificationStatus}; Gate={account.Value.Gate}; " +
                     $"Reason={account.Value.Reason}");
-            approvalReference = account.Value.ApprovalId.ToString("N");
+            approvalReference = account.Value.DevelopmentQualificationsExempt ? "DevelopmentEmulatorQualificationExempt" : account.Value.ApprovalId.ToString("N");
         }
 
         var notional = Math.Abs(limit * quantity * multiplier);

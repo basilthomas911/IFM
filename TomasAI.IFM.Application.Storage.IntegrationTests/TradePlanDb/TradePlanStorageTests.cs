@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -21,8 +21,9 @@ public sealed class TradePlanStorageFixture
     public TradePlanStorageFixture()
     {
         var settings = new DbConnectionSettings().Add(
-            TradeDbContext.TradeDbConnection,
-            "Contact Points=localhost;Port=9042;Default Keyspace=trade_test_db",
+            TradePlanDbContext.TradePlanDbConnection,
+            Environment.GetEnvironmentVariable("IFM_TEST_TRADE_PLAN_CONNECTION")
+                ?? "Contact Points=localhost;Port=9042;Default Keyspace=trade_test_db",
             "System.Data.ScyllaDb");
         var logger = Substitute.For<ILogger<DbProvider>>();
         var schema = new TradePlanSchemaDb(settings, logger);
@@ -44,6 +45,38 @@ public sealed class TradePlanStorageTests(TradePlanStorageFixture fixture)
     : IClassFixture<TradePlanStorageFixture>
 {
     [Fact]
+    public async Task Iron_condor_legacy_snapshot_round_trips_and_duplicate_is_skipped()
+    {
+        var plan = Plan(Random.Shared.Next(3_500_001, 4_000_000), 1, 42m, material: false);
+        plan = plan with
+        {
+            IronCondorTradePlanSnapshot = new()
+            {
+                Position = plan.Position, SourceEventId = Guid.NewGuid(), SequenceId = plan.PlanRevision,
+                OrderId = plan.Position.Id.Trade.OrderId, TradeId = plan.Position.Id.Trade.TradeId,
+                ValueDate = plan.ValueDate, TradePnl = 42, ForwardLossRatio = 0.5, MScore = 0.7,
+                UnavailableReasons = ["analytics not captured"]
+            }
+        };
+        plan = plan with { ContentHash = TradePlanContractIdentity.PlanHash(plan) };
+        await fixture.TradePlanDb.ProjectMaterialAsync(plan);
+        await fixture.TradePlanDb.ProjectMaterialAsync(plan);
+        var current = await fixture.TradePlanDb.GetCurrentAsync(plan.Position.Id, plan.Position.StrategyKind, plan.ValueDate);
+        current.Should().BeEquivalentTo(plan);
+        var scalar = await fixture.TradePlanDb.Database
+            .Use("MonitoringScalarReadback", "SELECT tradePnl,forwardLossRatio,mScore,inputStatus,sourceEventId FROM iron_condor_trade_plan WHERE portfolioId=? AND fundId=? AND orderId=? AND tradeId=? AND positionId=? AND valueDate=? AND planRevision=?;")
+            .SetParameters(new MonitoringReadbackParameters(plan))
+            .ExecuteSingleAsync(record => (record.GetDecimal(0), record.GetDouble(1), record.GetDouble(2), record.GetString(3)));
+        scalar.Should().Be((42m, 0.5, 0.7, "Unavailable"));
+    }
+
+    readonly record struct MonitoringReadbackParameters(StrategyTradePlanSnapshot Plan) : IBindValue
+    {
+        public object Bind() => new object?[] { Plan.Position.Id.Trade.PortfolioId, Plan.Position.Id.Trade.FundId,
+            Plan.Position.Id.Trade.OrderId, Plan.Position.Id.Trade.TradeId, Plan.Position.Id.PositionId, Plan.ValueDate, Plan.PlanRevision };
+    }
+
+    [Fact]
     public async Task Material_revisions_round_trip_in_descending_history_order_and_are_idempotent()
     {
         var suffix = Random.Shared.Next(10_000, 900_000);
@@ -64,7 +97,7 @@ public sealed class TradePlanStorageTests(TradePlanStorageFixture fixture)
     }
 
     [Fact]
-    public async Task Non_material_revision_does_not_replace_the_current_projected_plan()
+    public async Task Non_material_iron_condor_revision_is_appended_and_becomes_current()
     {
         var suffix = Random.Shared.Next(900_001, 1_800_000);
         var material = Plan(suffix, 1, 10m, material: true);
@@ -78,22 +111,22 @@ public sealed class TradePlanStorageTests(TradePlanStorageFixture fixture)
         var history = await fixture.TradePlanDb.GetHistoryAsync(
             material.Position.Id, material.Position.StrategyKind, material.ValueDate, 10);
 
-        current!.PlanRevision.Should().Be(1);
-        history.Items.Should().ContainSingle();
+        current!.PlanRevision.Should().Be(2);
+        history.Items.Select(plan => plan.PlanRevision).Should().Equal(2, 1);
     }
 
     [Fact]
-    public async Task Same_revision_with_a_different_hash_is_rejected()
+    public async Task Same_revision_with_a_different_hash_is_dropped_without_replacing_original()
     {
         var suffix = Random.Shared.Next(1_800_001, 2_600_000);
         var original = Plan(suffix, 1, 10m, material: true);
         await fixture.TradePlanDb.ProjectMaterialAsync(original);
 
         var conflicting = original with { ContentHash = new string('F', 64) };
-        var action = () => fixture.TradePlanDb.ProjectMaterialAsync(conflicting);
-
-        await action.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*conflicts with a different content hash*");
+        await fixture.TradePlanDb.ProjectMaterialAsync(conflicting);
+        var current = await fixture.TradePlanDb.GetCurrentAsync(
+            original.Position.Id, original.Position.StrategyKind, original.ValueDate);
+        current.Should().BeEquivalentTo(original);
     }
 
     [Fact]

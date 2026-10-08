@@ -10,6 +10,7 @@ public sealed class SchedulerRuntimeService(
     SchedulerHealthState health,
     SchedulerHostOptions options,
     ActiveRunRegistry activeRuns,
+    SchedulerOwnershipLease ownership,
     ILogger<SchedulerRuntimeService> logger) : IHostedService
 {
     private IScheduler? _scheduler;
@@ -27,6 +28,12 @@ public sealed class SchedulerRuntimeService(
             _scheduler = await schedulerFactory.GetScheduler(cancellationToken);
             await _scheduler.Standby(cancellationToken);
             await reconciler.ReconcileAsync(_scheduler, cancellationToken);
+            await ownership.EnsureOwnedAsync(cancellationToken);
+            if (options.ActorManaged)
+            {
+                health.Set(SchedulerServiceState.Starting, true, true, false, "Quartz is in standby pending actor reservation recovery and installation reconciliation.");
+                return;
+            }
             await _scheduler.Start(cancellationToken);
             health.Set(
                 SchedulerServiceState.Ready,
@@ -60,13 +67,17 @@ public sealed class SchedulerRuntimeService(
             return;
         }
 
-        await _scheduler.Standby(CancellationToken.None);
+        using var standbyDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(options.ProcessTerminationTimeoutSeconds));
+        try { await _scheduler.Standby(standbyDeadline.Token).WaitAsync(standbyDeadline.Token); }
+        catch (OperationCanceledException) { logger.LogError("Quartz standby timed out during shutdown."); }
         activeRuns.CancelAll();
         var shutdown = _scheduler.Shutdown(waitForJobsToComplete: true, CancellationToken.None);
         if (await Task.WhenAny(shutdown, Task.Delay(options.ShutdownTimeout, CancellationToken.None)) != shutdown)
         {
             logger.LogError("Quartz jobs did not complete within the configured {Timeout}; shutdown continues after Job Object cancellation.", options.ShutdownTimeout);
-            await _scheduler.Shutdown(waitForJobsToComplete: false, CancellationToken.None);
+            using var shutdownDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(options.ProcessTerminationTimeoutSeconds));
+            await _scheduler.Shutdown(waitForJobsToComplete: false, shutdownDeadline.Token).WaitAsync(shutdownDeadline.Token);
         }
+        else await shutdown;
     }
 }

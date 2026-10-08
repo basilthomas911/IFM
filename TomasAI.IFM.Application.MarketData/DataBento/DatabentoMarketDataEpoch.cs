@@ -63,6 +63,7 @@ public sealed class DatabentoMarketDataEpochFactory : IDatabentoMarketDataEpochF
 
 internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
 {
+    private readonly ITickAggregationEventPublisher _optionObservations;
     private readonly Pricing.IOptionTradeEvidenceWriter? _tradeEvidence;
     private readonly IDatabentoFeedFactory _feeds;
     private readonly ITickAggregationEventPublisher _publisher;
@@ -101,6 +102,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         ValueDate = valueDate;
         _feeds = feeds;
         _publisher = new ReferenceCountedTickAggregationEventPublisher(publisher);
+        _optionObservations = publisher;
         _options = options;
         _timeProvider = timeProvider;
         _optionRoutes = new DatabentoOptionRouteRegistry(options.MaximumConcurrentOptionChains);
@@ -705,7 +707,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             if (!_qualifiedChains.TryGetValue(dataset, out var runtime))
             {
                 runtime = new(aggregation.GenerationId, ValueDate, _feeds, _options.FeedOptions with { Dataset = dataset }, aggregation, _lastPrices!, _timeProvider,
-                    detail => { Volatile.Write(ref _optionChainFault, 1); _terminalFaultHandler?.Invoke(detail); }, _options.OptionPricingRefresh, _tradeEvidence);
+                    detail => { Volatile.Write(ref _optionChainFault, 1); _terminalFaultHandler?.Invoke(detail); }, _options.OptionPricingRefresh, _tradeEvidence, _optionObservations);
                 _qualifiedChains.Add(dataset, runtime);
             }
             return await runtime.AcquireAsync(request, cancellationToken).ConfigureAwait(false);

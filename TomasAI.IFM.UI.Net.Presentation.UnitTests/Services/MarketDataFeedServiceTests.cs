@@ -164,6 +164,36 @@ public sealed class MarketDataFeedServiceTests
         await _tradeSignalConsumer.Received(1).StopAsync(siteId);
     }
 
+    [Fact]
+    public async Task Established_monitoring_listener_forwards_provider_outcomes_with_observations()
+    {
+        var model = CreateModel();
+        Func<OptionTradeTickPriceDataUpdatedEvent, ValueTask> observation = _ => ValueTask.CompletedTask;
+        Func<FuturesOptionTickDataStreamingStartedCompleteEvent, ValueTask> started = _ => ValueTask.CompletedTask;
+        Func<FuturesOptionTickDataStreamingStartedFailEvent, ValueTask> failed = _ => ValueTask.CompletedTask;
+        await model.StartEstablishedOptionLegListenerAsync(observation, started, failed);
+        await _optionTickConsumer.Received(1).StartMonitoringAsync(observation, started, failed);
+    }
+
+    [Fact]
+    public async Task Established_monitoring_cleanup_releases_only_the_selected_owner()
+    {
+        var model = CreateModel();
+        var firstOwner = Guid.NewGuid();
+        var secondOwner = Guid.NewGuid();
+        Func<OptionTradeTickPriceDataUpdatedEvent, ValueTask> observation = _ => ValueTask.CompletedTask;
+        Func<FuturesOptionTickDataStreamingStartedCompleteEvent, ValueTask> started = _ => ValueTask.CompletedTask;
+        Func<FuturesOptionTickDataStreamingStartedFailEvent, ValueTask> failed = _ => ValueTask.CompletedTask;
+        await model.StartEstablishedOptionLegListenerAsync(firstOwner, observation, started, failed);
+        await model.StartEstablishedOptionLegListenerAsync(secondOwner, observation, started, failed);
+        await model.StopEstablishedOptionLegListenerAsync(firstOwner);
+        await _optionTickConsumer.Received(1).StartMonitoringAsync(firstOwner, observation, started, failed);
+        await _optionTickConsumer.Received(1).StartMonitoringAsync(secondOwner, observation, started, failed);
+        await _optionTickConsumer.Received(1).StopMonitoringAsync(firstOwner);
+        await _optionTickConsumer.DidNotReceive().StopMonitoringAsync(secondOwner);
+        await _optionTickConsumer.DidNotReceive().StopAsync();
+    }
+
     MarketDataFeedCommandService CreateModel()
         => new(
             _commandApi,

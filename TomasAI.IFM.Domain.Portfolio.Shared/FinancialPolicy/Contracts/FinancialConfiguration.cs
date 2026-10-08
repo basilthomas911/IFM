@@ -61,6 +61,9 @@ public sealed record FinancialBookConfiguration
     [Key(8)] public string SourceWatermark { get; init; } = string.Empty;
     [Key(9)] public string ValuationWatermark { get; init; } = string.Empty;
     [Key(10)] public bool MigrationQualified { get; init; }
+    /// <summary>Trusted runtime policy only; never accepted from or stored in a financial message.</summary>
+    [IgnoreMember, Newtonsoft.Json.JsonIgnore, System.Text.Json.Serialization.JsonIgnore]
+    public bool DevelopmentQualificationsExempt { get; init; }
 }
 
 [MessagePackObject]

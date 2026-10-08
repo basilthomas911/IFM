@@ -1611,3 +1611,8 @@ Market-data Feed and Analytics Realtime actors use supervisor generation replace
 - A running actor with closed admission must not appear healthy merely because its queue is empty.
 
 This is logical abandonment and effect fencing, not forced termination of a managed thread. Already accepted transport/storage operations may complete. Complete process termination remains the hard failure boundary. See [event modeling conventions](Actor-Event-Modeling-Conventions.md) for authoritative state and durable financial event ownership.
+
+
+## Iron Condor monitoring source snapshots
+
+The monitoring Function saves each full plan snapshot event before submitting its one-attempt Scylla projection. Loading its stream reads only the latest persisted snapshot event, without historical replay or a resident plan cache. Project the committed payload directly; do not reread or validate its source, reconcile source and Scylla history, or repair dropped projections. Log failed writes and continue with the next snapshot. See the [monitoring snapshot event modeling convention](Actor-Event-Modeling-Conventions.md#iron-condor-monitoring-snapshot-persistence). This policy is confined to monitoring projections; financial persistence retains its existing guarantees.

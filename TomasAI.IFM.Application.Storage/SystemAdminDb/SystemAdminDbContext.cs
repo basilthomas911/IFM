@@ -210,6 +210,16 @@ public sealed class SystemAdminDbContext(
         };
     }
 
+    /// <inheritdoc />
+    public async ValueTask<DatabaseBackupPhaseReadModel[]> GetBackupPhasesAsync(GetDatabaseBackupLogQuery query, CancellationToken cancellationToken)
+        => [.. await Use("SystemAdminDbSql.GetBackupPhases", SystemAdminDbSql.GetBackupPhases)
+            .SetParameters(new PhasePageParameter(query.OperationId!.Value.Value, query.AfterPhaseRevision, query.PageSize))
+            .ExecuteQueryAsync(row => new DatabaseBackupPhaseReadModel
+            {
+                Revision = row.GetLong(0), ObservedUtc = row.GetDateTime(1).ToUtcOffset(),
+                Phase = row.GetShort(2).ToEnum<DatabaseRecoveryPhase>(), Outcome = row.GetShort(3).ToEnum<DatabaseRecoveryOutcome>(), ProgressPercent = row.GetInt(4)
+            }, cancellationToken).ConfigureAwait(false)];
+
     internal static DatabaseProtectionSetReadModel MapToProtectionSet(IObjectDataRecord row) => new()
     {
         ProtectionSetId = new DatabaseProtectionSetId(row.GetString(0)),
@@ -243,6 +253,7 @@ public sealed class SystemAdminDbContext(
             Phase = row.GetShort(5).ToEnum<DatabaseRecoveryPhase>(),
             Outcome = row.GetShort(6).ToEnum<DatabaseRecoveryOutcome>(),
             ProgressPercent = row.GetInt(7),
+            Engine = row.GetShort(18).ToEnum<DatabaseEngine>(),
             StateRevision = row.GetLong(8),
             CreatedUtc = row.GetDateTime(9).ToUtcOffset(),
             CompletedUtc = row.IsNull(10) ? null : row.GetDateTime(10).ToUtcOffset(),

@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using MessagePack;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
@@ -13,7 +13,8 @@ public sealed record WorkerOptionChainRequest(
     [property: Key(4)] DateOnly MaturityDate,
     [property: Key(5)] DateTimeOffset LeaseExpiresAtUtc,
     [property: Key(6)] ImmutableArray<WorkerOptionDefinition> Options,
-    [property: Key(7)] string? ExpectedContextDigest = null);
+    [property: Key(7)] string? ExpectedContextDigest = null,
+    [property: Key(8)] bool SeparateContractConnection = false);
 
 [MessagePackObject]
 public sealed record WorkerOptionDefinition(

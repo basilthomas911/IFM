@@ -1,4 +1,4 @@
-namespace TomasAI.IFM.UI.Net.Views.Trade
+﻿namespace TomasAI.IFM.UI.Net.Views.Trade
 {
     partial class TradeOrderEditorForm
     {
@@ -64,8 +64,6 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             ddlOrderActionType = new ComboBox();
             lblTradeId = new Label();
             pnlTrades = new Panel();
-            ddlTradeState = new ComboBox();
-            lblTradeStateTarget = new Label();
             btnChangeTradeState = new Button();
             btnRemoveTrade = new Button();
             btnAddTrade = new Button();
@@ -239,7 +237,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             btnLoadOrder.Name = "btnLoadOrder";
             btnLoadOrder.Size = new Size(174, 42);
             btnLoadOrder.TabIndex = 4;
-            btnLoadOrder.Text = "Load Order";
+            btnLoadOrder.Text = "Load Trade";
             btnLoadOrder.UseVisualStyleBackColor = true;
             btnLoadOrder.Click += btnLoadOrder_Click;
             // 
@@ -529,8 +527,6 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             // pnlTrades
             // 
             pnlTrades.BackColor = Color.FromArgb(64, 64, 64);
-            pnlTrades.Controls.Add(ddlTradeState);
-            pnlTrades.Controls.Add(lblTradeStateTarget);
             pnlTrades.Controls.Add(btnChangeTradeState);
             pnlTrades.Controls.Add(btnRemoveTrade);
             pnlTrades.Controls.Add(btnAddTrade);
@@ -542,28 +538,6 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             pnlTrades.Name = "pnlTrades";
             pnlTrades.Size = new Size(1455, 222);
             pnlTrades.TabIndex = 4;
-            //
-            // ddlTradeState
-            //
-            ddlTradeState.DropDownStyle = ComboBoxStyle.DropDownList;
-            ddlTradeState.Enabled = false;
-            ddlTradeState.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            ddlTradeState.FormattingEnabled = true;
-            ddlTradeState.Location = new Point(1260, 184);
-            ddlTradeState.Name = "ddlTradeState";
-            ddlTradeState.Size = new Size(174, 24);
-            ddlTradeState.TabIndex = 10;
-            //
-            // lblTradeStateTarget
-            //
-            lblTradeStateTarget.AutoSize = true;
-            lblTradeStateTarget.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            lblTradeStateTarget.ForeColor = Color.White;
-            lblTradeStateTarget.Location = new Point(1260, 163);
-            lblTradeStateTarget.Name = "lblTradeStateTarget";
-            lblTradeStateTarget.Size = new Size(86, 17);
-            lblTradeStateTarget.TabIndex = 9;
-            lblTradeStateTarget.Text = "Target State:";
             //
             // btnChangeTradeState
             //
@@ -578,7 +552,6 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             btnChangeTradeState.TabIndex = 8;
             btnChangeTradeState.Text = "Change State";
             btnChangeTradeState.UseVisualStyleBackColor = true;
-            btnChangeTradeState.Click += btnChangeTradeState_Click;
             //
             // btnRemoveTrade
             //
@@ -763,8 +736,6 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
         private System.Windows.Forms.Button btnAddTrade;
         private System.Windows.Forms.Button btnRemoveTrade;
         private System.Windows.Forms.Button btnChangeTradeState;
-        private System.Windows.Forms.ComboBox ddlTradeState;
-        private System.Windows.Forms.Label lblTradeStateTarget;
         private System.Windows.Forms.Panel pnlTradeBlotter;
         private System.Windows.Forms.TextBox txtDaysToExpiry;
         private System.Windows.Forms.Label lblDaysToExpiry;

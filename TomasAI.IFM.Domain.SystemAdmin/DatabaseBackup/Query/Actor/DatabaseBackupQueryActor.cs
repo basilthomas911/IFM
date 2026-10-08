@@ -32,6 +32,8 @@ public class DatabaseBackupQueryActor(
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
+            ["GetBackupSetup"] = static message => message.AsQuery<GetDatabaseBackupSetupQuery, DatabaseBackupSetupReadModel>()!,
+            ["GetBackupLog"] = static message => message.AsQuery<GetDatabaseBackupLogQuery, DatabaseBackupLogReadModel>()!,
             ["GetProtectionSets"] = static message => message.AsQuery<GetDatabaseProtectionSetsQuery, DatabaseProtectionSetReadModel[]>()!,
             ["GetPolicy"] = static message => message.AsQuery<GetDatabaseBackupPolicyQuery, DatabaseBackupPolicyReadModel>()!,
             ["GetBackupOperation"] = static message => message.AsQuery<GetDatabaseBackupOperationQuery, DatabaseBackupOperationReadModel>()!,
@@ -65,6 +67,9 @@ public class DatabaseBackupQueryActor(
     static readonly IReadOnlyDictionary<Type, Func<ISystemAdminDbContext, IQueryActorContext<DatabaseBackupQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<ISystemAdminDbContext, IQueryActorContext<DatabaseBackupQueryActor>, IQuery, CancellationToken, ValueTask>>
         {
+            [typeof(GetDatabaseBackupSetupQuery)] = static (dbContext, context, query, cancellationToken) => ((GetDatabaseBackupSetupQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
+            [typeof(GetDatabaseBackupLogQuery)] = static (dbContext, context, query, cancellationToken) =>
+                ((GetDatabaseBackupLogQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
             [typeof(GetDatabaseProtectionSetsQuery)] = static (dbContext, context, query, cancellationToken) =>
                 ((GetDatabaseProtectionSetsQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
             [typeof(GetDatabaseBackupPolicyQuery)] = static (dbContext, context, query, cancellationToken) =>

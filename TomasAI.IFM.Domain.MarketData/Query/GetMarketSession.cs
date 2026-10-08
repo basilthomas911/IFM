@@ -28,18 +28,20 @@ public static class GetMarketSession
             throw new ArgumentOutOfRangeException(nameof(operationalValueDate));
 
         var isOpen = FuturesTradingValueDate.TryGet(instant, out var activeValueDate);
-        var state = FuturesMarketSessionPolicy.GetState(instant);
+        var endOfDayPending = isOpen && activeValueDate != operationalValueDate;
+        var state = endOfDayPending ? FuturesMarketState.Closed : FuturesMarketSessionPolicy.GetState(instant);
         var marketTime = TimeZoneInfo.ConvertTime(instant, FuturesTradingValueDate.MarketTimeZone);
         return new MarketSessionReadModel
         {
             OperationalValueDate = operationalValueDate,
-            ActiveValueDate = isOpen ? activeValueDate : null,
+            ActiveValueDate = isOpen && !endOfDayPending ? activeValueDate : null,
             MarketTime = marketTime.DateTime,
             SessionStartUtc = FuturesTradingValueDate.GetSessionStartUtc(operationalValueDate).UtcDateTime,
             SessionEndUtc = FuturesTradingValueDate.GetSessionEndUtc(operationalValueDate).UtcDateTime,
             Revision = 1,
             AsOfUtc = instant.UtcDateTime,
             State = state,
+            IsEndOfDayPending = endOfDayPending,
             NextTransitionUtc = FuturesMarketSessionPolicy.GetNextTransitionUtc(instant).UtcDateTime
         };
     }

@@ -82,6 +82,10 @@ internal sealed class PostgreSqlNativeProcessRunner(PostgreSqlBackupOptions opti
         }
         var output = await outputTask.ConfigureAwait(false);
         var error = await errorTask.ConfigureAwait(false);
+        // Native utilities may echo credentials. Remove values supplied in their private environment first.
+        foreach (var value in invocation.Environment.Where(item => item.Key.Contains("PASSWORD", StringComparison.OrdinalIgnoreCase) || item.Key.Contains("SECRET", StringComparison.OrdinalIgnoreCase)).Select(item => item.Value))
+            if (!string.IsNullOrEmpty(value)) { output = output.Replace(value, "[REDACTED]", StringComparison.Ordinal); error = error.Replace(value, "[REDACTED]", StringComparison.Ordinal); }
+        TomasAI.IFM.Application.DatabaseBackup.Contracts.DatabaseRecoveryOutputScope.Append($"{invocation.Tool} stdout:\n{output}\nstderr:\n{error}\nExitCode={process.ExitCode}");
         var result = new PostgreSqlNativeResult(
             process.ExitCode,
             output,

@@ -72,11 +72,12 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
         Require(scope.FundId is > 0 && request.DeploymentKey.Kind == Domain.Reference.Shared.StrategyCatalog.StrategyCatalogKind.Deployment
             && request.DeploymentKey.Id != Guid.Empty && request.DeploymentKey.Version > 0 && !string.IsNullOrWhiteSpace(request.UnderlyingId)
             && request.UnderlyingId.Length <= 128, FinancialReasons.InvalidContract, "Exact Fund, deployment and underlying are required.");
+        book = developmentPolicy?.TradingBook(book) ?? book;
         var fund = book.Funds.Single(x => x.FundId == scope.FundId);
         var deployment = fund.Deployments.SingleOrDefault(x => x.Reference.DeploymentKey == request.DeploymentKey);
         Require(deployment is not null, FinancialReasons.AuthorityDenied, "Fund does not authorize this exact deployment.");
         var state = (string)(await db.ScalarAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select09, [scope.PortfolioId], ct))!;
-        bool ready = state == "Active" && book.MigrationQualified && fund.CanSpend && deployment!.MaximumRiskPerTrade > 0 && deployment.Reference.ValidUntilUtc > DateTime.UtcNow;
+        bool ready = (book.DevelopmentQualificationsExempt || state == "Active") && book.MigrationQualified && fund.CanSpend && deployment!.MaximumRiskPerTrade > 0 && deployment.Reference.ValidUntilUtc > DateTime.UtcNow;
         if (ready) await ValidateFundSourcesAsync(db, book, fund.FundId, true, ct);
         bool Relevant(CapacityScopeKind kind, string key) => kind switch
         {

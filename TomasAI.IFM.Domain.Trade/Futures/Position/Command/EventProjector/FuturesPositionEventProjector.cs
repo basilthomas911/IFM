@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Command.Actor;
@@ -29,7 +29,7 @@ public sealed class FuturesPositionEventProjector
         descriptors =
         [
             DescribeNotification<FuturesPositionChangedEvent, StrategyPositionId>(ProjectAsync),
-            DescribeNotification<FuturesTradePlanUpdatedEvent, FuturesTradePlanId>(ProjectTradePlanAsync)
+            DescribeNotification<FuturesTradePlanUpdatedEvent, FuturesTradePlanId>(ProjectTradePlanAsync, useDurableReplay: false)
         ];
     }
 

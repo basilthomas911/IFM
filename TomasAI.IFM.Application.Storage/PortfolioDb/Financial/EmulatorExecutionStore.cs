@@ -7,12 +7,12 @@ using static TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbFinancialSup
 namespace TomasAI.IFM.Application.Storage.PortfolioFinancial;
 
 /// <summary>Durable internal emulator admission. Same-identity retries observe one broker order even after acknowledgement loss.</summary>
-public sealed class EmulatorExecutionStore(IPostgresEventTransaction transactions)
+public sealed class EmulatorExecutionStore(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null)
 {
     public Task<EmulatorOrderSubmittedEvent> SubmitAsync(SubmitEmulatorOrderCommand request, CancellationToken token = default)
         => transactions.ExecuteAsync(async (db, ct) =>
     {
-        var authority = await LockAuthorityAsync(db, request.PortfolioId, null, ct);
+        var authority = await LockAuthorityAsync(db, request.PortfolioId, null, ct, developmentPolicy);
         var replay = await ReadOperationAsync<EmulatorOrderSubmittedEvent>(db, request.PortfolioId, request.OperationId, request.InputSha256, ct);
         if (replay is not null) return replay;
         var order = request.Body.Order; var now = DateTime.UtcNow;

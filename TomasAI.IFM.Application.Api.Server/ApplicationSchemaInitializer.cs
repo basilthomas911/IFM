@@ -27,6 +27,7 @@ public sealed class ApplicationSchemaInitializer(
         var initializers = new Func<Task>[]
         {
             services.GetRequiredService<TradeSchemaDb>().CreateAllAsync,
+            services.GetRequiredService<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskSchemaDb>().CreateAllAsync,
             services.GetRequiredService<TradePlanSchemaDb>().CreateAllAsync,
             services.GetRequiredService<PortfolioSchemaDb>().CreateAllAsync,
             services.GetRequiredService<ReferenceSchemaDb>().CreateAllAsync,

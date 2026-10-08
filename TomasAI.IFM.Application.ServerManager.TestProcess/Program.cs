@@ -10,6 +10,20 @@ internal static class Program
     private static async Task<int> Main(string[] args)
     {
         var options = Parse(args);
+        if (options.TryGetValue("contain-child", out var childPidPath))
+        {
+            using var containment = TomasAI.IFM.Application.ServerManager.SchedulerHost.ScheduledProcessContainment.Create();
+            var start = new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false };
+            start.ArgumentList.Add(typeof(TestProcessMarker).Assembly.Location);
+            start.ArgumentList.Add("--delay-ms"); start.ArgumentList.Add("60000");
+            containment.Prepare(start);
+            using var child = System.Diagnostics.Process.Start(start)!;
+            containment.Assign(child);
+            await File.WriteAllTextAsync(childPidPath + ".tmp", child.Id.ToString());
+            File.Move(childPidPath + ".tmp", childPidPath, overwrite: true);
+            await Task.Delay(60000);
+            return 0;
+        }
         var stdoutCount = GetInt(options, "stdout-count");
         var stderrCount = GetInt(options, "stderr-count");
 

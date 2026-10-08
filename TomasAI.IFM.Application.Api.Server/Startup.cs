@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Actor;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
@@ -698,7 +698,9 @@ public static class Startup
                 .Add("OptionPricerDbConnection", config.GetConnectionString("OptionPricerDbConnection")!, "System.Data.ScyllaDb")
                 .Add("ReferenceDbConnection", config.GetConnectionString("ReferenceDbConnection")!, "System.Data.ScyllaDb")
                 .Add("SecuritiesDbConnection", config.GetConnectionString("SecuritiesDbConnection")!, "System.Data.ScyllaDb")
-                .Add("TradeDbConnection", config.GetConnectionString("TradeDbConnection")!, "System.Data.ScyllaDb");
+                .Add("TradeDbConnection", config.GetConnectionString("TradeDbConnection")!, "System.Data.ScyllaDb")
+                .Add("TradePlanDbConnection", config.GetConnectionString("TradePlanDbConnection")
+                    ?? throw new InvalidOperationException("TradePlanDbConnection must target the Trade Plan ScyllaDB keyspace."), "System.Data.ScyllaDb");
             });
             services.AddSingleton<IDbCache, DbCache>();
             services.AddSingleton<IDbContextResolver>(_ => new DbContextResolver(e => GetContainerInstance(siContainer, e)!));
@@ -822,6 +824,7 @@ public static class Startup
             services.AddSingleton<ReferenceSchemaDb>();
             services.AddSingleton<SecuritiesSchemaDb>();
             services.AddSingleton<TradeSchemaDb>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskSchemaDb>();
             services.AddSingleton<TradePlanSchemaDb>();
             services.AddSingleton<SystemAdminSchemaDb>();
             services.AddSingleton<ConfigurationSchemaDb>();
@@ -929,7 +932,9 @@ public static class Startup
                     .Get<string[]>() ?? []
             };
             services.AddDatabentoMarketDataServices();
-            services.AddSingleton<IValueDateProvider, FuturesValueDateProvider>();
+            services.AddSingleton<FuturesValueDateProvider>();
+            services.AddSingleton<IValueDateProvider>(provider => provider.GetRequiredService<FuturesValueDateProvider>());
+            services.AddSingleton<ICompletedFuturesEndOfDayProjection>(provider => provider.GetRequiredService<FuturesMarketSessionAuthority>());
             services.AddSingleton<FuturesMarketSessionAuthority>();
             services.AddSingleton<IFuturesMarketSessionAuthority>(provider =>
                 provider.GetRequiredService<FuturesMarketSessionAuthority>());
@@ -1050,6 +1055,7 @@ public static class Startup
             services.AddSingleton<MarketOutlookProcessorMetrics>();
             services.AddSingleton<DatabentoWatchdogMetrics>();
             services.AddSingleton<DatasetWorkerAdmissionRegistry>();
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.IndividualOptionRiskReader>();
             services.AddSingleton<IRealtimeSourceAdmission>(provider =>
                 provider.GetRequiredService<DatasetWorkerAdmissionRegistry>());
             services.AddSingleton<DatasetPublicationIngress>();
@@ -1153,6 +1159,18 @@ public static class Startup
     {
         logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"register open generic handlers...",nameof(Startup),nameof(RegisterGenericTypes));
         siContainer.RegisterSingleton<IDataCacheService, DataCacheService>();
+        siContainer.RegisterInstance<TimeProvider>(TimeProvider.System);
+        siContainer.RegisterInstance<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.IScheduledTaskOutputReader>(
+            new TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskOutputReader(
+                config["ScheduledTasks:OutputRoot"] ?? Path.Combine(Environment.GetEnvironmentVariable("IFM_REPOSITORY_ROOT") ?? Directory.GetCurrentDirectory(), ".artifacts", "scheduled-tasks", "development", "TaskRuns")));
+        siContainer.RegisterInstance<TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ReadModels.IDatabaseBackupOutputReader>(
+            new TomasAI.IFM.Application.Storage.DatabaseBackupOutputReader(
+                config["DatabaseBackup:OutputRoot"] ?? Path.Combine(Environment.GetEnvironmentVariable("IFM_REPOSITORY_ROOT") ?? Directory.GetCurrentDirectory(), ".artifacts", "database-backup", "output")));
+        siContainer.RegisterSingleton<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskReadStore>();
+        siContainer.RegisterSingleton<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.IScheduledTaskReadStore>(
+            () => siContainer.GetInstance<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskReadStore>());
+        siContainer.RegisterSingleton<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.IScheduledTaskProjectionWriter>(
+            () => siContainer.GetInstance<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskReadStore>());
         RegisterTradeBrokerEmulator(siContainer, config, logger);
         siContainer.RegisterSingleton<IDatabaseBackupExecutionOutbox, DatabaseBackupExecutionOutbox>();
         var projectorReliabilityOptions = config
@@ -1214,7 +1232,8 @@ public static class Startup
         assemblies.AddRange(domainAssemblies);
         assemblies = assemblies.Distinct().ToList();
         var repositoryTypes = ObjectRepositoryDiscovery.Discover(assemblies)
-            .Where(static type => type != typeof(SystemAdminDbContext)
+            .Where(static type => type != typeof(TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskReadStore)
+                                  && type != typeof(SystemAdminDbContext)
                                   && type != typeof(EventSourceActorDbContext)
                                   && type != typeof(TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore))
             .ToArray();
@@ -1223,6 +1242,9 @@ public static class Startup
         siContainer.AddRegistration<IObjectRepository<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>>(
             siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
                 typeof(TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore)).Registration);
+        siContainer.AddRegistration<IObjectRepository<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskReadStore>>(
+            siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
+                typeof(TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskReadStore)).Registration);
         var eventSourceRegistration = EventLogQualification.Active is null
             ? Lifestyle.Singleton.CreateRegistration<EventSourceActorDbContext>(siContainer)
             : Lifestyle.Singleton.CreateRegistration(() => new EventSourceActorDbContext(
@@ -1366,6 +1388,7 @@ public static class Startup
         // configure the HTTP request pipeline...
         siContainer.RegisterInstance(
                 app.Services.GetRequiredService<IFuturesMarketSessionAuthority>());
+        siContainer.RegisterInstance(app.Services.GetRequiredService<ICompletedFuturesEndOfDayProjection>());
         app.Services.UseSimpleInjector(siContainer);
         siContainer.Verify();
         logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"configure HTTP request pipeline...",nameof(Startup),nameof(ConfigureRequestPipeline));

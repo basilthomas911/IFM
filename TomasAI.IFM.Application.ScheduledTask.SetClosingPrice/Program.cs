@@ -1,5 +1,8 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Serilog;
+using TomasAI.IFM.Framework.Telemetry.Logging;
+using TomasAI.IFM.Framework.Telemetry.Metrics;
 using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Application.ScheduledTask.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
@@ -15,7 +18,11 @@ internal static class Program
     public static async Task<int> Main(string[] args)
     {
         var builder = Host.CreateApplicationBuilder(args);
-        Log.Logger = new LoggerConfiguration().ReadFrom.Configuration(builder.Configuration).CreateLogger();
+        var logging = new LoggerConfiguration().ReadFrom.Configuration(builder.Configuration);
+        if (builder.Configuration.GetValue<bool>("Telemetry:Logs:Enabled"))
+            logging.WriteTo.Sink(new OtlpStructuredLogSink(builder.Configuration, "IFM-ScheduledTask-SetClosingPrice"));
+        Log.Logger = logging.CreateLogger();
+        builder.Services.AddIfmMetrics(builder.Configuration, "IFM-ScheduledTask-SetClosingPrice");
         builder.Services.AddSerilog();
         builder.Services.AddSingleton<NatsConnectionManager>();
         builder.Services.AddSingleton<IActorProducer>(services => new NatsActorProducer(

@@ -1,4 +1,4 @@
-using MessagePack;
+﻿using MessagePack;
 using Newtonsoft.Json;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
@@ -24,6 +24,9 @@ public record FuturesOptionTickEntityId : IActorEntityId
     [Key(1)]
     public DateOnly ValueDate { get; init; }
 
+    /// <summary>Identifies an independent monitoring owner; empty preserves legacy contract/date identity.</summary>
+    [Key(2)] public Guid MonitoringOwnerId { get; init; }
+
     /// <summary>
     /// Parameterless constructor required for MessagePack and some serializers.
     /// </summary>
@@ -34,10 +37,12 @@ public record FuturesOptionTickEntityId : IActorEntityId
     /// </summary>
     /// <param name="contractId">Futures option contract identifier.</param>
     /// <param name="valueDate">Trading (value) date.</param>
-    public FuturesOptionTickEntityId(string contractId, DateOnly valueDate)
+    /// <param name="monitoringOwnerId">Independent view ownership; empty retains the legacy shared identity.</param>
+    public FuturesOptionTickEntityId(string contractId, DateOnly valueDate, Guid monitoringOwnerId = default)
     {
         ContractId = contractId;
         ValueDate = valueDate;
+        MonitoringOwnerId = monitoringOwnerId;
     }
 
     /// <summary>
@@ -53,7 +58,9 @@ public record FuturesOptionTickEntityId : IActorEntityId
     /// <summary>
     /// Formats the identifier into a stable string key: ContractId.yyyy-MM-dd
     /// </summary>
-    public string Format() => string.Create(null, stackalloc char[64], $"{ContractId}.{ValueDate:yyyyMMdd}");
+    public string Format() => MonitoringOwnerId == Guid.Empty
+        ? string.Create(null, stackalloc char[64], $"{ContractId}.{ValueDate:yyyyMMdd}")
+        : $"{ContractId}.{ValueDate:yyyyMMdd}.{MonitoringOwnerId:N}";
 
     /// <summary>
     /// Returns a compact JSON representation.

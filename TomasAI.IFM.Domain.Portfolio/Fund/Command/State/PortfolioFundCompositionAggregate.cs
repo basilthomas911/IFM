@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
+﻿using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 
@@ -247,8 +247,13 @@ public sealed class PortfolioFundCompositionAggregate
             throw new KeyNotFoundException($"FundOrderTrade {request.TradeId} was not found.");
 
         var nextVersion = checked(order.AggregateVersion + 1);
+        if (request.ExecutionOrderId.HasValue != request.ExecutionTradeId.HasValue ||
+            request.ExecutionOrderId is <= 0 || request.ExecutionTradeId is <= 0)
+            throw new ArgumentException("Both execution order and trade identifiers must be positive when binding a trade.");
         var changed = trades.Select(x => x.TradeId == request.TradeId
-            ? x with { TradeState = state.ToString(), AggregateVersion = nextVersion }
+            ? x with { TradeState = state.ToString(), AggregateVersion = nextVersion,
+                ExecutionOrderId = request.ExecutionOrderId ?? x.ExecutionOrderId,
+                ExecutionTradeId = request.ExecutionTradeId ?? x.ExecutionTradeId }
             : x with { AggregateVersion = nextVersion }).ToArray();
         return SaveReservation(order with { AggregateVersion = nextVersion }, changed);
     }
@@ -540,7 +545,7 @@ public sealed class PortfolioFundCompositionAggregate
     static bool IsCompatibleClosingTrade(
         FundOrderTradeProjectionReadModel opening, AddManualFundOrderTradeRequest request) =>
         opening.PrimaryTrade &&
-        opening.TradeState == nameof(TradeState.TradeToOpen) &&
+        opening.TradeState is nameof(TradeState.TradeToOpen) or nameof(TradeState.Open) &&
         !request.PrimaryTrade &&
         request.TradeType == ClosingType(opening.TradeType) &&
         string.Equals(request.BaseContractSymbol, opening.BaseContractSymbol, StringComparison.OrdinalIgnoreCase) &&

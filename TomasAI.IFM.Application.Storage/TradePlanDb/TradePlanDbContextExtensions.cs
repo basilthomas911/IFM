@@ -1,3 +1,4 @@
+﻿using TomasAI.IFM.Framework.Serialization;
 using System.Globalization;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
@@ -12,6 +13,75 @@ internal static class TradePlanDbContextExtensions
 {
     extension(TradePlanDbContext context)
     {
+        /// <summary>Attempts persistence once; duplicate revisions are skipped without secondary-write repair.</summary>
+        /// <param name="plan">The immutable plan revision to write.</param>
+        /// <param name="cancellationToken">Cancels the single persistence attempt.</param>
+        /// <returns>The attempt; exceptions are logged and dropped by the public projection boundary.</returns>
+        internal async Task WriteTradePlanOnceAsync(
+            StrategyTradePlanSnapshot plan,
+            CancellationToken cancellationToken = default)
+        {
+            plan.Position.Id.RequireTradePlanScope(
+                plan.Position.StrategyKind,
+                plan.ValueDate);
+            if (!plan.MaterialChange && plan.Position.StrategyKind != TradeStrategyKind.IronCondor)
+                return;
+
+            var id = plan.Position.Id.Trade;
+            var table = plan.Position.StrategyKind.ToTradePlanTable();
+            var selectStatement = TradePlanDbCql.SelectExactPlan.ForTable(table);
+            var selectParameters = new GetExactTradePlan(
+                id.PortfolioId,
+                id.FundId,
+                id.OrderId,
+                id.TradeId,
+                plan.Position.Id.PositionId,
+                plan.ValueDate,
+                plan.PlanRevision);
+            var existing = await context.Database
+                .Use($"{nameof(TradePlanDbCql)}.{nameof(TradePlanDbCql.SelectExactPlan)}", selectStatement)
+                .SetParameters(selectParameters)
+                .ExecuteSingleAsync(TradePlanDbContext.MapToContentHash, cancellationToken)
+                .ConfigureAwait(false);
+
+            var payload = MessagePackBinarySerializer.Shared.Serialize(plan);
+            if (existing is not null)
+            {
+                if (!string.Equals(existing, plan.ContentHash, StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException(
+                        "Trade Plan projection revision conflicts with a different content hash.");
+                }
+
+                return;
+            }
+
+            var insertStatement = TradePlanDbCql.InsertPlan.ForTable(table);
+            var insertParameters = new InsertTradePlan(
+                id.PortfolioId,
+                id.FundId,
+                id.OrderId,
+                id.TradeId,
+                plan.Position.Id.PositionId,
+                plan.ValueDate,
+                plan.PlanRevision,
+                plan.CalculatedAtUtc,
+                plan.State.ToString(),
+                plan.RequiresExit,
+                plan.ContentHash,
+                payload);
+            await context.Database
+                .Use($"{nameof(TradePlanDbCql)}.{nameof(TradePlanDbCql.InsertPlan)}", insertStatement)
+                .SetParameters(insertParameters)
+                .ExecuteCommandAsync(cancellationToken)
+                .ConfigureAwait(false);
+            await IronCondorTradePlanProjection.ProjectAsync(context, plan, cancellationToken)
+                .ConfigureAwait(false);
+            await context
+                .ProjectActivityAsync(plan, payload, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         /// <summary>
         /// Projects the date-indexed activity entry for a material Trade Plan revision.
         /// </summary>

@@ -11,6 +11,8 @@ public sealed class SchedulerOperationalMonitor(
     QuartzScheduleReconciler reconciler,
     SchedulerBootstrapState bootstrap,
     SchedulerHealthState health,
+    SchedulerOwnershipLease ownership,
+    ActiveRunRegistry activeRuns,
     ILogger<SchedulerOperationalMonitor> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -26,6 +28,7 @@ public sealed class SchedulerOperationalMonitor(
             {
                 await Task.Delay(TimeSpan.FromSeconds(options.HealthProbeIntervalSeconds), stoppingToken);
                 var scheduler = await schedulerFactory.GetScheduler(stoppingToken);
+                await ownership.EnsureOwnedAsync(stoppingToken);
                 await ProbeDatabaseAsync(stoppingToken);
                 var freeBytes = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(options.TaskRunRoot))!).AvailableFreeSpace;
                 if (freeBytes < options.MinimumFreeDiskBytes)
@@ -40,7 +43,7 @@ public sealed class SchedulerOperationalMonitor(
                     continue;
                 }
 
-                if (health.Current.State is SchedulerServiceState.Unhealthy or SchedulerServiceState.Degraded)
+                if (!options.ActorManaged && health.Current.State is (SchedulerServiceState.Unhealthy or SchedulerServiceState.Degraded))
                 {
                     await reconciler.ReconcileAsync(scheduler, stoppingToken);
                     await scheduler.Start(stoppingToken);
@@ -53,10 +56,13 @@ public sealed class SchedulerOperationalMonitor(
             }
             catch (Exception exception)
             {
+                activeRuns.CancelAll();
                 try
                 {
-                    var scheduler = await schedulerFactory.GetScheduler(CancellationToken.None);
-                    await scheduler.Standby(CancellationToken.None);
+                    var scheduler = await schedulerFactory.GetScheduler(stoppingToken);
+                    using var standbyDeadline = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                    standbyDeadline.CancelAfter(TimeSpan.FromSeconds(5));
+                    await scheduler.Standby(standbyDeadline.Token);
                 }
                 catch (Exception standbyException)
                 {

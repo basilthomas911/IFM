@@ -97,7 +97,12 @@ public static partial class Black76PricingModel
     public static string EngineFor(OptionPricingConvention contract) =>
         Unified.OptionCalculator.EngineVersionFor(CreateRequest(contract, 1, 1, true, 1, 0));
 
-    internal static Unified.OptionPricingRequest CreateRequest(OptionPricingConvention contract, double forward,
+    /// <summary>Maps a previously qualified contract and frozen economic inputs to the unified option calculator request.</summary>
+    /// <param name="contract">The reviewed futures option conventions; callers validate them before mapping.</param>
+    /// <param name="forward">The observed underlying futures midpoint.</param><param name="strike">The exact option strike.</param>
+    /// <param name="isCall">True for calls, false for puts.</param><param name="time">The qualified expiry year fraction.</param>
+    /// <param name="rate">The captured annual continuous rate.</param><returns>The calculator's unscaled per-option request.</returns>
+    public static Unified.OptionPricingRequest CreateRequest(OptionPricingConvention contract, double forward,
         decimal strike, bool isCall, double time, double rate) =>
         new(Unified.UnderlyingKind.Futures,
             contract.ExerciseStyle == OptionExerciseStyle.American ? Unified.ExerciseKind.American : Unified.ExerciseKind.European,

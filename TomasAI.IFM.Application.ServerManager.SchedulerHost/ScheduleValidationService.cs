@@ -38,7 +38,7 @@ public sealed class ScheduleValidationService(
         {
             try
             {
-                timeZone = TimeZoneInfo.FindSystemTimeZoneById(input.TimeZoneId);
+                timeZone = SchedulerTimeZone.Resolve(input.TimeZoneId);
             }
             catch (TimeZoneNotFoundException)
             {
@@ -106,6 +106,12 @@ public sealed class ScheduleValidationService(
             {
                 case ScheduleKind.Cron:
                     {
+                        var fields = input.ScheduleExpression.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+                        if (fields.Length is not 6 and not 7)
+                        {
+                            errors.Add("Quartz cron requires six fields (seconds first), with an optional seventh year field. Five-field POSIX cron is not accepted.");
+                            break;
+                        }
                         var cron = new CronExpression(input.ScheduleExpression) { TimeZone = timeZone };
                         var cursor = DateTimeOffset.UtcNow;
                         for (var index = 0; index < 10; index++)

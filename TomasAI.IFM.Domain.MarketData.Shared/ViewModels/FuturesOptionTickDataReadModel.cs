@@ -38,7 +38,7 @@ public record FuturesOptionTickDataV2ReadModel
     [Key(3)]
     public TimeOnly TickTime { get; init; }
 
-    /// <summary>Option last traded price at the tick time.</summary>
+    /// <summary>Observed option price; the enclosing market observation identifies trade versus quote midpoint.</summary>
     [Key(4)]
     public double OptionPrice { get; init; }
 
@@ -85,6 +85,9 @@ public record FuturesOptionTickDataV2ReadModel
     /// <summary>Option Rho.</summary>
     [Key(15)]
     public double Rho { get; init; }
+
+    /// <summary>Gets whether these sensitivities were calculated successfully; null preserves legacy wire behavior.</summary>
+    [Key(20)] public bool? GreeksAvailable { get; init; }
 
     /// <summary>
     /// Composite entity identifier (not serialized).

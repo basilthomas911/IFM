@@ -21,10 +21,11 @@ public static class FuturesTickTradeDataChanged
         var receivedAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc
             ? changed.ReceivedOn
             : DateTime.SpecifyKind(changed.ReceivedOn, DateTimeKind.Utc);
+        var observation = changed.OptionMarketPriceObservation;
         var tick = new PositionMarketTick(
             changed.TickDataId.ContractId,
-            changed.TradeData.Price,
-            changed.TradeData.SourceSequence,
+            observation is null ? changed.TradeData.Price : (decimal)observation.OptionTickData.OptionPrice,
+            observation?.SourceSequence ?? changed.TradeData.SourceSequence,
             receivedAtUtc);
         var outcome = context.RouteIndex.TryRoute(in tick, out var routes);
         if (outcome != MarketRouteLookupOutcome.Routed)

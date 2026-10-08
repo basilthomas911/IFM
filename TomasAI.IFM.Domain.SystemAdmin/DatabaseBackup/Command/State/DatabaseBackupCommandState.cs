@@ -148,6 +148,13 @@ public sealed class DatabaseBackupCommandState
 
     DatabaseBackupTransition RequestDrill(RequestDatabaseRestoreDrillCommand command)
     {
+        // Existing callers supply the profile and logical validation target in these fields.
+        // Materialize the executable descriptor before creating any source events.
+        command = command with
+        {
+            FreshTarget = command.FreshTarget ?? new DatabaseFreshTargetDescriptor(command.DisposableTargetProfile, command.ValidationProfile),
+            RestoreClass = DatabaseRestoreClass.Drill
+        };
         List<DatabaseBackupChange> lifecycleChanges = [];
         EnsureNewOperation(command.EntityId);
         var source = Source(command, DatabaseRecoveryOperationKind.RestoreDrill, DatabaseRecoveryPhase.Requested);
@@ -255,7 +262,7 @@ public sealed class DatabaseBackupCommandState
             Outcome = outcome,
             PolicyRevision = source.PolicyRevision,
             Revision = nextRevision,
-            ProgressPercent = e.ProgressPercent,
+            ProgressPercent = Math.Max(Operation.ProgressPercent, e.ProgressPercent),
             HostId = source.ProducingHostId ?? Operation.HostId,
             LastServiceSequence = source.ProducingHostId is null ? Operation.LastServiceSequence : source.SourceRevisionOrSequence,
             ValidationRevision = e.ValidationRevision == 0 ? Operation.ValidationRevision : e.ValidationRevision,

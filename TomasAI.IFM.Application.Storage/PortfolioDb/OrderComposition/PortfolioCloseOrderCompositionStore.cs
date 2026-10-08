@@ -8,7 +8,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Portfolio;
 namespace TomasAI.IFM.Application.Storage.PortfolioDb.OrderComposition;
 
 /// <summary>Atomically accepts one reduce-only order and its canonical completed event.</summary>
-public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransaction transactions)
+public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null)
 {
     public Task<PortfolioCloseOrderCompositionCompletedEvent> EvaluateAsync(
         EvaluatePortfolioCloseOrderCompositionCommand request,
@@ -27,7 +27,7 @@ public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransactio
             var authority = await PortfolioDbFinancialSupport.LockAuthorityAsync(
                 db, request.PortfolioId,
                 request.ExpectedFinancialRevision > 0 ? request.ExpectedFinancialRevision : null,
-                token).ConfigureAwait(false);
+                token, developmentPolicy).ConfigureAwait(false);
             var now = DateTime.UtcNow;
             if (request.ExpiresAtUtc <= now)
                 throw new TimeoutException("Portfolio close-order composition expired before evaluation.");

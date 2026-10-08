@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
+    <ProjectReference Include="../TomasAI.IFM.Domain.Trade.Shared/TomasAI.IFM.Domain.Trade.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -15,4 +16,7 @@
     <PackageReference Include="MessagePack.Annotations" Version="3.1.8" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Quartz" Version="3.19.1" />
+  </ItemGroup>
 </Project>

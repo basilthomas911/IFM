@@ -342,7 +342,18 @@ public abstract class BaseEventProjector<TActor>(
                 var transientQueue = _transientQueue
                     ?? throw new InvalidOperationException(
                         $"Projector '{ProjectorName}' must be started before non-durable events can be queued.");
-                await transientQueue.EnqueueAsync(domainEvent).ConfigureAwait(false);
+                if (descriptor.ApplySnapshotAsync is not null)
+                {
+                    if (descriptor.UseDurableReplay || descriptor.PublishTerminalEvent)
+                        throw new InvalidOperationException("Single-attempt snapshot projections cannot use durable completion.");
+                    if (!transientQueue.TryEnqueueSnapshot(domainEvent))
+                    {
+                        EventProjectorMetrics.RecordEvent(ProjectorName, "snapshot-admission-dropped", "transient");
+                        throw new InvalidOperationException($"Snapshot projection admission failed for projector '{ProjectorName}'; the projection was dropped.");
+                    }
+                }
+                else
+                    await transientQueue.EnqueueAsync(domainEvent).ConfigureAwait(false);
                 EventProjectorMetrics.RecordEvent(ProjectorName, "accepted", "transient");
                 continue;
             }
@@ -496,27 +507,37 @@ public abstract class BaseEventProjector<TActor>(
             EventProjectionApplyResult result;
             try
             {
-                var eventStreamId = await ResolveTransientEventStreamIdAsync(
-                    domainEvent,
-                    cancellationToken).ConfigureAwait(false);
-                if (eventStreamId <= 0)
-                    throw new InvalidOperationException(
-                        $"Event stream identity is missing for event {domainEvent.EventId}.");
+                if (descriptor.ApplySnapshotAsync is not null)
+                {
+                    if (descriptor.UseDurableReplay || descriptor.PublishTerminalEvent)
+                        throw new InvalidOperationException("Single-attempt snapshot projections cannot use durable completion.");
+                    result = await descriptor.ApplySnapshotAsync(domainEvent, cancellationToken).ConfigureAwait(false)
+                        ?? throw new InvalidOperationException("The snapshot action returned no result.");
+                }
+                else
+                {
+                    var eventStreamId = await ResolveTransientEventStreamIdAsync(
+                        domainEvent,
+                        cancellationToken).ConfigureAwait(false);
+                    if (eventStreamId <= 0)
+                        throw new InvalidOperationException(
+                            $"Event stream identity is missing for event {domainEvent.EventId}.");
 
-                result = await descriptor.ApplyAsync(
-                    domainEvent,
-                    new ProjectionExecutionContext(
-                        ProjectorName,
-                        domainEvent.EventId,
-                        eventStreamId,
-                        new EventProjectorEffectIdentity(
+                    result = await descriptor.ApplyAsync(
+                        domainEvent,
+                        new ProjectionExecutionContext(
                             ProjectorName,
                             domainEvent.EventId,
-                            EventProjectorEffectKind.TargetProjection),
-                        Guid.NewGuid(),
-                        descriptor.IdempotencyStrategy,
-                        cancellationToken)).ConfigureAwait(false)
-                    ?? throw new InvalidOperationException("The projection action returned no result.");
+                            eventStreamId,
+                            new EventProjectorEffectIdentity(
+                                ProjectorName,
+                                domainEvent.EventId,
+                                EventProjectorEffectKind.TargetProjection),
+                            Guid.NewGuid(),
+                            descriptor.IdempotencyStrategy,
+                            cancellationToken)).ConfigureAwait(false)
+                        ?? throw new InvalidOperationException("The projection action returned no result.");
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {

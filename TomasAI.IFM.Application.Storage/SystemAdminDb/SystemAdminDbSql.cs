@@ -2,6 +2,15 @@ namespace TomasAI.IFM.Application.Storage;
 
 public static class SystemAdminDbSql
 {
+    public const string GetBackupPhases = """
+SELECT event_revision, observed_utc, phase, outcome, progress_percent
+FROM (
+    SELECT event_revision, observed_utc, phase, outcome,
+           MAX(progress_percent) OVER (ORDER BY event_revision) AS progress_percent
+    FROM system_admin.database_recovery_phase WHERE operation_id = $1
+) AS phases
+WHERE event_revision > $2 ORDER BY event_revision LIMIT $3;
+""";
     public const string GetProjectionReceiptForUpdate = """
 SELECT event_hash
 FROM system_admin.database_backup_projection_receipt
@@ -45,7 +54,7 @@ ON CONFLICT (operation_id) DO UPDATE SET
     operation_kind = EXCLUDED.operation_kind,
     phase = EXCLUDED.phase,
     outcome = EXCLUDED.outcome,
-    progress_percent = EXCLUDED.progress_percent,
+    progress_percent = GREATEST(system_admin.database_recovery_operation.progress_percent, EXCLUDED.progress_percent),
     state_revision = EXCLUDED.state_revision,
     completed_utc = COALESCE(EXCLUDED.completed_utc, system_admin.database_recovery_operation.completed_utc),
     safe_diagnostic_reference = CASE WHEN EXCLUDED.safe_diagnostic_reference = '' THEN system_admin.database_recovery_operation.safe_diagnostic_reference ELSE EXCLUDED.safe_diagnostic_reference END,
@@ -198,7 +207,9 @@ WHERE environment_identity = $1 AND policy_id = $2;
 operation_id, backup_set_id, protection_set_id, source, operation_kind, phase, outcome,
 progress_percent, state_revision, created_utc, completed_utc, safe_diagnostic_reference,
 restore_point_id, restore_class, fresh_target_profile, validation_revision, cutover_state,
-backup_lineage_json
+backup_lineage_json,
+COALESCE((SELECT engine FROM system_admin.database_recovery_run_stats stats
+          WHERE stats.operation_id = database_recovery_operation.operation_id ORDER BY statistics_revision DESC LIMIT 1), 0) AS engine
 """;
 
     public static readonly string GetOperation = $"SELECT {OperationColumns} FROM system_admin.database_recovery_operation WHERE operation_id = $1;";
@@ -209,8 +220,9 @@ WHERE ($1 = 0 OR source = $1)
   AND ($2 IS NULL OR protection_set_id = $2)
   AND ($3 IS NULL OR created_utc >= $3)
   AND ($4 IS NULL OR created_utc <= $4)
-  AND ($5 IS NULL OR operation_id > $5)
-ORDER BY operation_id
+  AND ($5 IS NULL OR (created_utc, operation_id) <
+      (SELECT created_utc, operation_id FROM system_admin.database_recovery_operation WHERE operation_id = $5))
+ORDER BY created_utc DESC, operation_id DESC
 LIMIT $6;
 """;
     public static readonly string GetBackupSetOperations = $"SELECT {OperationColumns} FROM system_admin.database_recovery_operation WHERE backup_set_id = $1 ORDER BY operation_id;";

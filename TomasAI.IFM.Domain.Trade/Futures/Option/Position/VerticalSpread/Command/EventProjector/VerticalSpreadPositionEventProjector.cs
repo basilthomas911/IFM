@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Command.Actor;
@@ -30,7 +30,7 @@ public sealed class VerticalSpreadPositionEventProjector
         [
             DescribeNotification<VerticalSpreadPositionChangedEvent, StrategyPositionId>(ProjectAsync),
             DescribeNotification<VerticalSpreadTradePlanUpdatedEvent, VerticalSpreadTradePlanId>(
-                ProjectTradePlanAsync)
+                ProjectTradePlanAsync, useDurableReplay: false)
         ];
     }
 

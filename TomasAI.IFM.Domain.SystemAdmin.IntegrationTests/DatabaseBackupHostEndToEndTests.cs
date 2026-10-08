@@ -201,6 +201,19 @@ public sealed class DatabaseBackupHostEndToEndTests
             Assert.NotNull(readModel);
             Assert.Equal(DatabaseRecoveryPhase.Completed, readModel.Phase);
             Assert.Equal(DatabaseRecoveryOutcome.Succeeded, readModel.Outcome);
+            var phases = await projection.GetBackupPhasesAsync(new GetDatabaseBackupLogQuery
+            {
+                EntityId = operationId, OperationId = operationId, Source = BackupSource.LocalWorkstation, PageSize = 50
+            }, CancellationToken.None);
+            Assert.NotEmpty(phases);
+            Assert.Equal(100, phases.Last().ProgressPercent);
+            Assert.True(phases.Zip(phases.Skip(1)).All(pair => pair.First.ProgressPercent <= pair.Second.ProgressPercent));
+            var history = await projection.ListBackupOperationsAsync(new ListDatabaseBackupOperationsQuery
+            {
+                Source = BackupSource.LocalWorkstation, PageSize = 50
+            }, CancellationToken.None);
+            Assert.Contains(history, item => item.OperationId == operationId);
+
         }
         finally
         {

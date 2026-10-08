@@ -86,6 +86,19 @@ public sealed class StartupOptionExpiryCacheIntegrationTests(SecuritiesDatabaseF
         actual.Select(row => row.ExpiryDate).Distinct().Order().Should().Equal(expected);
         actual.Select(row => row.ProviderRoot).Should().Contain(["E1A", "EW1", "EW", "ES"]);
 
+        // Established trades resolve exact leg IDs through the single-contract query.
+        // Startup publishes these definitions to its generation cache, without legacy contract rows.
+        foreach (var row in rows)
+        {
+            var resolved = await fixture.Db.GetFuturesOptionContractAsync(row.Definition.ContractId, CancellationToken.None);
+            resolved.Should().NotBeNull();
+            resolved!.ContractId.Should().Be(row.Definition.ContractId);
+            resolved.InstrumentId.Should().Be(row.Definition.InstrumentId);
+            resolved.UnderlyingContractId.Should().Be(row.Definition.UnderlyingContractId);
+            resolved.ExpirationUtc.Should().Be(row.Definition.ExpirationUtc);
+        }
+
+
         var overlappingHistoricalRequest = await fixture.Db.GetOptionContractExpiriesAsync(
             "ES", valueDate.AddDays(-30), firstMaturity, CancellationToken.None);
 

@@ -43,7 +43,7 @@ public static class DatabaseBackupQueryRules
         if (query.ToUtc.HasValue && query.ToUtc.Value.Offset != TimeSpan.Zero) throw new ArgumentException("ToUtc must be UTC.");
         switch (query)
         {
-            case GetDatabaseBackupOperationQuery or GetDatabaseRestoreOperationQuery or GetDatabaseRecoveryRunStatsQuery:
+            case GetDatabaseBackupLogQuery or GetDatabaseBackupOperationQuery or GetDatabaseRestoreOperationQuery or GetDatabaseRecoveryRunStatsQuery:
                 if (query.OperationId is null || query.OperationId.Value.Value == Guid.Empty) throw new ArgumentException("Operation ID is required.");
                 break;
             case GetDatabaseBackupPolicyQuery:

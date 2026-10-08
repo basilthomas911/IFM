@@ -154,6 +154,16 @@ public static class DatabaseBackupServiceEventFactory
             Source = source,
             Request = execution.Request,
             Outcome = outcome,
+            ProgressPercent = phase switch
+            {
+                DatabaseRecoveryPhase.Admitted => 10, DatabaseRecoveryPhase.Preflight => 20,
+                DatabaseRecoveryPhase.Started => 20, DatabaseRecoveryPhase.EstablishingBoundary => 40,
+                DatabaseRecoveryPhase.Capturing => 50, DatabaseRecoveryPhase.Verifying => 60,
+                DatabaseRecoveryPhase.Transferring => 80, DatabaseRecoveryPhase.Validating => 90,
+                DatabaseRecoveryPhase.ReadyForCutover => 90,
+                DatabaseRecoveryPhase.Completed when outcome == DatabaseRecoveryOutcome.Succeeded => 100,
+                _ => 0
+            },
             SafeDiagnosticReference = safeDiagnosticReference,
             VerificationLevel = verificationLevel,
             Statistics = statistics,

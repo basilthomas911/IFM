@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -515,6 +515,41 @@ public sealed class EventLogDualAppenderIntegrationTests(EventSourceActorSnapsho
 public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFixture fixture)
     : IClassFixture<EventSourceActorSnapshotRangeFixture>
 {
+    [Fact]
+    public async Task Latest_trade_plan_load_returns_one_full_source_snapshot_without_projection_recovery()
+    {
+        var stream = NewStream();
+        var now = DateTime.UtcNow;
+        var tradeId = new TomasAI.IFM.Domain.Trade.Shared.TradeEntityId(1, 2, 3, 4);
+        var position = new TomasAI.IFM.Domain.Trade.Shared.StrategyPositionSnapshot
+        {
+            Id = TomasAI.IFM.Domain.Trade.Shared.StrategyPositionId.Create(tradeId,
+                TomasAI.IFM.Domain.Trade.Shared.TradeStrategyKind.IronCondor),
+            StrategyKind = TomasAI.IFM.Domain.Trade.Shared.TradeStrategyKind.IronCondor
+        };
+        var id = new TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanId(position.Id, DateOnly.FromDateTime(now));
+        var first = new TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanUpdatedEvent
+        {
+            Id = Guid.NewGuid(), CommandId = Guid.NewGuid(), EntityId = id, ReceivedOn = now,
+            Subject = new(ActorType.Function, "IronCondorTradePlanFunction", "IronCondorTradePlanUpdated", id.Format()),
+            Plan = new() { Position = position, PlanRevision = 1, TotalPnl = 10, CalculatedAtUtc = now }
+        };
+        var latest = first with { Id = Guid.NewGuid(), CommandId = Guid.NewGuid(),
+            Plan = first.Plan with { PlanRevision = 2, TotalPnl = 25, CalculatedAtUtc = now.AddSeconds(1) } };
+        await fixture.ActorEventDb.SaveEventsAsync(stream, first.CommandId, new DomainEventCollection([first]), 0, CancellationToken.None);
+        await fixture.ActorEventDb.SaveEventsAsync(stream, latest.CommandId, new DomainEventCollection([latest]), 1, CancellationToken.None);
+        var rows = await LoadTypedRangeAsync<TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanUpdatedEvent>(stream, 1);
+        rows.Should().ContainSingle();
+        rows[0].StreamVersion.Should().Be(2);
+        var loaded = (TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanUpdatedEvent)rows[0].ToDomainEvent();
+        loaded.CommandId.Should().Be(latest.CommandId);
+        loaded.Plan.Should().BeEquivalentTo(latest.Plan);
+        // No target write was attempted: the source snapshot remains independently loadable.
+        var marker = await fixture.ActorEventDb.GetEventProjectorExecutionStateAsync(
+            latest.EventId, latest.RequiredProjection.ProjectorName);
+        marker.Should().BeNull();
+    }
+
     [Fact]
     public async Task ReturnsLatestSnapshotAndLastMatchingEventsInAscendingOrder()
     {

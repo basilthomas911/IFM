@@ -150,6 +150,31 @@ public abstract class ConventionalEventProjector<TActor>(
             publishProcessingAfterApply: publishProcessingAfterApply,
             publishTerminalEvent: false);
 
+    /// <summary>Projects an already committed snapshot with one target attempt and no source-event lookup or history replay.</summary>
+    /// <typeparam name="TEvent">The committed snapshot event.</typeparam><typeparam name="TEntityId">Its business identity.</typeparam>
+    /// <param name="applyAsync">The single target-write attempt using the committed payload.</param>
+    /// <param name="publishProcessingEvent">Whether to publish the calculated snapshot notification before its write.</param>
+    /// <returns>A non-durable descriptor that never emits a synthetic persistence-completion event.</returns>
+    protected static EventProjectionDescriptor DescribeSnapshot<TEvent, TEntityId>(
+        Func<TEvent, CancellationToken, Task> applyAsync,
+        bool publishProcessingEvent = true)
+        where TEvent : class, IEvent<TEntityId>
+        where TEntityId : IActorEntityId
+        => new(
+            typeof(TEvent),
+            EventProjectionIdempotencyStrategy.NaturalKeyMutation,
+            (_, _) => throw new InvalidOperationException("Single-attempt snapshot projections do not use a durable projection context."),
+            _ => null,
+            (_, _) => null,
+            publishProcessingEvent: publishProcessingEvent,
+            useDurableReplay: false,
+            publishTerminalEvent: false,
+            applySnapshotAsync: async (domainEvent, token) =>
+            {
+                await applyAsync((TEvent)domainEvent, token).ConfigureAwait(false);
+                return new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied);
+            });
+
     /// <summary>
     /// Creates a durable local-only projection for a legacy untyped event. It updates the target and checkpoint but
     /// does not publish the source or a terminal event because an untyped event has no actor delivery contract.

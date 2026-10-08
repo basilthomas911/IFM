@@ -31,9 +31,12 @@ internal static class BrokerOrderComputation
     internal static BrokerOrderCompute CreateBrokerOrder(CreateBrokerOrderCommand command,
         BrokerOrderDefinition? brokerOrderDefinition, BrokerAccountDefinition? account)
     {
-        if (account?.Snapshot is not { Complete: true })
+        var qualificationExempt = account?.DevelopmentQualificationsExempt == true
+            && account.Environment == TomasAI.IFM.Application.TradeBroker.Contracts.BrokerEnvironment.Emulator
+            && command.Order.BrokerEnvironment == TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Emulator;
+        if (account is null || (!qualificationExempt && account.Snapshot is not { Complete: true }))
             return BrokerOrderCompute.Reject("BrokerOrder.ACCOUNT.SNAPSHOT_INCOMPLETE");
-        if (command.Order.PositionType == Domain.Trade.Shared.TradeOrderPositionType.Opening)
+        if (!qualificationExempt && command.Order.PositionType == Domain.Trade.Shared.TradeOrderPositionType.Opening)
         {
             if (account.Gate != BrokerAccountOperationalGate.Open)
                 return BrokerOrderCompute.Reject("BrokerOrder.ACCOUNT.NEW_RISK_GATE_CLOSED");

@@ -146,6 +146,24 @@ public static class MarketDataFeedEventApiExtensions
                 updatedEvent).ConfigureAwait(false);
         }
 
+        /// <summary>Publishes an identified worker observation independently of the retired in-process option catalog.</summary>
+        /// <param name="e">The generation-admitted option quote or retained source trade.</param>
+        /// <param name="tickData">The actual observed prices and explicitly qualified or unavailable Greeks.</param>
+        /// <returns>The best-effort notification operation.</returns>
+        public async ValueTask SendOptionTradeTickPriceDataUpdatedEventAsync(
+            FuturesTickTradeDataChangedEvent e, FuturesOptionTickDataV2ReadModel tickData)
+        {
+            var entityId = new FuturesOptionTickEntityId(tickData.ContractId, tickData.ValueDate);
+            var updatedEvent = new OptionTradeTickPriceDataUpdatedEvent(tickData)
+            {
+                Subject = new(ActorType.Notify, OptionTradeTickPriceDataUpdatedEvent.Actor,
+                    OptionTradeTickPriceDataUpdatedEvent.Verb, entityId.Format()),
+                EntityId = entityId, Id = e.Id, CommandId = e.CommandId, AggregateId = e.AggregateId,
+                EventSource = e.EventSource, ReceivedOn = e.ReceivedOn
+            };
+            await context.SendAsync<OptionTradeTickPriceDataUpdatedEvent, FuturesOptionTickEntityId>(updatedEvent).ConfigureAwait(false);
+        }
+
         /// <summary>
         /// Sends the futures option tick data streaming started complete event.
         /// </summary>

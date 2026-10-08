@@ -24,7 +24,7 @@ public interface ICapacityReservationStore
 }
 
 /// <summary>Uses the ledger's Portfolio fence for admission, consumption and all lifecycle changes.</summary>
-public sealed class CapacityReservationStore(IPostgresEventTransaction transactions) : ICapacityReservationStore
+public sealed class CapacityReservationStore(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null) : ICapacityReservationStore
 {
     public Task<CapacityReservationCompletedEvent> ReserveAsync(ReservePortfolioTradeRiskCommand request,
         CapacityAdmissionCalculation validate, Func<CapacityReservationReceipt, CapacityReservationCompletedEvent> complete, CancellationToken token = default)
@@ -184,7 +184,7 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
         {
             var replay = await ReadOperationAsync<T>(db, request.PortfolioId, request.OperationId, request.InputSha256, cancellation);
             if (replay is not null) return replay;
-            var authority = await LockAuthorityAsync(db, request.PortfolioId, null, cancellation);
+            var authority = await LockAuthorityAsync(db, request.PortfolioId, null, cancellation, developmentPolicy);
             replay = await ReadOperationAsync<T>(db, request.PortfolioId, request.OperationId, request.InputSha256, cancellation);
             if (replay is not null) return replay;
             Require(request.ExpectedFinancialRevision == authority.Revision, FinancialReasons.RevisionConflict, "Financial state changed since preparation.");

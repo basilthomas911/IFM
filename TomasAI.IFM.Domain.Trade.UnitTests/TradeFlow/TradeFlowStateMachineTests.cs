@@ -958,7 +958,7 @@ public sealed class TradeFlowStateMachineTests
                     ContractKey = $"OPT-{index}",
                     Strike = 5000 + index * 5,
                     Expiry = new DateOnly(2026, 10, 16),
-                    PutCall = (byte)(index < 3 ? 0 : 1)
+                    PutCall = (byte)(index < 3 ? 2 : 1)
                 }).ToArray()
             };
         }

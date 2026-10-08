@@ -25,6 +25,7 @@ public sealed class FuturesIronCondorTradePositionCommandActor(
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
         {
+            [InitializeIronCondorMonitoringCommand.Verb] = message => message.AsCommand<InitializeIronCondorMonitoringCommand>()!,
             [OpenIronCondorPositionCommand.Verb] = message => message.AsCommand<OpenIronCondorPositionCommand>()!,
             [UpdateIronCondorPositionLegMarketPriceCommand.Verb] = message => message.AsCommand<UpdateIronCondorPositionLegMarketPriceCommand>()!,
             [ChangeTradeLegDataCommand.Verb] = message => message.AsCommand<ChangeTradeLegDataCommand>()!,
@@ -39,6 +40,9 @@ public sealed class FuturesIronCondorTradePositionCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
+            [typeof(InitializeIronCondorMonitoringCommand)] = static command => new List<ValidationError>()
+                .ValidateCommandId(command.CommandId, command.CommandName)
+                .ValidateStrategyPositionId(((InitializeIronCondorMonitoringCommand)command).EntityId, command.CommandName),
             [typeof(OpenIronCondorPositionCommand)] = static command =>
             {
                 var typed = (OpenIronCondorPositionCommand)command;
@@ -100,6 +104,7 @@ public sealed class FuturesIronCondorTradePositionCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, IronCondorPositionCommandState, ServiceResult<GuidResult>>> _receiveMap =
         new Dictionary<Type, Func<ICommand, IronCondorPositionCommandState, ServiceResult<GuidResult>>>
         {
+            [typeof(InitializeIronCondorMonitoringCommand)] = static (command, state) => ((InitializeIronCondorMonitoringCommand)command).Execute(state),
             [typeof(OpenIronCondorPositionCommand)] = static (command, state) => ((OpenIronCondorPositionCommand)command).Execute(state),
             [typeof(UpdateIronCondorPositionLegMarketPriceCommand)] = static (command, state) => ((UpdateIronCondorPositionLegMarketPriceCommand)command).Execute(state),
             [typeof(ChangeTradeLegDataCommand)] = static (command, state) => ((ChangeTradeLegDataCommand)command).Execute(state),

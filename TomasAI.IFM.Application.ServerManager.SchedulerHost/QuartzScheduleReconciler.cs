@@ -4,10 +4,11 @@ using TomasAI.IFM.Application.ServerManager.Contracts;
 
 namespace TomasAI.IFM.Application.ServerManager.SchedulerHost;
 
-public sealed class QuartzScheduleReconciler(SchedulerStore store)
+public sealed class QuartzScheduleReconciler(SchedulerStore store, SchedulerHostOptions options)
 {
     public async Task ReconcileAsync(IScheduler scheduler, CancellationToken cancellationToken)
     {
+        if (options.ActorManaged) return;
         var schedules = await store.GetSchedulesAsync(cancellationToken);
         var activeJobNames = schedules
             .Where(value => value.Enabled)
@@ -70,7 +71,7 @@ public sealed class QuartzScheduleReconciler(SchedulerStore store)
         if (schedule.Kind == ScheduleKind.Cron)
         {
             var cron = CronScheduleBuilder.CronSchedule(schedule.ScheduleExpression)
-                .InTimeZone(TimeZoneInfo.FindSystemTimeZoneById(schedule.TimeZoneId));
+                .InTimeZone(SchedulerTimeZone.Resolve(schedule.TimeZoneId));
             cron = schedule.MisfirePolicy == SchedulerMisfirePolicy.FireOnceNow
                 ? cron.WithMisfireHandlingInstructionFireAndProceed()
                 : cron.WithMisfireHandlingInstructionDoNothing();

@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 
 namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.Architecture;
 
@@ -101,7 +101,7 @@ public class UiArchitectureBaselineTests
             "TomasAI.IFM.UI.Net.Views/Trade/CreateFundOrderTradeForm.cs",
             "TomasAI.IFM.UI.Net.Views/Trade/CreateFundOrderForm.cs",
             "TomasAI.IFM.UI.Net.Views/Trade/IronCondor/IronCondorTradeOrderView.cs",
-            "TomasAI.IFM.UI.Net.Views/Trade/IronCondor/IronCondorView.cs",
+            "TomasAI.IFM.UI.Net.Views/Trade/IronCondor/IronCondorTradeView.cs",
             "TomasAI.IFM.UI.Net.Views/Trade/TradeEndOfDayForm.cs",
             "TomasAI.IFM.UI.Net.Views/Trade/TradeOrderEditorForm.cs"
         ]);

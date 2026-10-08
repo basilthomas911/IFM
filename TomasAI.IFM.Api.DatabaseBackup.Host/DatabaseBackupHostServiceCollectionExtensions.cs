@@ -61,6 +61,7 @@ public static class DatabaseBackupHostServiceCollectionExtensions
         if (useNativePostgreSql || useNativeScylla)
             publicationOptions.Validate(requirePrivateKey: true);
 
+        services.AddSingleton(provider => new DatabaseBackupOperationOutput(configuration, provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<DatabaseBackupOperationOutput>>()));
         services.AddSingleton(hostOptions);
         services.AddSingleton(journalOptions);
         services.AddSingleton(sourceOptions);

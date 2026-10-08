@@ -34,7 +34,12 @@ public sealed record DatabaseBackupOperationUiModel(
     int ProgressPercent,
     string SafeDiagnosticReference,
     DatabaseBackupMode RequestedMode = DatabaseBackupMode.Full,
-    DatabaseBackupMode ResolvedMode = DatabaseBackupMode.None);
+    DatabaseBackupMode ResolvedMode = DatabaseBackupMode.None,
+    DateTimeOffset CreatedUtc = default,
+    DateTimeOffset? CompletedUtc = null,
+    Guid? BackupSetId = null,
+    DatabaseRecoveryOperationKind Kind = DatabaseRecoveryOperationKind.Backup,
+    DatabaseEngine Engine = DatabaseEngine.None);
 
 /// <summary>Immutable restore-point summary displayed by the database-backup UI.</summary>
 /// <param name="RestorePointId">The restore-point identifier.</param>
@@ -71,3 +76,17 @@ public sealed record DatabaseBackupAcceptedUiModel(Guid OperationId);
 /// <summary>Identifies a backup-domain notification that requires a bounded dashboard refresh.</summary>
 /// <param name="EntityId">The changed backup entity identifier.</param>
 public sealed record DatabaseBackupNotificationUiModel(Guid EntityId);
+
+/// <summary>A bounded page of operations with a server continuation identity.</summary>
+public sealed record DatabaseBackupHistoryUiModel(IReadOnlyList<DatabaseBackupOperationUiModel> Operations, string Continuation);
+/// <summary>Retained output and persisted phase history for a selected database operation.</summary>
+public sealed record DatabaseBackupLogUiModel(IReadOnlyList<DatabaseBackupPhaseUiModel> Phases, string Output, long NextOffset, bool EndOfOutput, bool Available);
+/// <summary>A timestamped phase observation with explicit milestone progress.</summary>
+public sealed record DatabaseBackupPhaseUiModel(long Revision, DateTimeOffset ObservedUtc, DatabaseRecoveryPhase Phase, DatabaseRecoveryOutcome Outcome, int ProgressPercent);
+/// <summary>A revision-matched editable backup policy; source and protected-set arrays are preserved on save.</summary>
+public sealed record DatabaseBackupPolicyUiModel(string Id, long Revision, bool Enforced, BackupSource[] EnabledSources, string[] ProtectionSets, TimeSpan Rpo, TimeSpan Rto, int Daily, int Weekly, int Monthly, DatabaseVerificationLevel[] VerificationLevels, TimeSpan MaximumVerificationAge);
+/// <summary>A host's safe readiness observation.</summary>
+public sealed record DatabaseBackupHealthUiModel(string HostId, bool Ready, string Capability, DateTimeOffset ObservedUtc, string Diagnostic);
+
+/// <summary>Safe host-owned setup references displayed read-only.</summary>
+public sealed record DatabaseBackupSetupUiModel(IReadOnlyDictionary<string, string> BackupHostSettings, bool Available);

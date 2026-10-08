@@ -7,10 +7,14 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Comman
 
 public static class SnapshotVerticalSpreadPosition
 {
+    /// <summary>Acknowledges a resident position so the actor can flush its persistence window.</summary>
+    /// <param name="command">The position snapshot request.</param>
+    /// <param name="state">The authoritative resident position state.</param>
+    /// <returns>Acceptance when a position exists, otherwise its business rejection.</returns>
     public static ServiceResult<GuidResult> Execute(
         this SnapshotVerticalSpreadPositionCommand command,
         VerticalSpreadPositionCommandState state) =>
-        state.Current is not null
+        state.PositionSnapshot is not null
             ? TradeCommandResult.Accepted(command.CommandId)
-            : new ServiceFailed<GuidResult>(command.ErrorCode, "POSITION.NOT_FOUND");
+            : command.UpdateFailed("VerticalSpreadPosition.NOT_FOUND");
 }

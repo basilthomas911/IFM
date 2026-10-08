@@ -8,7 +8,7 @@ public sealed class ActiveRunRegistry
 
     public ActiveRunRegistration Register(Guid runId, params CancellationToken[] tokens)
     {
-        var source = CancellationTokenSource.CreateLinkedTokenSource(tokens);
+        var source = tokens.Length == 0 ? new CancellationTokenSource() : CancellationTokenSource.CreateLinkedTokenSource(tokens);
         if (!_runs.TryAdd(runId, source))
         {
             source.Dispose();
@@ -17,6 +17,9 @@ public sealed class ActiveRunRegistry
 
         return new ActiveRunRegistration(runId, source, this);
     }
+
+    /// <summary>Checks whether this process currently owns the occurrence, including its admission and receipts.</summary>
+    public bool Contains(Guid runId) => _runs.ContainsKey(runId);
 
     public bool RequestCancellation(Guid runId)
     {

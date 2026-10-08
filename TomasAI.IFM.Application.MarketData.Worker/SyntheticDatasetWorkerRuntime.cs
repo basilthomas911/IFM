@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.MarketData.Databento;
+﻿using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
@@ -63,7 +63,7 @@ internal sealed class DatasetWorkerRuntime : IAsyncDisposable
         FeedDataSourceMode dataSource,
         SyntheticFeedOptions synthetic,
         ITickAggregationEventPublisher publisher,
-        CancellationToken cancellationToken, Pricing.OptionPricingRefreshPolicy? optionPricingRefresh = null)
+        CancellationToken cancellationToken, Pricing.OptionPricingRefreshPolicy? optionPricingRefresh = null, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null)
     {
         manifest.Validate();
         var feedOptions = DatabentoFeedOptions.ForProfile(deploymentProfile, manifest.Dataset) with
@@ -78,7 +78,7 @@ internal sealed class DatasetWorkerRuntime : IAsyncDisposable
             Contracts = manifest.GetRegistrations()
         };
         var factory = new DatabentoMarketDataEpochFactory(
-            new DatabentoFeedFactory(), publisher, options, tradeEvidence: publisher as Pricing.IOptionTradeEvidenceWriter);
+            new DatabentoFeedFactory(), publisher, options, loggerFactory: loggerFactory, tradeEvidence: publisher as Pricing.IOptionTradeEvidenceWriter);
         var epoch = factory.Create(manifest.ValueDate);
         try
         {

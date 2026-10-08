@@ -1,6 +1,9 @@
 using Microsoft.Extensions.Configuration;
 using Npgsql;
 using Quartz;
+using Serilog;
+using TomasAI.IFM.Framework.Telemetry.Logging;
+using TomasAI.IFM.Framework.Telemetry.Metrics;
 
 namespace TomasAI.IFM.Application.ServerManager.SchedulerHost;
 
@@ -10,7 +13,14 @@ public static class SchedulerHostApplication
     {
         var builder = Host.CreateApplicationBuilder(args);
         configure?.Invoke(builder.Configuration);
-        builder.Services.AddWindowsService(options => options.ServiceName = "IFM Scheduler Host");
+        var logging = new LoggerConfiguration().ReadFrom.Configuration(builder.Configuration).Enrich.FromLogContext()
+            .WriteTo.Console();
+        if (builder.Configuration.GetValue<bool>("Telemetry:Logs:Enabled"))
+            logging.WriteTo.Sink(new OtlpStructuredLogSink(builder.Configuration, "IFM-SchedulerHost"));
+        builder.Services.AddSerilog(logging.CreateLogger(), dispose: true);
+        builder.Services.AddIfmMetrics(builder.Configuration, "IFM-SchedulerHost");
+        if (OperatingSystem.IsWindows())
+            builder.Services.AddWindowsService(options => options.ServiceName = "IFM Scheduler Host");
 
         var schedulerOptions = builder.Configuration.GetSection("SchedulerHost").Get<SchedulerHostOptions>()
             ?? throw new InvalidOperationException("The SchedulerHost configuration section is missing.");
@@ -20,6 +30,7 @@ public static class SchedulerHostApplication
 
         builder.Services.AddSingleton(schedulerOptions);
         builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));
+        builder.Services.AddSingleton<SchedulerOwnershipLease>();
         builder.Services.AddSingleton<SchedulerHealthState>();
         builder.Services.AddSingleton<SchedulerBootstrapState>();
         builder.Services.AddSingleton<SchedulerDatabaseMigrator>();
@@ -60,7 +71,8 @@ public static class SchedulerHostApplication
         builder.Services.AddHostedService<SchedulerOperationalMonitor>();
         builder.Services.AddHostedService<SchedulerRunRequestDispatcher>();
         builder.Services.AddHostedService<SchedulerRetentionHostedService>();
-        builder.Services.AddHostedService<SchedulerPipeServer>();
+        if (schedulerOptions.ActorManaged) builder.Services.AddSchedulerActorServices(builder.Configuration);
+        if (OperatingSystem.IsWindows()) builder.Services.AddHostedService<SchedulerPipeServer>();
         return builder.Build();
     }
 }

@@ -45,24 +45,31 @@ public static class FuturesTradingValueDate
         => TryGet(TimeZoneInfo.ConvertTime(instant, MarketTimeZone).DateTime, out valueDate);
 
     /// <summary>
-    /// Returns the non-null operational value date. At 17:00 Eastern Monday through
-    /// Thursday it advances to the next day; at 17:00 Friday it advances to Monday.
-    /// Saturday and Sunday before 18:00 also resolve to Monday.
+    /// Returns a first-use calendar candidate, retaining the ended date during the close interval.
+    /// An initialized operational date advances only from a persisted successful EOD completion.
     /// </summary>
     public static DateOnly GetOperational(DateTimeOffset instant)
     {
-        var marketLocal = TimeZoneInfo.ConvertTime(instant, MarketTimeZone).DateTime;
-        var calendarDate = DateOnly.FromDateTime(marketLocal);
-        var marketTime = TimeOnly.FromDateTime(marketLocal);
-        return marketLocal.DayOfWeek switch
+        var local = TimeZoneInfo.ConvertTime(instant, MarketTimeZone).DateTime;
+        var date = DateOnly.FromDateTime(local);
+        if (TryGet(local, out var active)) return active;
+        return local.DayOfWeek switch
         {
-            DayOfWeek.Friday when marketTime >= MarketClosesAt => calendarDate.AddDays(3),
-            DayOfWeek.Saturday => calendarDate.AddDays(2),
-            DayOfWeek.Sunday => calendarDate.AddDays(1),
-            >= DayOfWeek.Monday and <= DayOfWeek.Thursday when marketTime >= MarketClosesAt
-                => calendarDate.AddDays(1),
-            _ => calendarDate,
+            DayOfWeek.Saturday => date.AddDays(-1),
+            DayOfWeek.Sunday => date.AddDays(-2),
+            _ => date
         };
+    }
+
+    /// <summary>Calculates the date following a successfully finalized session, skipping the normal weekend.</summary>
+    /// <param name="completedValueDate">The finalized exchange value date.</param>
+    /// <returns>The next weekday exchange value date.</returns>
+    public static DateOnly GetNextTradingDate(DateOnly completedValueDate)
+    {
+        if (completedValueDate == default) throw new ArgumentOutOfRangeException(nameof(completedValueDate));
+        var next = completedValueDate.AddDays(1);
+        while (next.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday) next = next.AddDays(1);
+        return next;
     }
 
     /// <summary>

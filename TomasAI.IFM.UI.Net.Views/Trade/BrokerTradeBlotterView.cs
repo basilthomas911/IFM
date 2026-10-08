@@ -110,6 +110,8 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     private readonly System.Windows.Forms.Timer _chainRefreshTimer = new() { Interval = 1000 };
     private bool _displayedFrozenPreview;
 
+    /// <summary>Requests the owning Portfolio trade refresh after its opening executions are filled.</summary>
+    public event Func<Task>? OpeningOrdersFilled;
     public event EventHandler? SubmitOpeningRequested;
     public event EventHandler? SubmitClosingRequested;
     public event EventHandler? EndOfDayRequested;
@@ -124,10 +126,11 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     /// <param name="baseContracts">The available futures contracts.</param>
     public EsTradeBlotterControl(IAppRoot appRoot, PortfolioFundEditorModel fund, PortfolioFundOrderEditorModel order,
         PortfolioFundOrderTradeEditorModel trade, int portfolioId, bool historicalReadOnly,
-        BrokerCapabilities? capabilities = null, Control? workflowControl = null)
+        BrokerCapabilities? capabilities = null, Control? workflowControl = null, bool liveFeedEnabled = false)
     {
         ArgumentNullException.ThrowIfNull(appRoot);
         _appRoot = appRoot;
+        _liveFeedEnabled = liveFeedEnabled;
         _tradeType = trade.TradeType;
         _isNewTrade = trade.TradeState == TradeState.NewTrade;
         _brokerTradeIdentity = trade;
@@ -260,6 +263,11 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             };
             _orderFillsTab = orderFills;
             _orderFillsView = new OrderFillsPreviewControl(portfolioId, fund, order, trade, historicalReadOnly, appRoot);
+            _orderFillsView.OpeningOrdersFilled += async () =>
+            {
+                if (OpeningOrdersFilled is not null)
+                    foreach (Func<Task> handler in OpeningOrdersFilled.GetInvocationList()) await handler();
+            };
             orderFills.Controls.Add(_orderFillsView);
             if (_strategy == TradeBlotterStrategy.IronCondor) tabs.TabPages.AddRange([market, brokerTrade, orderFills]);
             else tabs.TabPages.AddRange([market, brokerTrade, orderFills, _stagingTab, orders]);
@@ -1037,16 +1045,26 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             var selectedExpiry = expiry.Value;
             var result = await _appRoot.Services.MarketDataQueries.QueryEvaluatedOptionChainAsync(
                 CreateChainQuery(selectedExpiry), requestToken);
-            if (IsDisposed || _expirationSelector.SelectedItem is not ExpiryChoice current
+            if (IsDisposed || requestToken.IsCancellationRequested
+                || _expirationSelector.SelectedItem is not ExpiryChoice current
                 || current.Value != selectedExpiry) return;
-            if (!result.Success || result.Value is null) { SetSelectionText(_liquiditySelector, "Unavailable"); return; }
+            if (!result.Success || result.Value is null)
+            {
+                SetSelectionText(_liquiditySelector, "Unavailable");
+                _marketSelectionLabel.Text = $"{(_liveFeedEnabled ? "Live" : "Frozen")} option chain unavailable: {result.ErrorMessage}";
+                return;
+            }
             _activeEvaluatedExpiry = selectedExpiry;
             BindEvaluatedChain(result.Value);
         }
         catch (OperationCanceledException) when (requestToken.IsCancellationRequested) { return; }
-        catch (Exception)
+        catch (Exception error)
         {
-            if (!IsDisposed) SetSelectionText(_liquiditySelector, "Unavailable");
+            if (!IsDisposed)
+            {
+                SetSelectionText(_liquiditySelector, "Unavailable");
+                _marketSelectionLabel.Text = $"Option chain unavailable: {error.Message}";
+            }
         }
         finally { _chainRefreshInProgress = false; }
     }
@@ -1067,7 +1085,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         StandardDeviationAmount = _standardDeviationAmount,
         StandardDeviationMultiplier = 2.5,
         RequiredContractIds = _selectedMarketContractIds,
-        AllowFrozenEmulatorPreview = _capabilities.Environment == AppBrokerEnvironment.Emulator,
+        AllowFrozenEmulatorPreview = _capabilities.Environment == AppBrokerEnvironment.Emulator && !_liveFeedEnabled,
         FrozenEmulatorPreviewOnly = _capabilities.Environment == AppBrokerEnvironment.Emulator && !_liveFeedEnabled
     };
 
@@ -1895,7 +1913,25 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             throw new InvalidOperationException("Live market selection is unavailable for a read-only trade blotter.");
         // Market Selection owns its expiry-wide evaluated chain. The hosted trade workflow
         // may use a separate feed for chosen legs, but it must not gate this feed.
+        var feedModeChanged = _liveFeedEnabled != enabled;
         _liveFeedEnabled = enabled;
+        if (feedModeChanged)
+        {
+            // Quotes and selected legs from the previous mode cannot authorize a new order.
+            _displayedEvaluatedExpiry = null;
+            _displayedFrozenPreview = false;
+            _optionChainRows.Clear();
+            _selectedMarketContracts.Clear();
+            _selectedMarketRoles.Clear();
+            _defaultSelectionExpiry = null;
+            _marketSelectionEditedManually = false;
+            _nearestUnderlyingStrike = null;
+            _marketGrid.RowCount = 0;
+            BindSelectedOptionChain();
+            UpdateMarketSelectionStatus();
+            _quoteAgeValue.Text = enabled ? "Awaiting live quotes" : "-";
+            SetSelectionText(_liquiditySelector, "Loading");
+        }
         if (enabled)
         {
             ResetChainRequestCancellation();
@@ -1908,7 +1944,10 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             _chainRequestCancellation?.Cancel();
             await ReleaseEvaluatedChainAsync();
             if (_capabilities.Environment == AppBrokerEnvironment.Emulator)
+            {
+                ResetChainRequestCancellation();
                 await RefreshEvaluatedChainAsync();
+            }
         }
     }
     public void SetNearestStrikePrices() => RequiredWorkflow().SetNearestStrikePrices();

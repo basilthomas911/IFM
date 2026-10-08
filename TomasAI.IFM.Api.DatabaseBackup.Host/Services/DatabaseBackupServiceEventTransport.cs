@@ -14,7 +14,7 @@ public interface IDatabaseBackupServiceEventTransport
     ValueTask StopAsync(CancellationToken cancellationToken);
 }
 
-public sealed class JetStreamDatabaseBackupServiceEventTransport(IJSActorProducer producer)
+public sealed class JetStreamDatabaseBackupServiceEventTransport(IJSActorProducer producer, DatabaseBackupOperationOutput? output = null)
     : IDatabaseBackupServiceEventTransport
 {
     static readonly MethodInfo SendTypedMethod = typeof(JetStreamDatabaseBackupServiceEventTransport)
@@ -26,6 +26,8 @@ public sealed class JetStreamDatabaseBackupServiceEventTransport(IJSActorProduce
     public ValueTask PublishAsync(DatabaseBackupServiceEventContract @event, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(@event);
+        output?.Append(@event.Source.Source, @event.EntityId.Value,
+            $"{@event.Source.Phase} | {@event.ProgressPercent}% milestone | {@event.Outcome} | {@event.Verb} | {@event.SafeDiagnosticReference}");
         var method = SendTypedMethod.MakeGenericMethod(@event.GetType());
         return (ValueTask)method.Invoke(null, [producer, @event, cancellationToken])!;
     }

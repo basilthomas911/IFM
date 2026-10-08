@@ -16,7 +16,7 @@ public static class SnapshotFuturesPosition
     public static ServiceResult<GuidResult> Execute(
         this SnapshotFuturesPositionCommand command,
         FuturesPositionCommandState state) =>
-        state.Current is not null
+        state.PositionSnapshot is not null
             ? TradeCommandResult.Accepted(command.CommandId)
-            : command.UpdateFailed("POSITION.NOT_FOUND");
+            : command.UpdateFailed("FuturesPosition.NOT_FOUND");
 }

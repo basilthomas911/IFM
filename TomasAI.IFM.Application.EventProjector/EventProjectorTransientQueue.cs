@@ -14,6 +14,9 @@ internal interface IEventProjectorTransientQueue
 
     ValueTask EnqueueAsync(IEvent domainEvent, CancellationToken cancellationToken = default);
 
+    /// <summary>Attempts immediate admission of a snapshot projection, rejecting a full or stopped queue.</summary>
+    bool TryEnqueueSnapshot(IEvent domainEvent);
+
     ValueTask StopAsync(CancellationToken cancellationToken = default);
 }
 
@@ -85,6 +88,14 @@ internal sealed class EventProjectorTransientQueue(
             throw new InvalidOperationException(
                 $"The non-durable queue for projector '{_projectorName}' is not accepting events.", ex);
         }
+    }
+
+    /// <inheritdoc />
+    public bool TryEnqueueSnapshot(IEvent domainEvent)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        var channel = Volatile.Read(ref _channel);
+        return channel is not null && channel.Writer.TryWrite(new Pending(domainEvent, Activity.Current?.Context ?? default));
     }
 
     public async ValueTask StopAsync(CancellationToken cancellationToken = default)

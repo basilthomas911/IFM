@@ -139,7 +139,7 @@ public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource s
                         var quoteUsable = liveQuote.Bid > 0 && liveQuote.Ask >= liveQuote.Bid
                             && liveQuote.BidSize >= 0 && liveQuote.AskSize >= 0
                             && liveQuote.GenerationId == request.GenerationId
-                            && liveQuote.EventAtUtc <= request.EvaluatedAtUtc
+                            && liveQuote.EventAtUtc <= request.EvaluatedAtUtc.AddMilliseconds(optionContext.MaximumSourceClockLeadMilliseconds)
                             && liveQuote.ReceivedAtUtc <= request.EvaluatedAtUtc
                             && (request.EvaluatedAtUtc - liveQuote.EventAtUtc).TotalMilliseconds
                                 <= Math.Min(optionContext.MaximumQuoteAgeMilliseconds, request.MaximumQuoteAgeMilliseconds);
@@ -211,7 +211,8 @@ public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource s
                         if (quote.GenerationId != request.GenerationId) return Fail("Recovering");
                         if (quote.Bid <= 0 || quote.Ask < quote.Bid || quote.BidSize < 0 || quote.AskSize < 0
                             || quote.EventAtUtc.Offset != TimeSpan.Zero || quote.ReceivedAtUtc.Offset != TimeSpan.Zero
-                            || quote.EventAtUtc > request.EvaluatedAtUtc || quote.ReceivedAtUtc > request.EvaluatedAtUtc)
+                            || quote.EventAtUtc > request.EvaluatedAtUtc.AddMilliseconds(effectiveInstrument.Pricing?.MaximumSourceClockLeadMilliseconds ?? 0)
+                            || quote.ReceivedAtUtc > request.EvaluatedAtUtc)
                             return Fail("InvalidQuote", quote.ContractId);
                         var expiry = quote.EventAtUtc.AddMilliseconds(maximumAge);
                         if (expiry < request.EvaluatedAtUtc) return Fail("StaleData", quote.ContractId);

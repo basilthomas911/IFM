@@ -38,6 +38,7 @@ public sealed class DatabaseBackupDashboardSmokeTests
         {
             try
             {
+                System.Windows.Forms.Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
                 using var form = new Form
                 {
                     Text = $"IFM Database Backup Gate 9 {Guid.NewGuid():N}",
@@ -77,6 +78,13 @@ public sealed class DatabaseBackupDashboardSmokeTests
                 "a backup request requires an explicitly checked protection set");
             controlState.LocalSourceSelected.Should().BeTrue();
 
+            // Real UIA inspection verifies Logs/Setup are exposed by the rendered WinForms view.
+            var tabs = window.FindFirstDescendant(condition => condition.ByAutomationId("BackupTabs"));
+            tabs.Should().NotBeNull();
+            var treeElement = window.FindFirstDescendant(condition => condition.ByAutomationId("BackupLogTree"));
+            treeElement.Should().NotBeNull();
+            await VerifyDatabaseLeavesAndOutputAsync(form, view);
+
             await CheckProtectionSetAsync(form, view, "core");
             controlState = await ReadControlStateAsync(form, view);
             controlState.RequestButtonEnabled.Should().BeTrue();
@@ -90,6 +98,34 @@ public sealed class DatabaseBackupDashboardSmokeTests
         uiFailure.Should().BeNull();
         await queryApi.Received().GetProtectionSetsAsync(
             Arg.Any<GetDatabaseProtectionSetsQuery>(), Arg.Any<CancellationToken>());
+    }
+
+    static async Task VerifyDatabaseLeavesAndOutputAsync(Form form, BackupDatabasesView view)
+    {
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        form.BeginInvoke(async () =>
+        {
+            try
+            {
+                var tree = FindControl<TreeView>(view, "BackupLogTree");
+                var timeout = Stopwatch.StartNew();
+                while (!tree.Nodes.Cast<TreeNode>().Any(root => root.Nodes.Count > 0) && timeout.Elapsed < TimeSpan.FromSeconds(10)) await Task.Delay(100);
+                tree.Nodes.Cast<TreeNode>().Select(root => root.Text).Should().Equal("AWS Backup", "Local Workstation Backup");
+                var local = tree.Nodes[1];
+                var run = local.Nodes[0].Nodes[0].Nodes[0].Nodes[0];
+                run.Nodes.Count.Should().Be(2);
+                run.Nodes[0].Text.Should().StartWith("ScyllaDB"); run.Nodes[1].Text.Should().StartWith("PostgreSQL");
+                run.Nodes.Cast<TreeNode>().Should().OnlyContain(node => node.Nodes.Count == 0);
+                run.Nodes[1].Text.Should().Contain("100%"); run.Nodes[1].ImageKey.Should().Be("Succeeded");
+                tree.SelectedNode = run.Nodes[1];
+                var output = FindControl<System.Windows.Forms.TextBox>(view, "BackupStandardOutput");
+                timeout.Restart(); while (!output.Text.Contains("fixture backup verified") && timeout.Elapsed < TimeSpan.FromSeconds(10)) await Task.Delay(100);
+                output.Text.Should().Contain("fixture backup verified").And.Contain("100% milestone");
+                completion.SetResult();
+            }
+            catch (Exception exception) { completion.SetException(exception); }
+        });
+        await completion.Task.WaitAsync(TimeSpan.FromSeconds(25));
     }
 
     static Task<DashboardControlState> ReadControlStateAsync(Form form, BackupDatabasesView view)
@@ -145,7 +181,14 @@ public sealed class DatabaseBackupDashboardSmokeTests
                 }])));
         queryApi.ListBackupOperationsAsync(Arg.Any<ListDatabaseBackupOperationsQuery>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<ServiceResult<DatabaseBackupOperationReadModel[]>>(
-                new ServiceOk<DatabaseBackupOperationReadModel[]>([])));
+                new ServiceOk<DatabaseBackupOperationReadModel[]>([new DatabaseBackupOperationReadModel
+                {
+                    OperationId = new(Guid.Parse("726cda17-9ab5-4f00-889f-cd1a50000333")),
+                    BackupSetId = new(Guid.Parse("726cda17-9ab5-4f00-889f-cd1a50000444")),
+                    ProtectionSetId = new("core"), Source = BackupSource.LocalWorkstation, CreatedUtc = DateTimeOffset.UtcNow,
+                    Phase = DatabaseRecoveryPhase.Completed, Outcome = DatabaseRecoveryOutcome.Succeeded, ProgressPercent = 100,
+                    Engine = DatabaseEngine.PostgreSql, Kind = DatabaseRecoveryOperationKind.Backup
+                }])));
         queryApi.GetLatestVerifiedBackupAsync(
                 Arg.Any<GetLatestVerifiedDatabaseBackupQuery>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<ServiceResult<DatabaseRestorePointReadModel>>(
@@ -154,6 +197,12 @@ public sealed class DatabaseBackupDashboardSmokeTests
                 Arg.Any<GetLatestRestoreTestedDatabaseBackupQuery>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<ServiceResult<DatabaseRestorePointReadModel>>(
                 new ServiceFailed<DatabaseRestorePointReadModel>(404, "No restore-tested point.")));
+        queryApi.GetBackupLogAsync(Arg.Any<GetDatabaseBackupLogQuery>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<ServiceResult<DatabaseBackupLogReadModel>>(new ServiceOk<DatabaseBackupLogReadModel>(new()
+            {
+                Output = "fixture backup verified", OutputAvailable = true, EndOfOutput = true, NextOutputOffset = 23,
+                Phases = [new() { Revision = 1, ObservedUtc = DateTimeOffset.UtcNow, Phase = DatabaseRecoveryPhase.Completed, Outcome = DatabaseRecoveryOutcome.Succeeded, ProgressPercent = 100 }]
+            })));
         return queryApi;
     }
 

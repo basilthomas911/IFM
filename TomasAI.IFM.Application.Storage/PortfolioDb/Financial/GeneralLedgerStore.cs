@@ -82,7 +82,7 @@ public sealed class GeneralLedgerStore(IPostgresEventTransaction transactions,
                 if (discretionary)
                 {
                     Require(authority.State == "Active", FinancialReasons.AuthorityRevoked, "New spending is disabled.");
-                    await ValidateFundSourcesAsync(db, authority.Book, item.FundId, true, cancellation);
+                    await ValidateFundSourcesAsync(db, developmentPolicy?.TradingBook(authority.Book) ?? authority.Book, item.FundId, true, cancellation);
                     Require(await AvailableCash(db, item.BookId, item.FundId, cancellation) >= item.Amount,
                         FinancialReasons.InsufficientCash, "Cash is unavailable after existing withdrawals and trade commitments.");
                 }

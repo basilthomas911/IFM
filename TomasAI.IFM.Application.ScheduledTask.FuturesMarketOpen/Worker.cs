@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Application.Shared.Events;
 using TomasAI.IFM.Application.ScheduledTask.Shared;
 using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
@@ -12,7 +13,10 @@ public sealed class Worker(
     ILogger<Worker> logger,
     IActorProducer actorProducer,
     IMarketDataQueryApi marketDataQueryApi,
-    IApplicationCommandApi applicationCommandApi)
+    IApplicationCommandApi applicationCommandApi,
+    TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi.IMarketDataFeedQueryApi feedQueries,
+    ScheduledTaskEventCompletion completion,
+    ScheduledTaskBusinessReceipts receipts)
     : OneShotScheduledTaskWorker(lifetime, outcome, logger)
 {
     protected override async Task ExecuteTaskAsync(CancellationToken cancellationToken)
@@ -20,21 +24,30 @@ public sealed class Worker(
         await actorProducer.StartAsync(new ActorMailboxId(ActorType.Query, "FuturesMarketOpen"), cancellationToken).ConfigureAwait(false);
         try
         {
-            var valueDateResult = await marketDataQueryApi.GetValueDateAsync().ConfigureAwait(false);
-            if (!valueDateResult.Success || valueDateResult.Value is null)
+            await receipts.WaitForRunningAsync(cancellationToken);
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(TimeSpan.FromMinutes(10));
+            var session = await marketDataQueryApi.GetMarketSessionAsync().WaitAsync(deadline.Token);
+            if (!session.Success || session.Value is null) throw new InvalidOperationException("Unable to load authoritative market session: " + session.ErrorMessage);
+            if (session.Value.IsEndOfDayPending || session.Value.ActiveValueDate != session.Value.OperationalValueDate)
+                throw new InvalidOperationException("Market open is waiting for successful EOD completion of the prior operational value date.");
+            var valueDate = session.Value.OperationalValueDate;
+            var started = await completion.ExecuteAsync<ApplicationStartupCompleteEvent,ApplicationStartupFailEvent>(
+                ApplicationStartupCompleteEvent.Actor, ApplicationStartupCompleteEvent.Verb, ApplicationStartupFailEvent.Verb,
+                () => applicationCommandApi.StartApplicationAsync(valueDate), deadline.Token);
+            if (started.EntityId.ValueDate != valueDate) throw new InvalidOperationException("Application startup completed for a different value date.");
+            using var feedDeadline = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token);
+            feedDeadline.CancelAfter(TimeSpan.FromMinutes(1));
+            while (true)
             {
-                throw new InvalidOperationException($"Unable to load value date: {valueDateResult.ErrorMessage}");
+                var runtime = await feedQueries.GetRuntimeStatusAsync().WaitAsync(feedDeadline.Token);
+                var readiness = await feedQueries.GetDatabentoReadinessAsync().WaitAsync(feedDeadline.Token);
+                if (runtime.Success && readiness.Success && ScheduledMarketOpenReadiness.IsReady(runtime.Value, readiness.Value, valueDate)) break;
+                await Task.Delay(TimeSpan.FromSeconds(1), feedDeadline.Token);
             }
+            await receipts.RecordAsync(valueDate, "ApplicationStarted", "Correlated application startup and healthy subscribed GLBX.MDP3 generation confirmed for the admitted operational value date.", deadline.Token);
+            logger.LogInformation("{Component}.{Method} Application startup completed for {ValueDate} {CommandId}.", nameof(Worker), nameof(ExecuteTaskAsync), valueDate, started.CommandId);
 
-            cancellationToken.ThrowIfCancellationRequested();
-            var valueDate = valueDateResult.Value.Value;
-            var startResult = await applicationCommandApi.StartApplicationAsync(valueDate).ConfigureAwait(false);
-            if (!startResult.Success)
-            {
-                throw new InvalidOperationException($"Application start command was rejected: {startResult.ErrorMessage}");
-            }
-
-            logger.LogInformation("Application start command {CommandId} accepted for {ValueDate}.", startResult.Value, valueDate);
         }
         finally
         {

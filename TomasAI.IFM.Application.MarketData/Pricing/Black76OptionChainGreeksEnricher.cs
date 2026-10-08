@@ -84,7 +84,8 @@ public sealed class Black76OptionChainGreeksEnricher(OptionChainPricingInputStor
             || tick.BidPrice is null || tick.AskPrice is null)
             return Failed(route, "ContractOrQuoteInvalid", at);
         var quote = new OptionPricingQuote(tick.ContractId, tick.BidPrice.Value, tick.AskPrice.Value,
-            tick.BidSize, tick.AskSize, tick.EventTimestamp, tick.ReceiveTimestamp, tick.SourceSequence, c.GenerationId);
+            tick.BidSize, tick.AskSize, tick.EventTimestamp,
+            tick.LocalReceivedAtUtc == default ? tick.ReceiveTimestamp : tick.LocalReceivedAtUtc, tick.SourceSequence, c.GenerationId);
         var result = Black76PricingModel.Calculate(c, input.Underlying, quote, route.Definition.StrikePrice,
             route.Definition.Right == OptionRightSelection.Call, at);
         if (result.Failure is { } failure) return Failed(route, failure.Code, at) with { PricingFailure = failure };

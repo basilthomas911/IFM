@@ -48,13 +48,15 @@ public sealed class OrderFillsNotificationTests
                 var broker = new BrokerOrderDefinition { Id = new(executionId, componentId), Order = definition,
                     Status = BrokerOrderStatus.Working, Revision = 1, CurrentSignedNetDebitLimit = -2m };
                 var execution = new OrderExecutionDefinition { TradeOrderId = id, ExecutionAttemptId = executionId.ExecutionAttemptId,
-                    Order = definition, OrderQuantity = 2, Status = OrderExecutionStatus.Submitted };
+                    Order = definition, OrderQuantity = 2, PositionType = TradeOrderPositionType.Opening, Status = OrderExecutionStatus.Submitted };
                 services.BrokerOrders.ListAsync(id, Arg.Any<CancellationToken>()).Returns(new ServiceOk<BrokerOrderDefinition[]>([broker]));
                 services.OrderExecutions.GetAsync(id, executionId.ExecutionAttemptId, Arg.Any<CancellationToken>()).Returns(new ServiceOk<OrderExecutionDefinition>(execution));
                 var fund = new PortfolioFundEditorModel(4, "Fund", "", 0, false, DateTime.UtcNow, "test");
                 var order = new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel { PortfolioId = 1, FundId = 4, OrderId = 10 });
                 var trade = new PortfolioFundOrderTradeEditorModel { FundId = 4, OrderId = 10, TradeId = 1, TradeState = TradeState.NewTrade, TradeType = TradeType.ShortIronCondor };
                 using var view = new OrderFillsPreviewControl(1, fund, order, trade, appRoot: app);
+                var openingFillReports = 0;
+                view.OpeningOrdersFilled += () => { openingFillReports++; return Task.CompletedTask; };
                 using var form = new Form { Width = 1200, Height = 650, ShowInTaskbar = false, Location = new(-3000, -3000) };
                 form.Controls.Add(view); form.Show();
                 view.BindSubmittedOrders([definition]);
@@ -88,6 +90,22 @@ public sealed class OrderFillsNotificationTests
                 Assert.StartsWith(filled ? "Filled" : "Cancelled", status.Text);
                 Assert.Equal(filled ? Color.LimeGreen : Color.Red, status.ForeColor);
                 Assert.Equal(status.ForeColor, tree.Nodes[0].ForeColor);
+                // Verify the custom painter uses the status color, including for a selected node.
+                using (var bitmap = new Bitmap(1000, 40))
+                using (var graphics = Graphics.FromImage(bitmap))
+                {
+                    graphics.Clear(Color.Black);
+                    var draw = typeof(BrokerOrderFillsPreviewControl).GetMethod("DrawTreeNode",
+                        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+                    draw.Invoke(view, [tree, new DrawTreeNodeEventArgs(graphics, tree.Nodes[0],
+                        new Rectangle(0, 0, 800, 30), TreeNodeStates.Selected)]);
+                    Assert.Contains(Enumerable.Range(0, bitmap.Width), x =>
+                        Enumerable.Range(0, bitmap.Height).Any(y => bitmap.GetPixel(x, y).ToArgb() == status.ForeColor.ToArgb()));
+                    Assert.DoesNotContain(Enumerable.Range(0, bitmap.Width), x =>
+                        Enumerable.Range(0, bitmap.Height).Any(y => bitmap.GetPixel(x, y).ToArgb() == Color.Yellow.ToArgb()));
+                }
+
+                Assert.Equal(filled ? 1 : 0, openingFillReports);
                 Assert.False(update.Enabled || price.Enabled || cancel.Enabled);
                 Assert.Equal(final.Fills[0], detail.SelectedObject);
                 onExecution!(notification); // Late delivery cannot revive working controls.
@@ -95,6 +113,7 @@ public sealed class OrderFillsNotificationTests
                 System.Windows.Forms.Application.DoEvents();
                 Assert.False(update.Enabled || price.Enabled || cancel.Enabled);
                 Assert.Equal(filled ? Color.LimeGreen : Color.Red, status.ForeColor);
+                Assert.Equal(filled ? 1 : 0, openingFillReports);
                 view.Dispose();
                 subscription.Received(1).DisposeAsync();
                 done.SetResult();

@@ -1,4 +1,4 @@
-using Serilog;
+﻿using Serilog;
 using TomasAI.IFM.Application.Api.Server;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
@@ -160,6 +160,11 @@ try
     }
     else
     {
+        if (app.Services.GetService<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskSchemaDb>() is { } scheduledTaskSchema)
+        {
+            using var scheduledTaskSchemaDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await scheduledTaskSchema.CreateAllAsync().WaitAsync(scheduledTaskSchemaDeadline.Token);
+        }
         if (EventLogQualification.Active is { } qualification)
         {
             await app.Services.GetRequiredService<ApplicationSchemaInitializer>()

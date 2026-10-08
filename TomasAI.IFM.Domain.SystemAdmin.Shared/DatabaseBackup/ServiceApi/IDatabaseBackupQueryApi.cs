@@ -6,6 +6,10 @@ namespace TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ServiceApi;
 
 public interface IDatabaseBackupQueryApi
 {
+    /// <summary>Reads safe host setup metadata.</summary>
+    ValueTask<ServiceResult<DatabaseBackupSetupReadModel>> GetBackupSetupAsync(GetDatabaseBackupSetupQuery query, CancellationToken cancellationToken = default);
+    /// <summary>Reads a bounded phase and retained-output page.</summary>
+    ValueTask<ServiceResult<DatabaseBackupLogReadModel>> GetBackupLogAsync(GetDatabaseBackupLogQuery query, CancellationToken cancellationToken = default);
     ValueTask<ServiceResult<DatabaseProtectionSetReadModel[]>> GetProtectionSetsAsync(GetDatabaseProtectionSetsQuery query, CancellationToken cancellationToken = default);
     ValueTask<ServiceResult<DatabaseBackupPolicyReadModel>> GetPolicyAsync(GetDatabaseBackupPolicyQuery query, CancellationToken cancellationToken = default);
     ValueTask<ServiceResult<DatabaseBackupOperationReadModel>> GetBackupOperationAsync(GetDatabaseBackupOperationQuery query, CancellationToken cancellationToken = default);

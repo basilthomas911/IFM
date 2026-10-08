@@ -19,6 +19,8 @@ public interface IDatabaseBackupQueryContext : IQueryActorContext<DatabaseBackup
     IActorSupervisor Supervisor { get; }
     /// <summary>Gets the DbContext service supplied to the actor context.</summary>
     ISystemAdminDbContext DbContext { get; }
+    /// <summary>Gets the retained operation output reader.</summary>
+    IDatabaseBackupOutputReader? OutputReader { get; }
     /// <summary>Gets the Logger service supplied to the actor context.</summary>
     ILogger<DatabaseBackupQueryActor> Logger { get; }
 }
@@ -30,12 +32,13 @@ public sealed class DatabaseBackupQueryContext : QueryActorContext, IQueryActorC
     public DatabaseBackupQueryContext(
         IActorSupervisor supervisor,
         ISystemAdminDbContext dbContext,
-        ILogger<DatabaseBackupQueryActor> logger)
+        ILogger<DatabaseBackupQueryActor> logger, IDatabaseBackupOutputReader? outputReader = null)
         : base(supervisor, new ActorMailboxId(ActorType.Query, DatabaseBackupQueryActor.Actor))
     {
         Supervisor = IsArgumentNull.Set(supervisor);
         DbContext = IsArgumentNull.Set(dbContext);
         Logger = IsArgumentNull.Set(logger);
+        OutputReader = outputReader;
     }
 
     /// <inheritdoc/>
@@ -44,4 +47,6 @@ public sealed class DatabaseBackupQueryContext : QueryActorContext, IQueryActorC
     public ISystemAdminDbContext DbContext { get; }
     /// <inheritdoc/>
     public ILogger<DatabaseBackupQueryActor> Logger { get; }
+    /// <inheritdoc />
+    public IDatabaseBackupOutputReader? OutputReader { get; }
 }

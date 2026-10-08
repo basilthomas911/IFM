@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using MessagePack;
@@ -22,6 +22,8 @@ public sealed record UpdateIronCondorTradePlanCommand : ICommand<IronCondorTrade
     [Key(5)] public TradePlanParameters Parameters { get; init; } = new();
     [Key(6)] public Guid SourceEventId { get; init; }
     [Key(7)] public DateTime RequestedAtUtc { get; init; }
+    /// <summary>Gets captured legacy inputs; omitted inputs are explicitly reported unavailable.</summary>
+    [Key(8)] public IronCondorTradePlanInputs? IronCondorTradePlanInputs { get; init; }
     [IgnoreMember] public string CommandName => nameof(UpdateIronCondorTradePlanCommand);
     [IgnoreMember] public BoundedContextName RouteTo => BoundedContextName.StrategyPositionTradePlanBoundedContext;
     [IgnoreMember] public string StreamId => Subject.StreamId;

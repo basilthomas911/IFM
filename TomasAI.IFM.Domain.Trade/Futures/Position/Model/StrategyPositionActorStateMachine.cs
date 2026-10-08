@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Trade.Model;
 using TomasAI.IFM.Domain.Trade.Order.Model;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -78,6 +79,14 @@ public sealed class StrategyPositionActorStateMachine
             return Reject("POSITION.CONTRACT_MISMATCH", "The routed ContractId does not identify this trade leg.");
         if (price <= 0 || occurredAtUtc.Kind != DateTimeKind.Utc)
             return Reject("POSITION.INVALID_TICK", "A positive price and UTC timestamp are required.");
+        if (!FuturesTradingValueDate.TryGet(new DateTimeOffset(occurredAtUtc), out var valueDate))
+            return Reject("StrategyPosition.SESSION.CLOSED", "Market updates are not accepted during the maintenance or weekend close.");
+        if (valueDate <= Current.LatestSealedValueDate)
+            return Reject("StrategyPosition.SESSION.SEALED", "Market updates cannot change a finalized value date.");
+        if (Current.ValueDate != default && valueDate < Current.ValueDate)
+            return Reject("StrategyPosition.SESSION.STALE", "Market update belongs to an older value date.");
+        if (occurredAtUtc < leg.LastPriceAtUtc)
+            return Reject("StrategyPosition.MARKET.STALE", "Market observation time is older than the current leg.");
         if (sourceSequence <= leg.LastSourceSequence)
             return Reject("POSITION.DUPLICATE_OR_OUT_OF_ORDER", "Tick sequence is not newer than the current leg sequence.");
 
@@ -93,11 +102,29 @@ public sealed class StrategyPositionActorStateMachine
     }
 
     public TradeDecision<StrategyPositionSnapshot> EndOfDay(DateTime asOfUtc)
+        => asOfUtc.Kind != DateTimeKind.Utc
+            ? Reject("StrategyPosition.TIME.INVALID", "EOD boundary must be UTC.")
+            : EndOfDay(DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(asOfUtc, FuturesTradingValueDate.MarketTimeZone)), asOfUtc);
+
+    /// <summary>Seals one dated daily position after its feed has stopped; duplicate sealing is idempotent.</summary>
+    /// <param name="valueDate">The exchange value date ending at the supplied boundary.</param>
+    /// <param name="asOfUtc">The actual session-close boundary in UTC.</param>
+    /// <returns>The immutable finalized position or a business rejection.</returns>
+    public TradeDecision<StrategyPositionSnapshot> EndOfDay(DateOnly valueDate, DateTime asOfUtc)
     {
         if (Current is null || !Current.IsOpen) return Reject("POSITION.NOT_OPEN", "An open position is required.");
-        if (asOfUtc.Kind != DateTimeKind.Utc) return Reject("POSITION.INVALID_TIME", "EOD time must be UTC.");
+        if (asOfUtc.Kind != DateTimeKind.Utc || valueDate == default) return Reject("POSITION.INVALID_TIME", "EOD requires a value date and UTC boundary.");
+        if (valueDate != DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(asOfUtc, FuturesTradingValueDate.MarketTimeZone)))
+            return Reject("StrategyPosition.SESSION.INVALID_CLOSE", "EOD value date must match the exchange date of its close boundary.");
+        if (valueDate <= Current.LatestSealedValueDate)
+            return valueDate == Current.LatestSealedValueDate && Current.Phase == StrategyPositionPhase.EndOfDay
+                ? TradeDecision<StrategyPositionSnapshot>.Accept(Current)
+                : Reject("StrategyPosition.SESSION.SEALED", "This value date is already finalized.");
+        if (valueDate < Current.ValueDate || asOfUtc < Current.AsOfUtc)
+            return Reject("StrategyPosition.SESSION.INVALID_CLOSE", "Close boundary cannot precede the current position.");
         Current = Build(Current.Id, Current.StrategyKind, StrategyPositionPhase.EndOfDay,
-            checked(Current.PositionSequence + 1), Current.RouteGeneration, asOfUtc, true, Current.RealizedPnl);
+            checked(Current.PositionSequence + 1), Current.RouteGeneration, asOfUtc, true, Current.RealizedPnl) with
+        { ValueDate = valueDate, LatestSealedValueDate = valueDate, CloseBoundaryUtc = asOfUtc };
         return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
     }
 
@@ -152,6 +179,8 @@ public sealed class StrategyPositionActorStateMachine
     public TradeDecision<StrategyPositionSnapshot> CorrectBasis(Guid tradeLegId, decimal openingPrice, DateTime correctedAtUtc)
     {
         if (Current is null) return Reject("POSITION.NOT_FOUND", "Position does not exist.");
+        if (FuturesTradingValueDate.GetOperational(new DateTimeOffset(correctedAtUtc)) <= Current.LatestSealedValueDate)
+            return Reject("StrategyPosition.SESSION.SEALED", "A basis correction cannot mutate a finalized daily position.");
         if (!_legs.TryGetValue(tradeLegId, out var leg) || openingPrice <= 0 || correctedAtUtc.Kind != DateTimeKind.Utc)
             return Reject("POSITION.INVALID_CORRECTION", "Correction requires an existing leg, positive basis, and UTC time.");
         _legs[tradeLegId] = leg with { OpeningPrice = openingPrice };
@@ -163,7 +192,14 @@ public sealed class StrategyPositionActorStateMachine
 
     public void Replay(StrategyPositionSnapshot snapshot)
     {
-        Current = snapshot;
+        // Legacy payloads use the existing exchange value-date policy, never UTC.Date.
+        Current = snapshot.ValueDate == default && snapshot.AsOfUtc != default ? snapshot with
+        {
+            ValueDate = FuturesTradingValueDate.GetOperational(new DateTimeOffset(snapshot.AsOfUtc)),
+            LatestSealedValueDate = snapshot.Phase == StrategyPositionPhase.EndOfDay ? DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(snapshot.AsOfUtc, FuturesTradingValueDate.MarketTimeZone)) : default,
+            HistoryAsOfUtc = snapshot.AsOfUtc, HistoryPositionSequence = snapshot.PositionSequence,
+            LastMarketObservationUtc = snapshot.Legs.Select(leg => leg.LastPriceAtUtc).DefaultIfEmpty(snapshot.AsOfUtc).Max()
+        } : snapshot;
         _legs.Clear();
         foreach (var leg in snapshot.Legs) _legs.Add(leg.TradeLegId, leg);
         _orderedLegIds = snapshot.Legs.Select(static leg => leg.TradeLegId).ToArray();
@@ -189,6 +225,13 @@ public sealed class StrategyPositionActorStateMachine
             value += leg.CurrentPrice * leg.SignedQuantity;
             pnl += (leg.CurrentPrice - leg.OpeningPrice) * leg.SignedQuantity;
         }
+        var valueDate = phase == StrategyPositionPhase.EndOfDay
+            ? DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(asOfUtc, FuturesTradingValueDate.MarketTimeZone))
+            : FuturesTradingValueDate.GetOperational(new DateTimeOffset(asOfUtc));
+        var sameDate = Current?.ValueDate == valueDate;
+        var dailyRow = phase is StrategyPositionPhase.MarkToMarket or StrategyPositionPhase.EndOfDay;
+        var reuseDailyRow = dailyRow && sameDate && Current!.Phase is StrategyPositionPhase.MarkToMarket or StrategyPositionPhase.EndOfDay;
+        var openingPnl = sameDate ? Current!.DailyOpeningPnl : Current is null ? 0 : Current.RealizedPnl + Current.UnrealizedPnl;
         return new StrategyPositionSnapshot
         {
             Id = id,
@@ -202,7 +245,15 @@ public sealed class StrategyPositionActorStateMachine
             RealizedPnl = realizedPnl,
             AsOfUtc = asOfUtc,
             IsOpen = isOpen,
-            ClosingFills = Current?.ClosingFills ?? []
+            ClosingFills = Current?.ClosingFills ?? [],
+            ValueDate = valueDate,
+            LatestSealedValueDate = Current?.LatestSealedValueDate ?? default,
+            LastMarketObservationUtc = phase == StrategyPositionPhase.MarkToMarket ? asOfUtc : Current?.LastMarketObservationUtc ?? asOfUtc,
+            CloseBoundaryUtc = phase == StrategyPositionPhase.EndOfDay ? asOfUtc : null,
+            DailyOpeningPnl = openingPnl,
+            DailyPnl = realizedPnl + (isOpen ? pnl : 0) - openingPnl,
+            HistoryAsOfUtc = reuseDailyRow ? Current!.HistoryAsOfUtc : asOfUtc,
+            HistoryPositionSequence = reuseDailyRow ? Current!.HistoryPositionSequence : sequence
         };
     }
 

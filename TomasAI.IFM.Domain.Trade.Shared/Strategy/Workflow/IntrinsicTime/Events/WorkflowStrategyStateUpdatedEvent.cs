@@ -31,7 +31,11 @@ public sealed record WorkflowStrategyStateUpdatedEvent : IEvent<IntrinsicTimeStr
     [Key(10)] public Guid CorrelationId { get; init; }
     [Key(11)] public Guid CausationId { get; init; }
     [Key(12)] public WorkflowStrategyMachineStatus PreviousStatus { get; init; }
-    [Key(13)] public IntrinsicTimeStrategyWorkflowView State { get; init; } = new();
+    [Key(13), Newtonsoft.Json.JsonProperty("State"), System.Text.Json.Serialization.JsonPropertyName("State")]
+    public IntrinsicTimeStrategyWorkflowView WorkflowDefinition { get; init; } = new();
+    /// <summary>Retains source compatibility with existing snapshot consumers.</summary>
+    [IgnoreMember, Newtonsoft.Json.JsonIgnore, System.Text.Json.Serialization.JsonIgnore]
+    public IntrinsicTimeStrategyWorkflowView State { get => WorkflowDefinition; init => WorkflowDefinition = value; }
     [Key(14)] public DateTime UpdatedAtUtc { get; init; }
 
     [IgnoreMember]
@@ -82,7 +86,7 @@ public sealed record WorkflowStrategyStateUpdatedEvent : IEvent<IntrinsicTimeStr
         Guid correlationId,
         Guid causationId,
         WorkflowStrategyMachineStatus previousStatus,
-        IntrinsicTimeStrategyWorkflowView state,
+        IntrinsicTimeStrategyWorkflowView workflowDefinition,
         DateTime updatedAtUtc)
     {
         Subject = subject;
@@ -98,7 +102,7 @@ public sealed record WorkflowStrategyStateUpdatedEvent : IEvent<IntrinsicTimeStr
         CorrelationId = correlationId;
         CausationId = causationId;
         PreviousStatus = previousStatus;
-        State = state ?? new IntrinsicTimeStrategyWorkflowView();
+        WorkflowDefinition = workflowDefinition ?? new IntrinsicTimeStrategyWorkflowView();
         UpdatedAtUtc = updatedAtUtc;
     }
 }

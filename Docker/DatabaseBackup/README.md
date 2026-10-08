@@ -164,3 +164,22 @@ docker compose -f Docker/DatabaseBackup/docker-compose.yml up -d --wait --wait-t
 Compare `stat -c '%d:%i:%s' /var/lib/ifm/database-backup/journal/execution-journal.db` before and after restart to prove
 the Worker reopens the same journal. Use `docker compose ... down` without `--volumes` so qualification evidence is not
 deleted accidentally.
+
+## Development on-demand backup and restore
+
+Open **System Admin > Backups > Setup > Local Workstation**. Check `core-postgresql`,
+select Full (or Automatic/Incremental after a verified base exists), and click **Request Backup**.
+Acceptance means the request was submitted; monitor completion under **Logs > Local Workstation Backup**.
+Each run ends in ScyllaDB and PostgreSQL leaves; selecting PostgreSQL shows phases and retained output.
+
+After a verified backup, select its restore point (the latest verified point is filled automatically),
+use target profile `development-on-demand` and copy name `development-restore`, and click
+**Restore Backup (fresh copy)**. The host verifies/boots a separate restored copy in its restore
+workspace using internal PostgreSQL port 55433. The running development database is not replaced.
+
+The deployed development host enables both PostgreSQL and Scylla on-demand backups. Check both
+`core-postgresql` and `read-model-scylla` to request a backup of each database. Scylla Manager
+connectivity and backup dry-run validation were checked from the host. Scylla fresh-target restore
+requires its own configured destination; the PostgreSQL fresh-copy profile does not apply to Scylla.
+AWS admission remains
+separately controlled. On-demand development use does not require completing production qualification.

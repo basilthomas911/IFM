@@ -11,27 +11,15 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.Mo
 
 internal static class IronCondorPositionTransition
 {
-    internal static ServiceResult<GuidResult> Apply(
-        ICommand<StrategyPositionId> command,
-        IronCondorPositionCommandState state,
+    /// <summary>Calculates a position transition without changing actor state or creating events.</summary>
+    /// <param name="positionSnapshot">The current position snapshot.</param>
+    /// <param name="transition">The strategy operation to calculate.</param>
+    /// <returns>The proposed position snapshot or business rejection.</returns>
+    internal static TradeDecision<StrategyPositionSnapshot> Compute(StrategyPositionSnapshot? positionSnapshot,
         Func<StrategyPositionActorStateMachine, TradeDecision<StrategyPositionSnapshot>> transition)
     {
         var machine = new StrategyPositionActorStateMachine();
-        if (state.Current is { } current)
-            machine.Replay(current);
-
-        var decision = transition(machine);
-        if (!decision.Accepted || decision.Value is null)
-            return TradeCommandResult.Rejected(command.ErrorCode, decision);
-
-        if (!state.Update(new IronCondorPositionChangedEvent
-        {
-            Subject = new(ActorType.Event, "FuturesIronCondorTradePositionEvent", IronCondorPositionChangedEvent.Verb, command.EntityId.Format()),
-            ReceivedOn = DateTime.UtcNow,
-            EntityId = command.EntityId,
-            State = decision.Value
-        }, command))
-            return new ServiceFailed<GuidResult>(command.ErrorCode, "POSITION.STATE.APPLY_FAILED");
-        return TradeCommandResult.Accepted(command.CommandId);
+        if (positionSnapshot is not null) machine.Replay(positionSnapshot);
+        return transition(machine);
     }
 }

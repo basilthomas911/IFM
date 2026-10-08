@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Application.MarketData.Pricing;
 public sealed record CompositionDiscoveryRequest(Guid LeaseId, Guid GenerationId, DateOnly ValueDate,
     DateOnly MaturityDate, DateTimeOffset DeadlineUtc, IReadOnlyList<OptionDefinitionCandidate> Definitions,
     bool ScopeComplete, OptionPricingCalendar Calendar, TreasuryPublicationPolicy Publication,
-    TreasuryRateConversionPolicy Conversion);
+    TreasuryRateConversionPolicy Conversion, bool SeparateContractConnection = false);
 
 public sealed record CompositionDiscoveryResult(WorkerOptionChainRequest? Lease,
     ImmutableArray<OptionPricingFailure> Exclusions, bool CompleteEmpty, OptionPricingFailure? Failure);
@@ -35,11 +35,13 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
     int disposed;
 
     public async Task<CompositionDiscoveryResult> AcquireAsync(CompositionDiscoveryRequest request, CancellationToken cancellationToken,
-        bool refreshAutomatically = true)
+        bool refreshAutomatically = true, bool renewAutomatically = false)
     {
         ArgumentNullException.ThrowIfNull(request);
         ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
         var now = clock.GetUtcNow();
+        if (request.SeparateContractConnection && request.Definitions?.Count != 1)
+            return Failed("IndividualOptionRequired");
         if (request.LeaseId == Guid.Empty || request.GenerationId == Guid.Empty || request.ValueDate == default
             || request.DeadlineUtc.Offset != TimeSpan.Zero || request.DeadlineUtc <= now || request.Definitions is null)
             return Failed("InvalidDiscoveryRequest");
@@ -86,6 +88,7 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
             {
                 request.ValueDate,
                 request.MaturityDate,
+                request.SeparateContractConnection,
                 Contracts = WorkerOptionChainRuntime.PhysicalDigest(resolved)
             });
             if (routePlans is not null)
@@ -95,13 +98,14 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
                     "GLBX.MDP3", request.ValueDate, resolved.Select(x => x.Pricing.Contract.UnderlyingContractId));
                 var plan = new CompositionRoutePlan(1, "", "GLBX.MDP3", request.MaturityDate,
                     definitions.Where(x => ids.Contains(x.ContractId)).OrderBy(x => x.ContractId, StringComparer.Ordinal).ToImmutableArray(),
-                    [], routes, request.Calendar, request.Publication, request.Conversion).Seal();
+                    [], routes, request.Calendar, request.Publication, request.Conversion)
+                { SeparateContractConnection = request.SeparateContractConnection }.Seal();
                 await routePlans.SaveAsync(plan, linked.Token).ConfigureAwait(false);
                 scopeId = plan.PlanId;
             }
             var expiry = request.DeadlineUtc < clock.GetUtcNow().AddSeconds(120) ? request.DeadlineUtc : clock.GetUtcNow().AddSeconds(120);
             var lease = new WorkerOptionChainRequest(scopeId, request.LeaseId, request.GenerationId, request.ValueDate,
-                request.MaturityDate, expiry, resolved);
+                request.MaturityDate, expiry, resolved, SeparateContractConnection: request.SeparateContractConnection);
             var acquired = await market.AcquireAsync("GLBX.MDP3", lease, linked.Token).ConfigureAwait(false);
             logger?.LogInformation("Composition discovery first worker acquire: contracts={Count}, elapsedMs={ElapsedMs}, failure={Failure}",
                 resolved.Length, discoveryTimer.ElapsedMilliseconds, acquired.Failure?.Code);
@@ -119,7 +123,7 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
             if (!acquired.Active) return Failed("ChainUnavailable");
             if (refreshAutomatically)
             {
-                registrations[lease.LeaseId] = new(lease, request.Calendar, request.Publication, request.Conversion, clock.GetUtcNow());
+                registrations[lease.LeaseId] = new(lease, request.Calendar, request.Publication, request.Conversion, clock.GetUtcNow(), renewAutomatically);
                 lock (lifecycle) refreshLoop ??= Task.Run(RefreshLoopAsync);
             }
             return new(lease, qualified.Exclusions, false, null);
@@ -180,6 +184,7 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
             ExpectedContextDigest = PricingSemanticHash.Compute(new
             {
                 lease.MaturityDate,
+                lease.SeparateContractConnection,
                 Options = lease.Options.OrderBy(x => x.Pricing.Contract.ContractId, StringComparer.Ordinal).ToImmutableArray()
             })
         };
@@ -207,6 +212,27 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
         foreach (var (id, registration) in registrations.ToArray())
         {
             var now = clock.GetUtcNow();
+            // An explicitly attached monitoring owner keeps its lease alive until ReleaseAsync. Discovery-only
+            // scopes retain their original TTL. Renewal changes transport ownership, never quote/reference validity.
+            if (registration.RenewAutomatically && registration.Lease.LeaseExpiresAtUtc > now
+                && registration.Lease.LeaseExpiresAtUtc <= now.AddSeconds(30))
+            {
+                try
+                {
+                    using var renewalTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    renewalTimeout.CancelAfter(TimeSpan.FromSeconds(3));
+                    if (await RenewAsync(registration.Lease, now.AddSeconds(60), renewalTimeout.Token).ConfigureAwait(false) is null)
+                        logger?.LogWarning("Monitoring lease renewal rejected; MethodName={MethodName} ScopeId={ScopeId} LeaseId={LeaseId} GenerationId={GenerationId}",
+                            nameof(RefreshRegisteredAsync), registration.Lease.ScopeId, id, registration.Lease.GenerationId);
+                }
+                catch (Exception error) when (error is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+                {
+                    logger?.LogWarning(error, "Monitoring lease renewal failed; MethodName={MethodName} ScopeId={ScopeId} LeaseId={LeaseId} GenerationId={GenerationId}",
+                        nameof(RefreshRegisteredAsync), registration.Lease.ScopeId, id, registration.Lease.GenerationId);
+                }
+                // Never put an old expiry/context back after a concurrent release or successful renewal.
+                continue;
+            }
             if (registration.Lease.LeaseExpiresAtUtc <= now) { registrations.TryRemove(id, out _); continue; }
             if (registration.CheckedAtUtc.AddSeconds(30) > now
                 && registration.Lease.Options.All(x => x.Pricing.ValidUntilUtc > now.AddSeconds(2)
@@ -239,5 +265,5 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
     }
 
     sealed record RefreshRegistration(WorkerOptionChainRequest Lease, OptionPricingCalendar Calendar,
-        TreasuryPublicationPolicy Publication, TreasuryRateConversionPolicy Conversion, DateTimeOffset CheckedAtUtc);
+        TreasuryPublicationPolicy Publication, TreasuryRateConversionPolicy Conversion, DateTimeOffset CheckedAtUtc, bool RenewAutomatically);
 }

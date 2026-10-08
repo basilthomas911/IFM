@@ -93,14 +93,14 @@ public abstract class BaseEventSourceActorRepository
             {
                 await _dbEventSource.MapReduceActorEventStreamAsync<TState>(
                     streamId,
-                    e => state.ReplayEvents(e.Select(o => o.ToDomainEvent())),
+                    state.ReplayEvents,
                     cancellationToken).ConfigureAwait(false);
             }
             else
             {
                 await _dbEventSource.MapReduceActorEventStreamAsync<TState>(
                     streamId,
-                    e => state.ReplayEvents(e.Select(o => o.ToDomainEvent()))).ConfigureAwait(false);
+                    state.ReplayEvents).ConfigureAwait(false);
             }
             return state;
         }

@@ -1,4 +1,4 @@
-using TomasAI.IFM.UI.Net.Models.Portfolio;
+﻿using TomasAI.IFM.UI.Net.Models.Portfolio;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -618,6 +618,8 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
             FundId = trade.FundId,
             OrderId = trade.OrderId,
             TradeId = trade.TradeId,
+            ExecutionOrderId = trade.ExecutionOrderId,
+            ExecutionTradeId = trade.ExecutionTradeId,
             TradeFamily = trade.TradeFamily,
             InstructionReference = trade.InstructionReference,
             LegOrdinal = trade.LegOrdinal,
@@ -726,6 +728,32 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         => ExecuteFeedCommandAsync(
             model => model.RemoveTradeLiveFeedsAsync(orderId),
             "Remove Trade Live Feeds Error");
+
+    /// <summary>Loads the persisted execution-created trade bound to the selected setup row.</summary>
+    /// <param name="cancellationToken">Cancels the exact trade query.</param>
+    /// <returns>The established trade read model; no state changes or order-entry views are created.</returns>
+    public async Task<EstablishedTradeDefinition> LoadTradeAsync(CancellationToken cancellationToken = default)
+    {
+        var selected = SelectedFundOrderTrade ?? throw new InvalidOperationException("Select a trade to load.");
+        if (selected.TradeState is not (TradeState.Open or TradeState.Closed or TradeState.OrderCompleted))
+            throw new InvalidOperationException("Load Trade requires an Open or Closed trade.");
+        if (selected.ExecutionOrderId <= 0 || selected.ExecutionTradeId <= 0)
+            throw new InvalidOperationException("This setup trade has no persisted execution link. Its submission must be reconciled before loading.");
+        var id = new TradeEntityId(selected.PortfolioId, selected.FundId, selected.ExecutionOrderId, selected.ExecutionTradeId);
+        var strategy = selected.TradeType switch
+        {
+            TradeType.ShortIronCondor or TradeType.LongIronCondor => TradeStrategyKind.IronCondor,
+            TradeType.FuturesOutright => TradeStrategyKind.FuturesOutright,
+            TradeType.PutCreditSpread or TradeType.PutDebitSpread or TradeType.CallCreditSpread or TradeType.CallDebitSpread => TradeStrategyKind.VerticalSpread,
+            _ => throw new InvalidOperationException("The selected trade strategy is unsupported.")
+        };
+        var result = await _appRoot.Services.EstablishedTrades.GetAsync(id, strategy, cancellationToken).ConfigureAwait(false);
+        if (!result.Success || result.Value is null)
+            throw new InvalidOperationException(result.ErrorMessage ?? $"The established trade {id.Format()} has not been projected.");
+        if (result.Value.Id != id || result.Value.StrategyKind != strategy)
+            throw new InvalidOperationException("The returned established trade does not match the selected execution link.");
+        return result.Value;
+    }
 
     /// <summary>Loads funds through the observable single-flight operation.</summary>
     public Task LoadFunds() => LoadOperation.ExecuteAsync();

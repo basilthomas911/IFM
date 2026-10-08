@@ -18,6 +18,8 @@ public sealed class DatabaseBackupViewModel : IAsyncLifecycle, IAsyncDisposable
     BackupSource _source = BackupSource.LocalWorkstation;
     DatabaseBackupMode _requestedMode = DatabaseBackupMode.Full;
     string? _selectedProtectionSet;
+    long _sourceRevision;
+    bool _refreshPending;
 
     /// <summary>Creates a database-backup dashboard view model.</summary>
     public DatabaseBackupViewModel(IDatabaseBackupService service)
@@ -26,6 +28,9 @@ public sealed class DatabaseBackupViewModel : IAsyncLifecycle, IAsyncDisposable
         _subscription = _service.CreateNotificationSubscription(OnNotificationAsync);
         _lifecycle = new AsyncLifecycleCoordinator(StartCoreAsync, StopCoreAsync);
     }
+
+    /// <summary>Gets the typed service used by bounded log/setup requests.</summary>
+    public IDatabaseBackupService Service => _service;
 
     /// <summary>Gets the latest immutable dashboard snapshot.</summary>
     public DatabaseBackupDashboardUiModel State { get; private set; } = new(
@@ -50,12 +55,19 @@ public sealed class DatabaseBackupViewModel : IAsyncLifecycle, IAsyncDisposable
     {
         DatabaseBackupEnumValidation.RequireConcrete(source);
         _source = source;
+        _sourceRevision++;
         _selectedProtectionSet = null;
     }
 
     /// <summary>Selects the protection set used for targeted restore-point queries.</summary>
     public void SelectProtectionSet(string? protectionSet)
-        => _selectedProtectionSet = string.IsNullOrWhiteSpace(protectionSet) ? null : protectionSet;
+    {
+        var selected = string.IsNullOrWhiteSpace(protectionSet) ? null : protectionSet;
+        if (selected == _selectedProtectionSet) return;
+        _selectedProtectionSet = selected;
+        _sourceRevision++;
+        State = State with { LatestVerified = null, LatestRestoreTested = null };
+    }
 
     /// <summary>Selects the mode used by subsequent backup requests.</summary>
     public void SelectBackupMode(DatabaseBackupMode mode)
@@ -67,8 +79,8 @@ public sealed class DatabaseBackupViewModel : IAsyncLifecycle, IAsyncDisposable
     /// <summary>Refreshes bounded dashboard state through query actors.</summary>
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
-        if (IsBusy)
-            return;
+        if (IsBusy) { _refreshPending = true; return; }
+        var sourceRevision = _sourceRevision;
         IsBusy = true;
         StateChanged?.Invoke();
         try
@@ -80,6 +92,7 @@ public sealed class DatabaseBackupViewModel : IAsyncLifecycle, IAsyncDisposable
                 Error?.Invoke(result.Error?.Message ?? "The dashboard refresh failed.");
                 return;
             }
+            if (sourceRevision != _sourceRevision) { _refreshPending = true; return; }
             State = result.Value;
             _selectedProtectionSet ??= State.ProtectionSets.FirstOrDefault(item => item.Enabled)?.Id;
         }
@@ -95,6 +108,7 @@ public sealed class DatabaseBackupViewModel : IAsyncLifecycle, IAsyncDisposable
         {
             IsBusy = false;
             StateChanged?.Invoke();
+            if (_refreshPending) { _refreshPending = false; await RefreshAsync(cancellationToken); }
         }
     }
 

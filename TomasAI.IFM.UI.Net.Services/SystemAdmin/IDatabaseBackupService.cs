@@ -30,6 +30,23 @@ public interface IDatabaseBackupService
         DatabaseBackupMode requestedMode = DatabaseBackupMode.Full,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Loads safe host-owned setup references.</summary>
+    ValueTask<UiOperationResult<DatabaseBackupSetupUiModel>> LoadSetupAsync(BackupSource source, CancellationToken cancellationToken = default);
+    /// <summary>Reads the next bounded operation-history page for one source.</summary>
+    ValueTask<UiOperationResult<DatabaseBackupHistoryUiModel>> LoadHistoryAsync(BackupSource source, string continuation, CancellationToken cancellationToken = default);
+    /// <summary>Reads persisted phase observations and retained output for one operation.</summary>
+    ValueTask<UiOperationResult<DatabaseBackupLogUiModel>> LoadLogAsync(BackupSource source, Guid operationId, long offset, long afterRevision, CancellationToken cancellationToken = default);
+    /// <summary>Loads the named policy's accepted/applied settings.</summary>
+    ValueTask<UiOperationResult<DatabaseBackupPolicyUiModel>> LoadPolicyAsync(string policyId, CancellationToken cancellationToken = default);
+    /// <summary>Submits a revision-matched policy update.</summary>
+    ValueTask<UiOperationResult<DatabaseBackupAcceptedUiModel>> SavePolicyAsync(DatabaseBackupPolicyUiModel policy, CancellationToken cancellationToken = default);
+    /// <summary>Loads source host readiness observations.</summary>
+    ValueTask<UiOperationResult<DatabaseBackupHealthUiModel[]>> LoadHealthAsync(BackupSource source, CancellationToken cancellationToken = default);
+    /// <summary>Requests a fresh-target restore drill with a configured validation profile.</summary>
+    ValueTask<UiOperationResult<DatabaseBackupAcceptedUiModel>> RequestRestoreDrillAsync(BackupSource source, string protectionSet, string restorePoint, string targetProfile, string validationProfile, long policyRevision, CancellationToken cancellationToken = default);
+    /// <summary>Cancels a selected backup through the owning command actor.</summary>
+    ValueTask<UiOperationResult<DatabaseBackupAcceptedUiModel>> CancelBackupAsync(DatabaseBackupOperationUiModel operation, CancellationToken cancellationToken = default);
+
     /// <summary>Creates an independently owned backup-notification subscription.</summary>
     /// <param name="handler">Receives mapped refresh notifications.</param>
     IUiEventSubscription CreateNotificationSubscription(

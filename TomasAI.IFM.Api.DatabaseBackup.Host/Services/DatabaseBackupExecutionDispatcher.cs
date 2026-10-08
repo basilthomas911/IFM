@@ -9,7 +9,7 @@ public sealed class DatabaseBackupExecutionDispatcher(
     IDatabaseBackupExecutionJournal journal,
     IDatabaseRecoveryOperationExecutor executor,
     DatabaseBackupHostOptions options,
-    ILogger<DatabaseBackupExecutionDispatcher> logger) : BackgroundService
+    ILogger<DatabaseBackupExecutionDispatcher> logger, DatabaseBackupOperationOutput? output = null) : BackgroundService
 {
     readonly Dictionary<DatabaseRecoveryOperationId, DateTimeOffset> _deferredUntil = [];
 
@@ -26,7 +26,10 @@ public sealed class DatabaseBackupExecutionDispatcher(
                 continue;
             try
             {
+                using var outputScope = new DatabaseRecoveryOutputScope(text => output?.Append(operation.Intent.Source, operation.Intent.OperationId.Value, text));
+                output?.Append(operation.Intent.Source, operation.Intent.OperationId.Value, "Native execution attempt started.");
                 await executor.ExecuteAsync(operation, cancellationToken).ConfigureAwait(false);
+                output?.Append(operation.Intent.Source, operation.Intent.OperationId.Value, "Native execution attempt returned; consult terminal phase for outcome.");
                 _deferredUntil.Remove(operation.Intent.OperationId);
                 count++;
             }
@@ -40,6 +43,7 @@ public sealed class DatabaseBackupExecutionDispatcher(
             }
             catch (Exception exception)
             {
+                output?.Append(operation.Intent.Source, operation.Intent.OperationId.Value, $"Execution exception: {exception.GetType().Name}; retry deferred.");
                 _deferredUntil[operation.Intent.OperationId] = DateTimeOffset.UtcNow + options.FailedOperationRetryDelay;
                 logger.LogError(
                     "DatabaseBackup operation {OperationId} for source {BackupSource} is degraded and will be retried after {RetryDelay}. FailureType={FailureType}; Message={FailureMessage}",
@@ -52,6 +56,7 @@ public sealed class DatabaseBackupExecutionDispatcher(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        output?.PublishSetup();
         while (!stoppingToken.IsCancellationRequested)
         {
             var dispatched = await DispatchOnceAsync(stoppingToken).ConfigureAwait(false);

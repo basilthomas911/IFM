@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using TomasAI.IFM.UI.Net.Models.Portfolio;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
@@ -126,6 +126,18 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     TradeHistoryReadModel[] _tradeHistorySnapshot = [];
     TradePlanReadModel[] _tradePlans = [];
     StrategyTradePlanSnapshot? _strategyTradePlan;
+    StrategyTradePlanSnapshot[] _ironCondorPlanHistory = [];
+    /// <summary>Gets one bounded page of persisted plans for the selected trade and session.</summary>
+    public IReadOnlyList<StrategyTradePlanSnapshot> IronCondorPlanHistory => _ironCondorPlanHistory;
+    StrategyPositionSnapshot? _ironCondorPosition;
+    readonly Guid _monitoringOwnerId = Guid.NewGuid();
+    LatestValueAsyncChannel<StrategyPositionSnapshot>? _currentPositionChannel;
+    LatestValueAsyncChannel<StrategyTradePlanSnapshot>? _currentPlanChannel;
+    bool _currentMonitoringListeners;
+    IReadOnlyDictionary<string, FuturesOptionTickDataV2ReadModel> _ironCondorLegObservations =
+        new Dictionary<string, FuturesOptionTickDataV2ReadModel>();
+    readonly object _legObservationGate = new();
+
     PresentationError? _lastError;
     bool _isLoading;
     bool _isLoaded;
@@ -162,8 +174,10 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         ICollection<FuturesContractV3ReadModel> baseContracts,
         TimeProvider? timeProvider = null,
         bool historicalReadOnly = false,
-        int portfolioId = 0)
+        int portfolioId = 0,
+        EstablishedTradeDefinition? establishedTrade = null)
     {
+        EstablishedTrade = establishedTrade;
         _appRoot = appRoot;
         _portfolioId = portfolioId;
         _fund = fund;
@@ -187,6 +201,39 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         _liveFeedLifecycle = new AsyncLifecycleCoordinator(EnableLiveFeedCoreAsync, DisableLiveFeedCoreAsync);
     }
 
+    /// <summary>Gets the execution-created trade displayed by the current strategy view.</summary>
+    public EstablishedTradeDefinition? EstablishedTrade { get; private set; }
+
+    /// <summary>Loads the current Iron Condor definition using its complete financial trade identity.</summary>
+    /// <param name="cancellationToken">Cancels the persisted trade query.</param>
+    /// <returns>The actual strategy legs and execution evidence.</returns>
+    public async Task<EstablishedTradeDefinition> LoadEstablishedTradeAsync(CancellationToken cancellationToken = default)
+    {
+        var id = EstablishedTrade?.Id ?? throw new InvalidOperationException("No established trade was selected.");
+        var result = await _appRoot.Services.EstablishedTrades.GetAsync(id, TradeStrategyKind.IronCondor, cancellationToken);
+        if (!result.Success || result.Value is null)
+            throw new InvalidOperationException(result.ErrorMessage ?? "The Iron Condor trade could not be loaded.");
+        if (result.Value.Id != id || result.Value.StrategyKind != TradeStrategyKind.IronCondor)
+            throw new InvalidOperationException("The returned Iron Condor does not match the selected trade.");
+        EstablishedTrade = result.Value;
+        TradeHistory = [CreateOpeningPosition(result.Value, _fundOrderTrade.TradeType)];
+        return result.Value;
+    }
+
+    /// <summary>Maps persisted opening execution evidence to the strategy position history row.</summary>
+    /// <param name="trade">The exact established financial trade.</param>
+    /// <param name="tradeType">The selected Iron Condor strategy classification.</param>
+    /// <returns>The opening position; no current-market valuation is fabricated.</returns>
+    public static TradeHistoryReadModel CreateOpeningPosition(EstablishedTradeDefinition trade, TradeType tradeType)
+    {
+        ArgumentNullException.ThrowIfNull(trade);
+        var openingDate = DateOnly.FromDateTime(trade.EstablishedAtUtc);
+        var expiry = trade.Legs.Where(leg => leg.Expiry.HasValue).Select(leg => leg.Expiry!.Value).Distinct().Single();
+        return new TradeHistoryReadModel(trade.Id.OrderId, trade.Id.TradeId, tradeType,
+            openingDate, expiry.DayNumber - openingDate.DayNumber, TradeStatus.Open,
+            trade.OpeningCommission, trade.OpeningValue, 0m);
+    }
+
     public IAppRoot AppRoot => _appRoot;
     public PortfolioFundEditorModel Fund => _fund;
     public PortfolioFundOrderEditorModel FundOrder => _fundOrder;
@@ -203,6 +250,70 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         get => _strategyTradePlan;
         private set => SetProperty(ref _strategyTradePlan, value);
     }
+    /// <summary>Gets current option leg observations for the selected trade; this data never mutates financial state.</summary>
+    public IReadOnlyDictionary<string, FuturesOptionTickDataV2ReadModel> IronCondorLegObservations
+    {
+        get => _ironCondorLegObservations;
+        private set => SetProperty(ref _ironCondorLegObservations, value);
+    }
+
+    /// <summary>Accepts newer notification prices for this view's exact option legs and exchange session.</summary>
+    /// <param name="observation">The notify-only option price/Greek record.</param>
+    public void ApplyIronCondorLegObservation(FuturesOptionTickDataV2ReadModel observation)
+    {
+        if (EstablishedTrade is null || !EstablishedTrade.Legs.Any(leg => leg.ContractId == observation.ContractId)
+            || _valueDate.HasValue && observation.ValueDate != _valueDate.Value) return;
+        lock (_legObservationGate)
+        {
+            if (IronCondorLegObservations.TryGetValue(observation.ContractId, out var previous)
+                && previous.ValueDate == observation.ValueDate && observation.TickId <= previous.TickId) return;
+            var updated = new Dictionary<string, FuturesOptionTickDataV2ReadModel>(IronCondorLegObservations)
+            { [observation.ContractId] = observation };
+            IronCondorLegObservations = updated;
+        }
+    }
+
+    /// <summary>Gets the latest coherent backend position for the selected established trade.</summary>
+    public StrategyPositionSnapshot? IronCondorPosition
+    {
+        get => _ironCondorPosition;
+        private set => SetProperty(ref _ironCondorPosition, value);
+    }
+
+    /// <summary>Accepts only newer whole-position observations for this exact financial trade.</summary>
+    /// <param name="position">The backend position observation.</param>
+    /// <returns>Whether the observation replaced the displayed position.</returns>
+    public bool ApplyIronCondorPosition(StrategyPositionSnapshot position)
+    {
+        if (EstablishedTrade is null || position.Id.Trade != EstablishedTrade.Id
+            || position.StrategyKind != TradeStrategyKind.IronCondor
+            || position.Legs.Length != 4 || position.Legs.Select(leg => leg.TradeLegId).Distinct().Count() != 4
+            || position.AsOfUtc.Kind != DateTimeKind.Utc
+            || position.Legs.Any(leg => !EstablishedTrade.Legs.Any(selected => selected.TradeLegId == leg.TradeLegId
+                && selected.ContractId == leg.ContractId))
+            || IronCondorPosition is { } current && (position.Id != current.Id || position.RouteGeneration < current.RouteGeneration
+                || position.RouteGeneration == current.RouteGeneration && position.PositionSequence <= current.PositionSequence))
+            return false;
+        IronCondorPosition = position;
+        return true;
+    }
+
+    /// <summary>Accepts only newer backend plans for this exact financial trade and active value date.</summary>
+    /// <param name="plan">The calculated backend plan.</param>
+    /// <returns>Whether the observation replaced the displayed plan.</returns>
+    public bool ApplyIronCondorTradePlan(StrategyTradePlanSnapshot plan)
+    {
+        if (EstablishedTrade is null || plan.Position.Id.Trade != EstablishedTrade.Id
+            || plan.Position.StrategyKind != TradeStrategyKind.IronCondor
+            || _valueDate.HasValue && plan.ValueDate != _valueDate.Value
+            || StrategyTradePlan is { } current && (plan.Position.RouteGeneration < current.Position.RouteGeneration
+                || plan.Position.RouteGeneration == current.Position.RouteGeneration && plan.PlanRevision <= current.PlanRevision))
+            return false;
+        StrategyTradePlan = plan;
+        ApplyIronCondorPosition(plan.Position);
+        return true;
+    }
+
     /// <summary>
     /// Gets whether this instance is a query-only historical viewer. Historical viewers retain the complete
     /// TradeDb presentation while permanently fencing live feeds and TradeDb mutations.
@@ -503,33 +614,20 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         {
             var tradeId = new TradeEntityId(PortfolioId, _fund.FundId, OrderId, TradeId);
             var positionId = StrategyPositionId.Create(tradeId, TradeStrategyKind.IronCondor);
-            StrategyTradePlan = await _appRoot.Services.StrategyTradePlanQueries.GetCurrentAsync(
+            var storedPlan = await _appRoot.Services.StrategyTradePlanQueries.GetCurrentAsync(
                 positionId, TradeStrategyKind.IronCondor, valueDate).ConfigureAwait(false);
-            TradePlans = StrategyTradePlan is null
-                ? []
-                :
-                [
-                    new TradePlanReadModel
-                    {
-                        SequenceId = StrategyTradePlan.PlanRevision,
-                        OrderId = OrderId,
-                        TradeId = TradeId,
-                        ValueDate = valueDate,
-                        ActionDate = StrategyTradePlan.CalculatedAtUtc,
-                        TradeDate = _optionTrade.TradeDate,
-                        MaturityDate = _optionTrade.MaturityDate,
-                        TradeType = _fundOrderTrade.TradeType,
-                        ActionReason = $"{StrategyTradePlan.ReasonCode}: {StrategyTradePlan.Explanation}",
-                        TradePnl = StrategyTradePlan.TotalPnl,
-                        MaxProfit = StrategyTradePlan.Parameters.ProfitTarget,
-                        MaxLoss = -StrategyTradePlan.Parameters.MaximumLoss,
-                        MinProfitTarget = StrategyTradePlan.Parameters.ProfitTarget,
-                        NetPrice = StrategyTradePlan.CurrentValue,
-                        ForwardPrice = StrategyTradePlan.ForwardTradePrice,
-                        CreatedOn = StrategyTradePlan.CalculatedAtUtc,
-                        CreatedBy = "StrategyTradePlan"
-                    }
-                ];
+            if (storedPlan is not null)
+            {
+                ApplyIronCondorTradePlan(storedPlan);
+                await _appRoot.Services.StrategyTradePlanQueries.GetHistoryAsync(storedPlan, 200, null, history =>
+                {
+                    _ironCondorPlanHistory = history.Items.Where(item => item.Position.Id == positionId && item.ValueDate == valueDate)
+                        .OrderByDescending(item => item.Position.RouteGeneration).ThenByDescending(item => item.PlanRevision).Take(200).ToArray();
+                    OnPropertyChanged(nameof(IronCondorPlanHistory));
+                }).ConfigureAwait(false);
+            }
+            // The current view renders the nullable strategy-specific snapshot directly.
+            // Converting missing values to legacy numeric defaults would falsely show valid risk metrics.
             return;
         }
 
@@ -796,9 +894,8 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     /// </summary>
     /// <returns></returns>
     public ICollection<string> GetOptionLegContractIds()
-        => _optionTrade.OptionLegs is not null
-        ? [.. _optionTrade.OptionLegs.Select(e => e.ContractId)]
-        : [];
+        => EstablishedTrade is not null ? [.. EstablishedTrade.Legs.Select(leg => leg.ContractId).Distinct()]
+        : _optionTrade?.OptionLegs is not null ? [.. _optionTrade.OptionLegs.Select(e => e.ContractId)] : [];
 
     /// <summary>
     /// return list of trades with current trade order
@@ -888,6 +985,12 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         cancellationToken.ThrowIfCancellationRequested();
         if (!_valueDate.HasValue)
             return;
+
+        if (EstablishedTrade is not null)
+        {
+            await EnableEstablishedMonitoringAsync(cancellationToken);
+            return;
+        }
 
         await EnableFuturesEodDataListener();
         await EnableFuturesOptionTickDataListener();
@@ -1303,9 +1406,122 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     public Task DisableLiveFeedAsync(CancellationToken cancellationToken = default)
         => StopAsync(cancellationToken);
 
+    /// <summary>Starts the three current-model listeners before submitting exact leg feed commands.</summary>
+    async Task EnableEstablishedMonitoringAsync(CancellationToken cancellationToken)
+    {
+        var trade = EstablishedTrade ?? throw new InvalidOperationException("No Iron Condor trade selected.");
+        if (trade.Legs.Length != 4 || trade.Legs.Select(leg => leg.ContractId).Distinct().Count() != 4)
+            throw new InvalidOperationException("IronCondorMonitoring.LEGS.INVALID: four distinct contracts required.");
+        _currentPositionChannel = new((position, token) =>
+        {
+            token.ThrowIfCancellationRequested();
+            ApplyIronCondorPosition(position);
+            return ValueTask.CompletedTask;
+        }, minimumInterval: TimeSpan.FromMilliseconds(50), timeProvider: _timeProvider);
+        _currentPlanChannel = new((plan, token) =>
+        {
+            token.ThrowIfCancellationRequested();
+            ApplyIronCondorTradePlan(plan);
+            return ValueTask.CompletedTask;
+        }, minimumInterval: TimeSpan.FromMilliseconds(50), timeProvider: _timeProvider);
+        var readiness = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var acknowledgedLegs = new HashSet<FuturesOptionTickEntityId>();
+        var startupGate = new object();
+        _liveStreamsIds = trade.Legs.ToDictionary(leg => new FuturesOptionTickEntityId(
+            leg.ContractId, _valueDate!.Value, _monitoringOwnerId), leg => leg.ContractId);
+        var expectedLegs = _liveStreamsIds.Keys.ToHashSet();
+        _currentMonitoringListeners = true;
+        try
+        {
+            await _appRoot.Services.TradePositionEvents.StartIronCondorTradePositionListenerAsync(_monitoringOwnerId, changed =>
+            {
+                if (changed.EntityId.Trade == trade.Id) _currentPositionChannel?.TryWrite(changed.PositionSnapshot);
+                return ValueTask.CompletedTask;
+            });
+            await _appRoot.Services.TradePlanEvents.StartIronCondorTradePlanListenerAsync(_monitoringOwnerId, updated =>
+            {
+                if (updated.Plan.Position.Id.Trade == trade.Id) _currentPlanChannel?.TryWrite(updated.Plan);
+                return ValueTask.CompletedTask;
+            });
+            _futuresOptionTickChannels = new((contractId, updated, token) =>
+            {
+                token.ThrowIfCancellationRequested();
+                ApplyIronCondorLegObservation(updated.OptionTickData);
+                return ValueTask.CompletedTask;
+            }, minimumInterval: TimeSpan.FromMilliseconds(50), timeProvider: _timeProvider);
+            await _appRoot.Services.FeedCommands.StartEstablishedOptionLegListenerAsync(_monitoringOwnerId, updated =>
+            {
+                if (updated.OptionTickData is { } observation && trade.Legs.Any(leg => leg.ContractId == observation.ContractId))
+                    _futuresOptionTickChannels?.TryWrite(observation.ContractId, updated);
+                return ValueTask.CompletedTask;
+            }, started =>
+            {
+                lock (startupGate)
+                {
+                    if (expectedLegs.Contains(started.EntityId)) acknowledgedLegs.Add(started.EntityId);
+                    if (acknowledgedLegs.Count == 4) readiness.TrySetResult();
+                }
+                return ValueTask.CompletedTask;
+            }, failed =>
+            {
+                if (expectedLegs.Contains(failed.EntityId))
+                    readiness.TrySetException(new InvalidOperationException($"OptionMonitoring.SUBSCRIPTION.FAILED: {failed.ErrorMessage}"));
+                return ValueTask.CompletedTask;
+            });
+            cancellationToken.ThrowIfCancellationRequested();
+            await _appRoot.Services.FeedCommands.StartEstablishedOptionLegsAsync(_liveStreamsIds, _baseContracts, _valueDate!.Value);
+            await readiness.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+            IsLiveFeedEnabled = true;
+        }
+        catch (Exception subscriptionFailure)
+        {
+            try { await DisableEstablishedMonitoringAsync(); }
+            catch (Exception cleanupFailure)
+            {
+                throw new AggregateException("OptionMonitoring.START.FAILED: subscription and cleanup failed",
+                    subscriptionFailure, cleanupFailure);
+            }
+            throw;
+        }
+    }
+
+    /// <summary>Stops current-model listeners and releases only this view's leg ownership.</summary>
+    async Task DisableEstablishedMonitoringAsync()
+    {
+        IsLiveFeedEnabled = false;
+        if (!_currentMonitoringListeners) return;
+        _currentMonitoringListeners = false;
+        var failures = new List<Exception>();
+        foreach (var stream in _liveStreamsIds.ToArray())
+            await AttemptAsync(() => _appRoot.Services.FeedCommands.StopStreamingFuturesOptionTickDataAsync(stream.Key, stream.Value));
+        _liveStreamsIds.Clear();
+        await AttemptAsync(() => _appRoot.Services.TradePlanEvents.StopMonitoringAsync(_monitoringOwnerId));
+        await AttemptAsync(() => _appRoot.Services.TradePositionEvents.StopMonitoringAsync(_monitoringOwnerId));
+        await AttemptAsync(() => _appRoot.Services.FeedCommands.StopEstablishedOptionLegListenerAsync(_monitoringOwnerId));
+        var legChannels = Interlocked.Exchange(ref _futuresOptionTickChannels, null);
+        if (legChannels is not null) await AttemptAsync(async () => await legChannels.StopAsync());
+        var position = Interlocked.Exchange(ref _currentPositionChannel, null);
+        var plan = Interlocked.Exchange(ref _currentPlanChannel, null);
+        if (position is not null) await AttemptAsync(async () => await position.StopAsync());
+        if (plan is not null) await AttemptAsync(async () => await plan.StopAsync());
+        if (failures.Count > 0)
+            throw new AggregateException("OptionMonitoring.SHUTDOWN.FAILED: monitoring cleanup completed with failures", failures);
+
+        async Task AttemptAsync(Func<Task> stop)
+        {
+            try { await stop(); }
+            catch (Exception failure) { failures.Add(failure); }
+        }
+    }
+
     async Task DisableLiveFeedCoreAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (EstablishedTrade is not null)
+        {
+            await DisableEstablishedMonitoringAsync();
+            return;
+        }
         IsLiveFeedEnabled = false;
         await DisableOptionTradeSpreadBarDataListener();
         await DisableTradePlanListener();

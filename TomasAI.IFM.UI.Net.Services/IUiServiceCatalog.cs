@@ -39,6 +39,8 @@ public interface IUiServiceCatalog
     IBrokerOrderCommandApi BrokerOrderCommands { get; }
     /// <summary>Gets durable order-execution fill and cost evidence.</summary>
     IOrderExecutionQueryApi OrderExecutions { get; }
+    /// <summary>Gets persisted execution-created trades by their exact financial identity.</summary>
+    TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IEstablishedTradeQueryApi EstablishedTrades { get; }
     IOrderExecutionNotificationService OrderExecutionNotifications { get; }
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi ReferenceQueries { get; }
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceCommandApi ReferenceCommands { get; }

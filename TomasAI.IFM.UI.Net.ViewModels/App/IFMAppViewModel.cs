@@ -1050,7 +1050,10 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 history.Append(bollingerBand));
         }
         await WriteStatusConsoleAsync(
-            $"{snapshot.ContractId} Market Outlook refreshed by {snapshot.RefreshTrigger}",
+            $"{snapshot.ContractId} Market Outlook refreshed by {snapshot.RefreshTrigger} @ " +
+            (snapshot.FuturesEodData.ClosePrice > 0
+                ? snapshot.FuturesEodData.ClosePrice.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)
+                : "N/A"),
             LogSourceType.MarketDataFeedEvent);
     }
 
@@ -1156,7 +1159,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 var (startDate, endDate) = GetFuturesBarChartWindow(
                     _timeProvider.GetUtcNow().UtcDateTime);
                 FuturesBarDataReadModel[] bars = [];
-                await model.GetFuturesBarDataAsync(
+                await model.GetFuturesBarWindowAsync(
                     contract.ContractId,
                     contract.Symbol,
                     valueDate,
@@ -1376,7 +1379,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 PublishError(errorCode, errorMessage, "Loading Futures Bar Data Error"));
             var (startDate, endDate) = GetFuturesBarChartWindow(
                 _timeProvider.GetUtcNow().UtcDateTime);
-            await queryModel.GetFuturesBarDataAsync(
+            await queryModel.GetFuturesBarWindowAsync(
                 e.FuturesBarData.ContractId,
                 e.FuturesBarData.Symbol,
                 e.FuturesBarData.ValueDate,

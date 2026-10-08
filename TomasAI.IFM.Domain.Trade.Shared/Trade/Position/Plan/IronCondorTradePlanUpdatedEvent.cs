@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using MessagePack;
@@ -27,7 +27,7 @@ public sealed record IronCondorTradePlanUpdatedEvent : ICompleteEvent<IronCondor
     [IgnoreMember] public string UserName => "TradePlan";
     [IgnoreMember] public string EventName => nameof(IronCondorTradePlanUpdatedEvent);
     [IgnoreMember] public EventType EventType => EventType.CompletedEvent;
-    [IgnoreMember] public bool RequiresDurableProjection => Plan.MaterialChange;
+    [IgnoreMember] public bool RequiresDurableProjection => false;
     [IgnoreMember]
     public DurableProjectionRequirement RequiredProjection => new(
         "FuturesIronCondorTradePositionCommandActor",

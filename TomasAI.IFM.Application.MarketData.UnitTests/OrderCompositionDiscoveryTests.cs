@@ -1,4 +1,5 @@
 using NSubstitute;
+using System.Collections.Immutable;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.DataBento;
@@ -98,6 +99,41 @@ public sealed class OrderCompositionDiscoveryTests
         Assert.Equal(original.ScopeId, renewed.ScopeId);
         Assert.Equal(At.AddSeconds(110), renewed.LeaseExpiresAtUtc);
         await market.DidNotReceive().ReleaseAsync(Arg.Any<string>(), Arg.Any<WorkerOptionChainRelease>(), Arg.Any<CancellationToken>());
+        await market.Received(2).AcquireAsync("GLBX.MDP3", Arg.Any<WorkerOptionChainRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Only_explicit_monitoring_ownership_renews_and_release_stops_renewal(bool monitoring)
+    {
+        var c = Contract(); var mappings = Substitute.For<IOptionPricingConventionStore>();
+        mappings.GetAsync(c.ContractId, c.MappingVersion, Arg.Any<CancellationToken>()).Returns(c);
+        var market = Substitute.For<ICompositionMarketDataApi>(); var clock = new MutableClock();
+        market.AcquireAsync("GLBX.MDP3", Arg.Any<WorkerOptionChainRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new WorkerOptionChainResult(true, null));
+        await using var discovery = new QualifiedCompositionDiscovery(new(mappings),
+            new OptionPricingContextProvider(new(new CurveSource(Curve()), clock)), market, clock);
+        var original = (await discovery.AcquireAsync(Request(c) with { SeparateContractConnection = true }, default,
+            renewAutomatically: monitoring)).Lease!;
+        clock.Now = At.AddSeconds(40);
+        await discovery.RefreshRegisteredAsync(default);
+        var captures = market.ReceivedCalls().Where(call => call.GetMethodInfo().Name == nameof(ICompositionMarketDataApi.AcquireAsync))
+            .Select(call => (WorkerOptionChainRequest)call.GetArguments()[1]!).ToArray();
+        Assert.Equal(2, captures.Length);
+        Assert.Equal(original.ScopeId, captures[1].ScopeId);
+        Assert.Equal(original.LeaseId, captures[1].LeaseId);
+        Assert.Equal(monitoring ? At.AddSeconds(100) : At.AddSeconds(60), captures[1].LeaseExpiresAtUtc);
+        if (!monitoring)
+            Assert.Equal(PricingSemanticHash.Compute(new
+            {
+                original.MaturityDate, original.SeparateContractConnection,
+                Options = original.Options.OrderBy(x => x.Pricing.Contract.ContractId, StringComparer.Ordinal).ToImmutableArray()
+            }), captures[1].ExpectedContextDigest);
+
+        await discovery.ReleaseAsync(original, default);
+        clock.Now = At.AddSeconds(70);
+        await discovery.RefreshRegisteredAsync(default);
         await market.Received(2).AcquireAsync("GLBX.MDP3", Arg.Any<WorkerOptionChainRequest>(), Arg.Any<CancellationToken>());
     }
 
