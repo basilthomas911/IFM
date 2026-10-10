@@ -58,7 +58,8 @@
       "dependsOn": [
         "IFM: Build API Server (Debug)",
         "IFM: Build UI.Net (Debug)",
-        "IFM: Build Server Manager (Debug)"
+        "IFM: Build Server Manager (Debug)",
+        "IFM: Build Scheduler Host (Debug)"
       ],
       "problemMatcher": []
     },
@@ -127,6 +128,26 @@
         "panel": "shared",
         "clear": false
       }
+    },
+    {
+      "label": "IFM: Build Scheduler Host (Debug)",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "publish",
+        "${workspaceFolder}/TomasAI.IFM.Application.ServerManager.SchedulerHost/TomasAI.IFM.Application.ServerManager.SchedulerHost.csproj",
+        "-m:1",
+        "--configuration",
+        "Debug",
+        "--no-self-contained",
+        "--output",
+        "${workspaceFolder}/.artifacts/scheduled-tasks/development/Host",
+        "--nologo"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$msCompile"
     }
   ]
 }

@@ -102,6 +102,9 @@ public sealed class ManagedProcessDefinition
 
     public string? ReadinessUri { get; set; }
 
+    /// <summary>Gets or sets the scheduler dashboard pipe used to verify managed SchedulerHost startup.</summary>
+    public string? ReadinessPipeName { get; set; }
+
     public int ReadinessTimeoutSeconds { get; set; } = 900;
 
     public int ReadinessPollIntervalMilliseconds { get; set; } = 500;
@@ -162,6 +165,9 @@ public sealed class ManagedProcessDefinition
             throw new InvalidOperationException(
                 $"ServerManager process '{Key}' requires ShutdownInput when ShutdownMode is StandardInput.");
         }
+
+        if (!string.IsNullOrWhiteSpace(ReadinessPipeName) && (ReadinessTimeoutSeconds <= 0 || ReadinessPollIntervalMilliseconds <= 0))
+            throw new InvalidOperationException($"ServerManager process '{Key}' scheduler readiness limits must be positive.");
 
         if (!string.IsNullOrWhiteSpace(ReadinessUri))
         {

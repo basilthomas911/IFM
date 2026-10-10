@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
+using TomasAI.IFM.Shared.Util;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -22,6 +23,11 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ILogger<DbProvider> logger)
     : ObjectDataRepository<SecuritiesDbContext>(connectionSettings[SecuritiesDbConnection], logger), ISecuritiesDbContext
 {
+    readonly AsyncReadCache<(string ContractId, string Version), ReferenceContractVersion> referenceVersions =
+        new(8192, TimeSpan.FromHours(1));
+    readonly AsyncReadCache<(string Symbol, Guid Generation, DateOnly Expiry), CachedOptionContractDefinitionReadModel[]> definitionPartitions =
+        new(64, TimeSpan.FromMinutes(10));
+
     public const string SecuritiesDbConnection = "SecuritiesDbConnection";
     internal const string FuturesContractSymbolProjection = "futures_contract_by_symbol";
     internal const string FuturesOptionContractSymbolProjection = "futures_option_contract_by_symbol";
@@ -152,7 +158,8 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
         string contractId,
         string version,
         CancellationToken cancellationToken = default)
-        => this.GetReferenceVersionCoreAsync(contractId, version, cancellationToken);
+        => referenceVersions.GetAsync((contractId, version),
+            token => this.GetReferenceVersionCoreAsync(contractId, version, token), cancellationToken);
 
     /// <inheritdoc />
     public async Task<OptionPricingConvention?> GetAsync(
@@ -1332,10 +1339,13 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
             .ExecuteSingleAsync(MapToOptionExpiryCalendarState!, cancellationToken);
         if (state is null || expiryDate < state.CoverageFrom || expiryDate > state.CoverageThrough) return [];
         var roots = (providerRoots ?? []).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var rows = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetCachedOptionContractDefinitions)}",
-                SecuritiesDbCql.GetCachedOptionContractDefinitions)
-            .SetParameters(new GetCachedOptionContractDefinitions(symbol, state.Generation, expiryDate))
-            .ExecuteQueryAsync(MapToCachedOptionContractDefinition!, cancellationToken);
+        // The published generation is checked on every call. Only its immutable payload partition is cached.
+        var rows = await definitionPartitions.GetAsync((symbol, state.Generation, expiryDate), async token =>
+            (await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetCachedOptionContractDefinitions)}",
+                    SecuritiesDbCql.GetCachedOptionContractDefinitions)
+                .SetParameters(new GetCachedOptionContractDefinitions(symbol, state.Generation, expiryDate))
+                .ExecuteQueryAsync(MapToCachedOptionContractDefinition!, token)).ToArray(), cancellationToken)
+            .ConfigureAwait(false) ?? [];
         return rows.Where(row => row is not null
                                  && string.Equals(row.UnderlyingContractId, underlyingContractId, StringComparison.OrdinalIgnoreCase)
                                  && (roots.Count == 0 || roots.Contains(row.ProviderRoot)))

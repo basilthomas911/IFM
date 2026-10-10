@@ -12,7 +12,7 @@ $managedStopScript = Join-Path $workspace "scripts\Development\Stop-IFMDevelopme
 
 function Get-RepositoryDebugProcess {
     @(& $getProcessScript -RepositoryRoot $workspace) | Where-Object {
-        $_.Role -in @("api", "ui") -and $_.LocksRepositoryOutput
+        $_.Role -in @("api", "ui", "scheduler") -and $_.LocksRepositoryOutput
     }
 }
 
@@ -70,4 +70,4 @@ if ($final.Count -gt 0) {
     throw "Repository Debug IFM processes remain after cleanup: $($details -join ', ')."
 }
 
-Write-Host "IFM repository Debug API/UI processes are stopped."
+Write-Host "IFM repository Debug API/UI/Scheduler processes are stopped."

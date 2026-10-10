@@ -35,12 +35,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             lblTradeType = new Label();
             txtTradeId = new TextBox();
             pnlOrderStatus = new Panel();
-            lblTradeDate = new Label();
-            panel1 = new Panel();
-            lblMaturityDate = new Label();
+            lblEffectiveDate = new Label();
             ddlTradeType = new ComboBox();
-            dtpTradeDate = new TomasAI.IFM.UI.Net.Views.Trade.IronCondor.DarkDateTimePicker();
-            dtpMaturityDate = new TomasAI.IFM.UI.Net.Views.Trade.IronCondor.DarkDateTimePicker();
+            dtpEffectiveDate = new TomasAI.IFM.UI.Net.Views.Trade.IronCondor.DarkDateTimePicker();
             pnlTradeState = new Panel();
             lblTradeState = new Label();
             txtTradeState = new TextBox();
@@ -60,16 +57,15 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             pnlOrderId.SuspendLayout();
             pnlOrderDate.SuspendLayout();
             pnlOrderStatus.SuspendLayout();
-            panel1.SuspendLayout();
             pnlTradeState.SuspendLayout();
             pnlTradeAction.SuspendLayout();
             panel2.SuspendLayout();
             pnlBaseContractSymbol.SuspendLayout();
             pnlButtons.SuspendLayout();
             SuspendLayout();
-            // 
+            //
             // tableLayoutPanel1
-            // 
+            //
             tableLayoutPanel1.BackColor = Color.FromArgb(64, 64, 64);
             tableLayoutPanel1.ColumnCount = 2;
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
@@ -78,24 +74,21 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             tableLayoutPanel1.Controls.Add(pnlOrderDate, 0, 1);
             tableLayoutPanel1.Controls.Add(txtTradeId, 1, 0);
             tableLayoutPanel1.Controls.Add(pnlOrderStatus, 0, 2);
-            tableLayoutPanel1.Controls.Add(panel1, 0, 3);
             tableLayoutPanel1.Controls.Add(ddlTradeType, 1, 1);
-            tableLayoutPanel1.Controls.Add(dtpTradeDate, 1, 2);
-            tableLayoutPanel1.Controls.Add(dtpMaturityDate, 1, 3);
-            tableLayoutPanel1.Controls.Add(pnlTradeState, 0, 4);
-            tableLayoutPanel1.Controls.Add(txtTradeState, 1, 4);
-            tableLayoutPanel1.Controls.Add(pnlTradeAction, 0, 5);
-            tableLayoutPanel1.Controls.Add(txtTradeAction, 1, 5);
-            tableLayoutPanel1.Controls.Add(panel2, 0, 6);
-            tableLayoutPanel1.Controls.Add(txtReference, 1, 6);
-            tableLayoutPanel1.Controls.Add(pnlBaseContractSymbol, 0, 7);
-            tableLayoutPanel1.Controls.Add(ddlBaseSymbol, 1, 7);
+            tableLayoutPanel1.Controls.Add(dtpEffectiveDate, 1, 2);
+            tableLayoutPanel1.Controls.Add(pnlTradeState, 0, 3);
+            tableLayoutPanel1.Controls.Add(txtTradeState, 1, 3);
+            tableLayoutPanel1.Controls.Add(pnlTradeAction, 0, 4);
+            tableLayoutPanel1.Controls.Add(txtTradeAction, 1, 4);
+            tableLayoutPanel1.Controls.Add(panel2, 0, 5);
+            tableLayoutPanel1.Controls.Add(txtReference, 1, 5);
+            tableLayoutPanel1.Controls.Add(pnlBaseContractSymbol, 0, 6);
+            tableLayoutPanel1.Controls.Add(ddlBaseSymbol, 1, 6);
             tableLayoutPanel1.Dock = DockStyle.Top;
             tableLayoutPanel1.Location = new Point(0, 0);
             tableLayoutPanel1.Margin = new Padding(2);
             tableLayoutPanel1.Name = "tableLayoutPanel1";
-            tableLayoutPanel1.RowCount = 9;
-            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
+            tableLayoutPanel1.RowCount = 8;
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
@@ -106,9 +99,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 70F));
             tableLayoutPanel1.Size = new Size(621, 310);
             tableLayoutPanel1.TabIndex = 0;
-            // 
+            //
             // pnlOrderId
-            // 
+            //
             pnlOrderId.Controls.Add(lblTradeId);
             pnlOrderId.Dock = DockStyle.Fill;
             pnlOrderId.Location = new Point(2, 2);
@@ -116,9 +109,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             pnlOrderId.Name = "pnlOrderId";
             pnlOrderId.Size = new Size(151, 26);
             pnlOrderId.TabIndex = 0;
-            // 
+            //
             // lblTradeId
-            // 
+            //
             lblTradeId.AutoSize = true;
             lblTradeId.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             lblTradeId.ForeColor = SystemColors.ControlLightLight;
@@ -128,9 +121,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             lblTradeId.Size = new Size(65, 17);
             lblTradeId.TabIndex = 0;
             lblTradeId.Text = "Trade Id:";
-            // 
+            //
             // pnlOrderDate
-            // 
+            //
             pnlOrderDate.Controls.Add(lblTradeType);
             pnlOrderDate.Dock = DockStyle.Fill;
             pnlOrderDate.Location = new Point(2, 32);
@@ -138,9 +131,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             pnlOrderDate.Name = "pnlOrderDate";
             pnlOrderDate.Size = new Size(151, 26);
             pnlOrderDate.TabIndex = 1;
-            // 
+            //
             // lblTradeType
-            // 
+            //
             lblTradeType.AutoSize = true;
             lblTradeType.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             lblTradeType.ForeColor = SystemColors.ControlLightLight;
@@ -150,9 +143,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             lblTradeType.Size = new Size(86, 17);
             lblTradeType.TabIndex = 0;
             lblTradeType.Text = "Trade Type:";
-            // 
+            //
             // txtTradeId
-            // 
+            //
             txtTradeId.Dock = DockStyle.Left;
             txtTradeId.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
             txtTradeId.Location = new Point(157, 2);
@@ -161,53 +154,37 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             txtTradeId.ReadOnly = true;
             txtTradeId.Size = new Size(163, 23);
             txtTradeId.TabIndex = 2;
-            // 
+            //
             // pnlOrderStatus
-            // 
-            pnlOrderStatus.Controls.Add(lblTradeDate);
+            //
+            pnlOrderStatus.Controls.Add(lblEffectiveDate);
             pnlOrderStatus.Dock = DockStyle.Fill;
             pnlOrderStatus.Location = new Point(2, 62);
             pnlOrderStatus.Margin = new Padding(2);
             pnlOrderStatus.Name = "pnlOrderStatus";
             pnlOrderStatus.Size = new Size(151, 26);
             pnlOrderStatus.TabIndex = 4;
-            // 
-            // lblTradeDate
-            // 
-            lblTradeDate.AutoSize = true;
-            lblTradeDate.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            lblTradeDate.ForeColor = SystemColors.ControlLightLight;
-            lblTradeDate.Location = new Point(52, 6);
-            lblTradeDate.Margin = new Padding(2, 0, 2, 0);
-            lblTradeDate.Name = "lblTradeDate";
-            lblTradeDate.Size = new Size(84, 17);
-            lblTradeDate.TabIndex = 0;
-            lblTradeDate.Text = "Trade Date:";
-            // 
-            // panel1
-            // 
-            panel1.Controls.Add(lblMaturityDate);
-            panel1.Dock = DockStyle.Fill;
-            panel1.Location = new Point(2, 92);
-            panel1.Margin = new Padding(2);
-            panel1.Name = "panel1";
-            panel1.Size = new Size(151, 26);
-            panel1.TabIndex = 6;
-            // 
-            // lblMaturityDate
-            // 
-            lblMaturityDate.AutoSize = true;
-            lblMaturityDate.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            lblMaturityDate.ForeColor = SystemColors.ControlLightLight;
-            lblMaturityDate.Location = new Point(37, 6);
-            lblMaturityDate.Margin = new Padding(2, 0, 2, 0);
-            lblMaturityDate.Name = "lblMaturityDate";
-            lblMaturityDate.Size = new Size(96, 17);
-            lblMaturityDate.TabIndex = 0;
-            lblMaturityDate.Text = "Maturity Date:";
-            // 
+            //
+            // lblEffectiveDate
+            //
+            lblEffectiveDate.AutoSize = false;
+            lblEffectiveDate.Dock = DockStyle.Fill;
+            lblEffectiveDate.TextAlign = ContentAlignment.MiddleRight;
+            lblEffectiveDate.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            lblEffectiveDate.ForeColor = SystemColors.ControlLightLight;
+            lblEffectiveDate.Location = new Point(52, 6);
+            lblEffectiveDate.Margin = new Padding(2, 0, 2, 0);
+            lblEffectiveDate.Name = "lblEffectiveDate";
+            lblEffectiveDate.Size = new Size(84, 17);
+            lblEffectiveDate.TabIndex = 0;
+            lblEffectiveDate.Text = "Effective Date:";
+            //
+            //
+            //
+            //
+            //
             // ddlTradeType
-            // 
+            //
             ddlTradeType.DropDownStyle = ComboBoxStyle.DropDownList;
             ddlTradeType.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             ddlTradeType.FormattingEnabled = true;
@@ -217,31 +194,22 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             ddlTradeType.Size = new Size(311, 25);
             ddlTradeType.TabIndex = 7;
             ddlTradeType.SelectedIndexChanged += ddlTradeType_SelectedIndexChanged;
-            // 
-            // dtpTradeDate
-            // 
-            dtpTradeDate.CustomFormat = "yyyy-MMM-dd";
-            dtpTradeDate.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            dtpTradeDate.Format = DateTimePickerFormat.Custom;
-            dtpTradeDate.Location = new Point(157, 62);
-            dtpTradeDate.Margin = new Padding(2);
-            dtpTradeDate.Name = "dtpTradeDate";
-            dtpTradeDate.Size = new Size(163, 23);
-            dtpTradeDate.TabIndex = 8;
-            // 
-            // dtpMaturityDate
-            // 
-            dtpMaturityDate.CustomFormat = "yyyy-MMM-dd";
-            dtpMaturityDate.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            dtpMaturityDate.Format = DateTimePickerFormat.Custom;
-            dtpMaturityDate.Location = new Point(157, 92);
-            dtpMaturityDate.Margin = new Padding(2);
-            dtpMaturityDate.Name = "dtpMaturityDate";
-            dtpMaturityDate.Size = new Size(163, 23);
-            dtpMaturityDate.TabIndex = 9;
-            // 
+            //
+            // dtpEffectiveDate
+            //
+            dtpEffectiveDate.CustomFormat = "yyyy-MMM-dd";
+            dtpEffectiveDate.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            dtpEffectiveDate.Format = DateTimePickerFormat.Custom;
+            dtpEffectiveDate.Location = new Point(157, 62);
+            dtpEffectiveDate.Margin = new Padding(2);
+            dtpEffectiveDate.Name = "dtpEffectiveDate";
+            dtpEffectiveDate.Size = new Size(163, 23);
+            dtpEffectiveDate.TabIndex = 8;
+            //
+            //
+            //
             // pnlTradeState
-            // 
+            //
             pnlTradeState.Controls.Add(lblTradeState);
             pnlTradeState.Dock = DockStyle.Fill;
             pnlTradeState.Location = new Point(2, 122);
@@ -249,9 +217,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             pnlTradeState.Name = "pnlTradeState";
             pnlTradeState.Size = new Size(151, 26);
             pnlTradeState.TabIndex = 10;
-            // 
+            //
             // lblTradeState
-            // 
+            //
             lblTradeState.AutoSize = true;
             lblTradeState.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             lblTradeState.ForeColor = SystemColors.ControlLightLight;
@@ -261,9 +229,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             lblTradeState.Size = new Size(87, 17);
             lblTradeState.TabIndex = 0;
             lblTradeState.Text = "Trade State:";
-            // 
+            //
             // txtTradeState
-            // 
+            //
             txtTradeState.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             txtTradeState.Location = new Point(157, 122);
             txtTradeState.Margin = new Padding(2);
@@ -271,9 +239,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             txtTradeState.ReadOnly = true;
             txtTradeState.Size = new Size(163, 23);
             txtTradeState.TabIndex = 11;
-            // 
+            //
             // pnlTradeAction
-            // 
+            //
             pnlTradeAction.Controls.Add(lblTradeAction);
             pnlTradeAction.Dock = DockStyle.Fill;
             pnlTradeAction.Location = new Point(2, 152);
@@ -281,9 +249,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             pnlTradeAction.Name = "pnlTradeAction";
             pnlTradeAction.Size = new Size(151, 26);
             pnlTradeAction.TabIndex = 12;
-            // 
+            //
             // lblTradeAction
-            // 
+            //
             lblTradeAction.AutoSize = true;
             lblTradeAction.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             lblTradeAction.ForeColor = SystemColors.ControlLightLight;
@@ -293,9 +261,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             lblTradeAction.Size = new Size(93, 17);
             lblTradeAction.TabIndex = 0;
             lblTradeAction.Text = "Trade Action:";
-            // 
+            //
             // txtTradeAction
-            // 
+            //
             txtTradeAction.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             txtTradeAction.Location = new Point(157, 152);
             txtTradeAction.Margin = new Padding(2);
@@ -303,18 +271,18 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             txtTradeAction.ReadOnly = true;
             txtTradeAction.Size = new Size(163, 23);
             txtTradeAction.TabIndex = 13;
-            // 
+            //
             // panel2
-            // 
+            //
             panel2.Controls.Add(lblReference);
             panel2.Location = new Point(2, 182);
             panel2.Margin = new Padding(2);
             panel2.Name = "panel2";
             panel2.Size = new Size(149, 24);
             panel2.TabIndex = 14;
-            // 
+            //
             // lblReference
-            // 
+            //
             lblReference.AutoSize = true;
             lblReference.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             lblReference.ForeColor = SystemColors.ControlLightLight;
@@ -324,9 +292,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             lblReference.Size = new Size(78, 17);
             lblReference.TabIndex = 0;
             lblReference.Text = "Reference:";
-            // 
+            //
             // txtReference
-            // 
+            //
             txtReference.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             txtReference.Dock = DockStyle.Fill;
             txtReference.Location = new Point(157, 182);
@@ -336,9 +304,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             txtReference.ScrollBars = ScrollBars.Vertical;
             txtReference.Size = new Size(462, 26);
             txtReference.TabIndex = 15;
-            // 
+            //
             // pnlBaseContractSymbol
-            // 
+            //
             pnlBaseContractSymbol.Controls.Add(lblBaseContractSymbol);
             pnlBaseContractSymbol.Dock = DockStyle.Fill;
             pnlBaseContractSymbol.Location = new Point(4, 213);
@@ -346,9 +314,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             pnlBaseContractSymbol.Name = "pnlBaseContractSymbol";
             pnlBaseContractSymbol.Size = new Size(147, 24);
             pnlBaseContractSymbol.TabIndex = 16;
-            // 
+            //
             // lblBaseContractSymbol
-            // 
+            //
             lblBaseContractSymbol.AutoSize = true;
             lblBaseContractSymbol.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             lblBaseContractSymbol.ForeColor = SystemColors.ControlLightLight;
@@ -358,9 +326,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             lblBaseContractSymbol.Size = new Size(94, 17);
             lblBaseContractSymbol.TabIndex = 3;
             lblBaseContractSymbol.Text = "Base Contract:";
-            // 
+            //
             // ddlBaseSymbol
-            // 
+            //
             ddlBaseSymbol.DropDownStyle = ComboBoxStyle.DropDownList;
             ddlBaseSymbol.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             ddlBaseSymbol.FormattingEnabled = true;
@@ -369,9 +337,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             ddlBaseSymbol.Name = "ddlBaseSymbol";
             ddlBaseSymbol.Size = new Size(310, 25);
             ddlBaseSymbol.TabIndex = 17;
-            // 
+            //
             // pnlButtons
-            // 
+            //
             pnlButtons.BackColor = Color.FromArgb(64, 64, 64);
             pnlButtons.Controls.Add(btnCancel);
             pnlButtons.Controls.Add(btnSave);
@@ -381,9 +349,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             pnlButtons.Name = "pnlButtons";
             pnlButtons.Size = new Size(621, 62);
             pnlButtons.TabIndex = 1;
-            // 
+            //
             // btnCancel
-            // 
+            //
             btnCancel.AutoSize = true;
             btnCancel.DialogResult = DialogResult.Cancel;
             btnCancel.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -395,9 +363,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             btnCancel.Text = "&Cancel";
             btnCancel.UseVisualStyleBackColor = true;
             btnCancel.Click += btnCancel_Click;
-            // 
+            //
             // btnSave
-            // 
+            //
             btnSave.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             btnSave.Location = new Point(239, 16);
             btnSave.Margin = new Padding(2);
@@ -407,9 +375,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             btnSave.Text = "&Save";
             btnSave.UseVisualStyleBackColor = true;
             btnSave.Click += btnSave_Click;
-            // 
+            //
             // CreateFundOrderTradeForm
-            // 
+            //
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             CancelButton = btnCancel;
@@ -434,8 +402,6 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             pnlOrderDate.PerformLayout();
             pnlOrderStatus.ResumeLayout(false);
             pnlOrderStatus.PerformLayout();
-            panel1.ResumeLayout(false);
-            panel1.PerformLayout();
             pnlTradeState.ResumeLayout(false);
             pnlTradeState.PerformLayout();
             pnlTradeAction.ResumeLayout(false);
@@ -459,15 +425,12 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
         private System.Windows.Forms.Label lblTradeType;
         private System.Windows.Forms.TextBox txtTradeId;
         private System.Windows.Forms.Panel pnlOrderStatus;
-        private System.Windows.Forms.Label lblTradeDate;
-        private System.Windows.Forms.Panel panel1;
-        private System.Windows.Forms.Label lblMaturityDate;
+        private System.Windows.Forms.Label lblEffectiveDate;
         private System.Windows.Forms.Panel pnlButtons;
         private System.Windows.Forms.Button btnCancel;
         private System.Windows.Forms.Button btnSave;
         private System.Windows.Forms.ComboBox ddlTradeType;
-        private System.Windows.Forms.DateTimePicker dtpTradeDate;
-        private System.Windows.Forms.DateTimePicker dtpMaturityDate;
+        private System.Windows.Forms.DateTimePicker dtpEffectiveDate;
         private System.Windows.Forms.Panel pnlTradeState;
         private System.Windows.Forms.Label lblTradeState;
         private System.Windows.Forms.TextBox txtTradeState;

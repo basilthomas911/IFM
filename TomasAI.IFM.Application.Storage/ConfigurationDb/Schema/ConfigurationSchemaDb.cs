@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 
-/// <summary>Creates the PostgreSQL strategy-configuration schema and all six pipeline parameter tables.</summary>
+/// <summary>Creates the PostgreSQL strategy-configuration schema and versioned strategy parameter tables.</summary>
 public sealed class ConfigurationSchemaDb(IDbConnectionSettings connectionSettings, ILogger<DbProvider> logger)
     : SchemaDbContext<ConfigurationSchemaDb>(connectionSettings[ConfigurationDbContext.ConfigurationDbConnection], logger)
 {
@@ -16,7 +16,8 @@ public sealed class ConfigurationSchemaDb(IDbConnectionSettings connectionSettin
         "market_condition_parameter_set",
         "trade_selection_parameter_set",
         "order_composition_parameter_set",
-        "risk_management_parameter_set"
+        "risk_management_parameter_set",
+        "strategy_position_risk_parameter_set"
     ];
 
     static readonly SchemaObjectDefinition[] Objects =
@@ -26,7 +27,7 @@ public sealed class ConfigurationSchemaDb(IDbConnectionSettings connectionSettin
             table,
             ConfigurationSchemaSql.CreateTable(table),
             $"DROP TABLE IF EXISTS reference_configuration.{table};")))
-        .Concat(new[] { "trade_selection_parameter_set", "intrinsic_time_strategy_workflow_parameter_set", "order_composition_parameter_set" }
+        .Concat(new[] { "trade_selection_parameter_set", "intrinsic_time_strategy_workflow_parameter_set", "order_composition_parameter_set", "strategy_position_risk_parameter_set" }
             .Select(table => new SchemaObjectDefinition(table + "_lifecycle_guard",
                 (ConfigurationSchemaSql.EnsureMarketConditionLifecycleConstraints + ConfigurationSchemaSql.CreateMarketConditionLifecycleGuard)
                     .Replace("market_condition_parameter_set", table).Replace("MarketCondition", table),

@@ -91,6 +91,9 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
             throw new InvalidOperationException("A dataset worker process is already running.");
         if (process is not null)
             throw new InvalidOperationException("A supervisor owns one process lifetime; create a new supervisor for replacement.");
+        // Startup owns the control channel until the hello and manifest exchange completes.
+        // Health polling must not consume WorkerHello or send a command before SupervisorHello.
+        await commands.WaitAsync(cancellationToken).ConfigureAwait(false);
         try { return await StartCoreAsync(request, cancellationToken).ConfigureAwait(false); }
         catch
         {
@@ -101,6 +104,7 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
             }
             throw;
         }
+        finally { commands.Release(); }
     }
 
     async Task<DatasetWorkerProcessSnapshot> StartCoreAsync(
@@ -191,11 +195,11 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
             linuxGroupEstablished = true;
         }
         lastFrame = hello;
-        await SendAsync(DatasetWorkerMessageKind.SupervisorHello,
+        await SendCoreAsync(DatasetWorkerMessageKind.SupervisorHello,
             "Supervisor accepted worker identity.", handshake.Token).ConfigureAwait(false);
         _ = await SendAndReceiveAsync(DatasetWorkerMessageKind.StartManifest,
             DatasetWorkerMessageKind.StartAccepted, cancellationToken,
-            options.WorkerStartTimeout, allowGenerationChange: true, manifest: manifest)
+            options.WorkerStartTimeout, allowGenerationChange: true, manifest: manifest, startupOwnsChannel: true)
             .ConfigureAwait(false);
         return Snapshot();
     }
@@ -328,7 +332,8 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         DatasetSubscriptionManifest? manifest = null,
         Pricing.WorkerOptionChainRequest? optionChain = null,
         Pricing.WorkerOptionChainRelease? optionRelease = null,
-        Pricing.CompositionSnapshotRequest? composition = null)
+        Pricing.CompositionSnapshotRequest? composition = null,
+        bool startupOwnsChannel = false)
     {
         manifest?.Validate();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -337,8 +342,11 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         var acquired = false;
         try
         {
-            await commands.WaitAsync(deadline.Token).ConfigureAwait(false);
-            acquired = true;
+            if (!startupOwnsChannel)
+            {
+                await commands.WaitAsync(deadline.Token).ConfigureAwait(false);
+                acquired = true;
+            }
             var correlationId = Guid.NewGuid();
             await SendCoreAsync(request, request.ToString(), deadline.Token, manifest, correlationId, optionChain, optionRelease, composition)
                 .ConfigureAwait(false);

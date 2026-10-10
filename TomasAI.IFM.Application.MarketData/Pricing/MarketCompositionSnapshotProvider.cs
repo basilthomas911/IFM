@@ -13,8 +13,13 @@ public sealed record CompositionSnapshotRequest([property: Key(0)] Guid Snapshot
     ImmutableArray<CompositionFutureDefinition> Futures = default)
 {
     [Key(10)] public ImmutableArray<CompositionFutureDefinition> Futures { get; init; } = Futures.IsDefault ? [] : Futures;
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     [Key(11)] public bool SelectionOnly { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     [Key(12)] public bool AllowMissingOptionQuotes { get; init; }
+    /// <summary>Browsing captures calculate full risk values only for these selected contracts.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    [Key(13)] public string[] RiskContractIds { get; init; } = [];
 }
 
 /// <summary>One atomic source view; scope token and generation must remain stable across all pages.</summary>
@@ -45,6 +50,10 @@ public sealed record CompositionMarketInstrument(
     [Key(8)] public long? SessionVolume { get; init; }
     [Key(9)] public long? OpenInterest { get; init; }
     [Key(10)] public DateTimeOffset? StatisticsAtUtc { get; init; }
+    /// <summary>Diagnostic reason for suppressing an unusable browsing quote; never authorizes execution.</summary>
+    [Key(11)] public string? QuoteUnavailableReason { get; init; }
+    [Key(12)] public DateTimeOffset? LastQuoteEventAtUtc { get; init; }
+    [Key(13)] public DateTimeOffset? LastQuoteReceivedAtUtc { get; init; }
 }
 
 /// <summary>Source owns complete-scope enumeration and current-generation price observations.</summary>
@@ -69,7 +78,18 @@ public sealed record MarketCompositionSnapshot(
     [property: Key(6)] DateTimeOffset EvaluatedAtUtc,
     [property: Key(7)] DateTimeOffset ValidUntilUtc,
     [property: Key(8)] ImmutableArray<CompositionInstrumentSnapshot> Instruments,
-    [property: Key(9)] string Digest);
+    [property: Key(9)] string Digest)
+{
+    /// <summary>Exact global policy used to prepare this ranking universe; absent on historical/manual snapshots.</summary>
+    [Key(10), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? StrategyOptionChainParametersJson { get; init; }
+    /// <summary>Normalized prepared direction, separate from catalog Balanced spelling.</summary>
+    [Key(11), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? StrategyOptionChainBias { get; init; }
+    /// <summary>Accepted operational value date of the prepared strategy scope.</summary>
+    [Key(12), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public DateOnly? StrategyOptionChainValueDate { get; init; }
+}
 
 [MessagePackObject]
 public sealed record CompositionSnapshotResult([property: Key(0)] MarketCompositionSnapshot? Snapshot, [property: Key(1)] OptionPricingFailure? Failure);
@@ -125,13 +145,13 @@ public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource s
                     if (!seen.Add(instrument.ContractId) || instrument.Quote is { } observedQuote && observedQuote.ContractId != instrument.ContractId) return Fail("ConflictingDefinition");
                     if (instrument.Quote is null)
                     {
-                        if (!request.AllowMissingOptionQuotes || !request.IncludeOptions || request.SelectionOnly
+                        if (!request.AllowMissingOptionQuotes || !request.IncludeOptions
                             || instrument.Pricing is null || instrument.Strike is null || instrument.IsCall is null)
                             return Fail("QuoteUnavailable", instrument.ContractId);
                         values.Add(new(instrument with { Selection = null }, null));
                         continue;
                     }
-                    if (request.AllowMissingOptionQuotes && request.IncludeOptions && !request.SelectionOnly
+                    if (request.AllowMissingOptionQuotes && request.IncludeOptions
                         && instrument.Pricing is { } optionContext && instrument.Strike is { } optionStrike
                         && instrument.IsCall is { } optionIsCall)
                     {
@@ -145,7 +165,30 @@ public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource s
                                 <= Math.Min(optionContext.MaximumQuoteAgeMilliseconds, request.MaximumQuoteAgeMilliseconds);
                         if (!quoteUsable)
                         {
-                            values.Add(new(instrument with { Quote = null, Selection = null }, null));
+                            var reason = liveQuote.GenerationId != request.GenerationId ? "QuoteGenerationMismatch"
+                                : liveQuote.Bid <= 0 || liveQuote.Ask < liveQuote.Bid || liveQuote.BidSize < 0 || liveQuote.AskSize < 0 ? "InvalidQuote"
+                                : liveQuote.ReceivedAtUtc > request.EvaluatedAtUtc || liveQuote.EventAtUtc > request.EvaluatedAtUtc.AddMilliseconds(optionContext.MaximumSourceClockLeadMilliseconds) ? "QuoteClockLead"
+                                : "QuoteAgeExceeded";
+                            values.Add(new(instrument with { Quote = null, Selection = null,
+                                QuoteUnavailableReason = reason, LastQuoteEventAtUtc = liveQuote.EventAtUtc,
+                                LastQuoteReceivedAtUtc = liveQuote.ReceivedAtUtc }, null));
+                            continue;
+                        }
+                        if (request.SelectionOnly && !request.RiskContractIds.Contains(instrument.ContractId, StringComparer.Ordinal))
+                        {
+                            var limited = optionContext with
+                            {
+                                MaximumQuoteAgeMilliseconds = Math.Min(optionContext.MaximumQuoteAgeMilliseconds, request.MaximumQuoteAgeMilliseconds),
+                                MaximumQuoteSkewMilliseconds = Math.Min(optionContext.MaximumQuoteSkewMilliseconds, request.MaximumQuoteSkewMilliseconds)
+                            };
+                            var selection = instrument.Selection;
+                            var valid = instrument.Underlying is not null
+                                && Black76PricingModel.ValidateInputs(limited, instrument.Underlying, liveQuote, optionStrike, optionIsCall, request.EvaluatedAtUtc) is null
+                                && selection is not null && selection.ContextDigest == PricingSemanticHash.Compute(optionContext)
+                                && double.IsFinite(selection.Price) && double.IsFinite(selection.Delta) && double.IsFinite(selection.ImpliedVolatility)
+                                && selection.CalculatedAtUtc <= request.EvaluatedAtUtc && selection.ValidUntilUtc > request.EvaluatedAtUtc
+                                && selection.IvOption.GenerationId == request.GenerationId && selection.IvUnderlying.GenerationId == request.GenerationId;
+                            values.Add(new(instrument with { Selection = valid ? selection : null }, null));
                             continue;
                         }
                         var priced = instrument.Underlying is null ? null : Black76PricingModel.Calculate(

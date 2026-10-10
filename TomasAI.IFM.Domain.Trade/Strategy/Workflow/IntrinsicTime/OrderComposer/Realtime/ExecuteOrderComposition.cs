@@ -37,7 +37,7 @@ public static class ExecuteOrderComposition
                 Failure = new()
                 {
                     ErrorCode = StartOrderCompositionPipelineCommand.ErrorId,
-                    ErrorType = "OrderCompositionPreparationFailed",
+                    ErrorType = failure.CacheUnavailable ? "OptionChainUnavailable" : "OrderCompositionPreparationFailed",
                     ErrorMessage = failure.Code,
                     ErrorData = failure.Code,
                     FailedAtUtc = now
@@ -70,26 +70,46 @@ public static class ExecuteOrderComposition
             var selection = TradeSelectionContracts.ReadResult(view.TradeSelection.Result!);
             var policy = TradeSelectionContracts.Policy(view.SelectionBinding!, selection.SelectedCandidate!.CompositionPolicyReference);
             var construction = SelectionConstructionPolicy.Read(policy.PayloadJson);
-            if (construction.MarketData is not { } marketData)
-                throw new CompositionMarketSourceException("CompositionUniverseUnqualified");
-            CompositionMarketDataPlan plan;
-            try
-            {
-                plan = marketData.Deserialize<CompositionMarketDataPlan>(new JsonSerializerOptions
-                { UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow })
-                    ?? throw new CompositionMarketSourceException("CompositionUniverseUnqualified");
-            }
-            catch (JsonException) { throw new CompositionMarketSourceException("CompositionUniverseUnqualified"); }
-            if (plan.Root != selection.SelectedCandidate.Product.Symbol)
-                throw new CompositionMarketSourceException("CompositionUniverseUnqualified");
             using var timing_composer_market_prepare = WorkflowTrace.Start("composer.market.prepare", view);
             var preparationDeadline = view.SelectionBinding?.SchemaVersion == 2
                 ? view.OrderComposition.ExpiresAtUtc ?? view.ExpiresAtUtc
                 : view.CompositionHandoff!.Request.ExpiresAtUtc;
-            var result = await context.CompositionMarketPreparation.PrepareAsync(key, plan,
-                view.TriggerEvent.EntityId.TimePeriod.ToString(), new(preparationDeadline), default).ConfigureAwait(false);
+            CompositionPreparationResult result;
+            if (construction.CachePolicy(selection.SelectedCandidate.StructureKey) is { } cached)
+            {
+                var bias = selection.SelectedCandidate.Bias == "Balanced" ? "Neutral" : selection.SelectedCandidate.Bias;
+                var valueDate = context.ValueDateProvider.ValueDate;
+                var horizon = view.TriggerEvent.EntityId.TimePeriod.ToString();
+                var scope = Application.MarketData.OptionChainCache.StrategyOptionChainScope.Key(cached.ParameterSetId,
+                    cached.Version, valueDate, bias, horizon);
+                var request = new Application.MarketData.Contracts.OptionChainSnapshotRequest(scope, Guid.Empty, valueDate,
+                    horizon, new(preparationDeadline), cached.MaximumQuoteAgeMilliseconds, cached.MaximumQuoteSkewMilliseconds)
+                    { ConfigurationDigest = cached.ConfigurationDigest, StrategyDefinitionId = selection.SelectedCandidate.StructureKey.Id,
+                        StrategyDefinitionVersion = selection.SelectedCandidate.StructureKey.Version, InstrumentRoot = selection.SelectedCandidate.Product.Symbol,
+                        WorkflowId = view.WorkflowId.Value, WorkflowRevision = view.WorkflowRevision };
+                result = await context.CompositionMarketPreparation.PrepareCachedAsync(key,
+                    context.MarketDataApi.OptionChainCache, request, default).ConfigureAwait(false);
+            }
+            else
+            {
+                if (construction.MarketData is not { } marketData) throw new CompositionMarketSourceException("CompositionUniverseUnqualified");
+                CompositionMarketDataPlan plan;
+                try
+                {
+                    plan = marketData.Deserialize<CompositionMarketDataPlan>(new JsonSerializerOptions
+                    { UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow })
+                        ?? throw new CompositionMarketSourceException("CompositionUniverseUnqualified");
+                }
+                catch (JsonException) { throw new CompositionMarketSourceException("CompositionUniverseUnqualified"); }
+                if (plan.Root != selection.SelectedCandidate.Product.Symbol) throw new CompositionMarketSourceException("CompositionUniverseUnqualified");
+                // Futures retain their existing bounded preparation. Automated option composition never waits on cold acquisition.
+                if (plan.IncludeOptions) throw new CompositionMarketSourceException("OptionChainCachePolicyRequired");
+                result = await context.CompositionMarketPreparation.PrepareAsync(key, plan,
+                    view.TriggerEvent.EntityId.TimePeriod.ToString(), new(preparationDeadline), default).ConfigureAwait(false);
+            }
             timing_composer_market_prepare?.Stop();
-            prepared = result.Preparation ?? throw new CompositionMarketSourceException(result.Failure?.Code ?? "CompositionPreparationUnavailable");
+            prepared = result.Preparation ?? throw new CompositionMarketSourceException(result.Failure?.Code ?? "CompositionPreparationUnavailable",
+                result.Failure is { Input: "OptionChainCache", Detail: "Deferred" or "NoTrade" });
         }
         using var timing_composer_preparation_validate = WorkflowTrace.Start("composer.preparation.validate", view);
         CompositionPreparationService.Validate(prepared);

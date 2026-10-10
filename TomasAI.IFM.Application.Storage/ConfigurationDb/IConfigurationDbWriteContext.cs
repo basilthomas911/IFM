@@ -16,6 +16,9 @@ namespace TomasAI.IFM.Application.Storage.ConfigurationDb;
 /// </summary>
 public interface IConfigurationDbWriteContext
 {
+    /// <summary>Creates a validated immutable strategy position-risk draft; activation remains explicit.</summary>
+    Task InsertStrategyPositionRiskDraftAsync(TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.StrategyRiskParameterSet policy, string description, string createdBy, CancellationToken cancellationToken = default);
+
     /// <summary>Inserts an immutable Regime Discovery draft.</summary>
     /// <param name="parameterSet">The validated parameter set.</param><param name="description">The description.</param><param name="createdBy">The author.</param><param name="cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the insert operation.</returns>

@@ -82,12 +82,12 @@ public partial class BackupDatabasesView : DarkTradingView, IAsyncFormControl
         _backupModeLabel.AutoSize = true;
         _backupModeLabel.Font = radDiffBackup.Font;
         _backupModeLabel.ForeColor = Color.White;
-        _backupModeLabel.Location = new Point(300, 6);
-        _backupModeLabel.Text = "Mode:";
+        _backupModeLabel.Location = new Point(0, 6);
+        _backupModeLabel.Text = "Backup mode:";
         _backupMode.DropDownStyle = ComboBoxStyle.DropDownList;
         _backupMode.Name = "ddlBackupMode";
         _backupMode.Font = radDiffBackup.Font;
-        _backupMode.Location = new Point(355, 2);
+        _backupMode.Location = new Point(105, 2);
         _backupMode.Size = new Size(145, 26);
         _backupMode.Items.AddRange([
             DatabaseBackupMode.Full,

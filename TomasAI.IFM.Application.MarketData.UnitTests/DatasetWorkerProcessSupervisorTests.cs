@@ -75,6 +75,26 @@ public sealed class DatasetWorkerProcessSupervisorTests
     }
 
     [Fact]
+    public async Task Concurrent_health_polling_cannot_overtake_worker_startup_handshake()
+    {
+        for (var cycle = 0; cycle < 3; cycle++)
+        {
+            await using var supervisor = new DatasetWorkerProcessSupervisor(Options() with
+            {
+                WorkerCommandTimeout = TimeSpan.FromSeconds(15)
+            });
+            var startup = supervisor.StartAsync(Request(Guid.NewGuid()));
+            var polls = Enumerable.Range(0, 8).Select(_ => supervisor.GetHealthAsync()).ToArray();
+            var started = await startup;
+            var replies = await Task.WhenAll(polls);
+            started.Healthy.Should().BeTrue(started.Detail);
+            replies.Should().OnlyContain(reply => reply.Healthy && reply.GenerationId == started.GenerationId);
+            var stopped = await supervisor.StopAsync();
+            stopped.ExitCode.Should().Be(0);
+        }
+    }
+
+    [Fact]
     public async Task Started_worker_reports_realized_native_generation_not_bootstrap_identity()
     {
         await using var supervisor = new DatasetWorkerProcessSupervisor(Options());

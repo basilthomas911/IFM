@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.DataBento;
@@ -96,12 +96,13 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                     return Failure("ConflictingDefinition");
                 underlying = contract.UnderlyingContractId;
             }
-            if (request.SeparateContractConnection && request.Options.Length != 1) return Failure("IndividualOptionRequired");
+            if (request.SeparateContractConnection && (request.Options.Length != 1 || request.IndependentChainConnection)) return Failure("IndividualOptionRequired");
             var ordered = request.Options.OrderBy(x => x.Pricing.Contract.ContractId, StringComparer.Ordinal).ToImmutableArray();
             var digest = PricingSemanticHash.Compute(new { request.MaturityDate, request.SeparateContractConnection, Options = ordered });
             if (scopes.TryGetValue(request.ScopeId, out var existing))
             {
-                if ((!string.IsNullOrEmpty(existing.Key.OptionContractId)) != request.SeparateContractConnection) return Failure("ConflictingConnectionMode");
+                if ((!string.IsNullOrEmpty(existing.Key.OptionContractId)) != request.SeparateContractConnection
+                    || (!string.IsNullOrEmpty(existing.Key.ConnectionScopeId)) != request.IndependentChainConnection) return Failure("ConflictingConnectionMode");
                 if (existing.Leases.Count >= 128 && !existing.Leases.ContainsKey(request.LeaseId)) return Failure("LeaseCapacity");
                 if (state.GetSession(existing.Key).Count != ordered.Length) return Failure("ChainUnavailable");
                 if (existing.Digest != digest)
@@ -125,10 +126,11 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                 return new(true, null, digest);
             }
             var key = new OptionChainSessionKey(underlying!, request.MaturityDate,
-                request.SeparateContractConnection ? ordered[0].Pricing.Contract.ContractId : "");
+                request.SeparateContractConnection ? ordered[0].Pricing.Contract.ContractId : "",
+                request.IndependentChainConnection ? request.ScopeId : "");
             // A physical session has one canonical scope; a second scope cannot alter or release it.
             if (scopes.Values.Any(s => s.Key == key)) return Failure("ConflictingChainScope");
-            if (scopes.Count >= 8 || scopes.Values.Sum(s => s.Options.Length) + ordered.Length > 2048) return Failure("ChainCapacity");
+            if (scopes.Count >= 16 || scopes.Values.Sum(s => s.Options.Length) + ordered.Length > 2048) return Failure("ChainCapacity");
             var quote = ReadUnderlying(underlying!);
             if (quote is null || quote.Bid <= 0 || quote.Ask < quote.Bid
                 || quote.ReceivedAtUtc > at || ordered.Any(o =>
@@ -150,6 +152,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                 {
                     FuturesContractId = underlying!,
                     OptionContractId = key.OptionContractId,
+                ConnectionScopeId = key.ConnectionScopeId,
                     ValueDate = valueDate,
                     Routes = routes,
                     Subscription = new()
@@ -167,7 +170,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
             }
             catch
             {
-                try { await sessions.StopAsync(underlying!, request.MaturityDate, key.OptionContractId).ConfigureAwait(false); }
+                try { await sessions.StopAsync(underlying!, request.MaturityDate, key.OptionContractId, key.ConnectionScopeId).ConfigureAwait(false); }
                 finally { foreach (var option in ordered) RemoveUnownedPricing(option.Pricing.Contract.ContractId); }
                 throw;
             }
@@ -241,19 +244,22 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                 var id = option.Pricing.Contract.ContractId;
                 if (!current.TryGetValue(id, out var item))
                     throw new CompositionMarketSourceException("QuoteUnavailable");
-                if (request.SelectionOnly)
+                if (request.SelectionOnly && !request.RiskContractIds.Contains(id, StringComparer.Ordinal))
                 {
                     var selection = pricing.ReadSelection(id);
-                    if (selection is null || selection.Failure is not null || selection.Delta is null || selection.Iv is null)
-                        throw new CompositionMarketSourceException(selection?.Failure?.Code ?? "SelectionCalculationPending");
-                    values.Add(new(id, selection.Option, option.Pricing, option.Strike, option.IsCall, selection.Underlying)
+                    if (selection is { Failure: null, Delta: not null, Iv: not null })
                     {
-                        Selection = OptionSelectionValue.From(selection, refreshPolicy.ImpliedVolatilityMilliseconds),
-                        SessionVolume = item.SessionVolume,
-                        OpenInterest = item.OpenInterest,
-                        StatisticsAtUtc = item.StatisticsAtUtc
-                    });
-                    continue;
+                        values.Add(new(id, selection.Option, option.Pricing, option.Strike, option.IsCall, selection.Underlying)
+                        {
+                            Selection = OptionSelectionValue.From(selection, refreshPolicy.ImpliedVolatilityMilliseconds),
+                            SessionVolume = item.SessionVolume,
+                            OpenInterest = item.OpenInterest,
+                            StatisticsAtUtc = item.StatisticsAtUtc
+                        });
+                        continue;
+                    }
+                    if (!request.AllowMissingOptionQuotes)
+                        throw new CompositionMarketSourceException(selection?.Failure?.Code ?? "SelectionCalculationPending");
                 }
                 if (item.Quote is not { } && !request.AllowMissingOptionQuotes)
                     throw new CompositionMarketSourceException("QuoteUnavailable");
@@ -330,7 +336,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
     async Task RemoveAsync(string id, Scope scope)
     {
         scopes.Remove(id);
-        try { await sessions.StopAsync(scope.Key.FuturesContractId, scope.Key.MaturityDate, scope.Key.OptionContractId).ConfigureAwait(false); }
+        try { await sessions.StopAsync(scope.Key.FuturesContractId, scope.Key.MaturityDate, scope.Key.OptionContractId, scope.Key.ConnectionScopeId).ConfigureAwait(false); }
         catch (Exception exception)
         {
             terminalFault?.Invoke($"Option-chain shutdown failed: {exception.GetType().Name}");
@@ -401,7 +407,9 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
     }
 }
 
-public sealed class CompositionMarketSourceException(string code) : Exception(code)
+public sealed class CompositionMarketSourceException(string code, bool cacheUnavailable = false) : Exception(code)
 {
     public string Code { get; } = code;
+    /// <summary>Temporary cache unavailability stops this signal without an actor fault or recovery retry.</summary>
+    public bool CacheUnavailable { get; } = cacheUnavailable;
 }

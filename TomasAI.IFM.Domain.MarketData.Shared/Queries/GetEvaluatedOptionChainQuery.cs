@@ -26,7 +26,7 @@ public sealed record GetEvaluatedOptionChainQuery : IQuery<EvaluatedOptionChainR
     /// <param name="requiredContractIds">The RequiredContractIds field.</param>
     /// <param name="releaseOnly">The ReleaseOnly field.</param>
     [SerializationConstructor]
-    public GetEvaluatedOptionChainQuery(ActorSubject subject, IActorEntityId entityId, string underlyingContractId, string underlyingSymbol, string[] providerRoots, DateOnly expiryDate, decimal? standardDeviationAmount, double standardDeviationMultiplier, int maximumStrikeCount, string[] requiredContractIds, bool releaseOnly, bool allowFrozenEmulatorPreview = false, bool frozenEmulatorPreviewOnly = false)
+    public GetEvaluatedOptionChainQuery(ActorSubject subject, IActorEntityId entityId, string underlyingContractId, string underlyingSymbol, string[] providerRoots, DateOnly expiryDate, decimal? standardDeviationAmount, double standardDeviationMultiplier, int maximumStrikeCount, string[] requiredContractIds, bool releaseOnly, bool allowFrozenEmulatorPreview = false, bool frozenEmulatorPreviewOnly = false, string subscriptionOwnerId = "", decimal spreadWingWidth = 0)
     {
         Subject = subject;
         EntityId = entityId;
@@ -43,6 +43,8 @@ public sealed record GetEvaluatedOptionChainQuery : IQuery<EvaluatedOptionChainR
         ReleaseOnly = releaseOnly;
         AllowFrozenEmulatorPreview = allowFrozenEmulatorPreview;
         FrozenEmulatorPreviewOnly = frozenEmulatorPreviewOnly;
+        SubscriptionOwnerId = subscriptionOwnerId;
+        SpreadWingWidth = spreadWingWidth;
     }
     [IgnoreMember] public const string Actor = "MarketDataQuery";
     [IgnoreMember] public const string Verb = "GetEvaluatedOptionChain";
@@ -62,6 +64,10 @@ public sealed record GetEvaluatedOptionChainQuery : IQuery<EvaluatedOptionChainR
     [Key(10)] public bool ReleaseOnly { get; set; }
     [Key(11)] public bool AllowFrozenEmulatorPreview { get; set; }
     [Key(12)] public bool FrozenEmulatorPreviewOnly { get; set; }
+    /// <summary>Stable view or algorithm owner; the empty value preserves the legacy caller scope.</summary>
+    [Key(13)] public string SubscriptionOwnerId { get; set; } = "";
+    /// <summary>Maximum configured wing width in futures price points, used for subscription coverage.</summary>
+    [Key(14)] public decimal SpreadWingWidth { get; set; }
     [IgnoreMember] public int ErrorCode => ErrorId;
     [IgnoreMember] public string QueryParams => UnderlyingContractId;
 }

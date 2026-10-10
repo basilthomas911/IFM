@@ -45,11 +45,14 @@ public static class IfmMetricsServiceCollectionExtensions
 
         var telemetry = services
             .AddOpenTelemetry()
-            .ConfigureResource(resource => resource.AddService(serviceName))
+            .ConfigureResource(resource => resource.AddService(serviceName, serviceInstanceId: ProcessGcRunIdentity.InstanceId)
+                .AddAttributes([new KeyValuePair<string, object>("process.pid", Environment.ProcessId),
+                    new("process.start_time", ProcessGcRunIdentity.StartedUtc.ToString("O"))]))
             .WithMetrics(metrics =>
             {
                 metrics
                     .AddMeter("TomasAI.IFM.MarketData.Eod")
+                    .AddMeter("TomasAI.IFM.OptionChainCache")
                 .AddMeter("TomasAI.IFM.Logging")
                 .AddMeter("TomasAI.IFM.ScheduledTasks")
                     .AddMeter(ActorMeterName)
@@ -61,6 +64,7 @@ public static class IfmMetricsServiceCollectionExtensions
                     .AddMeter(PortfolioInstrumentationName)
                     .AddMeter(PortfolioFinancialInstrumentationName)
                     .AddMeter("TomasAI.IFM.RiskManagement")
+                    .AddMeter(ProcessGcStatisticsRecorder.MeterName)
                     .AddMeter("System.Runtime")
                     .AddMeter("Microsoft.AspNetCore.Hosting")
                     .AddMeter("Microsoft.AspNetCore.Server.Kestrel")

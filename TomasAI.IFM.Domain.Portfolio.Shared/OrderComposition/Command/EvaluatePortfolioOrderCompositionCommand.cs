@@ -1,4 +1,4 @@
-﻿using MessagePack;
+using MessagePack;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -58,6 +58,9 @@ public sealed record PortfolioOrderCandidate
     /// <summary>Exact immutable market inputs accepted for this financial decision.</summary>
     [Key(33)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketDecisionEvidence? DecisionEvidence { get; init; }
+    /// <summary>Manual setup identity propagated into backend execution.</summary>
+    [Key(34)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundTradeSetupReference? SetupTrade { get; init; }
 }
 
 [MessagePackObject]

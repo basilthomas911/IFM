@@ -15,6 +15,9 @@ namespace TomasAI.IFM.Domain.Reference.ParameterSets.Command.Actor;
 public interface IParameterSetCommandContext
     : ICommandActorContext<ParameterSetCommandActor>
 {
+    /// <summary>ScyllaDB projection boundary for published global chain parameter events.</summary>
+    TomasAI.IFM.Application.MarketData.Contracts.IStrategyOptionChainParameterStore OptionChainParameters
+        => throw new InvalidOperationException("Option-chain parameter projection is not configured.");
     IParameterAccessPolicy AccessPolicy { get; }
     IEventSourceActorStateRepository<ParameterStartupCommandState> Startups { get; }
     /// <summary>Gets EventSourceDb.</summary>
@@ -44,6 +47,7 @@ public sealed class ParameterSetCommandContext
       ICommandActorContext<ParameterSetCommandActor>,
       IParameterSetCommandContext
 {
+    public TomasAI.IFM.Application.MarketData.Contracts.IStrategyOptionChainParameterStore OptionChainParameters => Container.Resolve<IDbContextFactory>().MarketDataDb;
     readonly Lazy<IEventSourceActorStateRepository<ParameterStartupCommandState>> startups;
     public IEventSourceActorStateRepository<ParameterStartupCommandState> Startups => startups.Value;
     readonly Lazy<IParameterAccessPolicy> accessPolicy;

@@ -38,9 +38,9 @@ internal static class CompositionFixture
         "ShortBalancedIronCondor", "ShortBullishIronCondor", "ShortBearishIronCondor", "LongBalancedIronCondor", "LongBullishIronCondor", "LongBearishIronCondor"];
     public static async Task<ExecuteOrderCompositionPipelineCommand> Command(string variant = "LongFuture", TimeFrameType horizon = TimeFrameType.Daily, DateTime? atUtc = null, bool integrationTiming = false, string contractId = "ESZ6",
         ExecuteTradeSelectionPipelineCommand? actualSelectionCommand = null, TradeSelectionResult? actualSelectionResult = null,
-        int integrationWindowMilliseconds = 5000)
+        int integrationWindowMilliseconds = 5000, bool cacheDefaults = false)
     {
-        var selection = actualSelectionCommand ?? await TradeSelectionFixture.Command(variant, horizon, atUtc, contractId: contractId, compositionReady: true, compositionIntegrationTiming: integrationTiming);
+        var selection = actualSelectionCommand ?? await TradeSelectionFixture.Command(variant, horizon, atUtc, contractId: contractId, compositionReady: true, compositionIntegrationTiming: integrationTiming, cacheDefaults: cacheDefaults);
         var result = actualSelectionResult ?? new TradeSelectionEvaluator().Calculate(selection);
         Assert.Equal(SelectionOutcome.Selected, result.Outcome);
         var at = actualSelectionResult is null ? selection.EvaluatedAtUtc : DateTime.UtcNow;
@@ -57,7 +57,26 @@ internal static class CompositionFixture
             CompositionHandoff = pending with { Status = CompositionHandoffStatus.Reserved, Reservation = reservation }
         };
         var binding = CompositionBindingResolver.Resolve(result, selection.SelectionBinding, at);
-        var snapshot = Snapshot(binding, new(at));
+        var snapshot = Snapshot(binding, new(at), cacheDefaults);
+        if (cacheDefaults)
+        {
+            var outer = SelectionConstructionPolicy.Read(TradeSelectionContracts.Policy(selection.SelectionBinding, result.SelectedCandidate!.CompositionPolicyReference).PayloadJson);
+            var structure = result.SelectedCandidate.StructureKey;
+            var profile = (binding.BuilderCode == "IronCondor"
+                ? TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.StrategyOptionChainParameterDefaults.IronCondor(outer.OptionChainCache!.ParameterSetId, structure.Id, structure.Version)
+                : TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.StrategyOptionChainParameterDefaults.VerticalSpread(outer.OptionChainCache!.ParameterSetId, structure.Id, structure.Version)) with { Enabled = true };
+            snapshot = snapshot with { StrategyOptionChainParametersJson = profile.Serialize(), StrategyOptionChainBias = result.SelectedCandidate.Bias == "Balanced" ? "Neutral" : result.SelectedCandidate.Bias,
+                StrategyOptionChainValueDate = DateOnly.FromDateTime(at), Digest = "" };
+            snapshot = snapshot with { Instruments = snapshot.Instruments.Select(x => x with
+            { Valuation = CompositionSnapshotAdapter.From(TomasAI.IFM.Application.MarketData.Pricing.Black76PricingModel.Calculate(
+                CompositionSnapshotAdapter.To(x.Instrument.Pricing!), CompositionSnapshotAdapter.To(x.Instrument.Underlying!),
+                CompositionSnapshotAdapter.To(x.Instrument.Quote), x.Instrument.Strike!.Value, x.Instrument.IsCall!.Value, snapshot.EvaluatedAtUtc).Value!) }).ToImmutableArray() };
+            var application = CompositionSnapshotAdapter.To(snapshot);
+            var row = profile.BiasRows.Single(x => x.MarketBias.ToString() == snapshot.StrategyOptionChainBias);
+            snapshot = snapshot with { Instruments = TomasAI.IFM.Application.MarketData.OptionChainCache.OptionChainCandidatePreparation.Select(application.Instruments, row, snapshot.EvaluatedAtUtc)
+                .Select(CompositionSnapshotAdapter.From).ToImmutableArray() };
+            snapshot = snapshot with { Digest = CompositionSemanticHash.Compute(snapshot) };
+        }
         if (integrationTiming)
         {
             snapshot = snapshot with
@@ -99,7 +118,7 @@ internal static class CompositionFixture
         return Seal(request);
     }
     public static ExecuteOrderCompositionPipelineCommand Seal(ExecuteOrderCompositionPipelineCommand c) => c with { InputSha256 = c.Fingerprint() };
-    public static MarketCompositionSnapshot Snapshot(CompositionBinding binding, DateTimeOffset at)
+    public static MarketCompositionSnapshot Snapshot(CompositionBinding binding, DateTimeOffset at, bool cacheDefaults = false)
     {
         var generation = Guid.NewGuid();
         var forward = new OptionPricingQuote("ESZ6", 5002.25m, 5002.75m, 100, 100, at, at, 1, generation);
@@ -116,7 +135,7 @@ internal static class CompositionFixture
             var calendar = new OptionPricingCalendar("fixture/v1", "America/New_York", begin, begin.AddDays(129), new(18, 0), dates);
             double rate = 2 * double.LogP1(.04 / 2);
             TreasuryContinuousRate? treasury = null;
-            for (int k = 4930; k <= 5070; k += 5)
+            for (int k = cacheDefaults ? 4600 : 4930; k <= (cacheDefaults ? 5400 : 5070); k += 5)
                 foreach (bool call in new[] { false, true })
                 {
                     var name = $"ES.{k}.{call}";
@@ -158,7 +177,7 @@ internal static class CompositionFixture
                             new("USTreasury", "daily-cmt", TreasuryRateConvention.UsTreasuryCmtNominalSemiannual, "fixture/v1", "fixture"), "FlatSelectedCmtProxy/v1");
                     }
                     // Fixed forward standard deviation across horizons provides comparable economic fixtures.
-                    double vol = .0099 * Math.Sqrt(30d / days);
+                    double vol = (cacheDefaults ? .05 : .0099) * Math.Sqrt(30d / days);
                     var mark = (decimal)OptionModel.Price(5002.5, k, rate, vol, days / 365d, call ? 1 : -1);
                     var spread = Math.Min(.02m, mark / 4);
                     var quote = forward with { ContractId = name, Bid = mark - spread, Ask = mark + spread };

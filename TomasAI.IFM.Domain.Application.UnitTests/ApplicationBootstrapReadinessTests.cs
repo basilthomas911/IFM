@@ -1,7 +1,7 @@
+using TomasAI.IFM.Application.Api.Server.Core.Startup.Readiness;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using TomasAI.IFM.Application.Api.Server;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Application.UnitTests;

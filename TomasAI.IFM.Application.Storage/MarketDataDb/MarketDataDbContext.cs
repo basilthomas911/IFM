@@ -45,7 +45,7 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 /// <param name = "connectionSettings"></param>
 /// <param name = "dbFactory"></param>
 /// <param name = "logger"></param>
-public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, IBlackboardService blackboardService, ISequenceIdGenerator sequenceIdGenerator, ILogger<DbProvider> logger) : ObjectDataRepository<MarketDataDbContext>(connectionSettings[MarketDataDbConnection], logger), IMarketDataDbContext
+public partial class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, IBlackboardService blackboardService, ISequenceIdGenerator sequenceIdGenerator, ILogger<DbProvider> logger) : ObjectDataRepository<MarketDataDbContext>(connectionSettings[MarketDataDbConnection], logger), IMarketDataDbContext
 {
     readonly ILogger _diagnosticLogger = logger;
     public const string MarketDataDbConnection = "MarketDataDbConnection";

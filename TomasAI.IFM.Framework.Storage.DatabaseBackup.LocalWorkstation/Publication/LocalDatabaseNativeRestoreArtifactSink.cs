@@ -18,6 +18,14 @@ public sealed class LocalDatabaseNativeRestoreArtifactSink(
         if (Directory.Exists(root) && Directory.EnumerateFileSystemEntries(root).Any())
             throw new InvalidOperationException("The AWS native restore staging target is not fresh.");
         Directory.CreateDirectory(root);
+        if (engine == DatabaseEngine.PostgreSql)
+        {
+            // Object publication carries files; preserve the standard empty PGDATA directories too.
+            // https://www.postgresql.org/docs/17/storage-file-layout.html
+            string[] directories = ["base", "global", "pg_commit_ts", "pg_dynshmem", "pg_logical", "pg_logical/mappings", "pg_logical/snapshots", "pg_multixact", "pg_multixact/members", "pg_multixact/offsets", "pg_notify", "pg_replslot", "pg_serial", "pg_snapshots", "pg_stat", "pg_stat_tmp", "pg_subtrans", "pg_tblspc", "pg_twophase", "pg_wal", "pg_wal/archive_status", "pg_wal/summaries", "pg_xact"];
+            foreach (var directory in directories)
+                Directory.CreateDirectory(Path.Combine(root, "data", directory));
+        }
         return ValueTask.CompletedTask;
     }
 

@@ -130,3 +130,30 @@
 - UI and Console projections agree on source, phase, replica, lineage, recoverable time, retention, and health.
 - Expected disabled/after-hours states emit no repeated first-chance exception noise.
 - Retry logging is bounded by the configured poll/backoff interval and one warning per failed attempt.
+
+## Development credential refresh task
+
+The current-user Windows task `IFM-Development-AwsBackupSessionRefresh` runs
+`scripts/AwsBackup/Refresh-AwsDevelopmentBackupSession.ps1` after sign-in and every 20 minutes.
+Install or update it with `scripts/AwsBackup/Install-AwsDevelopmentBackupSessionRefresh.ps1 -StartNow`.
+The task runs hidden with limited privileges and stores no credentials in its definition. The refresh script
+writes the temporary role session to the existing protected session file. Check only
+`.artifacts/aws-backup-session/status.json` and the scheduled task's last result when diagnosing refresh;
+never include the session file in logs or evidence.
+
+This task requires the configured user to be signed in. It does not provide an unattended service identity
+while that user is signed out. Installation and successful execution were verified on 2026-10-10;
+an actual reboot/sign-in test has not been performed. AWS backup runtime admission remains disabled
+until the outstanding qualification gates are complete.
+
+## File-only PostgreSQL restore staging
+
+AWS artifact manifests enumerate files, so staging must also recreate PostgreSQL's standard PGDATA
+subdirectories, including empty runtime directories. `LocalDatabaseNativeRestoreArtifactSink` now
+creates that layout before downloading files. Required files still undergo exact-length/hash checks
+and `pg_verifybackup`; creating empty directories does not substitute for native verification.
+
+The 2026-10-10 running-host restore drill exposed this issue: native verification passed, but the
+first isolated startup failed with `could not open directory "pg_notify"`. Keep the failed test result
+alongside corrective rerun evidence. Directory definitions follow the
+[PostgreSQL 17 database file layout](https://www.postgresql.org/docs/17/storage-file-layout.html).

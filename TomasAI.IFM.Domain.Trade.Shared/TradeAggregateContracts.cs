@@ -97,6 +97,9 @@ public sealed record TradeOrderDefinition
     /// <summary>Exact immutable market inputs accepted for this financial decision.</summary>
     [Key(28)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketDecisionEvidence? DecisionEvidence { get; init; }
+    /// <summary>Source setup identity; absent on legacy and fully automated orders.</summary>
+    [Key(29)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundTradeSetupReference? SetupTrade { get; init; }
 }
 
 /// <summary>Normalized immutable fill evidence accepted by OrderExecution.</summary>
@@ -178,6 +181,12 @@ public sealed record EstablishedTradeDefinition
     [Key(12)] public int EvidenceRevision { get; init; }
     [Key(13)] public ExecutionFillEvidence[] ClosingFills { get; init; } = [];
     [Key(14)] public DateTime? ClosedAtUtc { get; init; }
+    /// <summary>The execution-derived futures session date; no date is assigned before accepted fills establish the trade.</summary>
+    [IgnoreMember] public DateOnly? TradeDate => EstablishedAtUtc == default ? null
+        : TomasAI.IFM.Domain.MarketData.Shared.FuturesTradingValueDate.GetOperational(new DateTimeOffset(EstablishedAtUtc));
+    /// <summary>The trade matures on the latest leg expiry; an incomplete contract definition has no maturity.</summary>
+    [IgnoreMember] public DateOnly? MaturityDate => Legs.Length == 0 || Legs.Any(leg => !leg.Expiry.HasValue)
+        ? null : Legs.Max(leg => leg.Expiry!.Value);
 }
 
 /// <summary>Current price and basis for one stable position leg.</summary>

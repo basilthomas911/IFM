@@ -136,7 +136,7 @@ public static partial class TradeSelectionContracts
         foreach (var policy in b.PipelinePolicies)
         {
             Require(Enum.IsDefined(policy.Kind) && policy.Id != Guid.Empty && policy.Version > 0
-                && (policy.SchemaVersion == 1 || policy.Kind == CatalogPipelineParameterKind.OrderComposition && policy.SchemaVersion == 2)
+                && (policy.SchemaVersion == 1 || policy.Kind == CatalogPipelineParameterKind.OrderComposition && policy.SchemaVersion is 2 or 3)
                 && policy.Status == CatalogLifecycleStatus.Published && policy.EffectiveFromUtc is not null && policy.EffectiveFromUtc <= b.FrozenAtUtc && (policy.RetiredAtUtc is null || policy.RetiredAtUtc > b.FrozenAtUtc), "TS.CONFIG.INVALID", "Pipeline policy is not exact published evidence.");
             ValidatePipelinePolicy(policy);
         }

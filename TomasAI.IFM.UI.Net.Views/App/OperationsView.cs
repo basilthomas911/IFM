@@ -14,7 +14,7 @@ namespace TomasAI.IFM.UI.Net.Views.App;
 /// <summary>WinForms adapter for the framework-neutral Operations presentation state.</summary>
 public partial class OperationsView : DarkTradingView
 {
-    const double StrategyDetailHeightRatio = 0.33;
+    const double StrategyWorkspaceHeightRatio = 2.0 / 3.0;
     const string PriceSeriesName = "ITI Price";
     const string OtherEventSeriesName = "Other ITI Event";
     const string UpEventSeriesName = "Direction Up";
@@ -70,7 +70,6 @@ public partial class OperationsView : DarkTradingView
         ddlTimeFrame.SelectedItem = TimeFrameType.Daily;
         operationsTabs.SelectedIndex = (int)OperationsViewType.Strategy;
         ResizeStrategyPanels();
-        ResizeStrategyContentPanels();
     }
 
     public void LoadViewModel(OperationsViewModel viewModel)
@@ -312,38 +311,19 @@ public partial class OperationsView : DarkTradingView
     void strategySplitter_Resize(object? sender, EventArgs e)
         => ResizeStrategyPanels();
 
-    void strategyContentSplitter_Resize(object? sender, EventArgs e)
-        => ResizeStrategyContentPanels();
-
     void ResizeStrategyPanels()
     {
         var availableHeight = strategySplitter.ClientSize.Height - strategySplitter.SplitterWidth;
         if (availableHeight < strategySplitter.Panel1MinSize + strategySplitter.Panel2MinSize)
             return;
 
-        var listHeight = (int)Math.Round(
-            availableHeight * (1 - StrategyDetailHeightRatio),
+        var graphHeight = (int)Math.Round(
+            availableHeight * (1 - StrategyWorkspaceHeightRatio),
             MidpointRounding.AwayFromZero);
         strategySplitter.SplitterDistance = Math.Clamp(
-            listHeight,
+            graphHeight,
             strategySplitter.Panel1MinSize,
             availableHeight - strategySplitter.Panel2MinSize);
-    }
-
-    void ResizeStrategyContentPanels()
-    {
-        var availableHeight = strategyContentSplitter.ClientSize.Height
-            - strategyContentSplitter.SplitterWidth;
-        if (availableHeight < strategyContentSplitter.Panel1MinSize
-            + strategyContentSplitter.Panel2MinSize)
-        {
-            return;
-        }
-
-        strategyContentSplitter.SplitterDistance = Math.Clamp(
-            availableHeight / 2,
-            strategyContentSplitter.Panel1MinSize,
-            availableHeight - strategyContentSplitter.Panel2MinSize);
     }
 
     void RenderSelectedWorkflow()

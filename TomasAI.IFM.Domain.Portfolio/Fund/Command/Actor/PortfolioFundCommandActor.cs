@@ -62,8 +62,11 @@ public sealed class PortfolioFundCommandActor(
             [CreateManualFundOrderCommand.Verb] = static message => message.AsCommand<CreateManualFundOrderCommand>()!,
             [AddManualFundOrderTradeCommand.Verb] = static message => message.AsCommand<AddManualFundOrderTradeCommand>()!,
             [RemoveManualFundOrderTradeCommand.Verb] = static message => message.AsCommand<RemoveManualFundOrderTradeCommand>()!,
-            [ChangeManualFundOrderTradeStateCommand.Verb] = static message => message.AsCommand<ChangeManualFundOrderTradeStateCommand>()!,
-            [CloseManualFundOrderCommand.Verb] = static message => message.AsCommand<CloseManualFundOrderCommand>()!,
+
+            [RecordFundTradeSubmissionCommand.Verb] = static message => message.AsCommand<RecordFundTradeSubmissionCommand>()!,
+            [RecordFundTradeOpeningCommand.Verb] = static message => message.AsCommand<RecordFundTradeOpeningCommand>()!,
+            [RecordFundTradeClosingCommand.Verb] = static message => message.AsCommand<RecordFundTradeClosingCommand>()!,
+            [ReleaseFundTradeSubmissionCommand.Verb] = static message => message.AsCommand<ReleaseFundTradeSubmissionCommand>()!,
             [DeleteManualFundOrderCommand.Verb] = static message => message.AsCommand<DeleteManualFundOrderCommand>()!,
             [MarkFundOrderComposingCommand.Verb] = static message => message.AsCommand<MarkFundOrderComposingCommand>()!,
             [RecordFundOrderComposedCommand.Verb] = static message => message.AsCommand<RecordFundOrderComposedCommand>()!,
@@ -155,21 +158,29 @@ public sealed class PortfolioFundCommandActor(
                     .ValidateEntityId(typed.EntityId, typed.CommandName)
                     .ValidateFundCommand(typed);
             },
-            [typeof(ChangeManualFundOrderTradeStateCommand)] = static command =>
+            [typeof(RecordFundTradeSubmissionCommand)] = static command =>
             {
-                var typed = (ChangeManualFundOrderTradeStateCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName)
-                    .ValidateFundCommand(typed);
+                var typed = (RecordFundTradeSubmissionCommand)command;
+                return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName).ValidateFundCommand(typed);
             },
-            [typeof(CloseManualFundOrderCommand)] = static command =>
+            [typeof(RecordFundTradeOpeningCommand)] = static command =>
             {
-                var typed = (CloseManualFundOrderCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateEntityId(typed.EntityId, typed.CommandName)
-                    .ValidateFundCommand(typed);
+                var typed = (RecordFundTradeOpeningCommand)command;
+                return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName).ValidateFundCommand(typed);
+            },
+            [typeof(RecordFundTradeClosingCommand)] = static command =>
+            {
+                var typed = (RecordFundTradeClosingCommand)command;
+                return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName).ValidateFundCommand(typed);
+            },
+            [typeof(ReleaseFundTradeSubmissionCommand)] = static command =>
+            {
+                var typed = (ReleaseFundTradeSubmissionCommand)command;
+                return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName).ValidateFundCommand(typed);
             },
             [typeof(DeleteManualFundOrderCommand)] = static command =>
             {
@@ -244,10 +255,14 @@ public sealed class PortfolioFundCommandActor(
                 ValueTask.FromResult(((AddManualFundOrderTradeCommand)command).Execute(state.Aggregate, now, principal)),
             [typeof(RemoveManualFundOrderTradeCommand)] = static (_, command, state, now, principal, _) =>
                 ValueTask.FromResult(((RemoveManualFundOrderTradeCommand)command).Execute(state.Aggregate, now, principal)),
-            [typeof(ChangeManualFundOrderTradeStateCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult(((ChangeManualFundOrderTradeStateCommand)command).Execute(state.Aggregate, now, principal)),
-            [typeof(CloseManualFundOrderCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult(((CloseManualFundOrderCommand)command).Execute(state.Aggregate, now, principal)),
+            [typeof(RecordFundTradeSubmissionCommand)] = static (_, command, state, now, principal, _) =>
+                ValueTask.FromResult(((RecordFundTradeSubmissionCommand)command).Execute(state.Aggregate, now, principal)),
+            [typeof(RecordFundTradeOpeningCommand)] = static (_, command, state, now, principal, _) =>
+                ValueTask.FromResult(((RecordFundTradeOpeningCommand)command).Execute(state.Aggregate, now, principal)),
+            [typeof(RecordFundTradeClosingCommand)] = static (_, command, state, now, principal, _) =>
+                ValueTask.FromResult(((RecordFundTradeClosingCommand)command).Execute(state.Aggregate, now, principal)),
+            [typeof(ReleaseFundTradeSubmissionCommand)] = static (_, command, state, now, principal, _) =>
+                ValueTask.FromResult(((ReleaseFundTradeSubmissionCommand)command).Execute(state.Aggregate, now, principal)),
             [typeof(DeleteManualFundOrderCommand)] = static (_, command, state, now, principal, _) =>
                 ValueTask.FromResult(((DeleteManualFundOrderCommand)command).Execute(state.Aggregate, now, principal)),
             [typeof(MarkFundOrderComposingCommand)] = static (_, command, state, now, principal, _) =>
@@ -401,6 +416,7 @@ public sealed class PortfolioFundCommandActor(
             ExpireFundOrderCompositionCommand.Verb => PortfolioOperation.ReserveComposition,
         RecordFundOrderComposedCommand.Verb => PortfolioOperation.RecordCompositionResult,
         SynchronizeFundRiskOutcomeCommand.Verb or RecordFundOrderRiskOutcomeCommand.Verb or AuthorizeFundOrderRiskCommand.Verb => PortfolioOperation.RecordRiskResult,
+        RecordFundTradeSubmissionCommand.Verb or RecordFundTradeOpeningCommand.Verb or RecordFundTradeClosingCommand.Verb or ReleaseFundTradeSubmissionCommand.Verb => PortfolioOperation.RecordCompositionResult,
         _ => PortfolioOperation.AdministerFund,
     };
 

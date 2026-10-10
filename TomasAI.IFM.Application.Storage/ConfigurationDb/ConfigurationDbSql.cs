@@ -164,6 +164,19 @@ INSERT INTO reference_configuration.risk_management_parameter_set
 VALUES ($1, $2, $3, $4, CAST($5 AS jsonb), $6, $7, $8, $9);
 """;
 
+    public const string InsertStrategyPositionRiskDraft = """
+INSERT INTO reference_configuration.strategy_position_risk_parameter_set
+    (parameter_set_id, version, schema_version, status, payload_json, payload_sha256, description, created_utc, created_by)
+VALUES ($1, $2, $3, $4, CAST($5 AS jsonb), $6, $7, $8, $9);
+""";
+
+    public const string GetStrategyPositionRiskVersion = """
+SELECT parameter_set_id, version, schema_version, status, effective_from_utc, retired_at_utc,
+       payload_json::text, payload_sha256
+FROM reference_configuration.strategy_position_risk_parameter_set
+WHERE parameter_set_id = $1 AND version = $2;
+""";
+
     public const string GetTradeSelectionVersion = """
 SELECT parameter_set_id, version, schema_version, status, effective_from_utc, retired_at_utc,
        payload_json::text, payload_sha256
@@ -313,6 +326,7 @@ WHERE parameter_set_id = $3 AND version = $4 AND status = $5;
             StrategyParameterSetKind.IntrinsicTimeStrategyWorkflow => "intrinsic_time_strategy_workflow_parameter_set",
             StrategyParameterSetKind.OrderComposition => "order_composition_parameter_set",
             StrategyParameterSetKind.RiskManagement => "risk_management_parameter_set",
+            StrategyParameterSetKind.StrategyPositionRisk => "strategy_position_risk_parameter_set",
             StrategyParameterSetKind.TradeSelection => "trade_selection_parameter_set",
             StrategyParameterSetKind.RegimeDiscovery => "regime_discovery_parameter_set",
             StrategyParameterSetKind.MarketCondition => "market_condition_parameter_set",

@@ -36,6 +36,11 @@ public static class MarketDataServiceCollectionExtensions
         services.TryAddSingleton<FuturesContractRolloverStartupCheck>();
         services.TryAddSingleton<IFuturesContractRolloverStartupCheck>(provider =>
             provider.GetRequiredService<FuturesContractRolloverStartupCheck>());
+        services.TryAddSingleton<TomasAI.IFM.Application.MarketData.OptionChainCache.OptionChainCache>();
+        services.TryAddSingleton<IOptionChainCache>(provider =>
+            provider.GetRequiredService<TomasAI.IFM.Application.MarketData.OptionChainCache.OptionChainCache>());
+        services.TryAddSingleton<TomasAI.IFM.Application.MarketData.OptionChainCache.IOptionChainSnapshotPublisher>(provider =>
+            provider.GetRequiredService<TomasAI.IFM.Application.MarketData.OptionChainCache.OptionChainCache>());
         services.TryAddSingleton<DatabentoMarketDataApi>();
         services.TryAddSingleton<IMarketDataApi>(provider =>
             provider.GetRequiredService<DatabentoMarketDataApi>());

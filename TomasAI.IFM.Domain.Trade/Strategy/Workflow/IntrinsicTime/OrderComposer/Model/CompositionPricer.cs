@@ -45,6 +45,18 @@ public sealed class Black76ComposerPricer : IFuturesOptionComposerPricer
             ContextDigest = p.ContextDigest
         };
     }
+    /// <summary>Converts a fully valued frozen publication to the same Decimal12-ToEven contract without rerunning IV solving.</summary>
+    public static CompositionValuation Prepared(OptionPricingValue p)
+    {
+        if (p.ContextDigest.Length != 64 || !p.ContextDigest.All(Uri.IsHexDigit) || p.ImpliedVolatility <= 0 || p.TimeToExpiry <= 0)
+            throw new CompositionException("OC.PRICING.REFERENCE_UNAVAILABLE");
+        return new()
+        {
+            ImpliedVolatility = Normalize(p.ImpliedVolatility), Delta = Normalize(p.Delta), Gamma = Normalize(p.Gamma),
+            Theta = Normalize(p.Theta), Vega = Normalize(p.Vega), Rho = Normalize(p.Rho),
+            TheoreticalPrice = Normalize(p.TheoreticalPrice), TimeToExpiry = Normalize(p.TimeToExpiry), ContextDigest = p.ContextDigest
+        };
+    }
     public decimal Tick(CompositionMarketInstrument instrument, decimal premium, bool allocatedLeg) =>
         instrument.Pricing is { } p ? OptionPremiumTicks.GetIncrement(CompositionSnapshotAdapter.To(p.Contract), premium, allocatedLeg)
             : instrument.FutureDefinition?.TickSize ?? throw new CompositionException("OC.CONTRACT.REQUIRED_FIELD");

@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
@@ -134,6 +134,9 @@ public sealed record PortfolioFundOrderTradeEditorModel
     public TradeAction TradeAction { get; init; }
     public string UnderlyingRoot { get; init; } = string.Empty;
     public DateOnly RequestedTradeDate { get; init; }
+    public DateOnly EffectiveDate { get => RequestedTradeDate; init => RequestedTradeDate = value; }
+    public DateOnly? TradeDate { get; init; }
+    public DateOnly? MaturityDate { get; init; }
     public DateOnly? RequestedMaturityDate { get; init; }
     public TradeType TradeType { get; init; }
     public TradeState TradeState { get; init; }
@@ -145,6 +148,7 @@ public sealed record PortfolioFundOrderTradeEditorModel
     public string CreatedBy { get; init; } = string.Empty;
     public int ExecutionOrderId { get; init; }
     public int ExecutionTradeId { get; init; }
+    public Guid ExecutionAttemptId { get; init; }
     public bool? HasFillEvidence { get; init; }
     public PortfolioFundOrderTradeEditorId Id => new(FundId, OrderId, TradeId);
     /// <summary>Gets underlying contract identifiers encoded by the reference.</summary>
@@ -187,11 +191,6 @@ public static class PortfolioFundOrderEditorPolicy
         var opening = order.Trades.SingleOrDefault(trade => trade.PrimaryTrade);
         return opening is not null && opening.TradeState is TradeState.TradeToOpen or TradeState.Open;
     }
-    /// <summary>Returns whether the order may be closed.</summary>
-    public static bool CanCloseOrder(PortfolioFundOrderEditorModel order)
-        => order.Status == nameof(FundCompositionState.Draft) && order.Trades.Length == MaximumTradeCount
-           && order.Trades.Count(trade => trade.PrimaryTrade) == 1
-           && order.Trades.Any(trade => !trade.PrimaryTrade && trade.TradeState == TradeState.OrderCompleted);
     /// <summary>Returns the closing trade type for an opening trade type.</summary>
     public static TradeType ClosingType(TradeType type) => type switch
     {

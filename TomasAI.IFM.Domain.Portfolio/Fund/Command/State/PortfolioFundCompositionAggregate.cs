@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
+using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 
@@ -231,58 +231,83 @@ public sealed class PortfolioFundCompositionAggregate
         _trades.Remove(orderId);
         _reservations.Remove(order.IdempotencyKey);
     }
-    /// <summary>Changes the lifecycle state of a trade on an open manual Portfolio Fund order.</summary>
-    /// <param name="request">The scoped trade-state mutation request.</param>
-    /// <returns>The updated canonical order composition.</returns>
-    public FundCompositionReservationResult ChangeManualTradeState(ManualFundOrderTradeMutationRequest request)
+    /// <summary>Records accepted backend submission without allowing an arbitrary state override.</summary>
+    public FundCompositionReservationResult RecordFundTradeSubmission(FundTradeExecutionEvidence evidence) =>
+        ApplyExecutionEvidence(evidence, opening: false, closing: false, release: false);
+
+    /// <summary>Records successful establishment and actual execution dates.</summary>
+    public FundCompositionReservationResult RecordFundTradeOpening(FundTradeExecutionEvidence evidence) =>
+        ApplyExecutionEvidence(evidence, opening: true, closing: false, release: false);
+
+    /// <summary>Finalizes the setup only after successful financial and position closure.</summary>
+    public FundCompositionReservationResult RecordFundTradeClosing(FundTradeExecutionEvidence evidence) =>
+        ApplyExecutionEvidence(evidence, opening: false, closing: true, release: false);
+
+    /// <summary>Releases an unfilled rejected/cancelled submission so the setup can be submitted again.</summary>
+    public FundCompositionReservationResult ReleaseFundTradeSubmission(FundTradeExecutionEvidence evidence) =>
+        ApplyExecutionEvidence(evidence, opening: false, closing: false, release: true);
+
+    FundCompositionReservationResult ApplyExecutionEvidence(FundTradeExecutionEvidence evidence, bool opening, bool closing, bool release)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        ValidateUtc(request.RequestedAtUtc, nameof(request.RequestedAtUtc));
-        if (!Enum.TryParse<TradeState>(request.TradeState, out var state))
-            throw new ArgumentException("A valid trade state is required.", nameof(request));
-        var order = RequireManualOrder(
-            request.PortfolioId, request.FundId, request.OrderId, request.ExpectedOrderVersion);
+        ArgumentNullException.ThrowIfNull(evidence);
+        ValidateUtc(evidence.OccurredAtUtc, nameof(evidence.OccurredAtUtc));
+        if (evidence.SetupTrade is null || (evidence.SetupTrade.FundId > 0 && evidence.SetupTrade.FundId != evidence.FundId) || evidence.ExecutionOrderId <= 0 || evidence.ExecutionTradeId <= 0 || evidence.ExecutionAttemptId == Guid.Empty)
+            throw new ArgumentException("Execution identity and setup evidence are required.");
+        if (!_orders.TryGetValue(evidence.SetupTrade.OrderId, out var order) || order.PortfolioId != evidence.PortfolioId || order.FundId != evidence.FundId)
+            throw new InvalidOperationException("Execution setup ownership does not match.");
         var trades = _trades[order.OrderId];
-        if (trades.All(x => x.TradeId != request.TradeId))
-            throw new KeyNotFoundException($"FundOrderTrade {request.TradeId} was not found.");
-
+        var reference = trades.SingleOrDefault(x => x.TradeId == evidence.SetupTrade.TradeId)
+            ?? throw new InvalidOperationException("Execution setup trade does not exist.");
+        // A workflow-generated closing order inherits the opening setup reference.
+        var trade = evidence.ClosingExecution && reference.PrimaryTrade
+            ? trades.SingleOrDefault(x => !x.PrimaryTrade) ?? reference : reference;
+        if (opening && (evidence.ClosingExecution || !trade.PrimaryTrade || evidence.TradeDate is null))
+            throw new InvalidOperationException("Opening establishment requires a primary setup and actual trade date.");
+        if (closing && !evidence.ClosingExecution)
+            throw new InvalidOperationException("Closing completion requires closing execution evidence.");
+        var primary = trades.Single(x => x.PrimaryTrade);
+        if (evidence.ClosingExecution && (evidence.OpeningExecutionTradeId is null || primary.ExecutionTradeId != evidence.OpeningExecutionTradeId))
+            throw new InvalidOperationException("Closing execution does not target the linked opening trade.");
+        if (order.Status == nameof(FundCompositionState.Executed))
+        {
+            if (closing && trade.ExecutionAttemptId == evidence.ExecutionAttemptId) return SaveReservation(order, trades);
+            throw new InvalidOperationException("Completed setup cannot accept another execution transition.");
+        }
+        if (order.Status != nameof(FundCompositionState.Draft))
+            throw new InvalidOperationException("Execution setup is not an active draft.");
+        // A workflow close without a separate closing setup must retain the opening identity for Load Trade.
+        var closesPrimary = evidence.ClosingExecution && trade.PrimaryTrade;
+        if (closesPrimary && (!closing || !evidence.FullyClosed)) return SaveReservation(order, trades);
+        var replacingPartial = !opening && !closing && !release && evidence.ClosingExecution && trade.TradeState == nameof(TradeState.OrderPartiallyFilled);
+        if (!closesPrimary && !replacingPartial && trade.ExecutionAttemptId != Guid.Empty &&
+            (trade.ExecutionAttemptId != evidence.ExecutionAttemptId || trade.ExecutionOrderId != evidence.ExecutionOrderId || trade.ExecutionTradeId != evidence.ExecutionTradeId))
+            throw new InvalidOperationException("Stale or conflicting execution identity.");
+        if (release && trade.TradeState != nameof(TradeState.OrderSubmitted))
+            return SaveReservation(order, trades); // Never roll back an established trade.
+        if (!opening && !closing && !release && trade.TradeState is nameof(TradeState.Open) or nameof(TradeState.Closed))
+            return SaveReservation(order, trades); // Delayed submission cannot regress completed execution.
         var nextVersion = checked(order.AggregateVersion + 1);
-        if (request.ExecutionOrderId.HasValue != request.ExecutionTradeId.HasValue ||
-            request.ExecutionOrderId is <= 0 || request.ExecutionTradeId is <= 0)
-            throw new ArgumentException("Both execution order and trade identifiers must be positive when binding a trade.");
-        var changed = trades.Select(x => x.TradeId == request.TradeId
-            ? x with { TradeState = state.ToString(), AggregateVersion = nextVersion,
-                ExecutionOrderId = request.ExecutionOrderId ?? x.ExecutionOrderId,
-                ExecutionTradeId = request.ExecutionTradeId ?? x.ExecutionTradeId }
-            : x with { AggregateVersion = nextVersion }).ToArray();
-        return SaveReservation(order with { AggregateVersion = nextVersion }, changed);
-    }
-
-    /// <summary>Closes a manual Portfolio Fund order after its compatible closing trade completes.</summary>
-    /// <param name="request">The scoped order-close request.</param>
-    /// <returns>The closed canonical order composition.</returns>
-    public FundCompositionReservationResult CloseManualOrder(ManualFundOrderMutationRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ValidateUtc(request.RequestedAtUtc, nameof(request.RequestedAtUtc));
-        var order = RequireManualOrder(
-            request.PortfolioId, request.FundId, request.OrderId, request.ExpectedOrderVersion);
-        var trades = _trades[order.OrderId];
-        if (trades.Length != 2 || trades.Count(x => x.PrimaryTrade) != 1 ||
-            !trades.Any(x => !x.PrimaryTrade && x.TradeState == nameof(TradeState.OrderCompleted)))
-            throw new InvalidOperationException("The order requires one completed compatible closing trade.");
-
-        var nextVersion = checked(order.AggregateVersion + 1);
-        return SaveReservation(
-            order with
+        var changed = trades.Select(x =>
+        {
+            if (closing && evidence.FullyClosed && x.PrimaryTrade)
+                return x with { TradeState = nameof(TradeState.Closed), AggregateVersion = nextVersion,
+                    ExecutionAttemptId = closesPrimary ? evidence.ExecutionAttemptId : x.ExecutionAttemptId };
+            if (x.TradeId != trade.TradeId) return x with { AggregateVersion = nextVersion };
+            return x with
             {
-                Status = nameof(FundCompositionState.Executed),
-                AggregateVersion = nextVersion,
-                StopReason = request.Reason.Trim(),
-            },
-            [.. trades.Select(x => x with { AggregateVersion = nextVersion })]);
+                TradeState = closing ? evidence.FullyClosed ? nameof(TradeState.OrderCompleted) : nameof(TradeState.OrderPartiallyFilled) : opening ? nameof(TradeState.Open) : release ? nameof(TradeState.NewTrade) : nameof(TradeState.OrderSubmitted),
+                ExecutionOrderId = release ? 0 : evidence.ExecutionOrderId,
+                ExecutionTradeId = release ? 0 : evidence.ExecutionTradeId,
+                ExecutionAttemptId = release ? Guid.Empty : evidence.ExecutionAttemptId,
+                TradeDate = opening ? evidence.TradeDate : x.TradeDate,
+                MaturityDate = opening ? evidence.MaturityDate : x.MaturityDate,
+                AggregateVersion = nextVersion
+            };
+        }).ToArray();
+        return SaveReservation(order with { AggregateVersion = nextVersion,
+            Status = closing && evidence.FullyClosed ? nameof(FundCompositionState.Executed) : order.Status,
+            StopReason = closing && evidence.FullyClosed ? "Confirmed closing execution completed." : order.StopReason }, changed);
     }
-
 
     public FundCompositionReservationResult CreateManualDraft(
         CreateManualFundOrderRequest request, int orderId, DateTime committedOnUtc, string principal)
@@ -525,7 +550,7 @@ public sealed class PortfolioFundCompositionAggregate
             throw new ArgumentException("A valid trade state is required.", nameof(request));
         if (!Enum.TryParse<TradeAction>(request.TradeAction, out _))
             throw new ArgumentException("A valid trade action is required.", nameof(request));
-        if (request.TradeId <= 0 || request.TradeDate == default || request.MaturityDate < request.TradeDate)
+        if (request.TradeId <= 0 || request.SetupEffectiveDate == default || request.MaturityDate < request.SetupEffectiveDate)
             throw new ArgumentException("A valid trade identity and date range are required.", nameof(request));
         if (string.IsNullOrWhiteSpace(request.BaseContractSymbol) || string.IsNullOrWhiteSpace(request.BaseContractId))
             throw new ArgumentException("A base symbol and base contract identifier are required.", nameof(request));
@@ -551,8 +576,7 @@ public sealed class PortfolioFundCompositionAggregate
         string.Equals(request.BaseContractSymbol, opening.BaseContractSymbol, StringComparison.OrdinalIgnoreCase) &&
         (string.IsNullOrWhiteSpace(opening.BaseContractId) ||
          string.Equals(request.BaseContractId, opening.BaseContractId, StringComparison.Ordinal)) &&
-        request.TradeDate == opening.RequestedTradeDate &&
-        request.MaturityDate == (opening.RequestedMaturityDate ?? opening.RequestedTradeDate);
+        request.SetupEffectiveDate >= opening.EffectiveDate;
 
     static string ClosingType(string openingType) => Enum.TryParse<TradeType>(openingType, out var value)
         ? value switch
@@ -579,14 +603,15 @@ public sealed class PortfolioFundCompositionAggregate
             TradeType = request.TradeType,
             InstructionReference = FundOrderTradeReference.Create(
             request.BaseContractId,
-            request.TradeDate,
+            request.SetupEffectiveDate,
             request.MaturityDate),
             LegOrdinal = ordinal,
             AggregateVersion = version,
             TradeAction = request.TradeAction,
             UnderlyingRoot = request.BaseContractSymbol.Trim(),
-            RequestedTradeDate = request.TradeDate,
+            EffectiveDate = request.SetupEffectiveDate,
             RequestedMaturityDate = request.MaturityDate,
+            TradeDate = null, MaturityDate = null,
             TradeState = request.TradeState,
             PrimaryTrade = request.PrimaryTrade,
             BaseContractSymbol = request.BaseContractSymbol.Trim(),

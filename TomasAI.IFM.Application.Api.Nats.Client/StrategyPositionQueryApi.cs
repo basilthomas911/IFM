@@ -50,6 +50,30 @@ public sealed class StrategyPositionQueryApi(IActorProducer producer)
         };
     }
 
+    /// <inheritdoc />
+    public Task<ServiceResult<StrategyPositionSnapshot[]>> GetHistoryAsync(
+        StrategyPositionId positionId, TradeStrategyKind strategyKind,
+        DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default)
+    {
+        if (!positionId.IsValid) throw new ArgumentException("A valid position identity is required.", nameof(positionId));
+        return strategyKind switch
+        {
+            TradeStrategyKind.IronCondor => RequestAsync<GetIronCondorOptionTradePositionHistoryQuery, StrategyPositionSnapshot[]>(
+                Subject(PositionActorNames.Query, GetIronCondorOptionTradePositionHistoryQuery.Verb, positionId),
+                new GetIronCondorOptionTradePositionHistoryQuery {
+                    Subject = Subject(PositionActorNames.Query, GetIronCondorOptionTradePositionHistoryQuery.Verb, positionId),
+                    PositionId = positionId, FromUtc = fromUtc, ToUtc = toUtc, PageSize = 1000, LoadAll = true
+                }, cancellationToken).AsTask(),
+            TradeStrategyKind.VerticalSpread => RequestAsync<GetVerticalSpreadOptionTradePositionHistoryQuery, StrategyPositionSnapshot[]>(
+                Subject(PositionActorNames.Query, GetVerticalSpreadOptionTradePositionHistoryQuery.Verb, positionId),
+                new GetVerticalSpreadOptionTradePositionHistoryQuery {
+                    Subject = Subject(PositionActorNames.Query, GetVerticalSpreadOptionTradePositionHistoryQuery.Verb, positionId),
+                    PositionId = positionId, FromUtc = fromUtc, ToUtc = toUtc, PageSize = 1000, LoadAll = true
+                }, cancellationToken).AsTask(),
+            _ => throw new ArgumentOutOfRangeException(nameof(strategyKind), "Complete option position history requires an option strategy.")
+        };
+    }
+
     Task<ServiceResult<StrategyPositionSnapshot>> SendAsync<TQuery>(
         TQuery query,
         CancellationToken cancellationToken)

@@ -14,6 +14,7 @@ public static class ParameterComponentModelRegistry
             new OptionVolatilityConsumerRulesParameterModel(),
             new OptionVolatilityRetentionParameterModel(),
             new IronCondorMarketSelectionParameterModel(),
+            new StrategyOptionChainParameterModel(),
             new VerticalSpreadMarketSelectionParameterModel()
         }.ToDictionary(descriptor => descriptor.Summary.ComponentCode, StringComparer.Ordinal);
 

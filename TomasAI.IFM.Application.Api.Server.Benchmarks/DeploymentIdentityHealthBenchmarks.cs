@@ -1,9 +1,8 @@
+using TomasAI.IFM.Application.Api.Server.Core.Deployment.Identity;
 using System.Security.Cryptography;
 using System.Text.Json;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
-using TomasAI.IFM.Application.Api.Server;
-
 namespace TomasAI.IFM.Application.Api.Server.Benchmarks;
 
 [MemoryDiagnoser]

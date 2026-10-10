@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
@@ -12,6 +12,33 @@ namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.Services;
 
 public sealed class PortfolioTradeOrderServiceTests
 {
+    [Fact]
+    public async Task Closing_submission_preserves_target_and_dispatches_the_accepted_order()
+    {
+        var portfolio = Substitute.For<IPortfolioOrderCompositionApi>();
+        var lifecycle = Substitute.For<ITradeOrderLifecycleApi>();
+        var position = new PortfolioPositionReference(11,17,23,29,Guid.NewGuid());
+        var candidate = new PortfolioCloseOrderCandidate { CompositionId = Guid.NewGuid(), PositionType = PortfolioExecutionPositionType.Closing,
+            Position = new() { Id = position, IsOpen = true }, ValidUntilUtc = DateTime.UtcNow.AddMinutes(5) };
+        var order = new PortfolioExecutionOrderInstruction { Id = new(11,17,31), PositionType = PortfolioExecutionPositionType.Closing,
+            TargetPosition = position, SetupTrade = new() { OrderId = 100, TradeId = 200, FundId = 17 } };
+        var completionId = Guid.NewGuid();
+        portfolio.EvaluateCloseAsync(Arg.Any<EvaluatePortfolioCloseOrderCompositionCommand>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            var request = call.Arg<EvaluatePortfolioCloseOrderCompositionCommand>();
+            request.Access.Roles.Should().Contain("OrderCompositionClose");
+            return new ServiceOk<FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,PortfolioCloseOrderCompositionFailedEvent>>(
+                FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,PortfolioCloseOrderCompositionFailedEvent>.Complete(new()
+                { Id = completionId, OperationId = request.OperationId, PortfolioId = 11, Receipt = new()
+                    { CompositionId = candidate.CompositionId, Status = PortfolioCloseOrderCompositionStatus.ExecuteTradeOrder, TradeOrder = order } }));
+        });
+        lifecycle.SubmitAcceptedAsync(Arg.Any<TradeOrderDefinition>(),completionId,ExecutionChannel.Broker,Arg.Any<CancellationToken>()).Returns(new ServiceOk<Guid>(Guid.NewGuid()));
+        var result = await new PortfolioTradeOrderService(portfolio,lifecycle).SubmitClosingAsync(11,candidate,ExecutionChannel.Broker);
+        result.TradeOrders.Single().SetupTrade.Should().Be(order.SetupTrade);
+        await lifecycle.Received(1).SubmitAcceptedAsync(Arg.Is<TradeOrderDefinition>(x => x.PositionType == TradeOrderPositionType.Closing &&
+            x.TargetPositionId.HasValue && x.TargetPositionId.Value.Trade.TradeId == 29),completionId,ExecutionChannel.Broker,Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task SubmitOpeningAsync_dispatches_every_portfolio_accepted_order()
     {

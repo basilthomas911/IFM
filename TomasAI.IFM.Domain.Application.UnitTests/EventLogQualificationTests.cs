@@ -1,6 +1,5 @@
+using TomasAI.IFM.Application.Api.Server.Core.Hosting.Modes;
 using Microsoft.Extensions.Configuration;
-using TomasAI.IFM.Application.Api.Server;
-
 namespace TomasAI.IFM.Domain.Application.UnitTests;
 
 public sealed class EventLogQualificationTests

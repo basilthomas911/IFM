@@ -1,4 +1,4 @@
-# ES Trade Blotter Integration with Trade Orders UI v2
+﻿# ES Trade Blotter Integration with Trade Orders UI v2
 
 > [!IMPORTANT]
 > Superseded by [ES Trade Blotter, Contract Reference, and Option Pricing Specification v3](ES-Trade-Blotter-Contract-Reference-and-Option-Pricing-Specification-v3.md).
@@ -451,3 +451,8 @@ The Trade Orders form remains the Portfolio/Fund/Order/Trade lifecycle workspace
 ## Broker Trade initialization query boundary
 
 `UI.Net.ViewModels/Trade/BrokerTradeInitializationQuery.cs` is an explicit backend DTO boundary for New Trade initialization. It concurrently reads fund balances and capacity, the risk envelope, broker account, order and reservation, stored trade, underlying definition, and stored underlying price through the typed service catalog. It returns one initialization result. Selected legs and quantity edits remain local draft inputs; this query does not submit orders or mutate backend state. All task results are awaited without blocking the UI thread. Backend quote instants are displayed using Eastern time, independent of the workstation timezone.
+
+
+## Execution-driven editor controls (2026-10-09)
+
+Close Order and Change State are removed. Opening and opposite closing orders use Portfolio-approved execution, with the closing order targeting the persisted remaining opening position. Setup-to-execution identity linking and Open/Closed updates happen in the backend even when the editor is disconnected. The editor listens for committed Fund lifecycle events and reloads the selected canonical setup order/trade from ScyllaDB projections. Load Trade eligibility and closed-trade live-feed restrictions remain governed by TradeMonitoringPolicy.

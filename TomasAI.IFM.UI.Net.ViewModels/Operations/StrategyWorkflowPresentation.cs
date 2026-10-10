@@ -155,7 +155,7 @@ public static class StrategyWorkflowPresentation
                 $"{stage.Name}; {StageSummary(state)}", content.ToString()));
         }
 
-        return new(view.WorkflowId, view.WorkflowRevision, header.ToString(), sections);
+        return new(view.WorkflowId, view.WorkflowRevision, header.ToString(), sections) { Workflow = view };
     }
 
     public static string FormatDetails(StrategyWorkflowDetails details)

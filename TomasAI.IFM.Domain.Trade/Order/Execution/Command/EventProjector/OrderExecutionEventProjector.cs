@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Command.Actor;
@@ -63,6 +63,7 @@ public sealed class OrderExecutionEventProjector
             changed.OrderExecutionDefinition.Fills.Length == 0)
         {
             await ReleaseTradeOrderAsync(changed).ConfigureAwait(false);
+            await FundExecutionLifecycle.ReleasedAsync(context.ActorService, changed.OrderExecutionDefinition).ConfigureAwait(false);
             return;
         }
 
@@ -81,9 +82,15 @@ public sealed class OrderExecutionEventProjector
             confirmedAtUtc).ConfigureAwait(false));
 
         foreach (var trade in changed.CreatedTrades)
+        {
             await EstablishAsync(trade).ConfigureAwait(false);
+            await FundExecutionLifecycle.OpenedAsync(context.ActorService, changed.OrderExecutionDefinition.Order, trade).ConfigureAwait(false);
+        }
         foreach (var closedPosition in changed.ClosedPositions)
+        {
             await CloseAsync(closedPosition).ConfigureAwait(false);
+            await FundExecutionLifecycle.ClosedAsync(context.ActorService, changed.OrderExecutionDefinition.Order, closedPosition).ConfigureAwait(false);
+        }
 
         var complete = new CompleteTradeOrderCommand
         {

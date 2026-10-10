@@ -1,7 +1,7 @@
+using TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.Contracts;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using TomasAI.IFM.Application.Api.Server;
 using Xunit.Abstractions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.Recovery;
@@ -13,15 +13,10 @@ public sealed class HardResetTerminalHostVerificationTests(ITestOutputHelper out
     [
         nameof(IApiDatabentoRecoveryActions.CaptureRecoveryInputsAsync),
         nameof(IApiDatabentoRecoveryActions.FenceFailedGenerationAsync),
-        nameof(IApiDatabentoRecoveryActions.AbandonPreviousCandidateAsync),
         nameof(IApiDatabentoRecoveryActions.StopDatabentoWorkersAsync),
         nameof(IApiDatabentoRecoveryActions.StartDatabentoWorkersAsync),
         nameof(IApiDatabentoRecoveryActions.QualifyDatabentoAsync),
-        nameof(IApiDatabentoRecoveryActions.PrepareCandidateAsync),
-        nameof(IApiDatabentoRecoveryActions.QualifyInfrastructureAsync),
-        nameof(IApiDatabentoRecoveryActions.ReconcileActorsAsync),
         nameof(IApiDatabentoRecoveryActions.StartPublisherAsync),
-        nameof(IApiDatabentoRecoveryActions.ProveDownstreamWritesAsync),
         nameof(IApiDatabentoRecoveryActions.AdmitGenerationAsync)
     ];
 
@@ -56,17 +51,24 @@ public sealed class HardResetTerminalHostVerificationTests(ITestOutputHelper out
         Assert.Contains("RecoveryActionFaultProbe.ExecuteAsync", evidence.GetProperty("Detail").GetString());
         Assert.True(evidence.GetProperty("TerminalLatched").GetBoolean());
         Assert.False(evidence.GetProperty("CandidateAdmittedAtFailure").GetBoolean());
-        Assert.Equal(index >= 5 ? 1 : 0, evidence.GetProperty("CandidateCountAtFailure").GetInt32());
+        Assert.Equal(index >= 4 ? 1 : 0, evidence.GetProperty("CandidateCountAtFailure").GetInt32());
 
         string[] failureActions = [nameof(IApiDatabentoRecoveryActions.NotifySystemConsoleAsync),
             nameof(IApiDatabentoRecoveryActions.ShutdownApiAsync)];
-        var expectedCalls = RecoverySequence.Take(index + 1).Concat(failureActions).ToArray();
+        var expectedPrefix = RecoverySequence.Take(index + 1).ToArray();
+        if (failedAction is nameof(IApiDatabentoRecoveryActions.StartDatabentoWorkersAsync)
+            or nameof(IApiDatabentoRecoveryActions.QualifyDatabentoAsync))
+        {
+            var retry = RecoverySequence.Skip(2).Take(index - 1);
+            expectedPrefix = expectedPrefix.Concat(retry).Concat(retry).ToArray();
+        }
+        var expectedCalls = expectedPrefix.Concat(failureActions).ToArray();
         Assert.Equal(expectedCalls, evidence.GetProperty("Calls").EnumerateArray().Select(item => item.GetString()).ToArray());
         var logs = evidence.GetProperty("Logs").EnumerateArray().ToArray();
         Assert.All(logs, entry => Assert.Equal(correlation, entry.GetProperty("CorrelationId").GetGuid()));
         Assert.Equal(expectedCalls, logs.Where(entry => entry.GetProperty("EventId").GetInt32() == 17400)
             .Select(entry => entry.GetProperty("Action").GetString()).ToArray());
-        Assert.Equal(RecoverySequence.Take(index).Concat(failureActions).ToArray(),
+        Assert.Equal(expectedPrefix.Where(action => action != failedAction).Concat(failureActions).ToArray(),
             logs.Where(entry => entry.GetProperty("EventId").GetInt32() == 17401)
                 .Select(entry => entry.GetProperty("Action").GetString()).ToArray());
         var failure = Assert.Single(logs, entry => entry.GetProperty("EventId").GetInt32() == 17402);
@@ -130,7 +132,7 @@ public sealed class HardResetTerminalHostVerificationTests(ITestOutputHelper out
         output.WriteLine("Mode={0}; exitCode={1}; stderr={2}", evidenceName, child.ExitCode, await stderr);
         Assert.True(child.ExitCode == 42, $"Expected terminal exit 42, got {child.ExitCode}.\n{text}\n{await stderr}");
         Assert.Contains("REAL_KESTREL_ACTOR_HOST_READY=", text);
-        Assert.Contains("TERMINAL_ACTION=" + (failedAction ?? nameof(IApiDatabentoRecoveryActions.QualifyInfrastructureAsync)), text);
+        Assert.Contains("TERMINAL_ACTION=" + (failedAction ?? nameof(IApiDatabentoRecoveryActions.StartPublisherAsync)), text);
         Assert.Contains("SYSTEM_CONSOLE_ATTEMPT=", text);
         Assert.Contains("REAL_OTEL_LOCAL_SUBMISSION=", text);
         Assert.Contains("REAL_API_HOST_DISPOSED", text);
@@ -141,7 +143,8 @@ public sealed class HardResetTerminalHostVerificationTests(ITestOutputHelper out
 
         var pids = Regex.Matches(text, @"OWNED_WORKER_PID=(\d+)")
             .Select(match => int.Parse(match.Groups[1].Value)).Distinct().ToArray();
-        var expectedWorkerCount = failedAction is null || Array.IndexOf(RecoverySequence, failedAction) >= 5 ? 2 : 1;
+        var expectedWorkerCount = failedAction is nameof(IApiDatabentoRecoveryActions.QualifyDatabentoAsync) ? 4
+            : failedAction is null || Array.IndexOf(RecoverySequence, failedAction) >= 4 ? 2 : 1;
         Assert.Equal(expectedWorkerCount, pids.Length);
         foreach (var pid in pids)
         {

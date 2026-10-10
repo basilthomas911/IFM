@@ -49,8 +49,11 @@ public sealed class PortfolioCommandActorMapConventionTests
                 CreateManualFundOrderCommand.Verb,
                 AddManualFundOrderTradeCommand.Verb,
                 RemoveManualFundOrderTradeCommand.Verb,
-                ChangeManualFundOrderTradeStateCommand.Verb,
-                CloseManualFundOrderCommand.Verb,
+                RecordFundTradeSubmissionCommand.Verb,
+                RecordFundTradeOpeningCommand.Verb,
+                RecordFundTradeClosingCommand.Verb,
+                ReleaseFundTradeSubmissionCommand.Verb,
+
                 DeleteManualFundOrderCommand.Verb,
                 MarkFundOrderComposingCommand.Verb,
                 RecordFundOrderComposedCommand.Verb,

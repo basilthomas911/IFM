@@ -329,3 +329,32 @@ Qualification evidence:
   warnings and zero errors.
 
 The one-week observation period described in rollout is operational monitoring, not an outstanding code change.
+
+
+## Managed development scheduler lifecycle ? 2026-10-08
+
+The VS Code `IFM: API + UI (Development)` configuration launches Server Manager,
+which owns API, UI and SchedulerHost in one development process session. SchedulerHost
+starts last (order 30), after API launch readiness and UI startup. Server Manager
+checks the existing scheduler dashboard pipe for database availability, Quartz
+availability and active scheduling with a 90-second deadline. Failures are reported
+in Server Manager and trigger the existing managed-startup rollback.
+
+The VS Code prepare task publishes SchedulerHost into
+`.artifacts/scheduled-tasks/development/Host`. Its installed development settings
+remain at `scheduler.settings.json`; first-time provisioning still uses
+`scripts/ScheduledTasks/Install-IFMDevelopmentScheduler.ps1`. Build/publish does not
+replace that settings file or its credentials. The standard development start script
+uses the same managed process list and no longer starts an independent scheduler.
+
+Shutdown runs in reverse order: SchedulerHost, UI, API. SchedulerHost receives
+`shutdown` on managed standard input, requesting normal host/Quartz shutdown; the
+existing bounded process cleanup and development kill-on-close Job Object remain.
+Scheduler ownership is verified using the Manager session identity, with compatibility
+for an independently started scheduler's legacy session file. The VS Code stop script
+also includes scheduler processes in its fallback verification.
+
+Verified: 37 Server Manager unit tests passed. A live managed development launch
+started all four owned processes and confirmed scheduler readiness. The actual
+`.vscode/Stop-IFMDevelopment.ps1` stopped the entire session without leftovers.
+This check does not manually run or backfill the missed 6pm Market Open task.

@@ -37,6 +37,10 @@ public static class ParameterRegistrySchemaSql
  VALUES(md5('parameter-component:option-spread-strategy.iron-condor-defaults')::uuid,'option-spread-strategy.iron-condor-defaults',md5('parameter-area:option-spread-strategy')::uuid,'Iron Condor','scalar-properties') ON CONFLICT DO NOTHING;
  INSERT INTO reference_configuration.parameter_component(component_id,code,area_id,name,editor_code)
  VALUES(md5('parameter-component:option-spread-strategy.vertical-spread-defaults')::uuid,'option-spread-strategy.vertical-spread-defaults',md5('parameter-area:option-spread-strategy')::uuid,'Vertical Spreads','scalar-properties') ON CONFLICT DO NOTHING;
+ INSERT INTO reference_configuration.parameter_area(area_id,code,name)
+ VALUES(md5('parameter-area:market-data')::uuid,'market-data','Market Data') ON CONFLICT DO NOTHING;
+ INSERT INTO reference_configuration.parameter_component(component_id,code,area_id,name,editor_code)
+ VALUES(md5('parameter-component:market-data.strategy-option-chain-cache')::uuid,'market-data.strategy-option-chain-cache',md5('parameter-area:market-data')::uuid,'Strategy Option Chain Cache','scalar-properties') ON CONFLICT DO NOTHING;
  CREATE OR REPLACE FUNCTION reference_configuration.guard_parameter_schema() RETURNS trigger LANGUAGE plpgsql AS $$
  BEGIN RAISE EXCEPTION 'PARAM.SCHEMA_IMMUTABLE'; END; $$;
  DROP TRIGGER IF EXISTS parameter_schema_guard ON reference_configuration.parameter_schema_version;

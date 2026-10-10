@@ -11,4 +11,8 @@ public sealed record StrategyWorkflowDetailSection(
 
 public sealed record StrategyWorkflowDetails(
     StrategyWorkflowId WorkflowId, long WorkflowRevision, string Header,
-    IReadOnlyList<StrategyWorkflowDetailSection> Sections);
+    IReadOnlyList<StrategyWorkflowDetailSection> Sections)
+{
+    /// <summary>Gets the immutable workflow objects inspected by the read-only Details browser.</summary>
+    public TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.IntrinsicTimeStrategyWorkflowView? Workflow { get; init; }
+}

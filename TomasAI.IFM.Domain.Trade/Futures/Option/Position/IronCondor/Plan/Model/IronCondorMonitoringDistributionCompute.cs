@@ -29,7 +29,7 @@ public static class IronCondorMonitoringDistributionCompute
         if (trade.Id != position.Id.Trade || limits.TradeId != trade.Id.TradeId || limits.TradeType != type || limits.MaxLoss >= 0
             || !FuturesTradingValueDate.TryGet(new DateTimeOffset(trade.EstablishedAtUtc), out var openingDate))
             throw new ArgumentException("Matching trade, negative currency loss limit and opening exchange date required.");
-        var expiry = trade.Legs.Select(leg => leg.Expiry).Distinct().Single() ?? throw new ArgumentException("Common expiry required.");
+        var expiry = trade.MaturityDate ?? throw new ArgumentException("Expiry required for each leg.");
         var expiryDays = expiry.DayNumber - valueDate.DayNumber;
         var tradingDays = expiry.DayNumber - openingDate.DayNumber;
         if (expiryDays <= 0 || tradingDays <= 0) throw new ArgumentException("Positive remaining and opening-to-expiry days required.");

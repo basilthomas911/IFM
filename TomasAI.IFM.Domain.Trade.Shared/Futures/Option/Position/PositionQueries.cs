@@ -25,4 +25,6 @@ public abstract record PositionHistoryQuery : StrategyPositionQueryBase<Strategy
     [Key(4)] public DateTime ToUtc { get; init; }
     [Key(5)] public int PageSize { get; init; } = 100;
     [Key(6)] public byte[]? PagingState { get; init; }
+    /// <summary>Gets whether the query should read every persisted history page.</summary>
+    [Key(7)] public bool LoadAll { get; init; }
 }

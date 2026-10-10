@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
-using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.Storage;
@@ -21,7 +20,10 @@ static class QualifiedEvaluatedOptionChain
     static readonly ConcurrentDictionary<string, CachedWindowInputs> WindowInputs = new();
     static readonly ConcurrentDictionary<string, AtTheMoneyIv> ImpliedVolatility = new();
     static readonly ConcurrentDictionary<string, SemaphoreSlim> ReferencePublicationGates = new();
-    static readonly ConcurrentDictionary<string, Lazy<Task<ServiceResult<EvaluatedOptionChainReadModel>>>> Acquisitions = new();
+    static readonly SemaphoreSlim[] ScopeGates = Enumerable.Range(0, 64).Select(_ => new SemaphoreSlim(1, 1)).ToArray();
+    static readonly ConcurrentDictionary<string, Dictionary<string, OwnerRequest>> Owners = new();
+    sealed record OwnerRequest(DateTimeOffset Expires, string[] Required);
+    static SemaphoreSlim ScopeGate(string key) => ScopeGates[(uint)StringComparer.Ordinal.GetHashCode(key) % 64];
     static readonly ConcurrentDictionary<(string ContractId, string MappingVersion), byte> PublishedReferences = new();
     sealed record CachedWindowInputs(Guid GenerationId, DateTimeOffset ExpiresAtUtc,
         string[] ProviderRoots, FuturesOptionContractReadModel[] Definitions, decimal? Price, decimal? Deviation);
@@ -53,28 +55,34 @@ static class QualifiedEvaluatedOptionChain
         if (api is null || discovery is null || market is null || admissions is null)
             return new ServiceFailed<EvaluatedOptionChainReadModel>(503, "Qualified market-data runtime is unavailable.");
         var key = $"{query.UnderlyingContractId}|{query.ExpiryDate:yyyyMMdd}";
-        if (query.ReleaseOnly) return await ReleaseAsync(key, query, discovery, token);
-        if (!admissions.TryGet("GLBX.MDP3", out var admission))
-            return new ServiceFailed<EvaluatedOptionChainReadModel>(503, "Market-data worker is not admitted.");
-        var acquisitionKey = $"{key}|{string.Join(',', query.ProviderRoots.Order(StringComparer.OrdinalIgnoreCase))}|{query.StandardDeviationMultiplier}";
-        var acquisition = Acquisitions.GetOrAdd(acquisitionKey, _ => new(() =>
-            AcquireAsync(key, query, context, api, discovery, market, admission, token),
-            LazyThreadSafetyMode.ExecutionAndPublication));
+        var gate = ScopeGate(key);
+        await gate.WaitAsync(token).ConfigureAwait(false);
         try
         {
-            return await acquisition.Value.WaitAsync(token);
+            if (query.ReleaseOnly) return await ReleaseAsync(key, query, discovery, token);
+            if (!admissions.TryGet("GLBX.MDP3", out var admission))
+                return new ServiceFailed<EvaluatedOptionChainReadModel>(503, "Market-data worker is not admitted.");
+            var owners = Owners.GetOrAdd(key, _ => new(StringComparer.Ordinal));
+            foreach (var owner in owners.Where(x => x.Value.Expires <= DateTimeOffset.UtcNow).Select(x => x.Key).ToArray()) owners.Remove(owner);
+            owners[query.SubscriptionOwnerId ?? ""] = new(DateTimeOffset.UtcNow.AddSeconds(90), query.RequiredContractIds);
+            // A serialized scope mutation prevents concurrent required-leg requests from replacing each other.
+            var effective = query with { RequiredContractIds = owners.Values.SelectMany(x => x.Required).Distinct(StringComparer.Ordinal).ToArray() };
+            return await AcquireAsync(key, effective, context, api, discovery, market, admission, token);
         }
-        finally
-        {
-            if (acquisition.IsValueCreated && acquisition.Value.IsCompleted)
-                Acquisitions.TryRemove(new(acquisitionKey, acquisition));
-        }
+        finally { gate.Release(); }
     }
     static async Task<ServiceResult<EvaluatedOptionChainReadModel>> ReleaseAsync(string key,
         GetEvaluatedOptionChainQuery query, QualifiedCompositionDiscovery discovery, CancellationToken token)
     {
-        WindowInputs.TryRemove(key, out _);
-        ImpliedVolatility.TryRemove(key, out _);
+        if (Owners.TryGetValue(key, out var owners))
+        {
+            owners.Remove(query.SubscriptionOwnerId ?? "");
+            if (owners.Count > 0)
+                return new ServiceOk<EvaluatedOptionChainReadModel>(new(query.UnderlyingContractId,
+                    query.ExpiryDate, null, null, null, "Released", DateTimeOffset.UtcNow, []));
+            Owners.TryRemove(key, out _);
+        }
+        // Keep reusable metadata after the final owner leaves, but release the live lease.
         if (Leases.TryRemove(key, out var lease)) await discovery.ReleaseAsync(lease, token);
         return new ServiceOk<EvaluatedOptionChainReadModel>(new(query.UnderlyingContractId,
             query.ExpiryDate, null, null, null, "Released", DateTimeOffset.UtcNow, []));
@@ -92,18 +100,24 @@ static class QualifiedEvaluatedOptionChain
             && existing.ProviderRoots.SequenceEqual(roots, StringComparer.OrdinalIgnoreCase)
             ? existing : null;
         decimal? livePrice;
+        var metadataStarted = System.Diagnostics.Stopwatch.GetTimestamp();
         context.Logger.LogDebug("{Component}.{Method} window cache; UnderlyingContractId={UnderlyingContractId}; ExpiryDate={ExpiryDate}; GenerationId={GenerationId}; CacheHit={CacheHit}",
             nameof(QualifiedEvaluatedOptionChain), nameof(AcquireAsync), query.UnderlyingContractId, query.ExpiryDate, admission.GenerationId, cached is not null);
         if (cached is null)
         {
-            var definitions = await LoadDefinitionsAsync(query, context, token);
-            var inputs = await OptionChainWindowInputs.GetAsync(
-                context, query.UnderlyingSymbol, query.UnderlyingContractId, token);
+            var definitionsTask = LoadDefinitionsAsync(query, context, token);
+            var inputsTask = OptionChainWindowInputs.GetAsync(context, query.UnderlyingSymbol, query.UnderlyingContractId, token);
+            await Task.WhenAll(definitionsTask, inputsTask).ConfigureAwait(false);
+            var definitions = await definitionsTask;
+            var inputs = await inputsTask;
             livePrice = inputs.Price;
             cached = new(admission.GenerationId, now.AddSeconds(30), roots, definitions, inputs.Price, inputs.Deviation);
             WindowInputs[key] = cached;
         }
         else livePrice = await api.GetFuturesPriceAsync(query.UnderlyingContractId).ConfigureAwait(false) ?? cached.Price;
+        context.Logger.LogInformation("Option chain metadata ready; WindowKey={WindowKey}; OwnerId={OwnerId}; CacheHit={CacheHit}; Definitions={Definitions}; ElapsedMilliseconds={ElapsedMilliseconds}",
+            key, query.SubscriptionOwnerId, existing is not null && ReferenceEquals(existing, cached), cached.Definitions.Length,
+            System.Diagnostics.Stopwatch.GetElapsedTime(metadataStarted).TotalMilliseconds);
         var windowPrice = livePrice ?? cached.Price;
         var expiry = cached.Definitions.Where(x => x.ExpirationUtc is not null)
             .Select(x => x.ExpirationUtc!.Value).DefaultIfEmpty().Min();
@@ -117,8 +131,12 @@ static class QualifiedEvaluatedOptionChain
         if (window.Contracts.Length == 0) return Failed(window.Method == "WindowInputsUnavailable"
             ? "Neither a qualified expiry IV nor current Bollinger window inputs are available."
             : "No contracts are available in the selected strike window.");
-        await PublishSelectedReferencesAsync(key, context, window.Contracts, token);
-        var lease = await EnsureLeaseAsync(key, query, context, discovery, admission, window.Contracts, token);
+        var coverage = OptionChainSubscriptionCoverage.Buffer(cached.Definitions, window, query.SpreadWingWidth);
+        var subscriptionStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+        var lease = await EnsureLeaseAsync(key, query, context, discovery, admission, window.Contracts, coverage, token);
+        context.Logger.LogInformation("Option chain subscription ready; WindowKey={WindowKey}; GenerationId={GenerationId}; OwnerId={OwnerId}; RequestedContracts={RequestedContracts}; BufferedContracts={BufferedContracts}; ElapsedMilliseconds={ElapsedMilliseconds}",
+            key, admission.GenerationId, query.SubscriptionOwnerId, window.Contracts.Length, coverage.Length,
+            System.Diagnostics.Stopwatch.GetElapsedTime(subscriptionStarted).TotalMilliseconds);
         if (lease.Lease is null)
         {
             context.Logger.LogWarning(
@@ -135,14 +153,17 @@ static class QualifiedEvaluatedOptionChain
             query.UnderlyingSymbol, query.UnderlyingContractId, query.ExpiryDate, query.ProviderRoots, token);
         return cached.Select(row => row.Definition).DistinctBy(x => x.ContractId).ToArray();
     }
-    static async Task PublishSelectedReferencesAsync(string key, IMarketDataQueryContext context,
-        FuturesOptionContractReadModel[] contracts, CancellationToken token)
+    internal static async Task PublishSelectedReferencesAsync(string key, IMarketDataQueryContext context,
+        FuturesOptionContractReadModel[] contracts, CancellationToken token) =>
+        await PublishSelectedReferencesAsync(key, context.DbFactory.SecuritiesDb, context.Logger, contracts, token).ConfigureAwait(false);
+
+    internal static async Task PublishSelectedReferencesAsync(string key, TomasAI.IFM.Application.Storage.SecuritiesDb.ISecuritiesDbContext securities,
+        Microsoft.Extensions.Logging.ILogger logger, FuturesOptionContractReadModel[] contracts, CancellationToken token)
     {
         var gate = ReferencePublicationGates.GetOrAdd(key, static _ => new(1, 1));
         await gate.WaitAsync(token);
         try
         {
-            var securities = context.DbFactory.SecuritiesDb;
             var selected = contracts.DistinctBy(static contract =>
                 (contract.ContractId, contract.MappingVersion)).ToArray();
             await Parallel.ForEachAsync(selected, new ParallelOptions
@@ -170,7 +191,7 @@ static class QualifiedEvaluatedOptionChain
                     .ConfigureAwait(false);
                 PublishedReferences.TryAdd(referenceKey, 0);
             });
-            context.Logger.LogInformation(
+            logger.LogInformation(
                 "Published reviewed references for selected option window {WindowKey}: contracts={Count}.",
                 key, selected.Length);
         }
@@ -182,22 +203,25 @@ static class QualifiedEvaluatedOptionChain
     static async Task<(WorkerOptionChainRequest? Lease, string? FailureCode)> EnsureLeaseAsync(string key,
         GetEvaluatedOptionChainQuery query, IMarketDataQueryContext context,
         QualifiedCompositionDiscovery discovery, DatasetWorkerAdmission admission,
-        FuturesOptionContractReadModel[] contracts, CancellationToken token)
+        FuturesOptionContractReadModel[] requested, FuturesOptionContractReadModel[] contracts, CancellationToken token)
     {
         var now = DateTimeOffset.UtcNow;
         if (Leases.TryGetValue(key, out var current) && current.GenerationId == admission.GenerationId
-            && current.LeaseExpiresAtUtc > now.AddSeconds(10) && SameContracts(current, contracts)) return (current, null);
+            && current.LeaseExpiresAtUtc > now.AddSeconds(10) && Covers(current, requested)) return (current, null);
         if (current is not null && current.GenerationId == admission.GenerationId
-            && current.LeaseExpiresAtUtc > now && SameContracts(current, contracts))
+            && current.LeaseExpiresAtUtc > now && Covers(current, requested))
         {
             var renewed = await discovery.RenewAsync(current, now.AddSeconds(60), token);
             if (renewed is not null) { Leases[key] = renewed; return (renewed, null); }
             return (current, null);
         }
         var replacingSameContracts = current is not null && current.GenerationId == admission.GenerationId
-            && current.LeaseExpiresAtUtc > now && SameContracts(current, contracts);
+            && current.LeaseExpiresAtUtc > now && Covers(current, requested);
         if (current is not null && !replacingSameContracts)
         { Leases.TryRemove(key, out _); await discovery.ReleaseAsync(current, token); }
+        context.Logger.LogInformation("Option chain subscription replacement; WindowKey={WindowKey}; GenerationId={GenerationId}; Reason={Reason}; Contracts={Contracts}",
+            key, admission.GenerationId, current is null ? "ColdStart" : current.GenerationId != admission.GenerationId ? "WorkerGenerationChanged" : "CoverageOrLeaseExpired", contracts.Length);
+        await PublishSelectedReferencesAsync(key, context, contracts, token);
         var request = await DiscoveryRequestAsync(query, context, admission, contracts, now, token);
         if (request is null) return (null, "DiscoveryRequestUnavailable");
         var result = await discovery.AcquireAsync(request, token);
@@ -206,9 +230,9 @@ static class QualifiedEvaluatedOptionChain
         if (replacingSameContracts) await discovery.ReleaseAsync(current!, token);
         return (result.Lease, null);
     }
-    static bool SameContracts(WorkerOptionChainRequest lease, FuturesOptionContractReadModel[] contracts)
-        => lease.Options.Select(x => x.Pricing.Contract.ContractId).Order()
-            .SequenceEqual(contracts.Select(x => x.ContractId).Order(), StringComparer.Ordinal);
+    static bool Covers(WorkerOptionChainRequest lease, FuturesOptionContractReadModel[] requested)
+        => OptionChainSubscriptionCoverage.Covers(lease.Options.ToDictionary(x => x.Pricing.Contract.ContractId,
+            x => (x.Pricing.Contract.MappingVersion, x.Pricing.Contract.DefinitionDigest), StringComparer.Ordinal), requested);
     static async Task<CompositionDiscoveryRequest?> DiscoveryRequestAsync(GetEvaluatedOptionChainQuery query,
         IMarketDataQueryContext context, DatasetWorkerAdmission admission, FuturesOptionContractReadModel[] contracts,
         DateTimeOffset now, CancellationToken token)
@@ -224,7 +248,7 @@ static class QualifiedEvaluatedOptionChain
             now.AddSeconds(60), contracts.Select(Candidate).ToArray(), true, calendar,
             context.TreasuryPublication, context.TreasuryConversion);
     }
-    static OptionDefinitionCandidate Candidate(FuturesOptionContractReadModel value)
+    internal static OptionDefinitionCandidate Candidate(FuturesOptionContractReadModel value)
     {
         if (value.PublisherId is null || value.InstrumentId is null
             || value.ExpirationUtc is null || value.MappingVersion is null || value.DefinitionDigest is null
@@ -259,7 +283,7 @@ static class QualifiedEvaluatedOptionChain
             var now = DateTimeOffset.UtcNow;
             var request = new CompositionSnapshotRequest(Guid.NewGuid(), lease.ScopeId, "Daily",
                 lease.GenerationId, now, deadline, true)
-            { AllowMissingOptionQuotes = true };
+            { AllowMissingOptionQuotes = true, SelectionOnly = true, RiskContractIds = query.RequiredContractIds };
             var captured = await market.CaptureAsync("GLBX.MDP3", request, token);
             if (captured.Snapshot is not null)
             {
@@ -307,8 +331,12 @@ static class QualifiedEvaluatedOptionChain
         var value = item.Valuation;
         return new(instrument.ContractId, instrument.Strike!.Value, instrument.IsCall!.Value,
             quote?.Bid, quote?.Ask, quote is null ? null : checked((uint)quote.BidSize), quote is null ? null : checked((uint)quote.AskSize), null, null,
-            value?.ImpliedVolatility, value?.TheoreticalPrice, value?.Delta, value?.Gamma, value?.Vega,
+            value?.ImpliedVolatility ?? instrument.Selection?.ImpliedVolatility, value?.TheoreticalPrice ?? instrument.Selection?.Price, value?.Delta ?? instrument.Selection?.Delta, value?.Gamma, value?.Vega,
             value?.Theta, value?.Rho, instrument.SessionVolume, instrument.OpenInterest, value is not null,
-            false, quote?.EventAtUtc, null, item.Valuation is null ? null : quote?.ReceivedAtUtc);
+            quote is null, quote?.EventAtUtc, null, instrument.Selection?.CalculatedAtUtc ?? (item.Valuation is null ? null : quote?.ReceivedAtUtc),
+            SelectionValid: instrument.Selection is not null,
+            QuoteUnavailableReason: instrument.QuoteUnavailableReason,
+            LastQuoteEventAtUtc: instrument.LastQuoteEventAtUtc,
+            LastQuoteReceivedAtUtc: instrument.LastQuoteReceivedAtUtc);
     }
 }

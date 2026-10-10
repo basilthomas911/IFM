@@ -1,3 +1,8 @@
+using TomasAI.IFM.Application.Api.Server.Core.Observability.Logging;
+using TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.Composition;
+using TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.Contracts;
+using TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.HardRecovery;
+using TomasAI.IFM.Application.Api.Server.Core.Recovery.Shutdown;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,7 +33,7 @@ internal static class HostRecoveryVerificationRunner
     {
         if (mode == "host-action-failure"
             && (failedAction is null || !RecoveryActionFaultProbe.Sequence.Contains(failedAction)))
-            throw new ArgumentException("The action-failure mode requires one of the 12 recovery actions.");
+            throw new ArgumentException("The action-failure mode requires one of the feed recovery actions.");
         RecoveryActionFaultProbe? faultProbe = null;
         RecoveryActionEvidenceLogger? evidenceLogger = null;
         var database = Environment.GetEnvironmentVariable("IFM_TEST_MARKET_DATA_CONNECTION") ?? "";
@@ -59,27 +64,20 @@ internal static class HostRecoveryVerificationRunner
             .UseSetting("MarketDataRecovery:HardRecovery:Pipeline:SystemConsoleTimeout", "00:00:00.200")
             .ConfigureTestServices(services =>
             {
-                if (failedAction is null)
+                // Essential publisher failure exercises terminal shutdown independently of storage.
+                services.RemoveAll<IDatabentoRecoveryRequester>();
+                services.AddSingleton<IDatabentoRecoveryRequester>(provider =>
                 {
-                    // The existing infrastructure-outage scenarios retain all real probes.
-                    services.AddSingleton<IRecoveryInfrastructureProbe, InjectedFailureProbe>();
-                }
-                else
-                {
-                    // Use the identical production composition, decorating only the selected boundary.
-                    services.RemoveAll<IDatabentoRecoveryRequester>();
-                    services.AddSingleton<IDatabentoRecoveryRequester>(provider =>
-                    {
-                        faultProbe = new RecoveryActionFaultProbe(
-                            ApiDatabentoRecoveryComposition.CreateActions(provider),
-                            provider.GetRequiredService<DatasetWorkerProcessRecoveryService>(),
-                            provider.GetRequiredService<DatasetWorkerAdmissionRegistry>(), failedAction);
-                        evidenceLogger = new(provider.GetRequiredService<ILogger<ApiDatabentoRecoveryPipeline>>());
-                        return new ApiDatabentoRecoveryPipeline(faultProbe,
-                            provider.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping,
-                            provider.GetRequiredService<ApiDatabentoRecoveryPipelinePolicy>(), evidenceLogger);
-                    });
-                }
+                    faultProbe = new RecoveryActionFaultProbe(
+                        ApiDatabentoRecoveryComposition.CreateActions(provider),
+                        provider.GetRequiredService<DatasetWorkerProcessRecoveryService>(),
+                        provider.GetRequiredService<DatasetWorkerAdmissionRegistry>(),
+                        failedAction ?? nameof(IApiDatabentoRecoveryActions.StartPublisherAsync));
+                    evidenceLogger = new(provider.GetRequiredService<ILogger<ApiDatabentoRecoveryPipeline>>());
+                    return new ApiDatabentoRecoveryPipeline(faultProbe,
+                        provider.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping,
+                        provider.GetRequiredService<ApiDatabentoRecoveryPipelinePolicy>(), evidenceLogger);
+                });
                 services.RemoveAll<IStatusConsoleWriter>();
                 services.AddSingleton<IStatusConsoleWriter>(provider => new ConsoleProbe(
                     ActivatorUtilities.CreateInstance<StatusConsoleWriter>(provider), mode));
@@ -115,7 +113,7 @@ internal static class HostRecoveryVerificationRunner
             var result = await requester.HardResetRecoveryAsync(
                 new(Guid.NewGuid(), date, original.GenerationId, "ChildVerification", mode), timeout.Token);
             if (result.Outcome != DatabentoRecoveryRequestOutcome.Unrecoverable
-                || result.HardResult?.FailedStage != (failedAction ?? nameof(IApiDatabentoRecoveryActions.QualifyInfrastructureAsync))
+                || result.HardResult?.FailedStage != (failedAction ?? nameof(IApiDatabentoRecoveryActions.StartPublisherAsync))
                 || !services.GetRequiredService<IApiFatalRecoveryShutdown>().IsRequested)
                 throw new InvalidOperationException("Unexpected child recovery result: " + result);
             Console.WriteLine("TERMINAL_ACTION=" + result.HardResult.FailedStage);

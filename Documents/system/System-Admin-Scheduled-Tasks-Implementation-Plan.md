@@ -362,3 +362,56 @@ The API output reader uses `ScheduledTasks:OutputRoot`, which must point to the 
 3. Add Logs/Setup tabs, dated tree, circle legend, stdout paging and preserved Setup functionality.
 4. Verify grouping across month/year boundaries, all requested colors, older history continuation, full stdout beyond the diagnostic tail, missing artifacts and UTF-8 boundaries.
 5. Rebuild API/UI, exercise real WinForms/FlaUI controls, and deploy through normal development startup. Existing scheduler execution, close/open ordering and source persistence remain unchanged by this UI extension.
+
+
+## Managed development scheduler lifecycle ? 2026-10-08
+
+The VS Code `IFM: API + UI (Development)` configuration launches Server Manager,
+which owns API, UI and SchedulerHost in one development process session. SchedulerHost
+starts last (order 30), after API launch readiness and UI startup. Server Manager
+checks the existing scheduler dashboard pipe for database availability, Quartz
+availability and active scheduling with a 90-second deadline. Failures are reported
+in Server Manager and trigger the existing managed-startup rollback.
+
+The VS Code prepare task publishes SchedulerHost into
+`.artifacts/scheduled-tasks/development/Host`. Its installed development settings
+remain at `scheduler.settings.json`; first-time provisioning still uses
+`scripts/ScheduledTasks/Install-IFMDevelopmentScheduler.ps1`. Build/publish does not
+replace that settings file or its credentials. The standard development start script
+uses the same managed process list and no longer starts an independent scheduler.
+
+Shutdown runs in reverse order: SchedulerHost, UI, API. SchedulerHost receives
+`shutdown` on managed standard input, requesting normal host/Quartz shutdown; the
+existing bounded process cleanup and development kill-on-close Job Object remain.
+Scheduler ownership is verified using the Manager session identity, with compatibility
+for an independently started scheduler's legacy session file. The VS Code stop script
+also includes scheduler processes in its fallback verification.
+
+Verified: 37 Server Manager unit tests passed. A live managed development launch
+started all four owned processes and confirmed scheduler readiness. The actual
+`.vscode/Stop-IFMDevelopment.ps1` stopped the entire session without leftovers.
+This check does not manually run or backfill the missed 6pm Market Open task.
+
+
+## Feed-only FuturesMarketOpen ? 2026-10-08
+
+Market Open is the feed-start counterpart to Market Close's feed stop. It queries
+the authoritative market session and requires a valid open session, no pending prior
+EOD commitment, and matching active/operational value dates. It does not call
+StartApplication or repeat application initialization, imports or historical warmup.
+
+The task queries feed runtime/readiness first. A healthy subscribed generation for
+the admitted date is already satisfied. A stopped feed is started through the
+MarketDataFeed command API and correlated feed-start completion/failure events.
+The feed lifecycle resolves authoritative date-specific Databento contract manifests;
+the task does not pass historical contracts or perform reference reconciliation.
+A conflicting running/unhealthy feed is rejected for recovery rather than silently
+starting a duplicate. Completion requires healthy GLBX.MDP3 subscription readiness
+within the existing one-minute readiness window. The run records `FeedsStarted`.
+API/UI, scheduler and backup services remain running.
+
+Verified: task build succeeded with zero warnings/errors; all 42 Server Manager and
+scheduled-task tests passed, including valid evening value-date admission and
+rejections for pending EOD, mismatched date, closed session and invalid date.
+The updated Market Open executable was published to the development task directory.
+No live market-open run was triggered by this verification.

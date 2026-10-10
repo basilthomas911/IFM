@@ -20,14 +20,15 @@ public static class TradeBlotterFactory
     /// <returns>The strategy-specific trade view.</returns>
     public static Control CreateEstablished(Control parentControl, IAppRoot appRoot, PortfolioFundEditorModel fund,
         PortfolioFundOrderEditorModel fundOrder, PortfolioFundOrderTradeEditorModel setupTrade,
-        EstablishedTradeDefinition trade, ICollection<FuturesContractV3ReadModel> baseContracts)
+        EstablishedTradeDefinition trade, ICollection<FuturesContractV3ReadModel> baseContracts,
+        BrokerEnvironment brokerEnvironment = BrokerEnvironment.Live)
         => trade.StrategyKind switch
         {
             TradeStrategyKind.IronCondor => new IronCondorTradeView(parentControl,
                 new IronCondorViewModel(appRoot, fund, fundOrder, setupTrade,
                     DateOnly.FromDateTime(trade.EstablishedAtUtc), baseContracts,
                     historicalReadOnly: trade.Status == EstablishedTradeStatus.Closed,
-                    portfolioId: trade.Id.PortfolioId, establishedTrade: trade)),
+                    portfolioId: trade.Id.PortfolioId, establishedTrade: trade, brokerEnvironment: brokerEnvironment)),
             _ => new EstablishedTradeView(trade)
         };
 

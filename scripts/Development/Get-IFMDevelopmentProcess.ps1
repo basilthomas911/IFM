@@ -42,10 +42,13 @@ function Get-Ownership {
 
     if ($Role -eq "scheduler") {
         $schedulerSessionPath = Join-Path $RepositoryRoot ".artifacts/scheduled-tasks/development/scheduler-session.json"
-        if (-not (Test-Path -LiteralPath $schedulerSessionPath)) { return "Unowned" }
-        try { $schedulerSession = Get-Content -Raw -LiteralPath $schedulerSessionPath | ConvertFrom-Json } catch { return "Ambiguous" }
-        if ($Process.Id -eq $schedulerSession.ProcessId -and (Test-SameStartTime $Process.StartTime ([datetimeoffset]$schedulerSession.StartedAtUtc)) -and [string]::Equals([IO.Path]::GetFullPath($HostPath), [IO.Path]::GetFullPath($schedulerSession.ExecutablePath), [StringComparison]::OrdinalIgnoreCase)) { return "Owned" }
-        return "Unowned"
+        if (Test-Path -LiteralPath $schedulerSessionPath) {
+            try {
+                $schedulerSession = Get-Content -Raw -LiteralPath $schedulerSessionPath | ConvertFrom-Json
+                if ($Process.Id -eq $schedulerSession.ProcessId -and (Test-SameStartTime $Process.StartTime ([datetimeoffset]$schedulerSession.StartedAtUtc)) -and [string]::Equals([IO.Path]::GetFullPath($HostPath), [IO.Path]::GetFullPath($schedulerSession.ExecutablePath), [StringComparison]::OrdinalIgnoreCase)) { return "Owned" }
+            } catch { }
+        }
+        # Server Manager now owns SchedulerHost in the same development session as API/UI.
     }
     if ($null -eq $session) {
         return "Unowned"

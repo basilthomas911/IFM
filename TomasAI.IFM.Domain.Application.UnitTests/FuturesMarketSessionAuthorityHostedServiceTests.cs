@@ -1,6 +1,6 @@
+using TomasAI.IFM.Application.Api.Server.Core.MarketData.Sessions;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
-using TomasAI.IFM.Application.Api.Server;
 using TomasAI.IFM.Domain.MarketData.Query;
 
 namespace TomasAI.IFM.Domain.Application.Actor.UnitTests;
@@ -82,6 +82,7 @@ public sealed class FuturesMarketSessionAuthorityHostedServiceTests
         public ValueTask<ScheduledTaskDefinition[]> GetDefinitionsAsync(string environment, string hostId, int limit, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public ValueTask<ScheduledTaskCatalog?> GetCatalogAsync(string environment, string hostId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public ValueTask<ScheduledTaskRun?> GetRunAsync(string environment, string hostId, ScheduledTaskId scheduleId, ScheduledTaskId runId, DateTimeOffset intendedFireTimeUtc, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public ValueTask<ScheduledTaskRunPage> GetRunHistoryAsync(string environment, string hostId, ScheduledTaskId scheduleId, int pageSize, byte[]? pagingState, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public ValueTask<ScheduledTaskRun[]> GetRunsAsync(string environment, string hostId, ScheduledTaskId scheduleId, int limit, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 

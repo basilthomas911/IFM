@@ -226,6 +226,12 @@ Emulator scenarios cover no fill, partial/full fill, cancel before/after partial
 
 Evidence includes allocation rate, Gen 0/1/2 counts, pause time, pricing latency percentiles, coalescing counts, Scylla throughput and UI latency under representative market load.
 
+### Live option-chain selection implementation
+
+The October 9 optimizations and measured acceptance results are recorded in [Live Option Chain Latency Implementation Plan](Live-Option-Chain-Latency-Implementation-Plan.md). Selection browsing uses bounded versioned metadata caches, buffered subscription coverage, independent view ownership, and cached qualified IV/delta. Explicit selected legs receive full risk pricing. Pending wings remain represented without fabricated quotes; four-leg readiness requires usable fresh data. Diagnostic rejection reasons and observed timestamps explain unavailable quotes without authorizing execution. Execution freshness and generation checks retain their existing semantics.
+
+The targets remain warm p95 of two seconds and initial readiness within five seconds under documented healthy conditions. A successful UI sample or fast cache microbenchmark does not satisfy the live gate while selected-wing readiness failures remain.
+
 ## 19. Safety and observability
 
 Live mode needs explicit environment/account authorization. Confirmation includes adapter/account/mode/algorithm. Logs exclude credentials. Imports, convention publication, pricing failures, orders, broker terminal events and ledger handoffs carry correlation/trace IDs. Unsupported metadata is a visible capability failure, never fabricated data.

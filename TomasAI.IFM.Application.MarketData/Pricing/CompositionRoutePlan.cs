@@ -15,13 +15,18 @@ public sealed record CompositionRoutePlan(int SchemaVersion, string PlanId, stri
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public bool SeparateContractConnection { get; init; }
 
+    /// <summary>Retains an independent background chain connection across durable handoff and worker replacement.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IndependentChainConnection { get; init; }
+
     public CompositionRoutePlan Seal() => this with { PlanId = PricingSemanticHash.Compute(this with { PlanId = "" }) };
 
     public void Validate()
     {
         if (SchemaVersion != 1 || Dataset != "GLBX.MDP3" || PlanId != Seal().PlanId
             || Options.IsDefault || Futures.IsDefault || NativeFutures.IsDefaultOrEmpty
-            || SeparateContractConnection && Options.Length != 1
+            || SeparateContractConnection && (Options.Length != 1 || IndependentChainConnection)
+            || IndependentChainConnection && Options.IsEmpty
             || Options.Length > 2048 || Futures.Length > 16 || NativeFutures.Length > 16
             || Options.IsEmpty == Futures.IsEmpty
             || NativeFutures.Select(x => x.DomainContractId).Distinct(StringComparer.Ordinal).Count() != NativeFutures.Length

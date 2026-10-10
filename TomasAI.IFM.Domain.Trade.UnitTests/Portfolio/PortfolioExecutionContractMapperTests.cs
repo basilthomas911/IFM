@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Portfolio;
@@ -19,6 +19,7 @@ public sealed class PortfolioExecutionContractMapperTests
             ValueDate = new(2026, 9, 21),
             ValidUntilUtc = new(2026, 9, 21, 18, 0, 0, DateTimeKind.Utc),
             Origin = "Portfolio",
+            SetupTrade = new() { OrderId = 100, TradeId = 200 },
             DefinitionHash = new('a', 64),
             PositionType = PortfolioExecutionPositionType.Closing,
             TargetPosition = new(11, 17, 19, 29, Guid.Parse("11111111-1111-1111-1111-111111111111")),

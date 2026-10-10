@@ -56,7 +56,7 @@ public sealed class DatabentoOptionChainSessionManager :
         IOptionChainGreeksEnricher enricher,
         IOptionChainTransientEventPublisher publisher,
         OptionChainStateStore state,
-        int capacity = 8,
+        int capacity = 16,
         TimeSpan? startTimeout = null,
         TimeSpan? stopTimeout = null,
         TimeSpan? pollTimeout = null,
@@ -98,7 +98,7 @@ public sealed class DatabentoOptionChainSessionManager :
             (request.Routes.Count != 1 || request.Routes[0].FuturesOptionContractId != request.OptionContractId))
             throw new ArgumentException("An isolated option connection requires exactly its named contract.", nameof(request));
         var key = new OptionChainSessionKey(
-            request.FuturesContractId, request.Subscription.MaturityDate, request.OptionContractId);
+            request.FuturesContractId, request.Subscription.MaturityDate, request.OptionContractId, request.ConnectionScopeId);
         var status = _aggregation.GetTickerStatus(request.FuturesContractId);
         if (!status.ServiceRunning || !status.TickerConfigured || !status.TickerRunning)
             throw new InvalidOperationException(
@@ -167,10 +167,10 @@ public sealed class DatabentoOptionChainSessionManager :
     public async Task<bool> StopAsync(
         string futuresContractId,
         DateOnly maturityDate,
-        string optionContractId)
+        string optionContractId, string connectionScopeId = "")
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(futuresContractId);
-        var key = new OptionChainSessionKey(futuresContractId, maturityDate, optionContractId);
+        var key = new OptionChainSessionKey(futuresContractId, maturityDate, optionContractId, connectionScopeId);
         Session? session;
         lock (_sync)
         {
@@ -319,7 +319,7 @@ public sealed class DatabentoOptionChainSessionManager :
         List<Exception>? failures = null;
         foreach (var session in sessions)
         {
-            try { await StopAsync(session.FuturesContractId, session.MaturityDate, session.OptionContractId).ConfigureAwait(false); }
+            try { await StopAsync(session.FuturesContractId, session.MaturityDate, session.OptionContractId, session.ConnectionScopeId).ConfigureAwait(false); }
             catch (Exception exception) { (failures ??= []).Add(exception); }
         }
         if (failures is not null)

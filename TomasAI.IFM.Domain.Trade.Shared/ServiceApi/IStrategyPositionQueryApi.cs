@@ -14,4 +14,14 @@ public interface IStrategyPositionQueryApi
         StrategyPositionId positionId,
         TradeStrategyKind strategyKind,
         CancellationToken cancellationToken = default);
+    /// <summary>Reads every persisted position-history row through the strategy query actor.</summary>
+    /// <param name="positionId">The complete position identity.</param>
+    /// <param name="strategyKind">The strategy that owns the position.</param>
+    /// <param name="fromUtc">The inclusive UTC start time.</param>
+    /// <param name="toUtc">The inclusive UTC end time.</param>
+    /// <param name="cancellationToken">Cancels the query.</param>
+    /// <returns>All persisted history rows for this position.</returns>
+    Task<ServiceResult<StrategyPositionSnapshot[]>> GetHistoryAsync(
+        StrategyPositionId positionId, TradeStrategyKind strategyKind,
+        DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default);
 }

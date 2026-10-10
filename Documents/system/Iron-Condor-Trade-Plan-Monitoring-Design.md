@@ -240,3 +240,44 @@ Individually owned provider streams emit every changed two-sided bid/ask and at 
 A real Databento/API/PostgreSQL/Scylla/FlaUI run passed on 2026-10-07 for trade 101.701.1701.1101. Four legs were acknowledged and observed, current qualified calculator plans committed and projected, and a visible plan revision/price matched its captured source event in the original IronCondorTradeView. OFF released all four owners. Reproduction, exact IDs, logs, screenshot and remaining qualification limits are recorded in the companion implementation plan.
 
 This verifies the live monitoring route. It does not establish complete legacy risk readiness: the development database lacks a genuine preceding 60-day forward-loss baseline for MScore. Missing or expired evidence remains unavailable; exit recommendations cannot become ready from missing inputs. Runtime source/target histories may differ and there is no plan replay, repair or store reconciliation.
+
+
+## Daily forward-loss snapshot revision ? 2026-10-09
+
+This revision supersedes the legacy MScore, historical loss samples, trailing-stop average and market-regime prerequisites for Iron Condor monitoring. LossRiskScore is not used. All daily-risk calculations and population are in `IronCondorTradePlanSnapshotCalculator`, with XML formula documentation. Source persistence and a single disposable Scylla projection attempt remain unchanged; failed projections are logged and dropped without replay or repair.
+
+A versioned `StrategyRiskParameterSet` contains the Iron Condor policy. Development can provision and publish the explicit ES v1 default: five-minute horizon, both ?10-point futures scenarios, unchanged IV, 1,000 broker-currency daily loss limit, warning ratio 0.8, exit ratio 1, 30-second maximum quote age, 5 currency units of closing commission per contract, and one additional slippage tick per leg. These provisional settings are configurable policy values, not calibrated production limits. Other environments require an explicitly published matching policy. Select the exact version through `StrategyRisk:IronCondor:ParameterSetId` and `StrategyRisk:IronCondor:Version`; each snapshot captures the full policy and hash. The JSON in `deploy/development/strategy-risk-parameters/` is a policy template, not a hot-reloaded file.
+
+All four qualified legs are priced using OptionCalculator, their exact contract conventions, rates, IV, currency, multipliers and tick rules. Reprice at the configured horizon for futures up and down; retain the scenario with the lowest signed position value. Current and forward spread prices and Greeks are per strategy unit. Currency valuation multiplies by strategy quantity and the common contract multiplier exactly once. Vega is per IV percentage point, theta per calendar day; signed forward delta is also per strategy unit.
+
+- `DailyPnl = position.DailyPnl ? contractMultiplier ? actual commissions attributed to this value date`.
+- `ProjectedPositionValueChange = ForwardPositionValue ? CurrentPositionValue`.
+- `EstimatedExitCosts = additional closing commission + bid/ask crossing + configured extra tick allowance`.
+- `ForwardDailyPnl = DailyPnl + ProjectedPositionValueChange ? EstimatedExitCosts`.
+- `ForwardLoss = max(0, ?ForwardDailyPnl)`; `ForwardLossRatio = ForwardLoss / DailyLossLimit`.
+- Exit recommendation requires negative DailyPnl and ForwardLossRatio at least the configured exit ratio. Monitoring never submits an order.
+
+The current position supplies DailyPnl and current leg marks on every snapshot. Background pricing observations may be reused only until their existing deadline, with the same value date, route generation, contracts and quantities. Missing/stale observations yield nullable risk values and explicit calculation status; they cannot generate an exit recommendation. No prior plan history, stop history, distributions or 60-day baseline is read for this risk calculation.
+
+The virtual UI list begins ActionDateTime, SequenceId, DailyPnl and ForwardLossRatio, followed by dynamic prices, Greeks, loss headroom, costs, expiry/quote/scenario information and status. Identifiers remain in the model and existing trade header. The central risk display uses ForwardLossRatio in place of MScore.
+
+Verification: 103 focused trade tests, eight isolated database tests including scalar/payload roundtrip, API and UI builds. Evidence: `.artifacts/daily-risk-regressions.log`, `.artifacts/daily-risk-storage-tests.log`, `.artifacts/daily-risk-api-build.log`, `.artifacts/daily-risk-ui-build.log`. The development snapshot tables and test trade 101/701/1701/1101 were exported before cleanup in `.artifacts/iron-condor-reset-20261009`; unrelated financial history and trade source streams are preserved.
+
+The final calculator also reprices all four legs against the newest qualified quote for their common underlying contract, allowing consecutive futures ticks within the qualified quote window. It does not require four independently captured underlying prices to be identical. Missing market quotes preserve known daily currency PnL while leaving the forward-loss ratio unavailable. Both cases have regression coverage.
+
+
+## Trade monitor availability (2026-10-09)
+
+- Load Trade requires an established execution identity and an Open or Closed trade. New, submitted, filled and other setup states cannot open the monitor. MTM and EOD are dated position phases belonging to an Open trade.
+- Closed trades remain available for historical display; live monitoring is disabled.
+- Production feed startup uses the existing Eastern futures-session policy (Sunday 18:00 through Friday 17:00, with the daily 17:00?18:00 maintenance closure). Development feed startup requires Emulator broker mode. Other environment/broker combinations cannot start the monitor.
+- History selection is disabled throughout startup and active monitoring. Backend position events continue updating the current daily MTM row and its Daily PnL. Turning the feed off restores history navigation.
+- The view refreshes feed availability every second. Stopping an active feed remains available after the trading window closes. Programmatic feed starts enforce the same eligibility rules.
+- Verification: focused policy and view-model tests cover statuses, session boundaries, emulator mode, locked navigation and ongoing MTM PnL updates.
+
+
+## Manual effective date and executed maturity (2026-10-09)
+
+Manual trade entry displays only Effective Date, initially the current operational value date. TradeDate and MaturityDate are null in the new manual request and setup projection. No maturity is inferred from the base futures contract or the effective date. The saved requested-date wire slot remains the effective-date slot for compatibility with existing setup records. Older date-range requests remain readable.
+
+Execution establishes the actual trade date from the accepted execution timestamp and futures session policy. Established trade maturity is the maximum expiry across its executed legs; a missing leg expiry leaves maturity unavailable. Monitoring history and trade-plan metadata use that latest maturity. Qualified option pricing continues using each individual contract's expiration. Manual entry and the order's setup list do not display actual trade/maturity date controls or columns.

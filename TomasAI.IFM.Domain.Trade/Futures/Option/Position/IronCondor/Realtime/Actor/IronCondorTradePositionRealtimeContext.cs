@@ -25,21 +25,11 @@ public sealed class IronCondorTradePositionRealtimeContext : EventActorContext,
     IRealtimeActorContext<IronCondorTradePositionRealtimeActor>, IIronCondorTradePositionRealtimeContext
 {
     public IronCondorTradePositionRealtimeContext(IActorSupervisor supervisor,
-        ILogger<IronCondorTradePositionRealtimeActor> logger, IDbContextFactory? databases = null, IFinancialQueryStore? financialQueries = null, IndividualOptionRiskReader? optionRisk = null)
+        ILogger<IronCondorTradePositionRealtimeActor> logger, IDbContextFactory? databases = null, IFinancialQueryStore? financialQueries = null, IndividualOptionRiskReader? optionRisk = null, StrategyRiskParameterSetResolver? riskParameterSets = null)
         : base(supervisor, new(ActorType.Realtime, IronCondorTradePositionRealtimeActor.ActorName))
     {
         Logger = logger;
-        inputReader = databases is null ? null : new(databases, logger, financialQueries, optionRisk, async (command, token) =>
-        {
-            var result = await RequestAsync<TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.InitializeIronCondorMonitoringCommand,
-                StrategyPositionId>(command).AsTask().WaitAsync(token).ConfigureAwait(false);
-            if (!result.Success) throw new InvalidOperationException($"IronCondorMonitoring.INITIALIZATION.FAILED: {result.ErrorMessage}");
-        }, async (command, token) =>
-        {
-            var result = await RequestAsync<TomasAI.IFM.Domain.OptionPricer.Shared.Commands.InsertSpreadDistributionCommand,
-                TomasAI.IFM.Domain.OptionPricer.Shared.SpreadDistributionEntityId>(command).AsTask().WaitAsync(token).ConfigureAwait(false);
-            if (!result.Success) throw new InvalidOperationException($"IronCondorMonitoring.DISTRIBUTION.COMMIT_FAILED: {result.ErrorMessage}");
-        }, stoppingToken: RealtimeGeneration.Token, publishInputChange: async (position, date, inputs, now) =>
+        inputReader = databases is null ? null : new(databases, logger, financialQueries, optionRisk, stoppingToken: RealtimeGeneration.Token, publishInputChange: async (position, date, inputs, now) =>
         {
             await SendAsync<TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorMonitoringInputsChangedEvent, StrategyPositionId>(new()
             {
@@ -48,7 +38,7 @@ public sealed class IronCondorTradePositionRealtimeContext : EventActorContext,
                 Id = Guid.NewGuid(), EntityId = position.Id, PositionSnapshot = position, ValueDate = date,
                 IronCondorTradePlanInputs = inputs, ReceivedOn = now, MonitoringGenerationId = RealtimeGeneration.Id
             }).ConfigureAwait(false);
-        });
+        }, riskParameterSets: riskParameterSets);
     }
 
     readonly IronCondorMonitoringInputReader? inputReader;

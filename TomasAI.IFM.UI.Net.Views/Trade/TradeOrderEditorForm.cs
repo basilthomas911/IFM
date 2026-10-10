@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.UI.Net.Models.Portfolio;
+using TomasAI.IFM.UI.Net.Models.Portfolio;
 using TomasAI.IFM.Domain.Trade.Shared;
 using System.Data;
 using TomasAI.IFM.UI.Net.Contracts;
@@ -77,6 +77,54 @@ public partial class TradeOrderEditorForm
     };
     bool _adjustingTradeBlotterLayout;
     int _submissionInProgress;
+    TomasAI.IFM.UI.Net.Services.Subscriptions.IUiEventSubscription? _fundLifecycleSubscription;
+    int _fundRefreshPending;
+    bool _fundRefreshRunning;
+
+    protected override async void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        try
+        {
+            _fundLifecycleSubscription = _appRoot.Services.OrderExecutionNotifications?.CreateFundSubscription(change =>
+            {
+                if (IsDisposed || !IsHandleCreated) return;
+                BeginInvoke((Action)(() =>
+                {
+                    if (IsDisposed || _viewModel?.SelectedPortfolio?.PortfolioId != change.Reservation.Order.PortfolioId ||
+                        _viewModel.SelectedFund?.FundId != change.Reservation.Order.FundId) return;
+                    _fundRefreshPending = 1;
+                    _ = RefreshFundLifecycleAsync();
+                }));
+            });
+            if (_fundLifecycleSubscription is not null) await _fundLifecycleSubscription.StartAsync();
+        }
+        catch (Exception error) { if (!IsDisposed) this.ShowErrorMessage(error.Message, "Trade lifecycle listener"); }
+    }
+
+    async Task RefreshFundLifecycleAsync()
+    {
+        if (_fundRefreshRunning) return;
+        _fundRefreshRunning = true;
+        try
+        {
+            while (_fundRefreshPending != 0 && !IsDisposed)
+            {
+                _fundRefreshPending = 0;
+                var orderId = _viewModel.SelectedFundOrder?.OrderId;
+                var tradeId = _viewModel.SelectedFundOrderTrade?.TradeId;
+                await _viewModel.LoadCanonicalOrdersAsync();
+                if (orderId.HasValue && _viewModel.CanonicalOrders.Any(value => value.OrderId == orderId))
+                {
+                    await _viewModel.SelectCanonicalOrderAsync(orderId.Value);
+                    if (tradeId.HasValue) _viewModel.SelectFundOrderTrade(_viewModel.FundOrderTrades.ToList().FindIndex(value => value.TradeId == tradeId));
+                }
+                RenderEditor();
+            }
+        }
+        catch (Exception error) { if (!IsDisposed) this.ShowErrorMessage(error.Message, "Trade lifecycle refresh"); }
+        finally { _fundRefreshRunning = false; }
+    }
 
     /// <summary>Creates the Portfolio-aware Trade Order editor.</summary>
     /// <param name="appRoot">The application service boundary.</param>
@@ -167,8 +215,8 @@ public partial class TradeOrderEditorForm
         lstTradeOrders.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         lstTrades.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         pnlTradeBlotter.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-        foreach (var button in new[] { btnLoadOrder, btnCreateOrder, btnDeleteOrder, btnCompleteOrder,
-            btnAddTrade, btnRemoveTrade, btnChangeTradeState, btnOpenTrade, btnSubmitOrder, btnEndOfDay })
+        foreach (var button in new[] { btnLoadOrder, btnCreateOrder, btnDeleteOrder,
+            btnAddTrade, btnRemoveTrade, btnOpenTrade, btnSubmitOrder, btnEndOfDay })
         {
             button.AutoSize = false;
             button.Size = new Size(CommandButtonWidth, CommandButtonHeight);
@@ -176,9 +224,9 @@ public partial class TradeOrderEditorForm
         }
 
         PositionButtonColumn(pnlTradeOrders, lstTradeOrders.Top, ListCommandButtonGap,
-            btnLoadOrder, btnCreateOrder, btnDeleteOrder, btnCompleteOrder);
+            btnCreateOrder, btnDeleteOrder);
         PositionButtonColumn(pnlTrades, lstTrades.Top, ListCommandButtonGap,
-            btnAddTrade, btnRemoveTrade, btnChangeTradeState);
+            btnLoadOrder, btnAddTrade, btnRemoveTrade);
         btnOpenTrade.Location = btnAddTrade.Location;
         PositionButtonColumn(pnlTradePosition, pnlTradeBlotter.Top, CommandButtonGap,
             btnSubmitOrder, btnEndOfDay);
@@ -193,14 +241,14 @@ public partial class TradeOrderEditorForm
             LayoutMainContent(pnlTradeOrders, lstTradeOrders);
             FitListToPanelBottom(pnlTradeOrders, lstTradeOrders);
             PositionButtonColumn(pnlTradeOrders, lstTradeOrders.Top, ListCommandButtonGap,
-                btnLoadOrder, btnCreateOrder, btnDeleteOrder, btnCompleteOrder);
+                btnCreateOrder, btnDeleteOrder);
         };
         pnlTrades.Resize += (_, _) =>
         {
             LayoutMainContent(pnlTrades, lstTrades);
             FitListToPanelBottom(pnlTrades, lstTrades);
             PositionButtonColumn(pnlTrades, lstTrades.Top, ListCommandButtonGap,
-                btnAddTrade, btnRemoveTrade, btnChangeTradeState);
+                btnLoadOrder, btnAddTrade, btnRemoveTrade);
             btnOpenTrade.Location = btnAddTrade.Location;
         };
         pnlTradePosition.Resize += (_, _) =>
@@ -222,7 +270,7 @@ public partial class TradeOrderEditorForm
         LayoutTradePositionBlotter();
         LayoutTradeBlotterHeight();
         PositionButtonColumn(pnlTradeOrders, lstTradeOrders.Top, ListCommandButtonGap,
-            btnLoadOrder, btnCreateOrder, btnDeleteOrder, btnCompleteOrder);
+            btnCreateOrder, btnDeleteOrder);
     }
 
     void ConfigureWorkspaceTabs()
@@ -511,7 +559,6 @@ public partial class TradeOrderEditorForm
         btnLoadOrder.Enabled = false;
         btnCreateOrder.Enabled = false;
         btnDeleteOrder.Enabled = false;
-        btnCompleteOrder.Enabled = false;
         var dtpList = new List<DateTimePicker> { dtpFrom, dtpTo };
         dtpList.ForEach(o => o.Enabled = false);
         dtpFrom.Value = new DateTime(easternToday.Year, easternToday.Month, 1);
@@ -739,7 +786,7 @@ public partial class TradeOrderEditorForm
                 var trade = trades[index];
                 string[] values = [
                     $"{trade.TradeId}", $"{trade.TradeType}", $"{trade.RequestedTradeDate:yyyy-MMM-dd}",
-                    $"{trade.RequestedMaturityDate:yyyy-MMM-dd}", $"{trade.TradeState}",
+                    $"{trade.TradeState}",
                     $"{trade.TradeAction} {trade.InstructionReference}"
                 ];
                 if (sameRows) UpdateSubItems(lstTrades.Items[index], values, trade);
@@ -749,7 +796,7 @@ public partial class TradeOrderEditorForm
             {
                 var description = string.Join(" || ", trades.Select(trade =>
                     $"{trade.TradeId} | {trade.TradeType} | {trade.RequestedTradeDate:yyyy-MMM-dd} | "
-                    + $"{trade.RequestedMaturityDate:yyyy-MMM-dd} | {trade.TradeState} | {trade.TradeAction} {trade.InstructionReference}"));
+                    + $"{trade.TradeState} | {trade.TradeAction} {trade.InstructionReference}"));
                 lstTrades.AccessibleDescription = description;
                 lstTrades.AccessibleName = $"Portfolio fund order trades; rows: {description}";
                 _tradeDescriptionSource = trades;
@@ -788,10 +835,8 @@ public partial class TradeOrderEditorForm
         btnLoadOrder.Enabled = _viewModel.CanLoadOrder;
         btnCreateOrder.Enabled = _viewModel.CanCreateOrder;
         btnDeleteOrder.Enabled = _viewModel.CanDeleteOrder;
-        btnCompleteOrder.Enabled = _viewModel.CanCompleteOrder;
         btnAddTrade.Enabled = _viewModel.CanAddTrade;
         btnRemoveTrade.Enabled = _viewModel.CanRemoveTrade;
-        btnChangeTradeState.Enabled = false;
         btnEndOfDay.Enabled = _viewModel.SelectedPortfolio is not null && _viewModel.SelectedFundOrderTrade is not null;
         btnSubmitOrder.Enabled = _viewModel.CanSubmitOrder;
         cbLiveFeed.Enabled = _viewModel.CanUseLiveFeed;
@@ -799,7 +844,6 @@ public partial class TradeOrderEditorForm
         btnOpenTrade.Visible = false;
         btnAddTrade.Visible = true;
         btnRemoveTrade.Visible = true;
-        btnChangeTradeState.Visible = true;
     }
     async Task ClearTradeOrderControlAsync()
     {
@@ -874,8 +918,6 @@ public partial class TradeOrderEditorForm
                 {
                     // Use the selected setup identity, not the separately allocated execution order identity.
                     await _viewModel.LoadCanonicalOrdersAsync();
-                    var owningOrder = _viewModel.CanonicalOrders.Single(value => value.OrderId == fundOrderTrade.OrderId);
-                    await _viewModel.ChangeManualTradeStateAsync(owningOrder, fundOrderTrade.TradeId, TradeState.Open);
                     await _viewModel.SelectCanonicalOrderAsync(fundOrderTrade.OrderId);
                     _viewModel.SelectFundOrderTrade(_viewModel.FundOrderTrades.ToList()
                         .FindIndex(value => value.TradeId == fundOrderTrade.TradeId));
@@ -968,28 +1010,7 @@ public partial class TradeOrderEditorForm
 
     async Task LoadTradeOrderAsync()
     {
-        var trade = _viewModel.SelectedFundOrderTrade;
-        if (trade is null) return;
-        switch (trade.TradeState)
-        {
-            case TradeState.Open:
-            case TradeState.Closed:
-            case TradeState.OrderCompleted:
-                await LoadTradeAsync();
-                break;
-            case TradeState.TradeToOpen:
-            case TradeState.TradeToClose:
-                DialogResult = DialogResult.OK;
-                Close();
-                break;
-            case TradeState.OrderFilled:
-                var order = _viewModel.CanonicalOrders.Single(value => value.OrderId == trade.OrderId);
-                await _viewModel.ChangeManualTradeStateAsync(order, trade.TradeId, TradeState.TradeToOpen);
-                break;
-            default:
-                this.ShowErrorMessage($"Unable to load Trade Order {trade.OrderId}:{trade.TradeId} with Trade State: {trade.TradeState}", "Load Trade Order Error");
-                break;
-        }
+        await LoadTradeAsync();
     }
     async void ddlFund_SelectedIndexChanged(object sender, EventArgs e)
     {
@@ -1313,12 +1334,7 @@ public partial class TradeOrderEditorForm
         ShowFundOrders();
     }
 
-    async void btnCloseOrder_Click(object sender, EventArgs e)
-    {
-        if (_viewModel.SelectedFundOrder is not { } selectedOrder) return;
-        var canonical = _viewModel.CanonicalOrders.Single(order => order.OrderId == selectedOrder.OrderId);
-        await ObserveAsync(() => _viewModel.CloseManualOrderAsync(canonical, "Closed by operator."));
-    }
+
     async void lstTradeOrders_DoubleClick(object sender, EventArgs e)
         => await ObserveAsync(LoadTradeOrderAsync);
 
@@ -1327,9 +1343,9 @@ public partial class TradeOrderEditorForm
 
     }
 
-    void TradeOrderEditorForm_FormClosed(object sender, FormClosedEventArgs e)
+    async void TradeOrderEditorForm_FormClosed(object sender, FormClosedEventArgs e)
     {
-
+        if (_fundLifecycleSubscription is not null) await _fundLifecycleSubscription.DisposeAsync();
     }
 
     /// <summary>Implements the legacy form-control open contract.</summary>

@@ -77,13 +77,19 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
             var upstream = next.Checks.Where(IsHardResetTrigger).ToArray();
             UpdateUpstreamWindows(upstream, now);
             var recoverable = next.Checks
-                .Where(check => DownstreamTarget(check) is not null)
+                .Where(check => check.Required && check.Component != "Market Outlook inputs"
+                    && DownstreamTarget(check) is not null)
                 .GroupBy(check => DownstreamTarget(check)!, StringComparer.Ordinal)
                 .Select(group => group.FirstOrDefault(check => !IsHealthy(check)) ?? group.First())
                 .OrderBy(check => DownstreamRank(DownstreamTarget(check)!))
                 .ToArray();
             UpdateDownstreamWindows(recoverable, now);
             Publish(Decorate(next));
+            LogUnhealthyChecks(next);
+            // A completed feed reset gets its full observation window. Old component retry
+            // counters must not launch another reset or replace actors from pre-reset evidence.
+            var observingReset = lastHardResetUtc is { } resetUtc
+                && now - resetUtc < options.RecoveryObservationWindow;
 
             var dueUpstream = upstream
                 .Where(check => !recoveryEpisodeTerminal && !IsHealthy(check)
@@ -102,7 +108,7 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
             var forcedResetDue = options.ForceOneHardResetAfterStartup
                 && !forcedHardResetRequested
                 && now - monitorStartedUtc >= options.HardResetDelay;
-            if (!recoveryEpisodeTerminal && (dueUpstream.Length > 0 || exhaustedDownstream.Length > 0 || forcedResetDue))
+            if (!recoveryEpisodeTerminal && !observingReset && (dueUpstream.Length > 0 || exhaustedDownstream.Length > 0 || forcedResetDue))
             {
                 forcedHardResetRequested = true;
                 foreach (var target in exhaustedDownstream)
@@ -114,7 +120,7 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                 if (forcedResetDue)
                     logger.LogWarning(
                         "{Component}.{Method} "+"The configured five-minute startup boundary was reached. Performing the one-shot complete hard reset.",nameof(LivePipelineMonitor),nameof(CheckOnceAsync));
-                else
+                else if (dueUpstream.Length > 0)
                     logger.LogWarning(
                         "{Component}.{Method} "+"Required live-pipeline health remained unhealthy for five minutes ({Components}). Performing a complete hard reset.",nameof(LivePipelineMonitor),nameof(CheckOnceAsync),                        string.Join(", ", dueUpstream.Select(CheckKey)));
                 lastHardResetUtc = now;
@@ -127,7 +133,10 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                     await probe.HardResetAsync(next, resetDeadline.Token)
                         .WaitAsync(resetDeadline.Token).ConfigureAwait(false);
                     lastHardResetState = "HardResetCompletedAwaitingRecovery";
-                    AdvanceUpstreamRecovery(now, lastHardResetState, null);
+                    var completedUtc = time.GetUtcNow().UtcDateTime;
+                    lastHardResetUtc = completedUtc;
+                    AdvanceUpstreamRecovery(completedUtc, lastHardResetState, null);
+                    downstreamRecoveries.Clear();
                 }
                 catch (DatabentoRecoveryEpisodeStatusException ex)
                     when (ex.Result.Outcome == DatabentoRecoveryRequestOutcome.AlreadyInProgress)
@@ -159,7 +168,11 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                     logger.LogWarning(ex,                        "{Component}.{Method} "+"Complete live-pipeline hard reset failed.",nameof(LivePipelineMonitor),nameof(CheckOnceAsync));
                 }
             }
-            await RecoverDueDownstreamAsync(recoverable, next.ValueDate.Value, now, token).ConfigureAwait(false);
+            if (!recoveryEpisodeTerminal && lastHardResetUtc is null)
+                await RecoverDueDownstreamAsync(recoverable, next.ValueDate.Value, now, token).ConfigureAwait(false);
+            else if (!recoveryEpisodeTerminal && lastHardResetUtc is { } lastReset
+                && time.GetUtcNow().UtcDateTime - lastReset >= options.RecoveryObservationWindow)
+                await RecoverDueDownstreamAsync(recoverable, next.ValueDate.Value, now, token).ConfigureAwait(false);
             MarkExpiredRecoveryWindows(upstream, now);
 
             await ReportStatusAsync(next, deadline.Token).ConfigureAwait(false);
@@ -183,7 +196,7 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
         DateTime now,
         CancellationToken token)
     {
-        foreach (var check in checks.Where(check => !IsHealthy(check)))
+        foreach (var check in checks.Where(check => check.Required && !IsHealthy(check)))
         {
             var target = DownstreamTarget(check)!;
             if (!downstreamRecoveries.TryGetValue(target, out var state)
@@ -193,6 +206,9 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                 continue;
 
             var attempt = state.Attempts + 1;
+            logger.LogWarning("Soft recovery starting; Method={Method}; Target={Target}; Attempt={Attempt}; ValueDate={ValueDate}; Component={HealthComponent}; Scope={Scope}; Status={HealthStatus}; Reason={Reason}; ObservedUtc={ObservedUtc}; LastProgressUtc={LastProgressUtc}",
+                nameof(RecoverDueDownstreamAsync), target, attempt, valueDate, check.Component, check.Scope,
+                check.Status, check.Reason, check.ObservedUtc, check.LastProgressUtc);
             try
             {
                 using var recoveryDeadline = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -285,7 +301,13 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
         foreach (var check in checks)
         {
             var target = DownstreamTarget(check)!;
-            if (IsHealthy(check)) downstreamRecoveries.Remove(target);
+            if (IsHealthy(check))
+            {
+                if (downstreamRecoveries.Remove(target, out var prior) && prior.Attempts > 0)
+                    logger.LogInformation("Soft recovery health confirmed; Method={Method}; Target={Target}; Attempts={Attempts}; Component={HealthComponent}; Scope={Scope}; Reason={Reason}; LastProgressUtc={LastProgressUtc}",
+                        nameof(CheckOnceAsync), target, prior.Attempts, check.Component, check.Scope,
+                        check.Reason, check.LastProgressUtc);
+            }
             else downstreamRecoveries.TryAdd(target, new(now, 0, null, "Pending", null));
         }
     }
@@ -370,6 +392,20 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
         }
         catch (Exception ex) when (!token.IsCancellationRequested)
         { logger.LogWarning(ex,"{Component}.{Method} "+"Status-console delivery failed; pipeline recovery remains independent.",nameof(LivePipelineMonitor),nameof(ReportStatusAsync)); }
+    }
+
+    // One record per failing check per minute, never per tick. Preserve the evidence that
+    // caused recovery rather than only logging that a replacement was requested.
+    void LogUnhealthyChecks(LivePipelineHealthSnapshot snapshot)
+    {
+        foreach (var check in snapshot.Checks.Where(check => !IsHealthy(check)))
+        {
+            var detail = Decorate(check);
+            logger.LogWarning("Live pipeline check unhealthy; Method={Method}; ValueDate={ValueDate}; Component={HealthComponent}; Scope={Scope}; Status={HealthStatus}; Required={Required}; Reason={Reason}; ObservedUtc={ObservedUtc}; LastProgressUtc={LastProgressUtc}; RecoveryAttempts={RecoveryAttempts}; RecoveryState={RecoveryState}; NextRecoveryUtc={NextRecoveryUtc}",
+                nameof(CheckOnceAsync), snapshot.ValueDate, check.Component, check.Scope, check.Status,
+                check.Required, check.Reason, check.ObservedUtc, check.LastProgressUtc,
+                detail.RecoveryAttempts, detail.RecoveryState, detail.NextRecoveryUtc);
+        }
     }
 
     void Publish(LivePipelineHealthSnapshot snapshot)

@@ -18,7 +18,7 @@ public static class PublishParameterVersion
     /// <param name="state">The authoritative actor state.</param>
     /// <param name="logger">The actor logger.</param>
     /// <returns>The command acceptance or business failure.</returns>
-    public static Task<ServiceResult<GuidResult>> ExecuteAsync(this PublishParameterVersionCommand command, IParameterSetCommandContext context, ParameterSetCommandState state, ILogger<ParameterSetCommandActor> logger)
+    public static async Task<ServiceResult<GuidResult>> ExecuteAsync(this PublishParameterVersionCommand command, IParameterSetCommandContext context, ParameterSetCommandState state, ILogger<ParameterSetCommandActor> logger)
     {
         ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
         context.AccessPolicy.Demand(ParameterCapability.Publish);
@@ -26,19 +26,31 @@ public static class PublishParameterVersion
         if (state.Operations.TryGetValue(command.CommandId, out var previous))
         {
             if (previous != hash) throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
-            return Task.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new(command.CommandId)));
+            return new ServiceOk<GuidResult>(new(command.CommandId));
         }
         var errorMsg = "ParameterSet.STATE.APPLY_FAILED: unable to apply PublishParameterVersion event";
-        var updated = command.Compute(state, hash, out var parameterChange) switch
+        command.Compute(state, hash, out var parameterChange);
+        if (parameterChange.RejectionReason is null && parameterChange.ParameterVersion is { } version
+            && version.Reference.ComponentCode == ParameterSchemaRegistry.StrategyOptionChainCacheComponent)
         {
-            _ when parameterChange.RejectionReason is not null
-                => command.UpdateFailed(ref errorMsg, parameterChange.RejectionReason),
-            _ => state.Update(command.CreateParameterVersionPublishedEvent(parameterChange), command)
-        };
+            var policy = TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.StrategyOptionChainParameterSet.Read(version.PayloadJson);
+            if (policy.Enabled)
+            {
+                var definition = await context.ConfigurationDb.GetStrategyCatalogAsync(new(
+                    Domain.Reference.Shared.StrategyCatalog.StrategyCatalogKind.Structure, policy.StrategyDefinitionId,
+                    policy.StrategyDefinitionVersion)).ConfigureAwait(false);
+                if (definition is null || definition.Status != Domain.Reference.Shared.StrategyCatalog.CatalogLifecycleStatus.Published
+                    || !definition.Definition.Capabilities.Any(x => x.Role == "builder" && x.Version == 1 && x.Code is "IronCondor" or "CallVertical" or "PutVertical"))
+                    return command.UpdateFailed("PARAM.OPTION_CHAIN_CATALOG_UNSUPPORTED: an exact published option strategy structure is required.");
+            }
+        }
+        var updated = parameterChange.RejectionReason is not null
+            ? command.UpdateFailed(ref errorMsg, parameterChange.RejectionReason)
+            : state.Update(command.CreateParameterVersionPublishedEvent(parameterChange), command);
         var result = updated
             ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
             : command.UpdateFailed(errorMsg);
-        return Task.FromResult<ServiceResult<GuidResult>>(result);
+        return result;
     }
     /// <summary>Computes the proposed business change without changing actor state.</summary>
     /// <param name="command">The concrete lifecycle intent.</param>

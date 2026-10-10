@@ -1,4 +1,4 @@
-﻿using MessagePack;
+using MessagePack;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 
 namespace TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
@@ -65,6 +65,14 @@ public sealed record FundOrderTradeProjectionReadModel
     [Key(20)] public int ExecutionOrderId { get; init; }
     /// <summary>The reserved established-trade identifier created by that execution.</summary>
     [Key(21)] public int ExecutionTradeId { get; init; }
+    /// <summary>The actual trade date, unset until execution evidence is accepted.</summary>
+    [Key(22)] public DateOnly? TradeDate { get; init; }
+    /// <summary>The latest executed leg expiry, unset before execution.</summary>
+    [Key(23)] public DateOnly? MaturityDate { get; init; }
+    /// <summary>The backend attempt bound to this setup; fences delayed execution outcomes.</summary>
+    [Key(24)] public Guid ExecutionAttemptId { get; init; }
+    /// <summary>The intended effective date; the existing wire slot is retained for historical compatibility.</summary>
+    [IgnoreMember] public DateOnly EffectiveDate { get => RequestedTradeDate; init => RequestedTradeDate = value; }
 }
 
 [MessagePackObject(AllowPrivate = true)]

@@ -39,4 +39,8 @@ public sealed record EvaluatedOptionContractReadModel(
     [property: Key(21)] DateTimeOffset? TradeAtUtc,
     [property: Key(22)] DateTimeOffset? EvaluatedAtUtc,
     [property: Key(23)] DateOnly? VolumeValueDate = null,
-    [property: Key(24)] DateOnly? OpenInterestValueDate = null);
+    [property: Key(24)] DateOnly? OpenInterestValueDate = null,
+    [property: Key(25)] bool SelectionValid = false,
+    [property: Key(26)] string? QuoteUnavailableReason = null,
+    [property: Key(27)] DateTimeOffset? LastQuoteEventAtUtc = null,
+    [property: Key(28)] DateTimeOffset? LastQuoteReceivedAtUtc = null);

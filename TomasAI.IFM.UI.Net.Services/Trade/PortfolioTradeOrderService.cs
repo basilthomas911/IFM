@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
+﻿using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Portfolio;
@@ -104,4 +104,42 @@ public sealed class PortfolioTradeOrderService(
         }
         return new(completed.Id, completed.Receipt.Status, orders);
     }
+    /// <summary>Evaluates a reduce-only closing candidate and dispatches the accepted backend execution.</summary>
+    public async Task<PortfolioTradeOrderSubmissionResult> SubmitClosingAsync(int portfolioId,
+        PortfolioCloseOrderCandidate candidate, ExecutionChannel executionChannel, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+        if (portfolioId <= 0 || candidate.PositionType != PortfolioExecutionPositionType.Closing)
+            throw new ArgumentException("A valid Portfolio and closing candidate are required.");
+        var operationId = Guid.NewGuid();
+        var request = new EvaluatePortfolioCloseOrderCompositionCommand
+        {
+            CommandId = operationId, EntityId = new(portfolioId, operationId), OperationId = operationId,
+            Subject = new(ActorType.Function, EvaluatePortfolioCloseOrderCompositionCommand.Actor,
+                EvaluatePortfolioCloseOrderCompositionCommand.Verb, new FinancialExecutionId(portfolioId, operationId).Format()),
+            PortfolioId = portfolioId, CorrelationId = operationId, CausationId = candidate.CompositionId,
+            RequestedAtUtc = DateTime.UtcNow, ExpiresAtUtc = candidate.ValidUntilUtc, Body = candidate,
+            Access = new FinancialAccess($"Desktop:{Environment.UserName}", ["OrderCompositionClose"], [portfolioId])
+        };
+        request = request with { InputSha256 = FinancialCanonicalHash.Request(request) };
+        var result = await _portfolio.EvaluateCloseAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!result.Success || result.Value is null)
+            throw new InvalidOperationException($"Portfolio close composition failed ({result.ErrorCode}): {result.ErrorMessage}");
+        if (result.Value.Failed is { } failed)
+            throw new InvalidOperationException($"Portfolio close composition failed ({failed.ErrorCode}): {failed.ErrorMessage}; {failed.ErrorData}");
+        var completed = result.Value.Completed ?? throw new InvalidOperationException("Portfolio returned no closing completion.");
+        if (completed.OperationId != operationId || completed.PortfolioId != portfolioId ||
+            completed.Receipt.CompositionId != candidate.CompositionId || completed.Receipt.TradeOrder is not { } instruction ||
+            completed.Receipt.Status != PortfolioCloseOrderCompositionStatus.ExecuteTradeOrder)
+            throw new InvalidOperationException("Portfolio returned a mismatched closing completion.");
+        var order = instruction.ToTradeOrder();
+        if (!order.Id.IsValid || order.Id.PortfolioId != portfolioId || order.PositionType != TradeOrderPositionType.Closing ||
+            order.TargetPositionId != new StrategyPositionId(new(candidate.Position.Id.PortfolioId, candidate.Position.Id.FundId, candidate.Position.Id.OrderId, candidate.Position.Id.TradeId), candidate.Position.Id.PositionId))
+            throw new InvalidOperationException("Portfolio returned an invalid closing identity.");
+        var dispatch = await _lifecycle.SubmitAcceptedAsync(order, completed.Id, executionChannel, cancellationToken).ConfigureAwait(false);
+        if (!dispatch.Success)
+            throw new InvalidOperationException($"Accepted closing order {order.Id.Format()} could not start: {dispatch.ErrorCode};{dispatch.ErrorMessage}");
+        return new(completed.Id, PortfolioOrderCompositionStatus.ExecuteTradeOrders, [order]);
+    }
+
 }

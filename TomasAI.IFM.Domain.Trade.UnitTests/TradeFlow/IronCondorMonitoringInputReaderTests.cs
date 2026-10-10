@@ -50,7 +50,7 @@ public sealed class IronCondorMonitoringInputReaderTests
     }
 
     [Fact]
-    public async Task Daily_ema_capture_excludes_the_open_session_and_reuses_completed_session_prices()
+    public async Task Daily_risk_capture_does_not_read_retired_ema_or_plan_history()
     {
         var databases = Substitute.For<IDbContextFactory>();
         var trades = Substitute.For<ITradeDbContext>();
@@ -82,11 +82,11 @@ public sealed class IronCondorMonitoringInputReaderTests
         while ((captured = reader.Capture(position, date, now)) is null && deadline.Elapsed < TimeSpan.FromSeconds(3))
             await Task.Delay(10);
         captured.Should().NotBeNull();
-        captured!.FiveDayXMA.Should().BeApproximately(40, 1e-12);
+        captured!.FiveDayXMA.Should().BeNull();
         _ = trades.DidNotReceive().GetTradePlanStopLossLimitAsync(Arg.Any<int>(), Arg.Any<int>());
         reader.Capture(position, date, now.AddSeconds(6));
         await Task.Delay(30);
-        _ = market.Received(1).GetFuturesEodClosingPricesAsync("ESZ6", "ES", date.AddDays(-120), date.AddDays(-1), 60);
+        _ = market.DidNotReceive().GetFuturesEodClosingPricesAsync("ESZ6", "ES", date.AddDays(-120), date.AddDays(-1), 60);
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public sealed class IronCondorMonitoringInputReaderTests
     }
 
     [Fact]
-    public async Task A_blocked_distribution_commit_does_not_hold_current_prices_or_cause_parallel_history_writes()
+    public async Task Daily_risk_pricing_never_submits_legacy_distribution_history()
     {
         var databases = Substitute.For<IDbContextFactory>();
         var trades = Substitute.For<ITradeDbContext>();
@@ -135,13 +135,13 @@ public sealed class IronCondorMonitoringInputReaderTests
         while ((captured = reader.Capture(position, date, now))?.CalculatedSpreadPrices is null && elapsed.Elapsed < TimeSpan.FromSeconds(3))
             await Task.Delay(10);
         captured!.CalculatedSpreadPrices.Should().NotBeNull(string.Join("; ", logger.ReceivedCalls().SelectMany(call => call.GetArguments()).OfType<Exception>().Select(error => error.ToString())));
-        await started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        started.Task.IsCompleted.Should().BeFalse();
         var first = captured.CalculatedSpreadPrices!.CalculatedAtUtc;
         elapsed.Restart();
         while ((captured = reader.Capture(position, date, now.AddSeconds(1.1)))?.CalculatedSpreadPrices?.CalculatedAtUtc <= first
             && elapsed.Elapsed < TimeSpan.FromSeconds(2)) await Task.Delay(10);
         captured!.CalculatedSpreadPrices!.CalculatedAtUtc.Should().BeAfter(first);
-        pricingCalls.Should().Be(2); historyCalls.Should().Be(1);
+        pricingCalls.Should().Be(2); historyCalls.Should().Be(0);
         _ = trades.Received(1).GetEstablishedTradeAsync(tradeId, Arg.Any<CancellationToken>());
         pending.TrySetException(new IOException("history unavailable"));
         lifetime.Cancel();
@@ -149,7 +149,7 @@ public sealed class IronCondorMonitoringInputReaderTests
     }
 
     [Fact]
-    public async Task Initialization_captures_time_after_the_cash_read_and_gives_each_changed_capture_a_new_command_identity()
+    public async Task Daily_risk_capture_does_not_initialize_legacy_cash_based_limits()
     {
         var databases = Substitute.For<IDbContextFactory>();
         var trades = Substitute.For<ITradeDbContext>();
@@ -186,24 +186,9 @@ public sealed class IronCondorMonitoringInputReaderTests
             Legs = legs.Select(leg => new StrategyPositionLeg { TradeLegId = leg.TradeLegId, ContractId = leg.ContractId,
                 PutCall = leg.PutCall, Strike = leg.Strike, SignedQuantity = leg.SignedQuantity,
                 OpeningPrice = leg.SignedQuantity > 0 ? 2 : 8 }).ToArray() };
-        foreach (var evaluationAt in new[] { now, now.AddSeconds(6) })
-        {
-            var count = captured.Count;
-            var elapsed = Stopwatch.StartNew();
-            while (captured.Count == count && elapsed.Elapsed < TimeSpan.FromSeconds(3))
-            { reader.Capture(position, date, evaluationAt); await Task.Delay(10); }
-            captured.Count.Should().Be(count + 1);
-        }
-        var commands = captured.ToArray();
-        commands.Select(command => command.CommandId).Distinct().Should().HaveCount(2);
-        foreach (var command in commands)
-        {
-            command.MonitoringInitialization.InitializedAtUtc.Should().BeOnOrAfter(command.MonitoringInitialization.FundCashAsOfUtc);
-            var state = new TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.State.IronCondorPositionCommandState();
-            state.ReplayEvents(new TomasAI.IFM.Shared.EventSourcing.DomainEventCollection([
-                new TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent { EntityId = position.Id, PositionSnapshot = position }]));
-            TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.InitializeIronCondorMonitoring.Execute(command, state).Success.Should().BeTrue();
-        }
+        reader.Capture(position, date, now);
+        await Task.Delay(50);
+        captured.Should().BeEmpty();
         lifetime.Cancel();
     }
 

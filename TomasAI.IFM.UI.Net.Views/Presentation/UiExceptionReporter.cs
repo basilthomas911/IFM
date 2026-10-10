@@ -12,6 +12,31 @@ public static class UiExceptionReporter
             new EventId(61001, nameof(LogUnhandled)),
             "Unhandled UI exception. Source={Source}; Operation={Operation}; Component={Component}; ManagedThreadId={ManagedThreadId}; Fatal={Fatal}");
 
+    static readonly Action<ILogger, string, string, string, long, double, Exception?> LogUiDelay =
+        LoggerMessage.Define<string, string, string, long, double>(
+            LogLevel.Warning, new EventId(61002, "StrategyDetailsUiDelay"),
+            "Slow strategy details UI operation. Method={Method}; NodePath={NodePath}; WorkflowId={WorkflowId}; WorkflowRevision={WorkflowRevision}; ElapsedMs={ElapsedMs}");
+
+    /// <summary>Records completed slow UI operations without logging normal clicks or serializing workflow objects.</summary>
+    public static void ReportUiDelay(string method, string nodePath, string workflowId, long revision, double elapsedMs)
+    {
+        if (elapsedMs < 100) return;
+        try
+        {
+            var configuredLogger = Volatile.Read(ref logger);
+            if (configuredLogger?.IsEnabled(LogLevel.Warning) == true)
+                LogUiDelay(configuredLogger, method, nodePath, workflowId, revision, elapsedMs, null);
+        }
+        catch { /* Diagnostic logging must not break UI navigation. */ }
+    }
+
+    /// <summary>Records live selection latency without logging every quote.</summary>
+    public static void ReportOptionChainReady(string ownerId, DateOnly maturity, string contracts, double elapsedMs)
+    {
+        Volatile.Read(ref logger)?.LogInformation("Option chain four-leg readiness; OwnerId={OwnerId}; Maturity={Maturity}; Contracts={Contracts}; ElapsedMilliseconds={ElapsedMilliseconds}",
+            ownerId, maturity, contracts, elapsedMs);
+    }
+
     static ILogger? logger;
 
     /// <summary>Configures the structured logger used by all UI exception boundaries.</summary>

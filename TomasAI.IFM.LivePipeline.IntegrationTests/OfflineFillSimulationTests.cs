@@ -1,5 +1,5 @@
+using TomasAI.IFM.Application.Api.Server.Core.Trading.Emulation;
 using NSubstitute;
-using TomasAI.IFM.Application.Api.Server;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.TradeBroker.Contracts;

@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
+using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Portfolio;
@@ -30,6 +30,7 @@ public static class PortfolioExecutionContractMapper
         MaximumLoss = value.MaximumLoss,
         BrokerOrderType = (BrokerOrderType)value.BrokerOrderType,
         BrokerAlgorithm = (BrokerAlgorithm)value.BrokerAlgorithm,
+        SetupTrade = value.SetupTrade,
         DecisionEvidence = value.DecisionEvidence,
         VolatilityEvidence = value.VolatilityEvidence,
         TimeInForce = value.TimeInForce,
@@ -59,6 +60,7 @@ public static class PortfolioExecutionContractMapper
         MaximumLoss = value.MaximumLoss,
         BrokerOrderType = (PortfolioBrokerOrderType)value.BrokerOrderType,
         BrokerAlgorithm = (PortfolioBrokerAlgorithm)value.BrokerAlgorithm,
+        SetupTrade = value.SetupTrade,
         DecisionEvidence = value.DecisionEvidence,
         VolatilityEvidence = value.VolatilityEvidence,
         TimeInForce = value.TimeInForce,

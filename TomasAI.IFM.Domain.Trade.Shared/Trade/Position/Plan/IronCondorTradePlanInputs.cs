@@ -73,4 +73,8 @@ public sealed record IronCondorTradePlanInputs
     [Key(30)] public decimal? ContractCashMultiplier { get; init; }
     /// <summary>Actual opening commissions from the established execution evidence, in currency.</summary>
     [Key(31)] public decimal? OpeningCommission { get; init; }
+    /// <summary>Gets current daily-risk observations from the parameterized coherent OptionCalculator scenario.</summary>
+    [Key(32)] public IronCondorDailyRiskInputs? DailyRiskInputs { get; init; }
+    /// <summary>Gets the exact published strategy risk policy selected before background pricing.</summary>
+    [Key(33)] public TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.StrategyRiskParameterSet? StrategyRiskParameterSet { get; init; }
 }

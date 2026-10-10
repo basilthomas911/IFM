@@ -138,7 +138,7 @@ public sealed class ServerLauncherContext : IAsyncDisposable
 
     private async Task StartProcessesAsync()
     {
-        WriteManagerLog("Starting configured API/UI processes.");
+        WriteManagerLog("Starting configured application processes.");
         try
         {
             if (_developmentSession is not null)
@@ -157,7 +157,7 @@ public sealed class ServerLauncherContext : IAsyncDisposable
 
     private async Task ResetProcessesAsync()
     {
-        WriteManagerLog("Reset requested for configured API/UI processes.");
+        WriteManagerLog("Reset requested for configured application processes.");
         try
         {
             await _supervisor.RestartAllAsync().ConfigureAwait(false);

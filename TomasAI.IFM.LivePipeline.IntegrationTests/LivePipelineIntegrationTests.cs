@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Api.Server.Core.Http.Endpoints;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Net;
@@ -8,7 +9,6 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using TomasAI.IFM.Application.Api.Server;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Model;
@@ -90,6 +90,86 @@ public sealed class LivePipelineIntegrationTests
         Assert.Equal(1, check.RecoveryAttempts);
         Assert.Contains("Failed: Injected chart restart rejection", check.RecoveryState);
         Assert.Equal(0, host.Probe.Resets);
+    }
+
+    [Fact]
+    public async Task Recovery_logs_include_trigger_evidence_and_confirmed_health()
+    {
+        var logger = new RecoveryEvidenceLogger();
+        await using var host = await Harness.StartAsync(logger: logger);
+        host.Probe.Failure = "ITI ingress";
+        await host.Monitor.CheckOnceAsync(default);
+        host.Time.Advance(TimeSpan.FromMinutes(1));
+        await host.Monitor.CheckOnceAsync(default);
+        var start = Assert.Single(logger.Entries, row => row.GetValueOrDefault("Target") as string == "ITI"
+            && row.ContainsKey("Attempt") && row.ContainsKey("Reason"));
+        Assert.Equal("ITI ingress", start["HealthComponent"]);
+        Assert.Equal("ES", start["Scope"]);
+        Assert.Equal("Injected stage observation", start["Reason"]);
+        Assert.Equal(Date, start["ValueDate"]);
+        Assert.True(start.ContainsKey("ObservedUtc"));
+        Assert.True(start.ContainsKey("LastProgressUtc"));
+        host.Probe.Failure = null;
+        host.Probe.HealthyTarget = "ITI ingress";
+        host.Time.Advance(TimeSpan.FromMinutes(1));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Contains(logger.Entries, row => row.GetValueOrDefault("Target") as string == "ITI"
+            && row.ContainsKey("Attempts") && row.GetValueOrDefault("Reason") as string == "Fresh processing confirmed");
+        Assert.Contains(logger.Entries, row => row.ContainsKey("RecoveryState") && row.ContainsKey("Reason"));
+    }
+
+    sealed class RecoveryEvidenceLogger : ILogger<LivePipelineMonitor>
+    {
+        public List<Dictionary<string, object?>> Entries { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel level) => true;
+        public void Log<TState>(LogLevel level, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+            => Entries.Add(((IEnumerable<KeyValuePair<string, object?>>)(object)state!).ToDictionary());
+    }
+
+    [Fact]
+    public async Task Missing_outlook_inputs_remain_visible_without_resetting_a_working_actor()
+    {
+        await using var host = await Harness.StartAsync();
+        host.Probe.Failure = "Market Outlook inputs";
+        for (var minute = 0; minute < 10; minute++)
+        {
+            await host.Monitor.CheckOnceAsync(default);
+            host.Time.Advance(TimeSpan.FromMinutes(1));
+        }
+        Assert.Empty(host.Probe.DownstreamRecoveries);
+        Assert.Equal(0, host.Probe.Resets);
+        Assert.False(host.Monitor.Current.AllowsNewDecisions);
+    }
+
+    [Fact]
+    public async Task Feed_reset_clears_old_component_attempts_and_waits_for_fresh_observations()
+    {
+        await using var host = await Harness.StartAsync();
+        host.Probe.Failure = "Market Outlook publication";
+        host.Probe.AdditionalFailure = ("ITI ingress", "ES");
+        await host.Monitor.CheckOnceAsync(default);
+        for (var minute = 0; minute < 4; minute++)
+        {
+            host.Time.Advance(TimeSpan.FromMinutes(1));
+            await host.Monitor.CheckOnceAsync(default);
+        }
+        Assert.Equal(1, host.Probe.Resets);
+        Assert.Equal(6, host.Probe.DownstreamRecoveries.Count);
+        for (var minute = 0; minute < 4; minute++)
+        {
+            host.Time.Advance(TimeSpan.FromMinutes(1));
+            await host.Monitor.CheckOnceAsync(default);
+            Assert.Equal(1, host.Probe.Resets);
+            Assert.Equal(6, host.Probe.DownstreamRecoveries.Count);
+        }
+        host.Probe.Failure = null;
+        host.Probe.AdditionalFailure = null;
+        host.Time.Advance(TimeSpan.FromMinutes(1));
+        await host.Monitor.CheckOnceAsync(default);
+        Assert.Equal("Healthy", host.Monitor.Current.Status);
+        Assert.Equal(1, host.Probe.Resets);
     }
 
     [Fact]
@@ -505,6 +585,7 @@ public sealed class LivePipelineIntegrationTests
         public string FailureScope = "ES";
         public (string Component, string Scope)? AdditionalFailure;
         public bool Active = true;
+        public string? HealthyTarget;
         public int Resets;
         public int Checks;
         public List<LivePipelineCheck> DownstreamRecoveries { get; } = [];
@@ -528,6 +609,8 @@ public sealed class LivePipelineIntegrationTests
                 "Injected stage observation", now)).ToList();
             if (Failure is not null && upstream.All(item => item.Item1 != Failure))
                 checks.Add(new(Failure, FailureScope, "Degraded", "Injected stage observation", now));
+            if (HealthyTarget is { } healthy)
+                checks.Add(new(healthy, FailureScope, "Healthy", "Fresh processing confirmed", now, now));
             if (AdditionalFailure is { } additional)
                 checks.Add(new(additional.Component, additional.Scope, "Degraded", "Injected additional stage observation", now));
             return new LivePipelineHealthSnapshot(
@@ -553,7 +636,7 @@ public sealed class LivePipelineIntegrationTests
         public Probe Probe => probe;
         public LivePipelineMonitor Monitor => monitor;
         public LivePipelineEvidence Evidence => evidence;
-        public static async Task<Harness> StartAsync(LivePipelineMonitorOptions? options = null)
+        public static async Task<Harness> StartAsync(LivePipelineMonitorOptions? options = null, ILogger<LivePipelineMonitor>? logger = null)
         {
             var builder = WebApplication.CreateBuilder();
             builder.Configuration.Sources.Clear();
@@ -562,7 +645,7 @@ public sealed class LivePipelineIntegrationTests
             builder.WebHost.UseUrls("http://127.0.0.1:0");
             var time = new ManualTime(); var probe = new Probe(time);
             var evidence = new LivePipelineEvidence(time);
-            var monitor = new LivePipelineMonitor(probe, time, NullLogger<LivePipelineMonitor>.Instance, configuredOptions: options);
+            var monitor = new LivePipelineMonitor(probe, time, logger ?? NullLogger<LivePipelineMonitor>.Instance, configuredOptions: options);
             builder.Services.AddSingleton(evidence); builder.Services.AddSingleton(monitor);
             var app = builder.Build(); app.MapLivePipelineHealth(); await app.StartAsync();
             var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();

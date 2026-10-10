@@ -72,6 +72,32 @@ public sealed class CompositionPreparationService(ICompositionMarketDataApi mark
         return Replay(committed);
     }
 
+    /// <summary>Freezes an immediately available cache result without calling the provider. Persistence remains a separate acceptance boundary.</summary>
+    public async Task<CompositionPreparationResult> PrepareCachedAsync(CompositionPreparationKey key,
+        TomasAI.IFM.Application.MarketData.Contracts.IOptionChainCache cache,
+        TomasAI.IFM.Application.MarketData.Contracts.OptionChainSnapshotRequest request, CancellationToken cancellationToken)
+    {
+        ValidateKey(key);
+        ArgumentNullException.ThrowIfNull(cache);
+        var existing = await store.ReadAsync(key, cancellationToken).ConfigureAwait(false);
+        if (existing is not null) return Replay(existing);
+        var result = cache.TryGetSnapshot(request);
+        if (!result.IsReady || result.Snapshot is not { } snapshot)
+            return new(null, new(result.ReasonCode, "OptionChainCache", "", result.Outcome.ToString()));
+        // Choose a new acceptance identity without mutating the resident cache snapshot or a previously accepted execution.
+        var until = snapshot.ValidUntilUtc < request.DeadlineUtc ? snapshot.ValidUntilUtc : request.DeadlineUtc;
+        snapshot = snapshot with { SnapshotId = Guid.NewGuid(), ValidUntilUtc = until, Digest = "" };
+        snapshot = snapshot with { Digest = PricingSemanticHash.Compute(snapshot) };
+        var capture = new CompositionSnapshotRequest(snapshot.SnapshotId, snapshot.ScopeId, snapshot.Horizon,
+            snapshot.GenerationId, snapshot.EvaluatedAtUtc, request.DeadlineUtc, true,
+            MaximumQuoteAgeMilliseconds: request.MaximumQuoteAgeMilliseconds, MaximumQuoteSkewMilliseconds: request.MaximumQuoteSkewMilliseconds);
+        var proposed = new CompositionPreparation(2, key, "GLBX.MDP3", capture, snapshot, clock.GetUtcNow(), "");
+        proposed = proposed with { Digest = PricingSemanticHash.Compute(proposed) };
+        if (clock.GetUtcNow() >= snapshot.ValidUntilUtc) return Expired();
+        Validate(proposed);
+        return Replay(await store.CommitAsync(proposed, cancellationToken).ConfigureAwait(false));
+    }
+
     CompositionPreparationResult Replay(CompositionPreparation preparation)
     {
         Validate(preparation);

@@ -47,7 +47,7 @@ public static class InitializeIronCondorMonitoring
             if (multipliers.Length != 1 || multipliers[0] <= 0 || trade.Legs.Any(leg => !position.Legs.Any(p => p.TradeLegId == leg.TradeLegId && p.ContractId == leg.ContractId
                     && p.SignedQuantity == leg.SignedQuantity && p.PutCall == leg.PutCall && p.Strike == leg.Strike)))
                 throw new ArgumentException("Exact four legs and common positive contract multiplier required.");
-            var expiry = trade.Legs.Select(leg => leg.Expiry).Distinct().Single() ?? throw new ArgumentException("Expiry required.");
+            var expiry = trade.MaturityDate ?? throw new ArgumentException("Expiry required for each leg.");
             var limits = IronCondorTradeLimitInitialization.Initialize(trade.Id.TradeId, type, OpeningSpreadPrice(position, 2), OpeningSpreadPrice(position, 1),
                 Math.Abs(trade.Legs[0].SignedQuantity), multipliers[0], input.FundAvailableCash, input.RequiredCapital,
                 trade.OpeningCommission, expiry.DayNumber - input.ValueDate.DayNumber, input.InitializedAtUtc, "IronCondorMonitoring");

@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
+using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using MessagePack;
 using System.Reflection;
 using System.Globalization;
@@ -29,6 +29,7 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
     const int TradeLimitPaneHeight = 79;
     const int LogPaneHeightDivisor = 3;
     const int VisibleContractIdCount = 4;
+    readonly System.Windows.Forms.Timer _monitoringAvailabilityTimer = new() { Interval = 1000 };
     readonly Control _parentControl;
     readonly IronCondorViewModel _viewModel;
     readonly Dictionary<ActionState, Color> _tradePlanStateMap;
@@ -85,6 +86,7 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
         ddlLiveFeed.Enabled = false;
         ddlLiveFeed.Items.Clear();
         ddlLiveFeed.Items.AddRange(_viewModel.LiveFeedLabels);
+        FitLiveFeedDropdown();
         ddlLiveFeed.SelectedIndex = 0;
         pbPercentProfit.Style = ProgressBarStyle.Continuous;
         pnlRt.Visible = true;
@@ -106,11 +108,27 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
         };
         Controls.Add(_initialLoading);
         _initialLoading.BringToFront();
+        _monitoringAvailabilityTimer.Tick += (_, _) => ddlLiveFeed.Enabled = _viewModel.CanChangeLiveFeed;
+        _monitoringAvailabilityTimer.Start();
         Disposed += (_, _) =>
         {
+            _monitoringAvailabilityTimer.Dispose();
             _closed = true;
             _viewModel.PropertyChanged -= ViewModelPropertyChanged;
         };
+    }
+
+    /// <summary>Reserves header space for the longest live feed label, including its bold active state and dropdown arrow.</summary>
+    void FitLiveFeedDropdown()
+    {
+        using var boldFont = new Font(ddlLiveFeed.Font, FontStyle.Bold);
+        var labelWidth = ddlLiveFeed.Items.Cast<object>()
+            .Max(item => TextRenderer.MeasureText(ddlLiveFeed.GetItemText(item), boldFont).Width);
+        var controlWidth = labelWidth + SystemInformation.VerticalScrollBarWidth + 16;
+        var column = tableLayoutPanel1.GetColumn(ddlLiveFeed);
+        tableLayoutPanel1.ColumnStyles[column].SizeType = SizeType.Absolute;
+        tableLayoutPanel1.ColumnStyles[column].Width = controlWidth + ddlLiveFeed.Margin.Horizontal;
+        ddlLiveFeed.DropDownWidth = controlWidth;
     }
 
     protected override CreateParams CreateParams
@@ -371,6 +389,8 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
                 var established = await _viewModel.LoadEstablishedTradeAsync();
                 if (!CanPresentInitialContent) return;
                 ShowEstablishedTrade(established);
+                await _historyLoad;
+                if (!CanPresentInitialContent) return;
                 ((IFormControl)this).Resize(Parent!);
                 _preparingInitialContent = false;
                 _initialLoading.Visible = false;
@@ -441,8 +461,10 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
         lstOptionContractIds.Items.Clear();
         foreach (var leg in trade.Legs) lstOptionContractIds.Items.Add(leg.ContractId);
         FitContractIdPaneToFourRows();
+        if (_viewModel.TradeLimitSnapshot is { } limits)
+            ShowTradeLimits(limits.OrderId, (limits.TradeLimit, limits.FundBalance));
         ShowTradeHistory(_viewModel.TradeHistory);
-        if (lstTradeHistory.Items.Count > 0) lstTradeHistory.Items[0].Selected = true;
+        if (lstTradeHistory.Items.Count > 0) lstTradeHistory.Items[lstTradeHistory.Items.Count - 1].Selected = true;
         txtCallLongStrike.Text = Strike(1, true); txtCallShortStrike.Text = Strike(1, false);
         txtPutLongStrike.Text = Strike(2, true); txtPutShortStrike.Text = Strike(2, false);
         txtPutSpreadType.Text = _viewModel.PutSpreadTradeType.ToString();
@@ -450,7 +472,7 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
         txtRtTradeStatus.Text = trade.Status.ToString();
         txtRtNetSpread.Text = trade.OpeningValue.ToString("0.00");
         txtRtValueDate.Text = trade.EstablishedAtUtc.ToString("yyyy-MM-dd");
-        ddlLiveFeed.Enabled = true;
+        ddlLiveFeed.Enabled = _viewModel.CanChangeLiveFeed;
         foreach (var series in graphSpreadDistribution.Series) series.Points.Clear();
         var spread = graphSpreadDistribution.Series[3];
         spread.MarkerStyle = System.Windows.Forms.DataVisualization.Charting.MarkerStyle.Circle;
@@ -518,6 +540,10 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
                 if (_viewModel.TradeLimitSnapshot is { } limits)
                     ShowTradeLimits(limits.OrderId, (limits.TradeLimit, limits.FundBalance));
                 break;
+            case nameof(IronCondorViewModel.SelectedSavedPosition):
+            case nameof(IronCondorViewModel.SavedLegObservations):
+                RenderSavedPositionData();
+                break;
             case nameof(IronCondorViewModel.IronCondorLegObservations):
                 RenderEstablishedLegs();
                 break;
@@ -525,9 +551,7 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
                 RenderEstablishedPosition();
                 break;
             case nameof(IronCondorViewModel.IronCondorPlanHistory):
-                foreach (var historicalPlan in _viewModel.IronCondorPlanHistory.Reverse())
-                    RenderEstablishedTradePlan(historicalPlan, false);
-                if (_viewModel.StrategyTradePlan is { } latestPlan) RenderEstablishedTradePlan(latestPlan);
+                RenderPlanHistory();
                 break;
             case nameof(IronCondorViewModel.StrategyTradePlan):
                 if (_viewModel.StrategyTradePlan is { } plan)
@@ -559,13 +583,78 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
             case nameof(IronCondorViewModel.IsLiveFeedEnabled):
                 RenderLiveFeedState();
                 break;
+            case nameof(IronCondorViewModel.CanChangeLiveFeed):
+            case nameof(IronCondorViewModel.CanSelectPositionHistory):
+                RenderLiveFeedState();
+                break;
             case nameof(IronCondorViewModel.IsLoading):
-                ddlLiveFeed.Enabled = !_viewModel.IsHistoricalReadOnly && !_viewModel.IsLoading && (_viewModel.EstablishedTrade is not null || _viewModel.FuturesEodHistory.Length > 0);
+                ddlLiveFeed.Enabled = _viewModel.CanChangeLiveFeed;
                 break;
         }
     }
 
     /// <summary>Renders only actual backend option observations in the selected four leg controls.</summary>
+    /// <summary>Restores saved leg observations and derives each spread's signed price and cash value from persisted position marks.</summary>
+    void RenderSavedPositionData()
+    {
+        if (_viewModel.IsLiveFeedEnabled || _viewModel.EstablishedTrade is not { } trade) return;
+        foreach (var leg in trade.Legs)
+        {
+            var prefix = (leg.PutCall == 1 ? "txtCall" : "txtPut") + (leg.SignedQuantity > 0 ? "Long" : "Short");
+            _viewModel.SavedLegObservations.TryGetValue(leg.ContractId,out var quote);
+            SetSaved("Bid", quote?.BidPrice, "0.00"); SetSaved("Ask", quote?.AskPrice, "0.00");
+            var greeks = quote?.GreeksAvailable != false;
+            SetSaved("Delta", greeks ? quote?.Delta : null, "0.####");
+            SetSaved("Gamma", greeks ? quote?.Gamma : null, "0.#####");
+            SetSaved("Theta", greeks ? quote?.Theta : null, "0.####");
+            SetSaved("ImpliedVol", greeks ? quote?.ImpliedVolatility : null, "P2");
+            void SetSaved(string suffix, double? value, string format)
+            {
+                var control = Controls.Find(prefix + suffix,true).FirstOrDefault();
+                if (control is null) return;
+                control.Text = value.HasValue && double.IsFinite(value.Value) ? value.Value.ToString(format) : "N/A";
+                control.AccessibleDescription = quote is null ? "No saved observation for this position date."
+                    : $"Last saved session observation: {quote.ValueDate:yyyy-MM-dd} {quote.TickTime:HH:mm:ss}; not an exact position-time quote.";
+            }
+        }
+        foreach (var right in new byte[] { 1,2 })
+        {
+            var prefix = right == 1 ? "txtCall" : "txtPut";
+            var legs = _viewModel.SelectedSavedPosition?.Legs.Where(leg => trade.Legs.Any(definition => definition.TradeLegId == leg.TradeLegId && definition.PutCall == right)).ToArray();
+            decimal? price = null, value = null, pnl = null;
+            if (legs is { Length: 2 })
+            {
+                var quantity = legs.Min(leg => Math.Abs(leg.SignedQuantity));
+                if (quantity > 0) price = legs.Sum(leg => leg.CurrentPrice * leg.SignedQuantity) / quantity;
+                if (legs.All(leg => trade.Legs.Single(definition => definition.TradeLegId == leg.TradeLegId).CashMultiplier > 0))
+                {
+                    value = legs.Sum(leg => leg.CurrentPrice * leg.SignedQuantity * trade.Legs.Single(definition => definition.TradeLegId == leg.TradeLegId).CashMultiplier);
+                    pnl = legs.Sum(leg => (leg.CurrentPrice-leg.OpeningPrice) * leg.SignedQuantity * trade.Legs.Single(definition => definition.TradeLegId == leg.TradeLegId).CashMultiplier);
+                }
+            }
+            SetSpread("NetSpread",price,"0.00"); SetSpread("TradeValue",value,"C"); SetSpread("TradePnl",pnl,"C");
+            SetSpread("ForwardPrice",null,"0.00"); SetSpread("OTMProbability",null,"P2");
+            void SetSpread(string suffix, decimal? amount, string format)
+            {
+                var control = Controls.Find(prefix+suffix,true).FirstOrDefault();
+                if (control is not null) {
+                    control.Text = amount?.ToString(format) ?? "N/A";
+                    control.AccessibleDescription = suffix == "TradePnl" ? "Cumulative spread mark-to-market PnL before commissions, derived from saved leg marks." : "Derived from the selected saved position.";
+                }
+            }
+        }
+        RenderSavedPlanProbabilities();
+    }
+
+    void RenderSavedPlanProbabilities()
+    {
+        if (_viewModel.IsLiveFeedEnabled || lstTradeHistory.SelectedIndices.Count != 1) return;
+        var date = _viewModel.TradeHistory[lstTradeHistory.SelectedIndices[0]].ValueDate;
+        var savedPlan = _viewModel.IronCondorPlanHistory.FirstOrDefault(plan => plan.ValueDate == date)?.IronCondorTradePlanSnapshot;
+        txtPutOTMProbability.Text = savedPlan?.PutOTMProbability?.ToString("P2") ?? "N/A";
+        txtCallOTMProbability.Text = savedPlan?.CallOTMProbability?.ToString("P2") ?? "N/A";
+    }
+
     void RenderEstablishedLegs()
     {
         if (_viewModel.EstablishedTrade is not { } trade) return;
@@ -623,7 +712,7 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
         }
         graphEodData.ChartAreas[0].RecalculateAxesScale();
         graphEodData.Update();
-        ddlLiveFeed.Enabled = !_viewModel.IsHistoricalReadOnly && !_viewModel.IsLoading;
+        ddlLiveFeed.Enabled = _viewModel.CanChangeLiveFeed;
     }
 
     void RenderTradeHistory()
@@ -640,6 +729,8 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
 
     void RenderLiveFeedState()
     {
+        ddlLiveFeed.Enabled = _viewModel.CanChangeLiveFeed;
+        lstTradeHistory.Enabled = _viewModel.CanSelectPositionHistory;
         _renderingLiveFeed = true;
         ddlLiveFeed.SelectedItem = _viewModel.IsLiveFeedEnabled
             ? IronCondorViewModel.LiveFeedOn
@@ -783,7 +874,7 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
     /// </summary>
     /// <param name="orderId">The order ID.</param>
     /// <param name="e">A tuple containing the trade limit view model and fund balance.</param>
-    void ShowTradeLimits(int orderId, (TradeLimitReadModel TradeLimit, decimal FundBalance) e)
+    void ShowTradeLimits(int orderId, (TradeLimitReadModel TradeLimit, decimal? FundBalance) e)
     {
         lstTradeLimit.Items.Clear();
         if (e.TradeLimit != null)
@@ -798,7 +889,7 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
                 $"{e.TradeLimit.MaxProfitLimit:F4}",
                 $"{e.TradeLimit.MinProfitTarget:C}",
                 $"{e.TradeLimit.DailyProfitTarget:C}",
-                $"{e.FundBalance:C}"
+                e.FundBalance?.ToString("C") ?? "N/A"
             });
             lstTradeLimit.Items.Add(tradeLimitItem);
         }
@@ -957,7 +1048,7 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
             tradePnlValue = tradePnlValue > maxLoss ? tradePnlValue : maxLoss;
             DisplayPercentLoss(maxLoss);
         }
-        ddlLiveFeed.Enabled = !_viewModel.IsHistoricalReadOnly && _viewModel.ValueDate.HasValue;
+        ddlLiveFeed.Enabled = _viewModel.CanChangeLiveFeed;
         return;
 
         double ToDoublePercent(string percentText)
@@ -1052,12 +1143,97 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
         graphSpreadDistribution.Series.ResumeUpdates();
     }
 
-    static readonly PropertyInfo[] monitoringColumns = typeof(IronCondorTradePlanSnapshot).GetProperties()
-        .Where(property => property.GetCustomAttribute<KeyAttribute>() is { IntKey: >= 0 and <= 47 })
-        .OrderBy(property => property.GetCustomAttribute<KeyAttribute>()!.IntKey).ToArray();
+    static readonly PropertyInfo[] monitoringColumns = new[]
+    {
+        nameof(IronCondorTradePlanSnapshot.ActionDateTime),
+        nameof(IronCondorTradePlanSnapshot.SequenceId),
+        nameof(IronCondorTradePlanSnapshot.DailyPnl),
+        nameof(IronCondorTradePlanSnapshot.ForwardLossRatio),
+        nameof(IronCondorTradePlanSnapshot.ForwardLoss),
+        nameof(IronCondorTradePlanSnapshot.DailyLossLimit),
+        nameof(IronCondorTradePlanSnapshot.LossHeadroom),
+        nameof(IronCondorTradePlanSnapshot.ForwardLossHeadroom),
+        nameof(IronCondorTradePlanSnapshot.ForwardDailyPnl),
+        nameof(IronCondorTradePlanSnapshot.PutForwardPrice),
+        nameof(IronCondorTradePlanSnapshot.CallForwardPrice),
+        nameof(IronCondorTradePlanSnapshot.ForwardDelta),
+        nameof(IronCondorTradePlanSnapshot.NetDelta),
+        nameof(IronCondorTradePlanSnapshot.NetGamma),
+        nameof(IronCondorTradePlanSnapshot.NetVega),
+        nameof(IronCondorTradePlanSnapshot.NetTheta),
+        nameof(IronCondorTradePlanSnapshot.EstimatedExitCosts),
+        nameof(IronCondorTradePlanSnapshot.DistanceToShortPut),
+        nameof(IronCondorTradePlanSnapshot.DistanceToShortCall),
+        nameof(IronCondorTradePlanSnapshot.UnderlyingPrice),
+        nameof(IronCondorTradePlanSnapshot.PutSpreadPrice),
+        nameof(IronCondorTradePlanSnapshot.CallSpreadPrice),
+        nameof(IronCondorTradePlanSnapshot.CombinedSpreadPrice),
+        nameof(IronCondorTradePlanSnapshot.CombinedForwardPrice),
+        nameof(IronCondorTradePlanSnapshot.CurrentPositionValue),
+        nameof(IronCondorTradePlanSnapshot.ForwardPositionValue),
+        nameof(IronCondorTradePlanSnapshot.EstimatedCloseValue),
+        nameof(IronCondorTradePlanSnapshot.PutOTMProbability),
+        nameof(IronCondorTradePlanSnapshot.CallOTMProbability),
+        nameof(IronCondorTradePlanSnapshot.TimeToExpiryDays),
+        nameof(IronCondorTradePlanSnapshot.ScenarioHorizonSeconds),
+        nameof(IronCondorTradePlanSnapshot.ScenarioUnderlyingMove),
+        nameof(IronCondorTradePlanSnapshot.ScenarioVolatilityShift),
+        nameof(IronCondorTradePlanSnapshot.CalculationStatus),
+        nameof(IronCondorTradePlanSnapshot.ExitRecommended),
+        nameof(IronCondorTradePlanSnapshot.ExitReason),
+    }.Select(name => typeof(IronCondorTradePlanSnapshot).GetProperty(name)!).ToArray();
     bool monitoringColumnsInitialized;
+    readonly List<StrategyTradePlanSnapshot> _visiblePlans = [];
+    readonly HashSet<string> _visiblePlanIds = [];
 
-    /// <summary>Displays nullable legacy business values directly and bounds live plan history without inventing defaults.</summary>
+    static string PlanIdentity(StrategyTradePlanSnapshot plan)
+        => $"{plan.Position.Id.Format()}/{plan.ValueDate}/{plan.Position.RouteGeneration}/{plan.PlanRevision}";
+
+    void ConfigureVirtualPlans()
+    {
+        if (monitoringColumnsInitialized) return;
+        lstTradePlanAction.Items.Clear();
+        lstTradePlanAction.Columns.Clear();
+        foreach (var column in monitoringColumns)
+            lstTradePlanAction.Columns.Add(column.Name, column.Name.Contains("Reason", StringComparison.Ordinal) ? 320 : 120);
+        lstTradePlanAction.VirtualMode = true;
+        lstTradePlanAction.RetrieveVirtualItem += (_, args) =>
+        {
+            if (args.ItemIndex < 0 || args.ItemIndex >= _visiblePlans.Count)
+            {
+                args.Item = new ListViewItem(string.Empty);
+                return;
+            }
+            var plan = _visiblePlans[args.ItemIndex];
+            var snapshot = plan.IronCondorTradePlanSnapshot!;
+            args.Item = new ListViewItem(monitoringColumns.Select(column => FormatMonitoringValue(column.GetValue(snapshot))).ToArray())
+            {
+                Name = PlanIdentity(plan), Tag = snapshot,
+                ForeColor = snapshot.IsComplete ? Color.White : Color.Yellow, BackColor = Color.Black
+            };
+        };
+        monitoringColumnsInitialized = true;
+    }
+
+    void RenderPlanHistory()
+    {
+        ConfigureVirtualPlans();
+        lstTradePlanAction.VirtualListSize = 0;
+        _visiblePlans.Clear();
+        _visiblePlanIds.Clear();
+        foreach (var plan in _viewModel.IronCondorPlanHistory)
+            if (plan.IronCondorTradePlanSnapshot is not null && _visiblePlanIds.Add(PlanIdentity(plan)))
+                _visiblePlans.Add(plan);
+        lstTradePlanAction.VirtualListSize = _visiblePlans.Count;
+        lstTradePlanAction.Invalidate();
+        if (!_viewModel.IsLiveFeedEnabled && _visiblePlans.FirstOrDefault()?.IronCondorTradePlanSnapshot is { } savedPlan)
+        {
+            txtPutOTMProbability.Text = savedPlan.PutOTMProbability?.ToString("P2") ?? "N/A";
+            txtCallOTMProbability.Text = savedPlan.CallOTMProbability?.ToString("P2") ?? "N/A";
+        }
+    }
+
+    /// <summary>Displays nullable business values and adds live plans to the virtual list without truncating persisted history.</summary>
     /// <param name="plan">The newest coherent backend plan accepted by the view model.</param>
     void RenderEstablishedTradePlan(StrategyTradePlanSnapshot plan, bool updateCurrentValues = true)
     {
@@ -1065,44 +1241,27 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
         if (updateCurrentValues)
         {
         txtRtTradeStatus.Text = $"{plan.State}: {plan.Explanation}";
-        txtRtMscore.Text = snapshot.MScore?.ToString("F4", CultureInfo.InvariantCulture) ?? "N/A";
+        txtRtMscore.Text = snapshot.ForwardLossRatio?.ToString("P1", CultureInfo.InvariantCulture) ?? "N/A";
         txtRtMscore.BackColor = snapshot.IsComplete && Enum.TryParse<ActionState>(snapshot.ActionState, out var severity)
             ? _tradePlanStateMap.GetValueOrDefault(severity, Color.Black) : Color.Black;
-        txtRtAssetPrice.Text = snapshot.AssetPrice?.ToString("F2", CultureInfo.InvariantCulture) ?? "N/A";
+        txtRtAssetPrice.Text = snapshot.UnderlyingPrice?.ToString("F2", CultureInfo.InvariantCulture) ?? "N/A";
         // The central spread value and graph use observed leg marks; theoretical prices stay in the plan.
         var quantity = plan.Position.Legs.Length == 4 ? plan.Position.Legs.Min(leg => Math.Abs(leg.SignedQuantity)) : 0;
         if (_viewModel.IronCondorPosition is null && quantity > 0)
             txtRtNetSpread.Text = (plan.Position.Legs.Sum(leg => leg.CurrentPrice * leg.SignedQuantity) / quantity)
                 .ToString("0.00", CultureInfo.CurrentCulture);
-        txtRtTradePnl.Text = snapshot.TradePnl?.ToString("F2", CultureInfo.InvariantCulture) ?? "N/A";
+        txtRtTradePnl.Text = snapshot.DailyPnl?.ToString("F2", CultureInfo.InvariantCulture) ?? "N/A";
         pnlTradePlanAction.BackColor = txtRtMscore.BackColor;
         SetPanelCaption(pnlTradePlanAction, snapshot.ActionType ?? "Monitoring inputs unavailable");
         SetPanelCaption(pnlTradePlanActionReason, snapshot.IsComplete ? snapshot.ActionReason ?? string.Empty
             : string.Join("; ", snapshot.UnavailableReasons));
         }
-        var identity = $"{plan.Position.Id.Format()}/{plan.ValueDate}/{plan.Position.RouteGeneration}/{plan.PlanRevision}";
-        if (lstTradePlanAction.Items.Cast<ListViewItem>().Any(row => row.Name == identity)) return;
-        lstTradePlanAction.BeginUpdate();
-        try
-        {
-            if (!monitoringColumnsInitialized)
-            {
-                lstTradePlanAction.Items.Clear();
-                lstTradePlanAction.Columns.Clear();
-                foreach (var column in monitoringColumns)
-                    lstTradePlanAction.Columns.Add(column.Name, column.Name.Contains("Reason", StringComparison.Ordinal) ? 320 : 120);
-                lstTradePlanAction.ShowItemToolTips = true;
-                monitoringColumnsInitialized = true;
-            }
-            var row = new ListViewItem(monitoringColumns.Select(column => FormatMonitoringValue(column.GetValue(snapshot))).ToArray())
-            {
-                Name = identity, Tag = snapshot, ToolTipText = string.Join("; ", snapshot.UnavailableReasons),
-                ForeColor = snapshot.IsComplete ? Color.White : Color.Yellow, BackColor = Color.Black
-            };
-            lstTradePlanAction.Items.Insert(0, row);
-            while (lstTradePlanAction.Items.Count > 200) lstTradePlanAction.Items.RemoveAt(lstTradePlanAction.Items.Count - 1);
-        }
-        finally { lstTradePlanAction.EndUpdate(); }
+        ConfigureVirtualPlans();
+        if (!updateCurrentValues || !_viewModel.IsLiveFeedEnabled) return;
+        if (!_visiblePlanIds.Add(PlanIdentity(plan))) return;
+        _visiblePlans.Insert(0, plan);
+        lstTradePlanAction.VirtualListSize = _visiblePlans.Count;
+        lstTradePlanAction.Invalidate();
     }
 
     /// <summary>Formats observed values; missing and nonfinite values are explicitly unavailable.</summary>
@@ -1281,11 +1440,15 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
                     break;
                 case IronCondorViewModel.LiveFeedOff:
                     await _viewModel.DisableLiveFeedAsync();
+                    if (_viewModel.EstablishedTrade is not null && lstTradeHistory.SelectedIndices.Count == 1)
+                        await (_historyLoad = Task.WhenAll(_viewModel.LoadTradePlans(lstTradeHistory.SelectedIndices[0]),
+                            _viewModel.LoadSavedPositionDataAsync(lstTradeHistory.SelectedIndices[0])));
                     break;
             }
         }
         catch (Exception exception)
         {
+            RenderLiveFeedState();
             this.ShowErrorMessage(exception.Message, "Iron Condor Live Feed Error");
         }
     }
@@ -1317,7 +1480,7 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
     /// <param name="e">The event arguments.</param>
     async void lstTradeHistory_SelectedIndexChanged(object sender, EventArgs e)
     {
-        if (_closed || lstTradeHistory.SelectedIndices.Count != 1 || !lstTradeHistory.Enabled) return;
+        if (_closed || !_viewModel.CanSelectPositionHistory || lstTradeHistory.SelectedIndices.Count != 1 || !lstTradeHistory.Enabled) return;
         var index = lstTradeHistory.SelectedIndices[0];
         if (_viewModel.EstablishedTrade is not null)
         {
@@ -1327,6 +1490,14 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
             txtRtValueDate.Text = position.ValueDate.ToString("yyyy-MM-dd");
             txtRtDaysToExpiry.Text = position.DaysToExpiry.ToString();
             txtRtTradePnl.Text = position.TradePnl.ToString("0.00");
+            if (!_viewModel.IsLiveFeedEnabled)
+            {
+                try { await (_historyLoad = Task.WhenAll(_viewModel.LoadTradePlans(index), _viewModel.LoadSavedPositionDataAsync(index))); }
+                catch (Exception exception)
+                {
+                    if (!_closed) this.ShowErrorMessage(exception.Message, "Loading Iron Condor Trade Plans Error");
+                }
+            }
             return;
         }
         await (_historyLoad = LoadSelectedHistoryAsync(index));

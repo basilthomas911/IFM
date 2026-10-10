@@ -8,7 +8,6 @@ public sealed class DatabentoLocalQualificationEvaluator
 {
     readonly IReadOnlyDictionary<string, DatasetSubscriptionManifest> required;
     readonly IReadOnlyDictionary<string, Guid> generations;
-    readonly bool liveTrading;
     readonly bool synthetic;
     readonly TimeSpan maximumInputAge;
 
@@ -26,7 +25,6 @@ public sealed class DatabentoLocalQualificationEvaluator
             throw new ArgumentException("Local qualification requires exact bounded candidate identities.");
         required = frozen.ToDictionary(item => item.Dataset, StringComparer.Ordinal);
         this.generations = generations;
-        this.liveTrading = liveTrading;
         this.synthetic = synthetic;
         this.maximumInputAge = maximumInputAge;
     }
@@ -58,19 +56,10 @@ public sealed class DatabentoLocalQualificationEvaluator
                 || native.ProviderMessageCount > 0 && native.LastProviderMessageAgeTicks <= maximumInputAge.Ticks))
             return false;
 
-        if (!liveTrading)
-            return native.RingUsed == 0 && native.OptionRingUsed == 0
-                && native.RecordsProduced == native.RecordsConsumed
-                && native.OptionRecordsProduced == native.OptionRecordsConsumed;
-
-        // A live gateway sends heartbeats when no market records arrive. Require fresh
-        // gateway evidence and a drained local queue without waiting for a trade or quote.
-        return (synthetic
-                || native.HeartbeatCount > 0 && native.LastHeartbeatAgeTicks <= maximumInputAge.Ticks
-                || native.ProviderMessageCount > 0 && native.LastProviderMessageAgeTicks <= maximumInputAge.Ticks)
-            && native.RingUsed == 0 && native.OptionRingUsed == 0
-            && native.RecordsProduced == native.RecordsConsumed
-            && native.OptionRecordsProduced == native.OptionRecordsConsumed;
+        // Readiness does not require draining a live queue. Local diagnostics already prove
+        // connection, subscription acceptance, producer liveness, and no ring overruns.
+        // Backlog/progress is observed by the normal watchdog after admission.
+        return true;
     }
 
 }

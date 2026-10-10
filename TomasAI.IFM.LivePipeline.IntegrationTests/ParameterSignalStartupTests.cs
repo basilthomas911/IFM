@@ -1,6 +1,6 @@
+using TomasAI.IFM.Application.Api.Server.Core.Startup.Application;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using TomasAI.IFM.Application.Api.Server;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;

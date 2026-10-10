@@ -1,6 +1,7 @@
+using TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.Contracts;
+using TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.HardRecovery;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Api.Server;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using Xunit;
 
@@ -13,15 +14,10 @@ public sealed class ApiDatabentoRecoveryActionVerificationTests
     [
         nameof(IApiDatabentoRecoveryActions.CaptureRecoveryInputsAsync),
         nameof(IApiDatabentoRecoveryActions.FenceFailedGenerationAsync),
-        nameof(IApiDatabentoRecoveryActions.AbandonPreviousCandidateAsync),
         nameof(IApiDatabentoRecoveryActions.StopDatabentoWorkersAsync),
         nameof(IApiDatabentoRecoveryActions.StartDatabentoWorkersAsync),
         nameof(IApiDatabentoRecoveryActions.QualifyDatabentoAsync),
-        nameof(IApiDatabentoRecoveryActions.PrepareCandidateAsync),
-        nameof(IApiDatabentoRecoveryActions.QualifyInfrastructureAsync),
-        nameof(IApiDatabentoRecoveryActions.ReconcileActorsAsync),
         nameof(IApiDatabentoRecoveryActions.StartPublisherAsync),
-        nameof(IApiDatabentoRecoveryActions.ProveDownstreamWritesAsync),
         nameof(IApiDatabentoRecoveryActions.AdmitGenerationAsync),
     ];
 
@@ -43,12 +39,19 @@ public sealed class ApiDatabentoRecoveryActionVerificationTests
         Assert.Equal(DatabentoRecoveryRequestOutcome.Unrecoverable, result.Outcome);
         Assert.Equal(failedAction, result.HardResult!.FailedStage);
         var prefix = Sequence.Take(Array.IndexOf(Sequence, failedAction) + 1).ToArray();
+        var retryable = !hang && failedAction is nameof(actions.StartDatabentoWorkersAsync)
+            or nameof(actions.QualifyDatabentoAsync);
+        if (retryable)
+        {
+            var retry = Sequence.Skip(2).Take(Array.IndexOf(Sequence, failedAction) - 1).ToArray();
+            prefix = prefix.Concat(retry).Concat(retry).ToArray();
+        }
         Assert.Equal(prefix.Concat([nameof(actions.NotifySystemConsoleAsync), nameof(actions.ShutdownApiAsync)]),
             actions.Calls);
         Assert.Same(result, await pipeline.HardResetRecoveryAsync(Request()));
         Assert.Equal(prefix.Concat([nameof(actions.NotifySystemConsoleAsync), nameof(actions.ShutdownApiAsync)]),
             log.Entries.Where(entry => entry.Id == 17400).Select(entry => entry.Action));
-        Assert.Equal(prefix.SkipLast(1).Concat([nameof(actions.NotifySystemConsoleAsync), nameof(actions.ShutdownApiAsync)]),
+        Assert.Equal(prefix.Where(item => item != failedAction).Concat([nameof(actions.NotifySystemConsoleAsync), nameof(actions.ShutdownApiAsync)]),
             log.Entries.Where(entry => entry.Id == 17401).Select(entry => entry.Action));
         var failure = Assert.Single(log.Entries, entry => entry.Id == 17402);
         Assert.Equal(failedAction, failure.Action);
@@ -59,6 +62,20 @@ public sealed class ApiDatabentoRecoveryActionVerificationTests
             Assert.InRange(entry.ElapsedMs!.Value, 0, 5000));
         Assert.Same(result.HardResult, actions.ShutdownFailure);
         Assert.Equal(1, actions.Calls.Count(item => item == nameof(actions.ShutdownApiAsync)));
+    }
+
+    [Theory]
+    [InlineData(nameof(IApiDatabentoRecoveryActions.StartDatabentoWorkersAsync))]
+    [InlineData(nameof(IApiDatabentoRecoveryActions.QualifyDatabentoAsync))]
+    public async Task Transient_worker_failure_retries_with_containment_and_succeeds_on_third_attempt(string action)
+    {
+        var actions = new RecordingActions { FailedAction = action, FailThroughAttempt = 2 };
+        var result = await Create(actions, new RecordingLogger()).HardResetRecoveryAsync(Request());
+        Assert.Equal(DatabentoRecoveryRequestOutcome.FullyHealthy, result.Outcome);
+        Assert.Equal(3, actions.Calls.Count(item => item == nameof(actions.StopDatabentoWorkersAsync)));
+        Assert.Equal(3, actions.Calls.Count(item => item == nameof(actions.StartDatabentoWorkersAsync)));
+        Assert.Equal(nameof(actions.AdmitGenerationAsync), actions.Calls.Last());
+        Assert.Null(actions.ShutdownFailure);
     }
 
     [Theory]
@@ -153,6 +170,7 @@ public sealed class ApiDatabentoRecoveryActionVerificationTests
         public List<string> Calls { get; } = [];
         public string? FailedAction { get; init; }
         public bool Hang { get; init; }
+        public int FailThroughAttempt { get; init; } = 3;
         public bool ConsoleFailure { get; init; }
         public bool ConsoleHang { get; init; }
         public Func<Task>? Pause { get; init; }
@@ -162,7 +180,7 @@ public sealed class ApiDatabentoRecoveryActionVerificationTests
         {
             Calls.Add(action);
             if (action == Sequence[0] && Pause is not null) await Pause();
-            if (action == FailedAction)
+            if (action == FailedAction && context.Attempt <= FailThroughAttempt)
             {
                 if (Hang) await new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously).Task;
                 throw new IOException("Injected " + action, new InvalidOperationException("Inner fault evidence"));
@@ -174,15 +192,10 @@ public sealed class ApiDatabentoRecoveryActionVerificationTests
 
         public Task CaptureRecoveryInputsAsync(ApiDatabentoRecoveryContext context, CancellationToken token) => Run(context);
         public Task FenceFailedGenerationAsync(ApiDatabentoRecoveryContext context, CancellationToken token) => Run(context);
-        public Task AbandonPreviousCandidateAsync(ApiDatabentoRecoveryContext context, CancellationToken token) => Run(context);
         public Task StopDatabentoWorkersAsync(ApiDatabentoRecoveryContext context, CancellationToken token) => Run(context);
         public Task StartDatabentoWorkersAsync(ApiDatabentoRecoveryContext context, CancellationToken token) => Run(context);
         public Task QualifyDatabentoAsync(ApiDatabentoRecoveryContext context, CancellationToken token) => Run(context);
-        public Task PrepareCandidateAsync(ApiDatabentoRecoveryContext context, CancellationToken token) => Run(context);
-        public Task QualifyInfrastructureAsync(ApiDatabentoRecoveryContext context, CancellationToken token) => Run(context);
-        public Task ReconcileActorsAsync(ApiDatabentoRecoveryContext context, CancellationToken token) => Run(context);
         public Task StartPublisherAsync(ApiDatabentoRecoveryContext context, CancellationToken token) => Run(context);
-        public Task ProveDownstreamWritesAsync(ApiDatabentoRecoveryContext context, CancellationToken token) => Run(context);
         public Task AdmitGenerationAsync(ApiDatabentoRecoveryContext context, CancellationToken token) => Run(context);
 
         public Task NotifySystemConsoleAsync(ApiDatabentoRecoveryContext context, DatabentoHardRecoveryResult failure)

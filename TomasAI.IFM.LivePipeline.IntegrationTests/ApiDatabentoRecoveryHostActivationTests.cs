@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.Api.Server;
+using TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.Composition;
 using Xunit;
 
 namespace TomasAI.IFM.LivePipeline.IntegrationTests;
@@ -30,7 +30,7 @@ public sealed class ApiDatabentoRecoveryHostActivationTests
     }
 
     [Fact]
-    public void Development_opt_in_requires_actual_downstream_proof_and_admission()
+    public void Development_opt_in_requires_exact_generation_admission()
     {
         Assert.Throws<InvalidOperationException>(() =>
             ApiDatabentoRecoveryHostActivation.Validate(true, true, true, false));

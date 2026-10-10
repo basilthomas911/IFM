@@ -127,7 +127,7 @@ public sealed class IronCondorDisposableSnapshotTests
     }
 
     [Fact]
-    public async Task Calculation_uses_current_position_profit_and_the_single_latest_source_stop_without_history()
+    public async Task Daily_risk_calculation_ignores_retired_profit_average_and_stop_history()
     {
         var original = Request();
         var request = original with { Position = original.Position with { UnrealizedPnl = 2, RealizedPnl = 1 },
@@ -138,8 +138,9 @@ public sealed class IronCondorDisposableSnapshotTests
         var result = await request.ExecuteAsync(state, context, input => input.Complete(TimeProvider.System), CancellationToken.None);
         result.Completed!.Plan.PlanRevision.Should().Be(1);
         result.Completed.Plan.CalculatedAtUtc.Should().Be(request.RequestedAtUtc);
-        result.Completed.Plan.IronCondorTradePlanSnapshot!.IronCondorTradePlanInputs!.AverageTradePnl.Should().Be(149);
-        result.Completed.Plan.IronCondorTradePlanSnapshot.IronCondorTradePlanInputs.StopLossLimit.Should().Be(0);
+        result.Completed.Plan.IronCondorTradePlanSnapshot!.DailyPnl.Should().Be(0);
+        result.Completed.Plan.IronCondorTradePlanSnapshot.CalculationStatus.Should().NotBe("Complete");
+        result.Completed.Plan.IronCondorTradePlanSnapshot.StopLossLimit.Should().BeNull();
         var fresh = new IronCondorTradePlanFunctionState().Prepare(request);
         var repeated = await request.ExecuteAsync(fresh, context, input => input.Complete(TimeProvider.System), CancellationToken.None);
         repeated.Completed!.Plan.ContentHash.Should().Be(result.Completed.Plan.ContentHash);
@@ -152,7 +153,7 @@ public sealed class IronCondorDisposableSnapshotTests
         var later = await next.ExecuteAsync(restored, context,
             input => input.Complete(TimeProvider.System), CancellationToken.None);
         later.Completed!.Plan.PlanRevision.Should().BeGreaterThan(result.Completed.Plan.PlanRevision);
-        later.Completed.Plan.IronCondorTradePlanSnapshot!.IronCondorTradePlanInputs!.StopLossLimit.Should().Be(0.25);
+        later.Completed.Plan.IronCondorTradePlanSnapshot!.StopLossLimit.Should().BeNull();
     }
 
     [Theory]

@@ -41,6 +41,12 @@ public interface IIntrinsicTimeStrategyWorkflowRealtimeContext
     Application.MarketData.Pricing.CompositionMarketPreparation CompositionMarketPreparation
         => throw new InvalidOperationException("Composition market preparation is not configured.");
 
+    /// <summary>Accepted operational value date advanced only by successful market close.</summary>
+    Domain.MarketData.Shared.IValueDateProvider ValueDateProvider => throw new InvalidOperationException("Operational value date is not configured.");
+
+    /// <summary>Single application boundary for immediate prepared market reads.</summary>
+    Application.MarketData.Contracts.IMarketDataApi MarketDataApi => throw new InvalidOperationException("Market data API is not configured.");
+
     /// <summary>Gets the atomic signal snapshot provider used by the live-readiness gate.</summary>
     IRegimeDiscoveryMarketSignalSnapshotProvider RegimeDiscoverySnapshotProvider { get; }
 }
@@ -60,6 +66,8 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext
         => Container.Resolve<Application.MarketData.Pricing.ICompositionPreparationStore>();
     public Application.MarketData.Pricing.CompositionMarketPreparation CompositionMarketPreparation
         => Container.Resolve<Application.MarketData.Pricing.CompositionMarketPreparation>();
+    public Domain.MarketData.Shared.IValueDateProvider ValueDateProvider => Container.Resolve<Domain.MarketData.Shared.IValueDateProvider>();
+    public Application.MarketData.Contracts.IMarketDataApi MarketDataApi => Container.Resolve<Application.MarketData.Contracts.IMarketDataApi>();
     readonly Lazy<IConfigurationDbContext> _configurationDb;
     readonly Lazy<IRegimeDiscoveryMarketSignalSnapshotProvider> _regimeDiscoverySnapshotProvider;
     /// <summary>Initializes the realtime context.</summary>

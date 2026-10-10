@@ -1,8 +1,8 @@
+using TomasAI.IFM.Application.Api.Server.Core.Http.Serialization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
-using TomasAI.IFM.Application.Api.Server;
 using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Application.Api.Server.Benchmarks;

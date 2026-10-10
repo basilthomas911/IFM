@@ -1,4 +1,4 @@
-﻿namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
+namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
 {
     partial class IronCondorTradeView
     {
@@ -2065,7 +2065,7 @@
             lblRtMScore.Name = "lblRtMScore";
             lblRtMScore.Size = new Size(68, 20);
             lblRtMScore.TabIndex = 16;
-            lblRtMScore.Text = "MScore:";
+            lblRtMScore.Text = "Fwd Loss:";
             // 
             // ddlLiveFeed
             // 
@@ -2520,7 +2520,6 @@
             // 
             tabActionData.Alignment = TabAlignment.Bottom;
             tabActionData.Controls.Add(tabPage1);
-            tabActionData.Controls.Add(tabPage2);
             tabActionData.Dock = DockStyle.Fill;
             tabActionData.Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
             tabActionData.Location = new Point(0, 0);
@@ -2541,7 +2540,7 @@
             tabPage1.Padding = new Padding(4, 3, 4, 3);
             tabPage1.Size = new Size(2721, 429);
             tabPage1.TabIndex = 0;
-            tabPage1.Text = "Trade Plan Actions";
+            tabPage1.Text = "TradePlans";
             // 
             // lstTradePlanAction
             // 

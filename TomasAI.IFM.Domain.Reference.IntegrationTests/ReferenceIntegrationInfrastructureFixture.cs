@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.Verification;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -42,8 +43,9 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
     public string CqlConnectionString { get; private set; } = string.Empty;
     public HttpClient HttpClient { get; private set; } = default!;
     public IActorProducer ActorProducer { get; private set; } = default!;
-    public TomasAI.IFM.Application.Api.Server.SupervisorRecoveryCanaryProbe RecoveryCanaryProbe { get; private set; } = default!;
+    public TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.Verification.SupervisorRecoveryCanaryProbe RecoveryCanaryProbe { get; private set; } = default!;
     public TomasAI.IFM.Domain.Supervisor.Shared.Service.Health.SupervisorOperationStore SupervisorOperations { get; private set; } = default!;
+    public TomasAI.IFM.Application.Storage.MarketDataDb.IMarketDataDbContext MarketDataDb { get; private set; } = default!;
     public ReferenceDbContext ReferenceDb { get; private set; } = default!;
     public EventSourceActorDbContext ActorEventSourceDb { get; private set; } = default!;
     public TomasAI.IFM.Application.Blackboard.IBlackboardService BlackboardService { get; private set; } = default!;
@@ -63,11 +65,13 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
                 .Add("ConfigurationDbConnection", PostgresConnectionString, "System.Data.Postgres")
                 .Add("EventSourceActorDbConnection", PostgresConnectionString, "System.Data.Postgres")
                 .Add("SequenceIdDbConnection", PostgresConnectionString, "System.Data.Postgres")
+                .Add("MarketDataDbConnection", CqlConnectionString, "System.Data.ScyllaDb")
                 .Add("ReferenceDbConnection", CqlConnectionString, "System.Data.ScyllaDb");
             await new ConfigurationSchemaDb(settings, logger).CreateAllAsync();
             await new EventSourceSchemaDb(settings, logger).CreateAllAsync();
             await new SequenceIdSchemaDb(settings, logger).CreateAllAsync();
             await new ReferenceSchemaDb(settings, logger).CreateAllAsync();
+            await new TomasAI.IFM.Application.Storage.MarketDataDb.Schema.MarketDataSchemaDb(settings, logger).CreateAsync(["strategy_option_chain_parameter_version", "strategy_option_chain_parameter_current"]);
 
             _source = new TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>();
             _host = _source.WithWebHostBuilder(builder =>
@@ -89,10 +93,11 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
             await WaitForActorReadinessAsync(HttpClient, startupDeadline.Token);
 
             ActorProducer = _host.Services.GetRequiredService<IActorProducer>();
-            RecoveryCanaryProbe = _host.Services.GetRequiredService<TomasAI.IFM.Application.Api.Server.SupervisorRecoveryCanaryProbe>();
+            RecoveryCanaryProbe = _host.Services.GetRequiredService<TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.Verification.SupervisorRecoveryCanaryProbe>();
             SupervisorOperations = _host.Services.GetRequiredService<TomasAI.IFM.Domain.Supervisor.Shared.Service.Health.SupervisorOperationStore>();
             await ActorProducer.StartAsync(new ActorMailboxId(ActorType.Query, "ReferenceIntegrationTests"));
             var dbFactory = _host.Services.GetRequiredService<IDbContextFactory>();
+            MarketDataDb = dbFactory.MarketDataDb;
             ReferenceDb = (ReferenceDbContext)dbFactory.ReferenceDb;
             ActorEventSourceDb = (EventSourceActorDbContext)dbFactory.ActorEventSourceDb;
             BlackboardService = _host.Services.GetRequiredService<TomasAI.IFM.Application.Blackboard.IBlackboardService>();

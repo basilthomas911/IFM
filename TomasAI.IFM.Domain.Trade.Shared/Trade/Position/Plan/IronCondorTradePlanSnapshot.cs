@@ -4,7 +4,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 
 /// <summary>Captured legacy business values for one Iron Condor monitoring revision. Null means unavailable, never zero.</summary>
 [MessagePackObject]
-public sealed record IronCondorTradePlanSnapshot
+public sealed partial record IronCondorTradePlanSnapshot
 {
     /// <summary>Gets the legacy OrderId value; null indicates that its required source has not been captured.</summary>
     [Key(0)] public int? OrderId { get; init; }
@@ -113,7 +113,7 @@ public sealed record IronCondorTradePlanSnapshot
     /// <summary>Gets the version of the recovered legacy formulas.</summary>
     [Key(52)] public string CalculationVersion { get; init; } = "Legacy/281550666/CurrentPnlLatestStop/v2";
     /// <summary>Gets whether all required calculation inputs were captured.</summary>
-    [IgnoreMember] public bool IsComplete => UnavailableReasons.Length == 0
+    [IgnoreMember] public bool IsComplete => CalculationStatus is not null ? CalculationStatus == "Complete" : UnavailableReasons.Length == 0
         && IronCondorTradePlanInputs is not null && TradeType is not null
         && ForwardPrice.HasValue && ForwardLossRatio.HasValue && MScore.HasValue
         && AssetPrice.HasValue && ShortPutGamma.HasValue && ShortCallGamma.HasValue

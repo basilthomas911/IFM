@@ -437,3 +437,47 @@ Deliver one reviewable change per gate in this order:
 10. G9 system and operator acceptance evidence.
 
 No later gate may compensate for missing earlier backend semantics by adding calculations to the UI.
+
+
+## Strategy Details object browser ? 2026-10-08
+
+The Details tab uses a resizable left-hand TreeView and a right-hand read-only
+PropertyGrid. Root nodes are Workflow, ITI Signal, and Workflow Pipeline. Pipeline
+branches show Regime Discovery, Market Condition, Trade Selection, Order Composition,
+and Risk Management, retaining status colors and status tooltips. Each object node
+selects its own properties; nested input, result, status and failure objects can be
+expanded and inspected. Missing objects are explicitly unavailable.
+
+The presentation retains the immutable typed workflow view alongside the existing
+text representation. Both the Strategy tab and Strategy observation dialog use the
+same browser. No additional subscriptions or backend queries are introduced.
+
+Nested nodes are populated on expansion, with ancestor-cycle protection, a maximum
+of 16 levels and 200 displayed collection items per branch. These are display limits;
+they do not alter workflow data. The property grid exposes read-only string descriptors,
+so setters and nested collection editors cannot mutate business objects.
+
+A same-workflow revision refresh restores expanded paths and selected object paths,
+then inspects the new object instance. Identical revisions retain existing controls.
+A different workflow resets navigation; clearing or failing a selection clears stale
+properties. Rendering tests cover the three roots, five stages, read-only properties,
+revision refresh, navigation retention and clearing.
+
+### Strategy workspace tabs - 2026-10-08
+
+The Strategy view now uses one horizontal splitter below its existing header.
+The graph occupies approximately one-third of the available height, and the
+workspace below occupies approximately two-thirds, subject to minimum sizes.
+The divider remains user-resizable; window resizing reapplies the default ratio.
+
+The lower workspace contains tabs in this order:
+1. Strategy Updates: the existing workflow list, with its paging and selection handlers.
+2. Details: the existing cached tree above its read-only property grid.
+3. Summary: the existing summary content.
+
+Strategy Updates is selected initially. Switching tabs retains the selected
+workflow and controls; live updates continue through the existing binding path.
+The separate graph/list splitter is removed. Layout regression checks the three
+pages, list ownership, default height ratio after resize and selection retention.
+Evidence: `.artifacts/strategy-three-tabs-build.log` and
+`.artifacts/strategy-three-tabs-tests.log`.

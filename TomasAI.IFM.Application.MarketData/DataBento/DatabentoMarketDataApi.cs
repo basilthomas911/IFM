@@ -17,6 +17,8 @@ namespace TomasAI.IFM.Application.MarketData.Databento;
 /// </summary>
 public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
 {
+    /// <inheritdoc />
+    public IOptionChainCache OptionChainCache { get; }
     readonly ITradeStrategySymbolCatalog? _symbolCatalog;
     public bool TryGetMarketInstrumentId(string contractId, out uint marketInstrumentId)
     {
@@ -303,7 +305,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         IFuturesContractRolloverStore? rolloverStore = null,
         IDatabentoContractRegistrationRegistry? contractRegistry = null,
         DatasetWorkerCurrentValues? currentValues = null,
-        ITradeStrategySymbolCatalog? symbolCatalog = null)
+        ITradeStrategySymbolCatalog? symbolCatalog = null,
+        IOptionChainCache? optionChainCache = null)
     {
         _epochFactory = epochFactory ?? throw new ArgumentNullException(nameof(epochFactory));
         ArgumentNullException.ThrowIfNull(options);
@@ -316,6 +319,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         _contractRegistry = contractRegistry;
         _currentValues = currentValues;
         _symbolCatalog = symbolCatalog;
+        OptionChainCache = optionChainCache ?? UnavailableOptionChainCache.Instance;
     }
 
     /// <inheritdoc />

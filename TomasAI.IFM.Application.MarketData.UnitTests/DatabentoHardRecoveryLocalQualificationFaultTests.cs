@@ -199,16 +199,18 @@ public sealed class DatabentoHardRecoveryLocalQualificationFaultTests
         }]));
     }
 
-    [Fact]
-    public void Quiet_session_rejects_nonempty_local_backlog()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Ready_session_does_not_require_empty_local_queues(bool liveTrading)
     {
-        var (evaluator, worker) = Fixture(liveTrading: false);
+        var (evaluator, worker) = Fixture(liveTrading);
         var backlogged = worker with
         {
-            Diagnostics = worker.Diagnostics! with { RingUsed = 1 }
+            Diagnostics = worker.Diagnostics! with { RingUsed = 1, RecordsProduced = 1 }
         };
 
-        Assert.False(evaluator.IsQualified([backlogged]));
+        Assert.True(evaluator.IsQualified([backlogged]));
     }
 
     [Fact]

@@ -13,6 +13,17 @@ public class MarketDataFeedQueryService(IMarketDataFeedQueryApi marketDataFeedQu
 {
     readonly IMarketDataFeedQueryApi _marketDataFeedQueryApi = IsArgumentNull.Set(marketDataFeedQueryApi);
 
+    /// <summary>Reads the last saved option observation for one contract and value date.</summary>
+    /// <param name="contractId">The option leg contract.</param>
+    /// <param name="valueDate">The selected position's session date.</param>
+    /// <returns>The saved observation, or null when none exists.</returns>
+    public async Task<FuturesOptionTickDataV2ReadModel?> GetSavedOptionLegAsync(string contractId, DateOnly valueDate)
+    {
+        var result = await _marketDataFeedQueryApi.GetLastFuturesOptionTickDataAsync(contractId, valueDate).ConfigureAwait(false);
+        if (!result.Success) throw new InvalidOperationException($"Saved option data query failed ({result.ErrorCode}): {result.ErrorMessage}");
+        return result.Value;
+    }
+
     /// <summary>
     /// return last futures eod data
     /// </summary>

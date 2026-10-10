@@ -1,8 +1,8 @@
+using TomasAI.IFM.Application.Api.Server.Core.Recovery.Shutdown;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using TomasAI.IFM.Application.Api.Server;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using Xunit;
 

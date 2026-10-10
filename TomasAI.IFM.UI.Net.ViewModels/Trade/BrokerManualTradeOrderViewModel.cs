@@ -1,5 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
-﻿using System.Globalization;
+using Microsoft.Extensions.Logging;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using TomasAI.IFM.Domain.BrokerAccount.Contracts;
@@ -81,6 +81,7 @@ public sealed class BrokerManualTradeOrderViewModel
     }
 
     TradeLegDefinition[]? _screenLegs;
+    string[]? _screenLegRoles;
     string? _selectedQuoteInputs;
 
     /// <summary>Captures the actual Broker Trade draft without depending on a hidden legacy editor.</summary>
@@ -106,6 +107,7 @@ public sealed class BrokerManualTradeOrderViewModel
             && (legs.Select(x => x.IsCall).Distinct().Count() != 1 || legs.Sum(x => x.Sign) != 0
                 || legs[0].IsCall != _trade.TradeType.ToString().StartsWith("Call", StringComparison.Ordinal)))
             throw new InvalidOperationException("A vertical spread requires one long and one short contract on the same side.");
+        _screenLegRoles = legs.Select(x => x.Role).ToArray();
         _selectedQuoteInputs = System.Text.Json.JsonSerializer.Serialize(legs);
         SelectedOptionExpiry = expiry;
         _screenLegs = legs.Select(x => NewLeg(x.ContractId, x.Sign * quantities[x.ContractId],
@@ -223,6 +225,14 @@ public sealed class BrokerManualTradeOrderViewModel
         var cashMultiplier = _screenLegs?.FirstOrDefault()?.CashMultiplier
             ?? decimal.Parse(_baseContract.Multiplier, CultureInfo.InvariantCulture);
         var cashAmount = signedNetDebitLimit * quantity * cashMultiplier;
+        // This editor submits to IFM-EMULATOR-PAPER, whose fee is USD 0.65 per leg contract.
+        var confirmationLegs = CreateLegs(ContractIds, quantity, cashMultiplier)
+            .Select((leg, index) => new TradeOrderConfirmationLeg(
+                leg.SignedQuantity > 0 ? "Buy" : "Sell",
+                _screenLegRoles?[index] ?? (leg.AssetFamily == TradeAssetFamily.Futures ? "Futures"
+                    : $"{(leg.SignedQuantity > 0 ? "Long" : "Short")} {(leg.PutCall == 1 ? "Call" : "Put")}"),
+                leg.ContractId, 0.65m * Math.Abs(leg.SignedQuantity))).ToArray();
+        var totalCommission = confirmationLegs.Sum(leg => leg.LegCommission);
         var now = DateTime.UtcNow;
         var summary = new TradeOrderReadModel(
             _trade.FundId, _trade.OrderId, _trade.TradeId, _trade.RequestedTradeDate,
@@ -232,36 +242,53 @@ public sealed class BrokerManualTradeOrderViewModel
             _baseContract.ContractId, AssetType.Futures, string.Join(" / ", ContractIds),
             _trade.TradeAction == TradeAction.Sell ? OrderAction.Sell : OrderAction.Buy,
             OrderActionType.Open, quantity, 0, _brokerOrderType == BrokerOrderType.Market ? OrderType.Market : OrderType.Limit, signedNetDebitLimit,
-            cashAmount, 0m, cashAmount, 0m,
+            cashAmount, totalCommission, cashAmount + totalCommission, 0m,
             TradeFillType.Broker, now, Environment.UserName, now, Environment.UserName);
-        var confirmation = await confirmationService.ConfirmAsync(summary).ConfigureAwait(false);
+        var confirmation = confirmationService is ITradeOrderLegConfirmationService legConfirmation
+            ? await legConfirmation.ConfirmAsync(summary, confirmationLegs, cancellationToken).ConfigureAwait(false)
+            : await confirmationService.ConfirmAsync(summary, cancellationToken).ConfigureAwait(false);
         if (!confirmation.IsConfirmed)
             return Guid.Empty;
 
         var candidate = await CreateCandidateAsync(quantity, signedNetDebitLimit,
             confirmation.TradeFillType, cancellationToken).ConfigureAwait(false);
-        var result = await _appRoot.Services.PortfolioTradeOrders.SubmitOpeningAsync(
-            _portfolioId, candidate,
-            confirmation.TradeFillType == TradeFillType.Broker
-                ? ExecutionChannel.Broker
-                : ExecutionChannel.Manual,
-            cancellationToken).ConfigureAwait(false);
+        var channel = confirmation.TradeFillType == TradeFillType.Broker ? ExecutionChannel.Broker : ExecutionChannel.Manual;
+        var result = _trade.PrimaryTrade
+            ? await _appRoot.Services.PortfolioTradeOrders.SubmitOpeningAsync(_portfolioId, candidate, channel, cancellationToken).ConfigureAwait(false)
+            : await SubmitClosingAsync(candidate, channel, cancellationToken).ConfigureAwait(false);
         SubmittedTradeOrders = result.TradeOrders;
-        var executedOrder = result.TradeOrders.Single(value => value.Id.FundId == _trade.FundId);
-        var component = executedOrder.Components.Single();
-        var setup = await _appRoot.Services.PortfolioQueries.GetOrderAsync(_trade.OrderId, cancellationToken);
-        if (!setup.Success || setup.Value is null)
-            throw new InvalidOperationException("The submitted execution could not be linked: setup order is unavailable.");
-        var linked = await _appRoot.Services.PortfolioFundCommands.ChangeManualTradeStateAsync(new()
-        {
-            PortfolioId = _portfolioId, FundId = _trade.FundId, OrderId = _trade.OrderId,
-            TradeId = _trade.TradeId, ExpectedOrderVersion = setup.Value.AggregateVersion,
-            TradeState = TradeState.OrderSubmitted.ToString(), RequestedAtUtc = DateTime.UtcNow,
-            ExecutionOrderId = executedOrder.Id.OrderId, ExecutionTradeId = component.ReservedTradeId
-        }, cancellationToken);
-        if (!linked.Success) throw new InvalidOperationException(
-            "Order submitted, but its setup-to-execution link could not be persisted: " + linked.ErrorMessage);
         return result.PortfolioEventId;
+    }
+
+    /// <summary>Loads the remaining opening position and submits exact opposite legs through reduce-only Portfolio composition.</summary>
+    async Task<TomasAI.IFM.UI.Net.Services.Trade.PortfolioTradeOrderSubmissionResult> SubmitClosingAsync(
+        PortfolioOrderCandidate candidate, ExecutionChannel channel, CancellationToken cancellationToken)
+    {
+        var primary = _fundOrder.Trades.Single(value => value.PrimaryTrade);
+        if (primary.ExecutionOrderId <= 0 || primary.ExecutionTradeId <= 0)
+            throw new InvalidOperationException("The opening setup has no established execution identity.");
+        var positionId = StrategyPositionId.Create(new(_portfolioId, _trade.FundId, primary.ExecutionOrderId, primary.ExecutionTradeId), StrategyKind);
+        var position = await _appRoot.Services.StrategyPositions.GetCurrentAsync(positionId, StrategyKind, cancellationToken).ConfigureAwait(false);
+        if (!position.IsOpen) throw new InvalidOperationException("The target position is already closed.");
+        var component = candidate.Components.Single();
+        if (component.Legs.Length != position.Legs.Length)
+            throw new InvalidOperationException("The closing trade must reverse every remaining position leg.");
+        component = component with { ReservedTradeId = position.Id.Trade.TradeId, PermitBalancedPartialAcceptance = false,
+            Legs = component.Legs.Select(leg =>
+            {
+                var remaining = position.Legs.Single(value => value.ContractId == leg.ContractId);
+                if (leg.SignedQuantity != -remaining.SignedQuantity)
+                    throw new InvalidOperationException($"Closing leg {leg.ContractId} must reverse its remaining signed quantity.");
+                return leg with { TradeLegId = remaining.TradeLegId };
+            }).ToArray() };
+        var reference = position.ToPortfolioPosition();
+        return await _appRoot.Services.PortfolioTradeOrders.SubmitClosingAsync(_portfolioId, new()
+        {
+            CompositionId = candidate.CompositionId, WorkflowId = new(reference.Id, candidate.ValueDate, Guid.NewGuid()),
+            Position = reference, StrategyKind = candidate.StrategyKind, ValueDate = candidate.ValueDate,
+            ValidUntilUtc = candidate.ValidUntilUtc, Origin = candidate.Origin, Component = component,
+            EvidenceHash = candidate.EvidenceHash, PositionType = PortfolioExecutionPositionType.Closing, SetupTrade = candidate.SetupTrade
+        }, channel, cancellationToken).ConfigureAwait(false);
     }
 
     async Task<PortfolioOrderCandidate> CreateCandidateAsync(int quantity, decimal limit,
@@ -338,6 +365,7 @@ public sealed class BrokerManualTradeOrderViewModel
             ValueDate = _trade.RequestedTradeDate,
             ValidUntilUtc = now.AddMinutes(5),
             Origin = "DesktopTradeOrder",
+            SetupTrade = new() { OrderId = _trade.OrderId, TradeId = _trade.TradeId, FundId = _trade.FundId },
             Components =
             [
                 new TradeOrderComponentDefinition

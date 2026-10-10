@@ -1,3 +1,8 @@
+using System.Runtime.InteropServices;
+using DataGridViewRow = System.Windows.Forms.DataGridViewRow;
+using DataGridView = System.Windows.Forms.DataGridView;
+using ComboBox = System.Windows.Forms.ComboBox;
+using FlaUI.Core.AutomationElements;
 using System.Windows.Forms;
 using System.Reflection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -23,6 +28,118 @@ namespace TomasAI.IFM.UI.Net.SystemTests.Layout;
 
 public sealed class TradeBlotterLiveChainTests
 {
+    [Fact]
+    [Trait("Category", "Live")]
+    public async Task Live_four_leg_selection_latency_is_verified_with_FlaUI()
+    {
+        if (Environment.GetEnvironmentVariable("IFM_CHAIN_LATENCY_LIVE") != "true") return;
+        var connection = new NatsConnectionManager();
+        var producer = new NatsActorProducer(new NatsProducerOptions(), NullLogger.Instance, connection);
+        await producer.StartAsync(new ActorMailboxId(ActorType.Query, "IFM.FlaUiChain." + Guid.NewGuid().ToString("N")), default);
+        try
+        {
+            var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var thread = new Thread(() =>
+            {
+                using var context = new ApplicationContext();
+                using var dispatcher = new Control();
+                _ = dispatcher.Handle;
+                dispatcher.BeginInvoke((Action)(async () =>
+                {
+                    try { await VerifyFourLegLiveAsync(new MarketDataQueryApi(producer)); completed.SetResult(); }
+                    catch (Exception error) { completed.SetException(error); }
+                    finally { context.ExitThread(); }
+                }));
+                System.Windows.Forms.Application.Run(context);
+            }) { IsBackground = true };
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            await completed.Task.WaitAsync(TimeSpan.FromSeconds(90));
+        }
+        finally { await producer.StopAsync(); await connection.DisposeAsync(); }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct PopupRect { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)]
+    struct ComboPopupInfo { public int Size; public PopupRect ItemRect, ButtonRect; public int ButtonState; public IntPtr Combo, Item, List; }
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool GetComboBoxInfo(IntPtr handle, ref ComboPopupInfo info);
+
+    static async Task VerifyFourLegLiveAsync(IMarketDataQueryApi api)
+    {
+        var expiry = DateOnly.Parse(Environment.GetEnvironmentVariable("IFM_CHAIN_EXPIRY") ?? "2026-11-20");
+        var root = Substitute.For<IAppRoot>();
+        var parameters = Substitute.For<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterSetsApi>();
+        parameters.StartupRunsAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult<ServiceResult<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterStartupRun[]>>(
+            new ServiceOk<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterStartupRun[]>([])));
+        root.Services.ParameterSets.Returns(parameters);
+        var feed = Substitute.For<IMarketDataFeedQueryApi>();
+        feed.GetFuturesEodDataAsync(Arg.Any<string>(), Arg.Any<DateOnly>()).Returns(Task.FromResult<ServiceResult<FuturesEodDataV2ReadModel>>(
+            new ServiceFailed<FuturesEodDataV2ReadModel>(404, "No test-local EOD fixture")));
+        feed.GetLastFuturesEodDataAsync(Arg.Any<string>(), Arg.Any<DateOnly>()).Returns(Task.FromResult<ServiceResult<FuturesEodDataV2ReadModel>>(
+            new ServiceFailed<FuturesEodDataV2ReadModel>(404, "No test-local EOD fixture")));
+        root.Services.MarketDataQueries.Returns(new MarketDataQueryService(api, feed));
+        var fund = new PortfolioFundEditorModel(0, "latency verification", "", 0, false, DateTime.UtcNow, "test");
+        var order = new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel());
+        var trade = new PortfolioFundOrderTradeEditorModel
+        {
+            TradeType = TradeType.ShortIronCondor, TradeState = TradeState.NewTrade,
+            BaseContractId = "ES20261218", BaseContractSymbol = "ES", UnderlyingRoot = "ES",
+            RequestedTradeDate = DateOnly.FromDateTime(DateTime.Today), RequestedMaturityDate = expiry
+        };
+        using var legacy = new FailingLegacyFeed();
+        using var blotter = new EsTradeBlotterControl(root, fund, order, trade, 0, false, workflowControl: legacy);
+        using var host = new Form { Width = 1400, Height = 900, Text = "IFM live option chain latency verification" };
+        host.Controls.Add(blotter);
+        host.Show();
+        var selector = (ComboBox)blotter.Controls.Find("expirationSelector", true).Single();
+        try { await WaitUntilAsync(() => selector.Items.Cast<object>().Any(x => x.ToString() == expiry.ToString("dd MMM yy", System.Globalization.CultureInfo.InvariantCulture)), TimeSpan.FromSeconds(30)); }
+        catch (OperationCanceledException) { throw new InvalidOperationException("Expiry choices: " + string.Join(", ", selector.Items.Cast<object>()) + "; Status: " + blotter.Controls.Find("marketSelectionStatus", true).Single().Text); }
+        var handle = host.Handle;
+        await Task.Run(() =>
+        {
+            using var automation = new FlaUI.UIA3.UIA3Automation();
+            var window = automation.FromHandle(handle);
+            var combo = window.FindFirstDescendant(x => x.ByAutomationId("expirationSelector")).AsComboBox();
+            combo.Expand();
+            var info = new ComboPopupInfo { Size = Marshal.SizeOf<ComboPopupInfo>() };
+            Assert.True(GetComboBoxInfo(new IntPtr(combo.Properties.NativeWindowHandle.Value), ref info));
+            var popup = automation.FromHandle(info.List);
+            var item = popup.FindFirstDescendant(x => x.ByName(expiry.ToString("dd MMM yy", System.Globalization.CultureInfo.InvariantCulture)));
+            Assert.NotNull(item);
+            item.Patterns.SelectionItem.Pattern.Select();
+            combo.Collapse();
+        });
+        await WaitUntilAsync(() => selector.SelectedItem?.ToString() == expiry.ToString("dd MMM yy", System.Globalization.CultureInfo.InvariantCulture), TimeSpan.FromSeconds(5));
+        Assert.Equal(expiry.ToString("dd MMM yy", System.Globalization.CultureInfo.InvariantCulture), selector.SelectedItem?.ToString());
+        await WaitUntilAsync(() => ((FuturesOptionContractReadModel[])typeof(EsTradeBlotterControl).GetField("_availableOptionContracts", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(blotter)!).Any(x => x.ContractId.StartsWith("ES" + expiry.ToString("yyyyMMdd"), StringComparison.Ordinal)), TimeSpan.FromSeconds(10));
+        foreach (var (name, value) in new[] { ("shortCallDelta", 16m), ("callSpreadWidth", 50m), ("shortPutDelta", 16m), ("putSpreadWidth", 50m) })
+            ((NumericUpDown)blotter.Controls.Find(name, true).Single()).Value = value;
+        typeof(EsTradeBlotterControl).GetField("_spreadDefaultsLoaded", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(blotter, true);
+        var started = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            await blotter.SetLiveFeedAsync(true);
+            var selected = (DataGridView)blotter.Controls.Find("selectedStrategyLegsGrid", true).Single();
+            await WaitUntilAsync(() => selected.RowCount == 4 && (bool)typeof(EsTradeBlotterControl)
+                .GetField("_chainReadyReported", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(blotter)!, TimeSpan.FromSeconds(30));
+            var elapsed = started.Elapsed.TotalMilliseconds;
+            await Task.Run(() =>
+            {
+                using var automation = new FlaUI.UIA3.UIA3Automation();
+                var window = automation.FromHandle(handle);
+                Assert.NotNull(window.FindFirstDescendant(x => x.ByAutomationId("selectedStrategyLegsGrid")));
+                Assert.NotNull(window.FindFirstDescendant(x => x.ByAutomationId("marketSelectionStatus")));
+            });
+            var path = Environment.GetEnvironmentVariable("IFM_CHAIN_UI_REPORT") ?? Path.Combine(Path.GetTempPath(), "ifm-option-chain-ui-latency.json");
+            await File.WriteAllTextAsync(path, System.Text.Json.JsonSerializer.Serialize(new { elapsed, expiry, SelectedLegs = selected.RowCount, FlaUiVerified = true }));
+            Assert.True(elapsed <= 5000, $"UI four-leg readiness took {elapsed:F2}ms.");
+        }
+        finally { await blotter.SetLiveFeedAsync(false); }
+    }
+
     [Fact]
     [Trait("Category", "Live")]
     public async Task Live_market_selection_renders_databento_iv_window_in_winforms()
@@ -199,8 +316,10 @@ public sealed class TradeBlotterLiveChainTests
         Assert.Equal(7900m, ReadVirtualCell(blotter, grid, "Strike", 0));
     }
 
-    [Fact]
-    public async Task Market_selection_defaults_short_condor_to_16_delta_and_50_point_wings()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Market_selection_defaults_short_condor_to_16_delta_and_50_point_wings(bool missingWing)
     {
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
@@ -210,7 +329,7 @@ public sealed class TradeBlotterLiveChainTests
             _ = dispatcher.Handle;
             dispatcher.BeginInvoke((Action)(() =>
             {
-                try { VerifyDefaultCondorSelection(); completed.SetResult(); }
+                try { VerifyDefaultCondorSelection(missingWing); completed.SetResult(); }
                 catch (Exception error) { completed.SetException(error); }
                 finally { context.ExitThread(); }
             }));
@@ -222,7 +341,7 @@ public sealed class TradeBlotterLiveChainTests
         await completed.Task.WaitAsync(TimeSpan.FromSeconds(20));
     }
 
-    private static void VerifyDefaultCondorSelection()
+    private static void VerifyDefaultCondorSelection(bool missingWing)
     {
         var expiry = new DateOnly(2026, 10, 1);
         var observed = DateTimeOffset.UtcNow;
@@ -267,7 +386,14 @@ public sealed class TradeBlotterLiveChainTests
             ((NumericUpDown)blotter.Controls.Find(name, true).Single()).Value = value;
         typeof(EsTradeBlotterControl).GetField("_spreadDefaultsLoaded", BindingFlags.Instance | BindingFlags.NonPublic)!
             .SetValue(blotter, true);
-        Bind(contracts);
+        if (missingWing)
+        {
+            var definition = new FuturesOptionContractReadModel("call-7950", "", "ES", "", "OPT", "USD", "CME", "50",
+                new(2026, 10, 1), 7950, "C") { ExpirationUtc = new DateTimeOffset(2026, 10, 1, 20, 0, 0, TimeSpan.Zero) };
+            typeof(EsTradeBlotterControl).GetField("_availableOptionContracts", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .SetValue(blotter, new[] { definition });
+        }
+        Bind(missingWing ? contracts.Where(x => x.ContractId != "call-7950").ToArray() : contracts);
         Assert.Equal(16m, ((NumericUpDown)blotter.Controls.Find("shortCallDelta", true).Single()).Value);
         Assert.Equal(50m, ((NumericUpDown)blotter.Controls.Find("callSpreadWidth", true).Single()).Value);
         Assert.Equal(16m, ((NumericUpDown)blotter.Controls.Find("shortPutDelta", true).Single()).Value);
@@ -293,6 +419,7 @@ public sealed class TradeBlotterLiveChainTests
             return args.Value;
         }
         Assert.Equal("+LC", SelectedValue("CallSelected", 0));
+        if (missingWing) Assert.Null(SelectedValue("CallBid", 0));
         Assert.Equal("-SC", SelectedValue("CallSelected", 1));
         Assert.Equal("-SP", SelectedValue("PutSelected", 2));
         Assert.Equal("+LP", SelectedValue("PutSelected", 3));

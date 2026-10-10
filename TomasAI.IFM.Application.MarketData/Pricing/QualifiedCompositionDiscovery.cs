@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Application.MarketData.Pricing;
 public sealed record CompositionDiscoveryRequest(Guid LeaseId, Guid GenerationId, DateOnly ValueDate,
     DateOnly MaturityDate, DateTimeOffset DeadlineUtc, IReadOnlyList<OptionDefinitionCandidate> Definitions,
     bool ScopeComplete, OptionPricingCalendar Calendar, TreasuryPublicationPolicy Publication,
-    TreasuryRateConversionPolicy Conversion, bool SeparateContractConnection = false);
+    TreasuryRateConversionPolicy Conversion, bool SeparateContractConnection = false, bool IndependentChainConnection = false);
 
 public sealed record CompositionDiscoveryResult(WorkerOptionChainRequest? Lease,
     ImmutableArray<OptionPricingFailure> Exclusions, bool CompleteEmpty, OptionPricingFailure? Failure);
@@ -91,6 +91,7 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
                 request.SeparateContractConnection,
                 Contracts = WorkerOptionChainRuntime.PhysicalDigest(resolved)
             });
+            if (request.IndependentChainConnection) scopeId = PricingSemanticHash.Compute(new { ScopeId = scopeId, IndependentChainConnection = true });
             if (routePlans is not null)
             {
                 var ids = resolved.Select(x => x.Pricing.Contract.ContractId).ToHashSet(StringComparer.Ordinal);
@@ -99,13 +100,13 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
                 var plan = new CompositionRoutePlan(1, "", "GLBX.MDP3", request.MaturityDate,
                     definitions.Where(x => ids.Contains(x.ContractId)).OrderBy(x => x.ContractId, StringComparer.Ordinal).ToImmutableArray(),
                     [], routes, request.Calendar, request.Publication, request.Conversion)
-                { SeparateContractConnection = request.SeparateContractConnection }.Seal();
+                { SeparateContractConnection = request.SeparateContractConnection, IndependentChainConnection = request.IndependentChainConnection }.Seal();
                 await routePlans.SaveAsync(plan, linked.Token).ConfigureAwait(false);
                 scopeId = plan.PlanId;
             }
             var expiry = request.DeadlineUtc < clock.GetUtcNow().AddSeconds(120) ? request.DeadlineUtc : clock.GetUtcNow().AddSeconds(120);
             var lease = new WorkerOptionChainRequest(scopeId, request.LeaseId, request.GenerationId, request.ValueDate,
-                request.MaturityDate, expiry, resolved, SeparateContractConnection: request.SeparateContractConnection);
+                request.MaturityDate, expiry, resolved, SeparateContractConnection: request.SeparateContractConnection, IndependentChainConnection: request.IndependentChainConnection);
             var acquired = await market.AcquireAsync("GLBX.MDP3", lease, linked.Token).ConfigureAwait(false);
             logger?.LogInformation("Composition discovery first worker acquire: contracts={Count}, elapsedMs={ElapsedMs}, failure={Failure}",
                 resolved.Length, discoveryTimer.ElapsedMilliseconds, acquired.Failure?.Code);

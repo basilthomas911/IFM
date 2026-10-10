@@ -35,6 +35,11 @@ public sealed class CompositionMarketPreparation(QualifiedCompositionDiscovery d
 {
     readonly TimeProvider clock = time ?? TimeProvider.System;
 
+    /// <summary>Freezes a resident snapshot with durable acceptance; never acquires, polls or calls a worker.</summary>
+    public Task<CompositionPreparationResult> PrepareCachedAsync(CompositionPreparationKey key,
+        Contracts.IOptionChainCache cache, Contracts.OptionChainSnapshotRequest request, CancellationToken token)
+        => preparations.PrepareCachedAsync(key, cache, request, token);
+
     public async Task<CompositionPreparationResult> PrepareAsync(CompositionPreparationKey key, CompositionMarketDataPlan plan,
         string horizon, DateTimeOffset deadline, CancellationToken cancellationToken)
     {

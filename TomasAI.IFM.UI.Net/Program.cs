@@ -2,6 +2,9 @@ using System;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using OpenTelemetry.Metrics;
+using TomasAI.IFM.Framework.Telemetry.Metrics;
 using TomasAI.IFM.UI.Net.Views.App;
 using TomasAI.IFM.UI.Net.Views.Presentation;
 using WinForms = System.Windows.Forms;
@@ -30,9 +33,13 @@ namespace TomasAI.IFM.UI.Net
             try
             {
                 var config = AppSetup();
+                using var metricServices = new ServiceCollection().AddIfmMetrics(config, "TomasAI.IFM.UI").BuildServiceProvider();
+                var metrics = metricServices.GetService<MeterProvider>();
+                using var gcHistory = ProcessGcStatisticsRecorder.Start(config, "TomasAI.IFM.UI");
                 var navigator = Startup.Configure(config);
                 var mainForm = navigator.CreateView<IFMAppView>();
-                WinForms.Application.Run(new NatsReadyApplicationContext(mainForm));
+                try { WinForms.Application.Run(new NatsReadyApplicationContext(mainForm)); }
+                finally { gcHistory?.Dispose(); metrics?.ForceFlush(2000); }
             }
             catch (Exception exception)
             {

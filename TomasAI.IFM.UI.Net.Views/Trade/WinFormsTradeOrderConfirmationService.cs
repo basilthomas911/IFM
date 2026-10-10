@@ -6,15 +6,20 @@ namespace TomasAI.IFM.UI.Net.Views.Trade;
 
 /// <summary>Hosts the trade-order confirmation workflow in a WinForms modal dialog.</summary>
 public sealed class WinFormsTradeOrderConfirmationService(IWin32Window? owner = null)
-    : ITradeOrderConfirmationService
+    : ITradeOrderLegConfirmationService
 {
     /// <inheritdoc />
     public ValueTask<TradeOrderConfirmationResult> ConfirmAsync(
         TradeOrderReadModel tradeOrder,
         CancellationToken cancellationToken = default)
+        => ConfirmAsync(tradeOrder, [], cancellationToken);
+
+    /// <inheritdoc />
+    public ValueTask<TradeOrderConfirmationResult> ConfirmAsync(TradeOrderReadModel tradeOrder,
+        IReadOnlyList<TradeOrderConfirmationLeg> legs, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var viewModel = new TradeOrderConfirmationViewModel(tradeOrder);
+        var viewModel = new TradeOrderConfirmationViewModel(tradeOrder, legs);
         using var dialog = new TradeOrderConfirmationForm(viewModel);
         var dialogResult = owner is null ? dialog.ShowDialog() : dialog.ShowDialog(owner);
         return ValueTask.FromResult(new TradeOrderConfirmationResult(

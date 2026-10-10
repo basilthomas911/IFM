@@ -24,5 +24,8 @@ public enum StrategyParameterSetKind : byte
     RiskManagement = 6,
 
     /// <summary>Market Condition Assessment parameters.</summary>
-    MarketConditionAssessment = 7
+    MarketConditionAssessment = 7,
+
+    /// <summary>Strategy-specific position monitoring and exit-risk parameters.</summary>
+    StrategyPositionRisk = 8
 }

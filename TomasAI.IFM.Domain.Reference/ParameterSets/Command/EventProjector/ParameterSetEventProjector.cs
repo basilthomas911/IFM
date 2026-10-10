@@ -22,5 +22,23 @@ public sealed class ParameterSetEventProjector : ConventionalEventProjector<Para
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;
     public override IReadOnlyCollection<Type> ProjectedEventTypes => descriptors.Select(x => x.SourceEventType).ToArray();
     EventProjectionDescriptor Describe<T>() where T : class, IParameterSetFact => new(typeof(T), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
-     async (fact, token) => { await context.ConfigurationDb.ProjectParameterSetAsync((IParameterSetFact)fact); return new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied); }, _ => null, (_, _) => null, false, false, false, false);
+     async (fact, execution) =>
+     {
+         var parameterFact = (IParameterSetFact)fact;
+         await context.ConfigurationDb.ProjectParameterSetAsync(parameterFact);
+         if (fact is ParameterVersionPublishedEvent or ParameterVersionRetiredEvent)
+         {
+             var version = System.Text.Json.JsonSerializer.Deserialize<ParameterSetVersion>(parameterFact.VersionJson)
+                 ?? throw new InvalidDataException("Parameter version event payload is missing.");
+             if (version.Reference.ComponentCode == ParameterSchemaRegistry.StrategyOptionChainCacheComponent)
+             {
+                 var parameters = TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.StrategyOptionChainParameterSet.Read(version.PayloadJson);
+                 if (parameters.ParameterSetId != version.Reference.SetId || parameters.Version != version.Reference.Version)
+                     throw new InvalidDataException("Option-chain parameter event identity differs from its payload.");
+                 await context.OptionChainParameters.ProjectAsync(parameters, parameterFact.Revision,
+                     version.Status == ParameterVersionStatus.Published, execution.CancellationToken).ConfigureAwait(false);
+             }
+         }
+         return new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied);
+     }, _ => null, (_, _) => null, false, typeof(T) == typeof(ParameterVersionPublishedEvent) || typeof(T) == typeof(ParameterVersionRetiredEvent), false, false);
 }

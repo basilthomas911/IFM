@@ -19,18 +19,28 @@ public partial class BackupDatabasesView
     void ConfigureSetupEditor()
     {
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5, BackColor = Color.Black };
-        layout.RowStyles.Add(new(SizeType.Absolute, 40)); layout.RowStyles.Add(new(SizeType.Absolute, 40)); layout.RowStyles.Add(new(SizeType.Percent, 65)); layout.RowStyles.Add(new(SizeType.Percent, 35)); layout.RowStyles.Add(new(SizeType.Absolute, 75));
+        layout.ColumnStyles.Add(new(SizeType.Percent, 100));
+        layout.RowStyles.Add(new(SizeType.Absolute, 52)); layout.RowStyles.Add(new(SizeType.Absolute, 40)); layout.RowStyles.Add(new(SizeType.Percent, 65)); layout.RowStyles.Add(new(SizeType.Percent, 35)); layout.RowStyles.Add(new(SizeType.Absolute, 110));
         var tools = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true };
         var load = new Button { Name = "BackupLoadPolicy", Text = "Load policy", AutoSize = true };
         var save = new Button { Name = "BackupSavePolicy", Text = "Save policy", AutoSize = true };
         tools.Controls.Add(_policyId); tools.Controls.Add(load); tools.Controls.Add(save); tools.Controls.Add(_setupStatus);
-        var restore = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true };
+        var restore = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 3, BackColor = Color.Black };
+        restore.ColumnStyles.Add(new(SizeType.Percent, 40)); restore.ColumnStyles.Add(new(SizeType.Percent, 30)); restore.ColumnStyles.Add(new(SizeType.Percent, 30));
+        restore.RowStyles.Add(new(SizeType.Absolute, 22)); restore.RowStyles.Add(new(SizeType.Absolute, 32)); restore.RowStyles.Add(new(SizeType.Percent, 100));
+        foreach (var (caption, column) in new[] { ("Verified restore point", 0), ("Target profile", 1), ("Restore copy name", 2) })
+            restore.Controls.Add(new Label { Text = caption, Dock = DockStyle.Fill, ForeColor = Color.White, AutoEllipsis = true }, column, 0);
         var drill = new Button { Name = "BackupRestoreDrill", Text = "Restore Backup (fresh copy)", AutoSize = true };
-        restore.Controls.Add(_restorePoint); restore.Controls.Add(_targetProfile); restore.Controls.Add(_validationProfile); restore.Controls.Add(drill);
+        _restorePoint.Dock = DockStyle.Fill; _targetProfile.Dock = DockStyle.Fill; _validationProfile.Dock = DockStyle.Fill;
+        restore.Controls.Add(_restorePoint, 0, 1); restore.Controls.Add(_targetProfile, 1, 1); restore.Controls.Add(_validationProfile, 2, 1);
+        drill.Dock = DockStyle.Fill; restore.Controls.Add(drill, 0, 2); restore.SetColumnSpan(drill, 3);
         var host = new TextBox { Name = "BackupHostSettings", Dock = DockStyle.Fill, ForeColor = Color.White, BackColor = Color.Black, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Both, WordWrap = false,
             Text = "Host-owned configuration: DatabaseBackup.Sources.LocalWorkstation / AwsCloud; PostgreSql / Scylla; Publication.\nLocal: vault, staging, offline replica, native tools and chain limits. AWS: accounts, regions, vaults, role/KMS references and replication. Configure profiles on the backup host; secrets are never entered here. Schedules are managed under System Admin > Scheduled Tasks." };
         pnlBackupStatus.Controls.Clear(); layout.Controls.Add(pnlCommands, 0, 0); layout.Controls.Add(tools, 0, 1); layout.Controls.Add(_policyGrid, 0, 2); layout.Controls.Add(lbStatusMessages, 0, 3); layout.Controls.Add(restore, 0, 4);
-        lbStatusMessages.Dock = DockStyle.Fill; pnlCommands.Dock = DockStyle.Fill; pnlBackupStatus.Controls.Add(layout);
+        lbStatusMessages.Dock = DockStyle.Fill; pnlCommands.Dock = DockStyle.Fill;
+        pnlCommands.RowStyles.Clear(); pnlCommands.RowStyles.Add(new(SizeType.Percent, 100));
+        btnRun.Dock = DockStyle.Fill; btnRun.AutoSize = false;
+        pnlBackupStatus.Controls.Add(layout);
         clbDatabases.Dock = DockStyle.Fill;
         pnlBackupDatabases.Panel1.Controls.Add(host); host.Dock = DockStyle.Bottom; host.Height = 150;
         load.Click += async (_, _) => await RunSetupAsync(async token =>

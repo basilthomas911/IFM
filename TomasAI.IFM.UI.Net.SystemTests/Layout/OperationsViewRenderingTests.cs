@@ -23,28 +23,102 @@ namespace TomasAI.IFM.UI.Net.SystemTests.Layout;
 public sealed class OperationsViewRenderingTests
 {
     [Fact]
-    public void WorkflowDetailsAccordion_RetainsControlsForSameRevisionAndRebuildsForNewRevision()
+    public async Task WorkflowDetailsTree_PreservesNavigationAndRefreshesReadOnlyProperties()
     {
-        using var accordion = new StrategyWorkflowDetailsAccordion();
-        var workflowId = new TomasAI.IFM.Domain.Trade.Shared.StrategyWorkflowId(Guid.NewGuid());
-        var details = new StrategyWorkflowDetails(
-            workflowId,
-            4,
-            "Workflow revision 4",
-            [new("iti", "ITI Signal", "Received", StrategyWorkflowDetailState.Completed, "received", "signal")]);
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                VerifyWorkflowDetailsTree();
+                completion.SetResult();
+            }
+            catch (Exception exception) { completion.SetException(exception); }
+        }) { IsBackground = true };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        await completion.Task.WaitAsync(TimeSpan.FromSeconds(20));
+    }
 
-        accordion.Bind(details);
-        var content = accordion.Controls.OfType<FlowLayoutPanel>().Single();
-        var originalControls = content.Controls.Cast<Control>().ToArray();
+    static void VerifyWorkflowDetailsTree()
+    {
+        using var browser = new StrategyWorkflowDetailsAccordion();
+        using var form = new Form { Size = new(900, 600) };
+        form.Controls.Add(browser);
+        form.Show();
+        System.Windows.Forms.Application.DoEvents();
+        browser.CreateControl();
+        var workflow = new IntrinsicTimeStrategyWorkflowView
+        {
+            WorkflowId = new TomasAI.IFM.Domain.Trade.Shared.StrategyWorkflowId(Guid.NewGuid()),
+            WorkflowRevision = 4
+        };
+        browser.Bind(StrategyWorkflowPresentation.CreateDetails(workflow));
+        WaitForDetails(browser);
+        var tree = browser.Controls.Find("WorkflowDetailsTree", true).OfType<TreeView>().Single();
+        var grid = browser.Controls.Find("WorkflowDetailsProperties", true).OfType<PropertyGrid>().Single();
+        tree.CreateControl();
+        tree.ShowNodeToolTips.Should().BeFalse();
+        var nativeParameters = (CreateParams)typeof(Control).GetProperty("CreateParams", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(tree)!;
+        (nativeParameters.Style & 0x0080).Should().Be(0x0080, "native hover tooltips must be disabled");
+        (nativeParameters.Style & 0x0800).Should().Be(0, "native infotip notifications must be disabled");
+        tree.Nodes.Cast<TreeNode>().Select(n => n.Text).Should().Equal("Workflow", "ITI Signal", "Workflow Pipeline");
+        tree.Nodes[0].Expand();
+        tree.Nodes[0].Nodes.Cast<TreeNode>().Select(n => n.Name).Should().NotIntersectWith(
+            new[] { "RegimeDiscovery", "MarketCondition", "TradeSelection", "OrderComposition", "RiskManagement", "TriggerEvent" });
+        var pipeline = tree.Nodes[2];
+        pipeline.Nodes.Count.Should().Be(5);
+        var stage = pipeline.Nodes[0];
+        stage.Expand();
+        tree.SelectedNode = stage;
+        var selectedPath = stage.FullPath;
+        var originalNode = stage;
+        var originalObject = grid.SelectedObject;
+        originalObject.Should().NotBeNull();
+        System.ComponentModel.TypeDescriptor.GetProperties(originalObject!)["StageSummary"].Should().BeNull();
+        System.ComponentModel.TypeDescriptor.GetProperties(originalObject!).Cast<System.ComponentModel.PropertyDescriptor>()
+            .Should().OnlyContain(p => p.IsReadOnly);
 
-        accordion.Bind(details with { Header = "Equivalent revision" });
+        browser.Bind(StrategyWorkflowPresentation.CreateDetails(workflow));
+        tree.SelectedNode.Should().BeSameAs(originalNode);
+        grid.SelectedObject.Should().BeSameAs(originalObject);
 
-        content.Controls.Cast<Control>().Should().Equal(originalControls);
+        browser.Bind(StrategyWorkflowPresentation.CreateDetails(workflow with { WorkflowRevision = 5 }));
+        WaitForDetails(browser);
+        tree.SelectedNode!.FullPath.Should().Be(selectedPath);
+        tree.SelectedNode.Should().NotBeSameAs(originalNode);
+        tree.SelectedNode.IsExpanded.Should().BeTrue();
+        grid.SelectedObject.Should().NotBeSameAs(originalObject);
+        tree.SelectedNode = tree.Nodes[0];
+        var revision = System.ComponentModel.TypeDescriptor.GetProperties(grid.SelectedObject!)["WorkflowRevision"]!;
+        revision.GetValue(grid.SelectedObject).Should().Be("5");
+        revision.SetValue(grid.SelectedObject, "99");
+        revision.GetValue(grid.SelectedObject).Should().Be("5");
 
-        accordion.Bind(details with { WorkflowRevision = 5, Header = "Workflow revision 5" });
+        // Rapid revisions and clearing must invalidate outstanding cache work.
+        browser.Bind(StrategyWorkflowPresentation.CreateDetails(workflow with { WorkflowRevision = 6 }));
+        browser.Bind(StrategyWorkflowPresentation.CreateDetails(workflow with { WorkflowRevision = 7 }));
+        WaitForDetails(browser);
+        tree.SelectedNode = tree.Nodes[0];
+        System.ComponentModel.TypeDescriptor.GetProperties(grid.SelectedObject!)["WorkflowRevision"]!
+            .GetValue(grid.SelectedObject).Should().Be("7");
+        browser.Bind(StrategyWorkflowPresentation.CreateDetails(workflow with { WorkflowRevision = 8 }));
+        browser.ShowMessage("No workflow selected");
+        var until = DateTime.UtcNow.AddMilliseconds(100);
+        while (DateTime.UtcNow < until) System.Windows.Forms.Application.DoEvents();
+        tree.Nodes.Count.Should().Be(0);
+        grid.SelectedObject.Should().BeNull();
+    }
 
-        content.Controls.Cast<Control>().Should().NotEqual(originalControls);
-        content.Controls.OfType<Label>().Single().Text.Should().Be("Workflow revision 5");
+    static void WaitForDetails(Control browser)
+    {
+        var timeout = System.Diagnostics.Stopwatch.StartNew();
+        while (browser.Controls.OfType<Label>().Any(label => label.Text.EndsWith("Preparing details...")))
+        {
+            System.Windows.Forms.Application.DoEvents();
+            if (timeout.Elapsed > TimeSpan.FromSeconds(5)) throw new TimeoutException("Display cache did not become ready.");
+            Thread.Sleep(1);
+        }
     }
 
     [Fact]
@@ -107,7 +181,7 @@ public sealed class OperationsViewRenderingTests
             0.000_000_1);
     }
     [Fact]
-    public void StrategyComposesChartAndWorkflowListAboveDetailsAndSummaryTabs()
+    public void StrategyComposesChartAboveUpdatesDetailsAndSummaryTabs()
     {
         using var operations = new OperationsView();
         var chart = operations.Controls.Find("itiChart", true)
@@ -119,20 +193,32 @@ public sealed class OperationsViewRenderingTests
         var workflowTabs = operations.Controls.Find("workflowTabs", true)
             .OfType<TabControl>()
             .Single();
-        var contentSplitter = operations.Controls.Find("strategyContentSplitter", true)
-            .OfType<SplitContainer>()
-            .Single();
         var detailSplitter = operations.Controls.Find("strategySplitter", true)
             .OfType<SplitContainer>()
             .Single();
 
-        contentSplitter.Orientation.Should().Be(Orientation.Horizontal);
-        contentSplitter.Panel1.Controls.Cast<Control>().Should().Contain(chart);
-        contentSplitter.Panel2.Controls.Cast<Control>().Should().Contain(history);
-        detailSplitter.Panel1.Controls.Cast<Control>().Should().Contain(contentSplitter);
+        detailSplitter.Orientation.Should().Be(Orientation.Horizontal);
+        detailSplitter.Panel1.Controls.Cast<Control>().Should().Contain(chart);
         detailSplitter.Panel2.Controls.Cast<Control>().Should().Contain(workflowTabs);
         workflowTabs.TabPages.Cast<TabPage>().Select(page => page.Text)
-            .Should().Equal("Details", "Summary");
+            .Should().Equal("Strategy Updates", "Details", "Summary");
+        workflowTabs.TabPages[0].Controls.Cast<Control>().Should().Contain(history);
+        workflowTabs.SelectedIndex.Should().Be(0);
+        // Isolate resize behavior from the unshown parent tab's docking layout.
+        detailSplitter.Dock = DockStyle.None;
+        detailSplitter.Size = new Size(860, 600);
+        var availableHeight = detailSplitter.ClientSize.Height - detailSplitter.SplitterWidth;
+        (detailSplitter.SplitterDistance / (double)availableHeight).Should().BeApproximately(1.0 / 3.0, 0.02);
+        // Tab navigation keeps the actual list and selected workflow intact.
+        var selected = new ListViewItem("Selected workflow");
+        history.RetrieveVirtualItem += (_, e) => e.Item = selected;
+        history.VirtualListSize = 1;
+        history.Items[0].Selected = true;
+        workflowTabs.SelectedIndex = 1;
+        workflowTabs.SelectedIndex = 2;
+        workflowTabs.SelectedIndex = 0;
+        history.Items[0].Should().BeSameAs(selected);
+        history.Items[0].Selected.Should().BeTrue();
         operations.Controls.Find("lblWorkflowSummaryUnavailable", true)
             .OfType<Label>().Single().Text.Should().Be("Summary is not available.");
         chart.ChartAreas.Single().AxisX.Title.Should().Be("Market Time (ET)");

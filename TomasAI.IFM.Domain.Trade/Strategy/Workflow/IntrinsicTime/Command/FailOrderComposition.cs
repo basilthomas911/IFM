@@ -56,19 +56,24 @@ public static class FailOrderComposition
         }
         var now = context.TimeProvider.GetUtcNow().UtcDateTime;
         var timedOut = now >= current.ExpiresAtUtc || IsTimeout(command.Failure);
+        var noTrade = !timedOut && command.Failure.ErrorType == "OptionChainUnavailable";
         var updated = current with
         {
-            Status = timedOut ? WorkflowStrategyMachineStatus.TimedOut : WorkflowStrategyMachineStatus.Failed,
+            Status = timedOut ? WorkflowStrategyMachineStatus.TimedOut : noTrade ? WorkflowStrategyMachineStatus.Completed : WorkflowStrategyMachineStatus.Failed,
+            Outcome = noTrade ? StrategyWorkflowOutcome.NoTrade : timedOut ? StrategyWorkflowOutcome.TimedOut : StrategyWorkflowOutcome.PipelineFailed,
             WorkflowRevision = current.WorkflowRevision + 1,
             CausationId = command.CausationId,
             UpdatedAtUtc = now,
             TerminalAtUtc = now,
-            StopReasonCode = timedOut ? "PipelineTimedOut" : command.Failure.ErrorCode.ToString(
+            StopReasonCode = timedOut ? "PipelineTimedOut" : noTrade ? command.Failure.ErrorMessage : command.Failure.ErrorCode.ToString(
                 System.Globalization.CultureInfo.InvariantCulture),
             OrderComposition = current.OrderComposition with
             {
-                ProcessingStatus = timedOut ? StrategyActorProcessingStatus.TimedOut : StrategyActorProcessingStatus.Failed,
-                FailedAtUtc = now,
+                ProcessingStatus = timedOut ? StrategyActorProcessingStatus.TimedOut : noTrade ? StrategyActorProcessingStatus.Completed : StrategyActorProcessingStatus.Failed,
+                ContinuationDecision = StrategyWorkflowContinuationDecision.Stop,
+                ContinuationReasonCodes = noTrade ? [command.Failure.ErrorMessage] : [],
+                CompletedAtUtc = noTrade ? now : null,
+                FailedAtUtc = noTrade ? null : now,
                 Failure = command.Failure,
                 SourceEventId = command.SourceEventId
             }

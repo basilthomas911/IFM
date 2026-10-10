@@ -1,5 +1,6 @@
+using TomasAI.IFM.Application.Api.Server.Core.MarketData.InstrumentDefinitions;
+using TomasAI.IFM.Application.Api.Server.Core.MarketData.OptionChains;
 using FluentAssertions;
-using TomasAI.IFM.Application.Api.Server;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;

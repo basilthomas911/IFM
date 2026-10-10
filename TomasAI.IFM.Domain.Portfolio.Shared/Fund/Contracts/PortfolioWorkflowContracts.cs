@@ -115,8 +115,8 @@ public sealed record AddManualFundOrderTradeRequest
     [Key(3)] public long ExpectedOrderVersion { get; init; }
     [Key(4)] public int TradeId { get; init; }
     [Key(5)] public string TradeType { get; init; } = string.Empty;
-    [Key(6)] public DateOnly TradeDate { get; init; }
-    [Key(7)] public DateOnly MaturityDate { get; init; }
+    [Key(6)] public DateOnly? TradeDate { get; init; }
+    [Key(7)] public DateOnly? MaturityDate { get; init; }
     [Key(8)] public string TradeState { get; init; } = string.Empty;
     [Key(9)] public string TradeAction { get; init; } = string.Empty;
     [Key(10)] public string Reference { get; init; } = string.Empty;
@@ -125,15 +125,21 @@ public sealed record AddManualFundOrderTradeRequest
     [Key(13)] public DateTime RequestedAtUtc { get; init; }
     /// <summary>The canonical, provider-independent identifier of the selected futures contract.</summary>
     [Key(14)] public string BaseContractId { get; init; } = string.Empty;
+    /// <summary>The intended effective value date; actual execution dates remain unset during manual entry.</summary>
+    [Key(15)] public DateOnly EffectiveDate { get; init; }
+    /// <summary>Reads the effective date of older commands without treating it as an actual fill date.</summary>
+    [IgnoreMember] public DateOnly SetupEffectiveDate => EffectiveDate != default ? EffectiveDate : TradeDate ?? default;
 }
 
 /// <summary>Creates canonical references for Portfolio Fund order trades.</summary>
 public static class FundOrderTradeReference
 {
-    public static string Create(string baseContractId, DateOnly tradeDate, DateOnly maturityDate)
+    public static string Create(string baseContractId, DateOnly tradeDate, DateOnly? maturityDate)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(baseContractId);
-        return $"{baseContractId.Trim()} @ {tradeDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture)} - {maturityDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture)}";
+        return maturityDate.HasValue
+            ? $"{baseContractId.Trim()} @ {tradeDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture)} - {maturityDate.Value.ToString("yyyyMMdd", CultureInfo.InvariantCulture)}"
+            : $"{baseContractId.Trim()} @ {tradeDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture)}";
     }
 }
 

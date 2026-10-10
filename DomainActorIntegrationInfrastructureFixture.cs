@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Api.Server.Core.Startup.Schema;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
@@ -180,8 +181,8 @@ public static class DomainActorIntegrationInfrastructureFixture
                     });
             }
             var services = KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>.StartShared();
-            var initializer = (TomasAI.IFM.Application.Api.Server.ApplicationSchemaInitializer?)services.GetService(
-                typeof(TomasAI.IFM.Application.Api.Server.ApplicationSchemaInitializer))
+            var initializer = (TomasAI.IFM.Application.Api.Server.Core.Startup.Schema.ApplicationSchemaInitializer?)services.GetService(
+                typeof(TomasAI.IFM.Application.Api.Server.Core.Startup.Schema.ApplicationSchemaInitializer))
                 ?? throw new InvalidOperationException("The API host did not register its schema initializer.");
             await initializer.InitializeAsync();
 

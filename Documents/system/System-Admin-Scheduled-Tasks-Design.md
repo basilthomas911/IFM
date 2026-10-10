@@ -379,3 +379,27 @@ The API output reader uses `ScheduledTasks:OutputRoot`, which must point to the 
 3. Add Logs/Setup tabs, dated tree, circle legend, stdout paging and preserved Setup functionality.
 4. Verify grouping across month/year boundaries, all requested colors, older history continuation, full stdout beyond the diagnostic tail, missing artifacts and UTF-8 boundaries.
 5. Rebuild API/UI, exercise real WinForms/FlaUI controls, and deploy through normal development startup. Existing scheduler execution, close/open ordering and source persistence remain unchanged by this UI extension.
+
+
+## Feed-only FuturesMarketOpen ? 2026-10-08
+
+Market Open is the feed-start counterpart to Market Close's feed stop. It queries
+the authoritative market session and requires a valid open session, no pending prior
+EOD commitment, and matching active/operational value dates. It does not call
+StartApplication or repeat application initialization, imports or historical warmup.
+
+The task queries feed runtime/readiness first. A healthy subscribed generation for
+the admitted date is already satisfied. A stopped feed is started through the
+MarketDataFeed command API and correlated feed-start completion/failure events.
+The feed lifecycle resolves authoritative date-specific Databento contract manifests;
+the task does not pass historical contracts or perform reference reconciliation.
+A conflicting running/unhealthy feed is rejected for recovery rather than silently
+starting a duplicate. Completion requires healthy GLBX.MDP3 subscription readiness
+within the existing one-minute readiness window. The run records `FeedsStarted`.
+API/UI, scheduler and backup services remain running.
+
+Verified: task build succeeded with zero warnings/errors; all 42 Server Manager and
+scheduled-task tests passed, including valid evening value-date admission and
+rejections for pending EOD, mismatched date, closed session and invalid date.
+The updated Market Open executable was published to the development task directory.
+No live market-open run was triggered by this verification.

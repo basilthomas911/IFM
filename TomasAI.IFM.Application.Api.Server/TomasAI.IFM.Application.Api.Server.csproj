@@ -9,64 +9,9 @@
 		<NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\TomasAI.IFM.Application.TradeBroker\TomasAI.IFM.Application.TradeBroker.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator\TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.csproj" />
-		<PackageReference Include="Hazelcast.Net.Caching" Version="5.7.0" />
-		<PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" Version="10.0.10" />
-		<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
-		<PackageReference Include="NSwag.AspNetCore" Version="14.7.1" />
-		<PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
-		<PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
-		<PackageReference Include="Serilog.Sinks.Async" Version="2.1.0" />
-		<PackageReference Include="ServiceStack.Text.Core" Version="8.10.0" />
-		<PackageReference Include="SimpleInjector" Version="5.6.0" />
-		<PackageReference Include="SimpleInjector.Integration.AspNetCore" Version="5.5.0" />
-		<PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
-		<PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="10.2.3" />
-		    <PackageReference Include="StackExchange.Redis" Version="3.0.17" />
-			</ItemGroup>
 
-	<ItemGroup>
-		<ProjectReference Include="..\TomasAI.IFM.Application.Actor.Client\TomasAI.IFM.Application.Actor.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Application.Api.Nats.Client\TomasAI.IFM.Application.Api.Nats.Client.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Application.MarketData\TomasAI.IFM.Application.MarketData.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Application.MarketData.Worker\TomasAI.IFM.Application.MarketData.Worker.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Framework.MarketData.FinancialModelingPrep\TomasAI.IFM.Framework.MarketData.FinancialModelingPrep.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.Portfolio\TomasAI.IFM.Domain.Portfolio.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.Application\TomasAI.IFM.Domain.Application.Actor.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData\TomasAI.IFM.Domain.MarketData.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics\TomasAI.IFM.Domain.MarketData.Analytics.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed\TomasAI.IFM.Domain.MarketData.Feed.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Securities\TomasAI.IFM.Domain.MarketData.Securities.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.OptionPricer\TomasAI.IFM.Domain.OptionPricer.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.Reference\TomasAI.IFM.Domain.Reference.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.SystemAdmin\TomasAI.IFM.Domain.SystemAdmin.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.Supervisor\TomasAI.IFM.Domain.Supervisor.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.Supervisor.Shared\TomasAI.IFM.Domain.Supervisor.Shared.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.Trade\TomasAI.IFM.Domain.Trade.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.BrokerAccount\TomasAI.IFM.Domain.BrokerAccount.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Framework.Messaging\TomasAI.IFM.Framework.Messaging.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Framework.SequenceId.Postgres\TomasAI.IFM.Framework.SequenceId.Postgres.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Framework.SequenceId\TomasAI.IFM.Framework.SequenceId.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Framework.Storage.Azure\TomasAI.IFM.Framework.Storage.Azure.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Framework.Telemetry\TomasAI.IFM.Framework.Telemetry.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Service.StatusConsole\TomasAI.IFM.Service.StatusConsole.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Service.TradePosition.HostedService\TomasAI.IFM.Service.TradePosition.HostedService.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Service.TradePosition\TomasAI.IFM.Service.TradePosition.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Shared.EventProducers\TomasAI.IFM.Shared.EventProducers.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.Application.Shared\TomasAI.IFM.Domain.Application.Shared.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.TradePlan.HostedService\TomasAI.IFM.Service.TradePlan.HostedService.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.TradePlan\TomasAI.IFM.Service.TradePlan.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics.Shared\TomasAI.IFM.Domain.MarketData.Analytics.Shared.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.Reference.Shared\TomasAI.IFM.Domain.Reference.Shared.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.SystemAdmin.Shared\TomasAI.IFM.Domain.SystemAdmin.Shared.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.OptionPricer.Shared\TomasAI.IFM.Domain.OptionPricer.Shared.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed.Shared\TomasAI.IFM.Domain.MarketData.Feed.Shared.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Shared\TomasAI.IFM.Domain.MarketData.Shared.csproj" />
-	</ItemGroup>
+
+
 
 	<ItemGroup>
 		<Content Update="appsettings.Development.json">
@@ -99,12 +44,16 @@
 		<GetFileHash Files="$(TargetDir)TomasAI.IFM.Domain.Trade.dll" Algorithm="SHA256">
 			<Output TaskParameter="Items" ItemName="_IfmTradeArtifactHash" />
 		</GetFileHash>
+		<GetFileHash Files="$(TargetDir)TomasAI.IFM.Application.Api.Server.Core.dll" Algorithm="SHA256">
+			<Output TaskParameter="Items" ItemName="_IfmCoreArtifactHash" />
+		</GetFileHash>
 		<PropertyGroup>
+			<_IfmCoreHash>@(_IfmCoreArtifactHash->'%(FileHash)')</_IfmCoreHash>
 			<_IfmApiHash>@(_IfmApiArtifactHash->'%(FileHash)')</_IfmApiHash>
 			<_IfmTradeHash>@(_IfmTradeArtifactHash->'%(FileHash)')</_IfmTradeHash>
-			<_IfmBuildId>$(_IfmApiHash).$(_IfmTradeHash)</_IfmBuildId>
+			<_IfmBuildId>$(_IfmApiHash).$(_IfmCoreHash).$(_IfmTradeHash)</_IfmBuildId>
 			<_IfmGeneratedAtUtc>$([System.DateTime]::UtcNow.ToString('O'))</_IfmGeneratedAtUtc>
-			<_IfmManifestJson>{&quot;schemaVersion&quot;:1,&quot;buildId&quot;:&quot;$(_IfmBuildId)&quot;,&quot;generatedAtUtc&quot;:&quot;$(_IfmGeneratedAtUtc)&quot;,&quot;artifacts&quot;:{&quot;TomasAI.IFM.Application.Api.Server.dll&quot;:&quot;$(_IfmApiHash)&quot;,&quot;TomasAI.IFM.Domain.Trade.dll&quot;:&quot;$(_IfmTradeHash)&quot;}}</_IfmManifestJson>
+			<_IfmManifestJson>{&quot;schemaVersion&quot;:1,&quot;buildId&quot;:&quot;$(_IfmBuildId)&quot;,&quot;generatedAtUtc&quot;:&quot;$(_IfmGeneratedAtUtc)&quot;,&quot;artifacts&quot;:{&quot;TomasAI.IFM.Application.Api.Server.dll&quot;:&quot;$(_IfmApiHash)&quot;,&quot;TomasAI.IFM.Application.Api.Server.Core.dll&quot;:&quot;$(_IfmCoreHash)&quot;,&quot;TomasAI.IFM.Domain.Trade.dll&quot;:&quot;$(_IfmTradeHash)&quot;}}</_IfmManifestJson>
 		</PropertyGroup>
 		<WriteLinesToFile File="$(TargetDir)ifm-deployment-manifest.json"
 					  Lines="$(_IfmManifestJson)"
@@ -121,12 +70,16 @@
 		<GetFileHash Files="$(PublishDir)TomasAI.IFM.Domain.Trade.dll" Algorithm="SHA256">
 			<Output TaskParameter="Items" ItemName="_IfmPublishedTradeArtifactHash" />
 		</GetFileHash>
+		<GetFileHash Files="$(PublishDir)TomasAI.IFM.Application.Api.Server.Core.dll" Algorithm="SHA256">
+			<Output TaskParameter="Items" ItemName="_IfmPublishedCoreArtifactHash" />
+		</GetFileHash>
 		<PropertyGroup>
+			<_IfmPublishedCoreHash>@(_IfmPublishedCoreArtifactHash->'%(FileHash)')</_IfmPublishedCoreHash>
 			<_IfmPublishedApiHash>@(_IfmPublishedApiArtifactHash->'%(FileHash)')</_IfmPublishedApiHash>
 			<_IfmPublishedTradeHash>@(_IfmPublishedTradeArtifactHash->'%(FileHash)')</_IfmPublishedTradeHash>
-			<_IfmPublishedBuildId>$(_IfmPublishedApiHash).$(_IfmPublishedTradeHash)</_IfmPublishedBuildId>
+			<_IfmPublishedBuildId>$(_IfmPublishedApiHash).$(_IfmPublishedCoreHash).$(_IfmPublishedTradeHash)</_IfmPublishedBuildId>
 			<_IfmPublishedGeneratedAtUtc>$([System.DateTime]::UtcNow.ToString('O'))</_IfmPublishedGeneratedAtUtc>
-			<_IfmPublishedManifestJson>{&quot;schemaVersion&quot;:1,&quot;buildId&quot;:&quot;$(_IfmPublishedBuildId)&quot;,&quot;generatedAtUtc&quot;:&quot;$(_IfmPublishedGeneratedAtUtc)&quot;,&quot;artifacts&quot;:{&quot;TomasAI.IFM.Application.Api.Server.dll&quot;:&quot;$(_IfmPublishedApiHash)&quot;,&quot;TomasAI.IFM.Domain.Trade.dll&quot;:&quot;$(_IfmPublishedTradeHash)&quot;}}</_IfmPublishedManifestJson>
+			<_IfmPublishedManifestJson>{&quot;schemaVersion&quot;:1,&quot;buildId&quot;:&quot;$(_IfmPublishedBuildId)&quot;,&quot;generatedAtUtc&quot;:&quot;$(_IfmPublishedGeneratedAtUtc)&quot;,&quot;artifacts&quot;:{&quot;TomasAI.IFM.Application.Api.Server.dll&quot;:&quot;$(_IfmPublishedApiHash)&quot;,&quot;TomasAI.IFM.Application.Api.Server.Core.dll&quot;:&quot;$(_IfmPublishedCoreHash)&quot;,&quot;TomasAI.IFM.Domain.Trade.dll&quot;:&quot;$(_IfmPublishedTradeHash)&quot;}}</_IfmPublishedManifestJson>
 		</PropertyGroup>
 		<WriteLinesToFile File="$(PublishDir)ifm-deployment-manifest.json"
 					  Lines="$(_IfmPublishedManifestJson)"
@@ -134,4 +87,5 @@
 					  WriteOnlyWhenDifferent="true" />
 	</Target>
 
+<ItemGroup><ProjectReference Include="..\TomasAI.IFM.Application.Api.Server.Core\TomasAI.IFM.Application.Api.Server.Core.csproj" /></ItemGroup>
 </Project>

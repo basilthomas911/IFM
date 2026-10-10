@@ -34,6 +34,23 @@ public sealed class StrategyPositionService(
         return result.Value;
     }
 
+    /// <summary>Loads all persisted lifecycle rows for one strategy position.</summary>
+    /// <param name="positionId">The complete position identity.</param>
+    /// <param name="strategyKind">The owning strategy.</param>
+    /// <param name="fromUtc">The inclusive UTC history start.</param>
+    /// <param name="toUtc">The inclusive UTC history end.</param>
+    /// <param name="cancellationToken">Cancels the query.</param>
+    /// <returns>The persisted position snapshots.</returns>
+    public async Task<StrategyPositionSnapshot[]> GetHistoryAsync(
+        StrategyPositionId positionId, TradeStrategyKind strategyKind,
+        DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default)
+    {
+        var result = await _queries.GetHistoryAsync(positionId, strategyKind, fromUtc, toUtc, cancellationToken).ConfigureAwait(false);
+        if (!result.Success || result.Value is null)
+            throw new InvalidOperationException($"Position history query failed ({result.ErrorCode}): {result.ErrorMessage}");
+        return result.Value;
+    }
+
     /// <summary>Moves an open strategy position to its end-of-day state and returns its command identifier.</summary>
     /// <param name="positionId">The position stream to update.</param>
     /// <param name="strategyKind">The strategy that owns the position.</param>

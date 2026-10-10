@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache;
+using TomasAI.IFM.Domain.MarketData.OptionChainCache;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -41,6 +43,7 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
     {
+        [GetStrategyOptionChainParametersQuery.Verb] = message => message.AsQuery<GetStrategyOptionChainParametersQuery, StrategyOptionChainParameterSet>()!,
         [GetTradeStrategySymbolsQuery.Verb] = message => message.AsQuery<GetTradeStrategySymbolsQuery, TradeStrategySymbolReadModel[]>()!,
         [GetDatabentoOptionChainRangeQuery.Verb] = message => message.AsQuery<GetDatabentoOptionChainRangeQuery, OptionContractExpiryReadModel[]>()!,
         [GetDatabentoOptionChainQuery.Verb] = message => message.AsQuery<GetDatabentoOptionChainQuery, FuturesOptionContractReadModel[]>()!,
@@ -72,6 +75,7 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
         Func<IMarketDataQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<IMarketDataQueryContext, IQuery, CancellationToken, ValueTask>>
         {
+            [typeof(GetStrategyOptionChainParametersQuery)] = static (context, query, cancellationToken) => ((GetStrategyOptionChainParametersQuery)query).ExecuteAsync(context, cancellationToken),
             [typeof(GetTradeStrategySymbolsQuery)] = static (context, query, cancellationToken) =>
                 ((GetTradeStrategySymbolsQuery)query).ExecuteAsync(context, cancellationToken),
             [typeof(GetDatabentoOptionChainRangeQuery)] = static (context, query, cancellationToken) =>

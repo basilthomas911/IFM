@@ -1,0 +1,446 @@
+using TomasAI.IFM.Application.Api.Server.Core.Deployment.Identity;
+using TomasAI.IFM.Application.Api.Server.Core.Observability.HealthChecks;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Realtime.Actor;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
+using TomasAI.IFM.Application.MarketData.Databento.Workers;
+using TomasAI.IFM.Application.MarketData.MarketOutlook;
+using TomasAI.IFM.Application.MarketData.OperationsHealth;
+using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Model;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+
+namespace TomasAI.IFM.Application.Api.Server.Core.Development.Verification;
+
+public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
+    ActorRuntimeHealthCheck actors, DatabentoMarketDataApi market,
+    IFuturesMarketSessionAuthority sessions, IFuturesBarDataTimer bars,
+    IMarketDataFeedCommandApi feedCommands,
+    IMarketDataAnalyticsCommandApi analyticsCommands,
+    IDbContextFactory db,
+    MarketDataOperationsHealthService operations, LivePipelineEvidence evidence,
+    FuturesItiSignalRuntimeTelemetry itiTelemetry,
+    DeploymentIdentityMonitor deploymentIdentity,
+    DatabentoMarketDataWatchdogService watchdog, TimeProvider time, IActorSupervisor? supervisor = null,
+    NatsConnectionManager? messaging = null,
+    IDatabentoRecoveryRequester? recoveryRequester = null,
+    ILogger<LivePipelineProbe>? logger = null,
+    DatasetWorkerCurrentValues? supervisedValues = null,
+    DatasetWorkerProcessRecoveryService? supervisedWorkers = null) : ILivePipelineProbe
+{
+    readonly Dictionary<string, (ulong Produced, ulong Consumed, long Completed, ulong Ring, int Channel)> previous = new();
+    readonly Dictionary<string, (DateTimeOffset Through, DateTime ObservedUtc)> closedWatermarks = new();
+    public async Task<LivePipelineHealthSnapshot> CheckAsync(CancellationToken token)
+    {
+        var now = time.GetUtcNow().UtcDateTime;
+        var session = sessions.Current;
+        var checks = new List<LivePipelineCheck>();
+        void Add(string name, string scope, bool ok, string reason, DateTime? progress = null)
+            => checks.Add(new(name, scope, ok ? "Healthy" : "Degraded", reason, now, progress));
+        var identity = deploymentIdentity.Current;
+        checks.Add(new("Deployment identity", "process", identity.Valid ? "Healthy" : "Unhealthy",
+            identity.Valid
+                ? $"Running artifacts match deployment {identity.BuildId}."
+                : string.Join(" ", identity.Errors),
+            now, identity.Valid ? now : null));
+        Add("Session authority", "session", session.IsValid && session.NextTransitionUtc > now,
+            "Validated session, value date and next boundary.");
+        if (!session.IsValid) return Result();
+        if (session.ActiveValueDate is not { } date)
+        {
+            checks.Add(new("Live pipeline", "session", "Inactive", "Planned market closure.", now));
+            return Result();
+        }
+        try
+        {
+            var runtime = await feedCheck.CheckHealthAsync(new HealthCheckContext(), token).ConfigureAwait(false);
+            Add("Databento feed", "datasets", runtime.Status == HealthStatus.Healthy, runtime.Description ?? "No feed diagnosis.");
+        }
+        catch (Exception ex) when (!token.IsCancellationRequested)
+        { checks.Add(new("Feed readiness probe", "runtime", "Unknown", ex.Message, now)); }
+        var actorHealth = await actors.CheckHealthAsync(new HealthCheckContext(), token).ConfigureAwait(false);
+        Add("Actor routing", "runtime", actorHealth.Status == HealthStatus.Healthy, actorHealth.Description ?? "No actor diagnosis.");
+        try
+        {
+            using var messagingDeadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+            messagingDeadline.CancelAfter(TimeSpan.FromSeconds(5));
+            var roundTrip = messaging is null ? null : await messaging.ProbeAsync(messagingDeadline.Token).AsTask().WaitAsync(messagingDeadline.Token).ConfigureAwait(false);
+            checks.Add(roundTrip is null
+                ? new("Messaging transport", "NATS", "Unknown", "The pipeline has no initialized shared NATS connection.", now)
+                : new("Messaging transport", "NATS", "Healthy", $"Shared connection PING/PONG completed in {roundTrip.Value.TotalMilliseconds:F0} ms.", now, now));
+        }
+        catch (Exception ex) when (!token.IsCancellationRequested)
+        { Add("Messaging transport", "NATS", false, "Shared connection probe failed: " + ex.Message); }
+        var health = market.GetHealth();
+        var epoch = health.Epoch;
+        Add("Value date", "feed", health.ValueDate == date, "Feed epoch must match authoritative active date.");
+        IReadOnlyList<DatasetWorkerProcessSnapshot> supervisedSnapshots = [];
+        if (supervisedValues is not null)
+        {
+            if (supervisedWorkers is not null)
+                supervisedSnapshots = await supervisedWorkers.GetHealthAsync(
+                    TimeSpan.FromSeconds(3), token).ConfigureAwait(false);
+            if (supervisedSnapshots.Count == 0)
+                checks.Add(new("Native diagnostics", "datasets", "Unknown",
+                    "No supervised worker diagnostic evidence is available.", now));
+            foreach (var worker in supervisedSnapshots)
+            {
+                var native = worker.Diagnostics;
+                Add("Native transport", worker.Dataset,
+                    worker.Running && worker.ControlResponsive && worker.DataPlaneHealthy
+                    && native is { DatabentoLocallyReady: true }
+                    && native.ObservedOnUtc >= now - TimeSpan.FromSeconds(90),
+                    "Worker transport and Databento subscription acknowledgements.");
+                Add("Aggregation", worker.Dataset, worker.Running
+                    && native is { AggregationRunning: true },
+                    "Supervised worker aggregation is running.");
+            }
+        }
+        else if (epoch?.DatasetFeedStatuses is not { Count: > 0 })
+            checks.Add(new("Native diagnostics", "datasets", "Unknown", "No per-dataset diagnostic evidence is available.", now));
+        foreach (var dataset in supervisedValues is null ? epoch?.DatasetFeedStatuses ?? [] : [])
+        {
+            var native = dataset.Health;
+            var aggregation = dataset.AggregationMetrics;
+            var key = dataset.Dataset + "/" + dataset.GenerationId;
+            var prior = previous.GetValueOrDefault(key);
+            Add("Native transport", dataset.Dataset, native.TransportReady && native.TradingReady,
+                "Transport/subscription readiness and terminal state.");
+            Add("Native delivery", dataset.Dataset,
+                !(prior.Ring > 0 && native.RecordsConsumed == prior.Consumed && native.RingUsedRecords > 0),
+                "Native producer progress must be followed by drain progress when records are buffered.");
+            Add("Aggregation", dataset.Dataset,
+                !(prior.Channel > 0 && aggregation.RecordsCompleted == prior.Completed && native.ChannelBatchCount > 0),
+                "Managed delivery must be followed by aggregation progress.");
+            if (previous.Count > 32) previous.Clear();
+            previous[key] = (native.RecordsProduced, native.RecordsConsumed, aggregation.RecordsCompleted, native.RingUsedRecords, native.ChannelBatchCount);
+        }
+        Add("Lifecycle consistency", "watchdog", supervisedValues is not null
+            ? !health.Running || supervisedValues.GetStatus().IsFeedUp
+                && supervisedSnapshots.Count > 0
+                && supervisedSnapshots.All(worker => worker.Running && worker.Healthy)
+            : !health.Running || watchdog.Current.State is DatabentoLifecycleState.Healthy or DatabentoLifecycleState.Degraded,
+            "Watchdog state must agree with the active feed; restarting is not proof of recovery.");
+        var central = operations.GetReadModel();
+        Add("Operations observer", "runtime", central.SessionState != "Unknown" && now - central.ObservedOnUtc <= TimeSpan.FromSeconds(30),
+            "Independent operations observer must supply current evidence.");
+        // These stages have explicit worker/processor gauges. Unknown or absent evidence stays unknown.
+        foreach (var stage in central.Stages.Where(x => x.Required))
+            checks.Add(new("Operations " + stage.Stage, "runtime", stage.Status switch
+            { "Green" => "Healthy", "Inactive" => "Unknown", "Red" => "Unhealthy", _ => "Degraded" },
+                stage.Reason, stage.LastObservedUtc ?? now, stage.LastSucceededUtc));
+        foreach (var stage in central.Stages.Where(x => !x.Required && (x.Received > 0 || x.Completed > 0) && !x.Stage.StartsWith("Databento", StringComparison.Ordinal)))
+            checks.Add(new("Analytics/output " + stage.Stage, "runtime",
+                stage.LastFailedUtc > stage.LastSucceededUtc ? "Degraded"
+                : stage.Received > stage.Completed + stage.Coalesced && stage.LastSucceededUtc is { } last && now - last > TimeSpan.FromMinutes(1) ? "Degraded" : "Healthy",
+                "Progress and failures of enabled analytics/output stages.", now, stage.LastSucceededUtc));
+        Add("Bar timer", date.ToString("yyyy-MM-dd"), bars.IsRunning(new(date)),
+            "The process-local 15-second chart timer must be registered and running.");
+        var latest = new Dictionary<string, DateTime>();
+        var expectedContracts = new Dictionary<string, string>();
+        foreach (var symbol in new[] { "ES", "VX" })
+        {
+            if (!market.TryGetOnTheRunFuturesContract(symbol, out var contract))
+            {
+                Add("Contract mapping", symbol, false, "No current contract.");
+                continue;
+            }
+            expectedContracts[symbol] = contract.ContractId;
+            var maturityEligible = contract.LastTradeDate > date;
+            Add("Contract mapping", symbol, maturityEligible,
+                maturityEligible
+                    ? "Current contract maturity is after the active value date."
+                    : $"Contract {contract.ContractId} matured on {contract.LastTradeDate:yyyy-MM-dd}.");
+            var status = epoch?.ContractStatuses?.FirstOrDefault(x => x.ContractId == contract.ContractId);
+            var grace = session.IsOffTrading ? TimeSpan.FromMinutes(15) : TimeSpan.FromMinutes(5);
+            var supervisedRoute = supervisedValues is not null
+                && market.GetFuturesMarketHealth(contract.ContractId) is { Running: true, Healthy: true };
+            Add("Price cache", symbol, supervisedValues is not null ? supervisedRoute
+                : status?.LastAcceptedCacheUpdateAtUtc is { } accepted && now - accepted.UtcDateTime < grace,
+                supervisedValues is not null ? "Supervised contract route is running and healthy."
+                    : "Accepted cache update freshness, scoped to current contract.", status?.LastAcceptedCacheUpdateAtUtc?.UtcDateTime);
+            Add("Price publication", symbol, supervisedValues is not null ? supervisedRoute
+                : status?.LastMarketPricePublishedAtUtc is { } published
+                && (status?.LastAcceptedCacheUpdateAtUtc is not { } input || input - published < TimeSpan.FromMinutes(1)),
+                supervisedValues is not null ? "Supervised publication route is running and healthy."
+                    : "Publication must follow accepted price updates.", status?.LastMarketPricePublishedAtUtc?.UtcDateTime);
+            // A read verifies the storage/query path as well as the producer.
+            try
+            {
+                var bar = await db.MarketDataDb.GetLastFuturesBarDataAsync(contract.ContractId, symbol, date).WaitAsync(token).ConfigureAwait(false);
+                var valid = bar is not null && bar.ContractId == contract.ContractId && bar.ValueDate == date;
+                Add("Chart storage/query", symbol,
+                    valid && (session.IsOffTrading || now - bar!.BarDate < TimeSpan.FromSeconds(45)),
+                    session.IsOffTrading
+                        ? "Off-trading storage/query must return a bar for the active value date; a quiet market does not require a new bar."
+                        : "Expected a current 15-second chart bar in durable storage.",
+                    bar?.BarDate);
+                if (valid) latest[symbol] = bar!.BarDate;
+            }
+            catch (Exception ex) when (!token.IsCancellationRequested)
+            { Add("Chart storage/query", symbol, false, ex.Message); }
+            var tick = evidence.Get("Tick storage", contract.ContractId);
+            checks.Add(tick is null ? new("Tick storage", symbol,
+                supervisedValues is null ? "Unknown" : "Inactive",
+                supervisedValues is null ? "No confirmed durable tick write in this process."
+                    : "No market tick was available to verify; infrastructure and actors are checked independently.", now)
+                : status?.LastDurableTickPublishedAtUtc is { } sent && tick.LastProgressUtc is { } stored && sent.UtcDateTime - stored > TimeSpan.FromMinutes(1)
+                    ? tick with { Status = "Degraded", Reason = "Durable tick publication is ahead of confirmed storage." } : tick);
+        }
+        if (market.TryGetOnTheRunFuturesContract("ES", out var es))
+        {
+            if (supervisor is not null)
+                Add("ITI route", "ES", supervisor.GetRealtimeRoutes(PriceRoute).Any(x => x.Destination == ItiMailbox),
+                    "Current realtime routing table must contain the thin ITI Daily-command consumer.");
+            else
+                checks.Add(new("ITI route", "ES", "Unknown", "ITI realtime router attachment is unverified.", now));
+
+            var iti = itiTelemetry.GetSnapshot();
+            var lastMarketTrade = market.TryGetLastTickPrice(es.ContractId, out var itiPrice)
+                ? itiPrice.Trade?.EventTimestamp.UtcDateTime
+                : null;
+            var ingressBehind = lastMarketTrade is { } marketProgress
+                && iti.LastEligibleEsTradeUtc is { } itiProgress
+                && marketProgress - itiProgress > TimeSpan.FromMinutes(1);
+            var ingressStatus = ingressBehind || iti.LastOutcome is FuturesItiRuntimeOutcome.Failed
+                or FuturesItiRuntimeOutcome.InputUnavailable ? "Degraded" : "Healthy";
+            checks.Add(iti.EligibleEsTradeEvents == 0
+                ? new("ITI ingress", "ES", "Unknown", "No eligible current ES trade event has been observed.", now)
+                : new("ITI ingress", "ES", ingressStatus,
+                    $"Outcome={iti.LastOutcome}; Received={iti.MarketPriceEvents}; EligibleES={iti.EligibleEsTradeEvents}; Filtered={iti.FilteredEvents}; Commands={iti.CommandRequests}; Accepted={iti.AcceptedCommands}; NoChange={iti.NoChangeCommands}; Reason={iti.LastReason}",
+                    now, iti.LastCommandAcceptedUtc ?? iti.LastEligibleEsTradeUtc));
+
+            var pendingProjection = iti.CommittedEvents > iti.ProjectionCompletions
+                && iti.LastEventCommittedUtc is { } committedAt
+                && now - committedAt > TimeSpan.FromMinutes(1);
+            checks.Add(new("ITI durable completion", "ES", pendingProjection ? "Degraded" : "Healthy",
+                $"Committed={iti.CommittedEvents}; Projected={iti.ProjectionCompletions}; Handled={iti.HandledCompletions}; Workflows={iti.WorkflowRequests}",
+                now, iti.LastCompletionHandledUtc ?? iti.LastProjectionCompletedUtc ?? iti.LastEventCommittedUtc,
+                Required: false));
+
+            foreach (var activation in FuturesIntradaySignalActivationProfile.Create(es.ContractId, date))
+            {
+                Add("Analytics attachments", "RSI/" + activation.TimeFrame, FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Snapshot().Contains(activation.Rsi), "Expected RSI bar consumer attachment.");
+                Add("Analytics attachments", "ATR/" + activation.TimeFrame, FuturesTradeSessionBarAttachmentRegistry<FuturesAtrSignalEntityId>.Snapshot().Contains(activation.Atr), "Expected ATR bar consumer attachment.");
+                Add("Analytics attachments", "ADX/" + activation.TimeFrame, FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Snapshot().Contains(activation.Adx), "Expected ADX bar consumer attachment.");
+                Add("Analytics attachments", "MACD/" + activation.TimeFrame, FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>.Snapshot().Contains(activation.Macd), "Expected MACD bar consumer attachment.");
+                var published = FuturesTradeSessionBarPublicationProgress.Get(es.ContractId, date, activation.TimeFrame);
+                var watermarkKey = es.ContractId + "/" + date + "/" + activation.TimeFrame;
+                if (closedWatermarks.TryGetValue(watermarkKey, out var closed) && now - closed.ObservedUtc >= TimeSpan.FromSeconds(45))
+                {
+                    Add("Analytics processing", "RSI/" + activation.TimeFrame, FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.HasProcessed(activation.Rsi, closed.Through), "Published closed bar must reach the RSI command processor.");
+                    Add("Analytics processing", "ATR/" + activation.TimeFrame, FuturesTradeSessionBarAttachmentRegistry<FuturesAtrSignalEntityId>.HasProcessed(activation.Atr, closed.Through), "Published closed bar must reach the ATR command processor.");
+                    Add("Analytics processing", "ADX/" + activation.TimeFrame, FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.HasProcessed(activation.Adx, closed.Through), "Published closed bar must reach the ADX command processor.");
+                    Add("Analytics processing", "MACD/" + activation.TimeFrame, FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>.HasProcessed(activation.Macd, closed.Through), "Published closed bar must reach the MACD command processor.");
+                }
+                if (published is { } newest)
+                {
+                    if (closedWatermarks.Count > 128) closedWatermarks.Clear();
+                    closedWatermarks[watermarkKey] = (newest.Through, now);
+                }
+            }
+        }
+        checks.Add(evidence.Get("Market Outlook inputs", "ES") ?? new("Market Outlook inputs", "ES", "Unknown", "Snapshot input completeness is unverified.", now));
+        var outlook = evidence.Get("Market Outlook publication", "ES");
+        var outlookBehind = market.TryGetOnTheRunFuturesContract("ES", out var outlookEs)
+            && market.TryGetLastTickPrice(outlookEs.ContractId, out var latestEs) && latestEs.Trade is { } latestTrade
+            && outlook?.LastProgressUtc is { } outlookTime && latestTrade.EventTimestamp.UtcDateTime - outlookTime > TimeSpan.FromMinutes(1);
+        checks.Add(outlook is null ? new("Market Outlook publication", "ES", "Unknown", "No composed snapshot publication observed.", now)
+            : outlookBehind ? outlook with { Status = "Degraded", Reason = "ES trades progressed without a composed/published snapshot." } : outlook);
+        if (outlook?.LastProgressUtc is { } snapshotTime) latest["Outlook"] = snapshotTime;
+        var outlookStored = evidence.Get("Market Outlook storage", "ES");
+        checks.Add(outlookStored is null ? new("Market Outlook storage", "ES", "Unknown", "No persisted restart snapshot confirmed.", now)
+            : outlook?.LastProgressUtc is { } outputTime && outlookStored.LastProgressUtc is { } storageTime && outputTime - storageTime > TimeSpan.FromMinutes(1)
+                ? outlookStored with { Status = "Degraded", Reason = "Published snapshots are ahead of persistence." } : outlookStored);
+        if (expectedContracts.TryGetValue("ES", out var outlookContract)) expectedContracts["Outlook"] = outlookContract;
+        checks.AddRange(evidence.CheckUi(date, latest, expectedContracts));
+        return Result();
+
+        LivePipelineHealthSnapshot Result() => new(now, session.ActiveValueDate,
+            checks.Any(x => x.Required && x.Status == "Unhealthy") ? "Unhealthy"
+                : checks.Any(x => x.Required && x.Status == "Degraded") ? "Degraded"
+                : checks.Any(x => x.Required && x.Status == "Unknown") ? "Unknown" : "Healthy", checks);
+    }
+
+    static readonly ActorTypeId PriceRoute = new(ActorType.Realtime,
+        FuturesMarketPriceUpdatedRealtimeEvent.Actor, FuturesMarketPriceUpdatedRealtimeEvent.Verb);
+    static readonly ActorMailboxId ItiMailbox = new(ActorType.Realtime, FuturesItiSignalRealtimeActor.ActorName);
+
+    public async Task HardResetAsync(LivePipelineHealthSnapshot unhealthySnapshot, CancellationToken token)
+    {
+        if (unhealthySnapshot.ValueDate is not { } valueDate
+            || sessions.Current.ActiveValueDate != valueDate)
+            throw new InvalidOperationException("A current active value date is required for a live-pipeline hard reset.");
+
+        var reason = "Live pipeline unhealthy: " + string.Join("; ", unhealthySnapshot.Checks
+            .Where(check => check.Required && check.Status is not ("Healthy" or "Inactive"))
+            .Take(16).Select(check => $"{check.Component}/{check.Scope}: {check.Status}, {check.Reason}"));
+        if (reason.Length > 2048) reason = reason[..2048];
+        var correlationId = Guid.CreateVersion7(time.GetUtcNow());
+        logger?.LogWarning("Requesting hard reset recovery from live-pipeline monitor. CorrelationId={CorrelationId}; ValueDate={ValueDate}", correlationId, valueDate);
+        var episode = await (recoveryRequester ?? throw new InvalidOperationException("Hard reset recovery pipeline is not configured."))
+            .HardResetRecoveryAsync(new DatabentoHardRecoveryRequest(correlationId, valueDate,
+                watchdog.Current.NativeGeneration, nameof(LivePipelineProbe),
+                reason), token)
+            .ConfigureAwait(false);
+        if (episode.Outcome == DatabentoRecoveryRequestOutcome.FullyHealthy)
+            return;
+        throw new DatabentoRecoveryEpisodeStatusException(episode);
+    }
+
+    public async Task RecoverDownstreamAsync(
+        LivePipelineCheck unhealthyCheck,
+        DateOnly valueDate,
+        CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        if (sessions.Current.ActiveValueDate != valueDate)
+            throw new InvalidOperationException(
+                $"Cannot recover {unhealthyCheck.Component}; active value date changed from {valueDate:yyyy-MM-dd}.");
+
+        switch (unhealthyCheck.Component)
+        {
+            case "ITI route":
+                await RestartRealtimeActorAsync(ItiMailbox, token).ConfigureAwait(false);
+                return;
+            case "ITI ingress":
+                await RestartRealtimeActorAsync(ItiMailbox, token).ConfigureAwait(false);
+                return;
+            case "Bar timer":
+                await EnsureChartBarsAsync(valueDate, restart: false, token).ConfigureAwait(false);
+                return;
+            case "Chart storage/query":
+                await EnsureChartBarsAsync(valueDate, restart: true, token).ConfigureAwait(false);
+                return;
+            case "Analytics attachments":
+                await EnsureIntradayAnalyticsAsync(unhealthyCheck.Scope, valueDate, restart: false, token)
+                    .ConfigureAwait(false);
+                return;
+            case "Analytics processing":
+                await EnsureIntradayAnalyticsAsync(unhealthyCheck.Scope, valueDate, restart: true, token)
+                    .ConfigureAwait(false);
+                return;
+            case "Market Outlook inputs":
+            case "Market Outlook publication":
+            case "Market Outlook storage":
+                await RestartRealtimeActorAsync(
+                    new(ActorType.Realtime, MarketOutlookSnapshotRealtimeActor.ActorName), token)
+                    .ConfigureAwait(false);
+                return;
+            default:
+                throw new InvalidOperationException(
+                    $"No targeted downstream recovery is registered for {unhealthyCheck.Component}/{unhealthyCheck.Scope}.");
+        }
+    }
+
+    async Task EnsureChartBarsAsync(DateOnly valueDate, bool restart, CancellationToken token)
+    {
+        var contracts = new[] { "ES", "VX" }
+            .Select(symbol => market.TryGetOnTheRunFuturesContract(symbol, out var contract) ? contract : null)
+            .Where(contract => contract is not null)
+            .Cast<FuturesContractV3ReadModel>()
+            .ToArray();
+        if (contracts.Length != 2)
+            throw new InvalidOperationException("Current ES and VX contracts are required to recover chart bars.");
+        if (restart)
+            RequireAccepted(await feedCommands.StopFuturesBarDataStreamingAsync(valueDate).ConfigureAwait(false), "stop chart bars");
+        token.ThrowIfCancellationRequested();
+        RequireAccepted(
+            await feedCommands.StartFuturesBarDataStreamingAsync(contracts, valueDate).ConfigureAwait(false),
+            "start chart bars");
+    }
+
+    async Task EnsureIntradayAnalyticsAsync(
+        string scope,
+        DateOnly valueDate,
+        bool restart,
+        CancellationToken token)
+    {
+        if (!market.TryGetOnTheRunFuturesContract("ES", out var es))
+            throw new InvalidOperationException("The current ES contract is unavailable.");
+        var separator = scope.IndexOf('/');
+        if (separator <= 0 || !Enum.TryParse<TimeFrameType>(scope[(separator + 1)..], out var frame))
+            throw new InvalidOperationException($"Analytics recovery scope '{scope}' is invalid.");
+        var activation = FuturesIntradaySignalActivationProfile.Create(es.ContractId, valueDate)
+            .SingleOrDefault(candidate => candidate.TimeFrame == frame)
+            ?? throw new InvalidOperationException($"No analytics activation exists for {scope}.");
+        var indicator = scope[..separator];
+        token.ThrowIfCancellationRequested();
+        if (restart)
+        {
+            var actorName = indicator switch
+            {
+                "RSI" => TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Actor.FuturesRsiSignalRealtimeActor.ActorName,
+                "ATR" => TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Realtime.Actor.FuturesAtrSignalRealtimeActor.ActorName,
+                "ADX" => TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Realtime.Actor.FuturesAdxSignalRealtimeActor.ActorName,
+                "MACD" => TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Realtime.Actor.FuturesMacdSignalRealtimeActor.ActorName,
+                _ => throw new InvalidOperationException($"Analytics recovery indicator '{indicator}' is unsupported.")
+            };
+            var mailbox = new ActorMailboxId(ActorType.Realtime, actorName);
+            if (supervisor?.ActorExists(mailbox) == true)
+                await RestartRealtimeActorAsync(mailbox, token).ConfigureAwait(false);
+        }
+        switch (indicator)
+        {
+            case "RSI":
+                if (restart) RequireAccepted(await analyticsCommands.StopFuturesRsiSignalAsync(activation.Rsi).ConfigureAwait(false), "stop " + scope);
+                RequireAccepted(await analyticsCommands.StartFuturesRsiSignalAsync(activation.Rsi).ConfigureAwait(false), "start " + scope);
+                break;
+            case "ATR":
+                if (restart) RequireAccepted(await analyticsCommands.StopFuturesAtrSignalAsync(activation.Atr).ConfigureAwait(false), "stop " + scope);
+                RequireAccepted(await analyticsCommands.StartFuturesAtrSignalAsync(activation.Atr).ConfigureAwait(false), "start " + scope);
+                break;
+            case "ADX":
+                if (restart) RequireAccepted(await analyticsCommands.StopFuturesAdxSignalAsync(activation.Adx).ConfigureAwait(false), "stop " + scope);
+                RequireAccepted(await analyticsCommands.StartFuturesAdxSignalAsync(activation.Adx).ConfigureAwait(false), "start " + scope);
+                break;
+            case "MACD":
+                if (restart) RequireAccepted(await analyticsCommands.StopFuturesMacdSignalAsync(activation.Macd).ConfigureAwait(false), "stop " + scope);
+                RequireAccepted(await analyticsCommands.StartFuturesMacdSignalAsync(activation.Macd).ConfigureAwait(false), "start " + scope);
+                break;
+            default:
+                throw new InvalidOperationException($"Analytics recovery indicator '{indicator}' is unsupported.");
+        }
+    }
+
+    async Task RestartRealtimeActorAsync(ActorMailboxId mailbox, CancellationToken token)
+    {
+        if (supervisor is null || !supervisor.ActorExists(mailbox))
+            throw new InvalidOperationException($"Realtime actor {mailbox} is unavailable for targeted recovery.");
+        await supervisor.RestartAsync(mailbox, token).ConfigureAwait(false);
+    }
+
+
+
+    static void RequireAccepted(ServiceResult<Guid> result, string activity)
+    {
+        if (!result.Success)
+            throw new InvalidOperationException(
+                $"Targeted recovery could not {activity} ({result.ErrorCode}): {result.ErrorMessage}");
+    }
+}
+
+public sealed class LivePipelineHealthCheck(LivePipelineMonitor monitor) : IHealthCheck
+{
+    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+    {
+        var snapshot = monitor.Current;
+        var data = new Dictionary<string, object> { ["pipeline"] = snapshot };
+        return Task.FromResult(snapshot.Status == "Healthy" ? HealthCheckResult.Healthy("All required live-pipeline components verified; UI session evidence is reported separately.", data)
+            : HealthCheckResult.Degraded("Live pipeline has failed or unverified components.", data: data));
+    }
+}

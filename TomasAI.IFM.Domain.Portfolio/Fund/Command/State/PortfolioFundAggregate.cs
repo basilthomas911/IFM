@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Portfolio.Fund.Command.Model;
+﻿using TomasAI.IFM.Domain.Portfolio.Fund.Command.Model;
 using TomasAI.IFM.Domain.Portfolio.Command.Model;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
@@ -291,35 +291,21 @@ public sealed class PortfolioFundAggregate
         return new FundManualOrderDeletedCompute(
             Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, request.OrderId, removedTradeIds);
     }
-    /// <summary>Changes a manual Portfolio Fund order trade lifecycle state.</summary>
-    /// <param name="commandId">The stable command identifier.</param>
-    /// <param name="request">The scoped trade-state mutation request.</param>
-    /// <param name="nowUtc">The authoritative UTC command time.</param>
-    /// <param name="principal">The authenticated operator principal.</param>
-    /// <returns>The event containing the complete updated canonical order state.</returns>
-    public IPortfolioFundDomainEvent ChangeManualTradeState(
-        Guid commandId, ManualFundOrderTradeMutationRequest request, DateTime nowUtc, string principal) =>
-        ApplyAndReturn(PortfolioComputedEvents.Create(ComputeChangeManualTradeState(commandId, request, nowUtc, principal)));
+    /// <summary>Computes RecordFundTradeSubmission from backend execution evidence without changing authoritative state.</summary>
+    internal IPortfolioFundChange ComputeRecordFundTradeSubmission(Guid commandId, FundTradeExecutionEvidence evidence, DateTime nowUtc, string principal) =>
+        ComputeManualCompositionChange(commandId, nowUtc, principal, () => CreateCompositionComputation().RecordFundTradeSubmission(evidence));
 
-    /// <summary>Computes ChangeManualTradeState without changing authoritative state.</summary>
-    internal IPortfolioFundChange ComputeChangeManualTradeState(
-        Guid commandId, ManualFundOrderTradeMutationRequest request, DateTime nowUtc, string principal) =>
-        ComputeManualCompositionChange(commandId, nowUtc, principal, () => CreateCompositionComputation().ChangeManualTradeState(request));
+    /// <summary>Computes RecordFundTradeOpening from backend execution evidence without changing authoritative state.</summary>
+    internal IPortfolioFundChange ComputeRecordFundTradeOpening(Guid commandId, FundTradeExecutionEvidence evidence, DateTime nowUtc, string principal) =>
+        ComputeManualCompositionChange(commandId, nowUtc, principal, () => CreateCompositionComputation().RecordFundTradeOpening(evidence));
 
-    /// <summary>Closes a manual Portfolio Fund order after its closing trade completes.</summary>
-    /// <param name="commandId">The stable command identifier.</param>
-    /// <param name="request">The scoped order-close request.</param>
-    /// <param name="nowUtc">The authoritative UTC command time.</param>
-    /// <param name="principal">The authenticated operator principal.</param>
-    /// <returns>The event containing the complete closed canonical order state.</returns>
-    public IPortfolioFundDomainEvent CloseManualOrder(
-        Guid commandId, ManualFundOrderMutationRequest request, DateTime nowUtc, string principal) =>
-        ApplyAndReturn(PortfolioComputedEvents.Create(ComputeCloseManualOrder(commandId, request, nowUtc, principal)));
+    /// <summary>Computes RecordFundTradeClosing from backend execution evidence without changing authoritative state.</summary>
+    internal IPortfolioFundChange ComputeRecordFundTradeClosing(Guid commandId, FundTradeExecutionEvidence evidence, DateTime nowUtc, string principal) =>
+        ComputeManualCompositionChange(commandId, nowUtc, principal, () => CreateCompositionComputation().RecordFundTradeClosing(evidence));
 
-    /// <summary>Computes CloseManualOrder without changing authoritative state.</summary>
-    internal IPortfolioFundChange ComputeCloseManualOrder(
-        Guid commandId, ManualFundOrderMutationRequest request, DateTime nowUtc, string principal) =>
-        ComputeManualCompositionChange(commandId, nowUtc, principal, () => CreateCompositionComputation().CloseManualOrder(request));
+    /// <summary>Computes ReleaseFundTradeSubmission from backend execution evidence without changing authoritative state.</summary>
+    internal IPortfolioFundChange ComputeReleaseFundTradeSubmission(Guid commandId, FundTradeExecutionEvidence evidence, DateTime nowUtc, string principal) =>
+        ComputeManualCompositionChange(commandId, nowUtc, principal, () => CreateCompositionComputation().ReleaseFundTradeSubmission(evidence));
 
     public IPortfolioFundDomainEvent MarkCompositionComposing(Guid commandId, long expectedRevision, int orderId, long expectedOrderVersion, DateTime nowUtc, string principal) =>
         ApplyAndReturn(PortfolioComputedEvents.Create(ComputeMarkCompositionComposing(commandId, expectedRevision, orderId, expectedOrderVersion, nowUtc, principal)));
@@ -455,6 +441,19 @@ public sealed class PortfolioFundAggregate
         RequireCurrent(Revision);
         ValidateCommand(commandId, nowUtc, principal);
         var reservation = change();
+        var current = Orders.SingleOrDefault(order => order.OrderId == reservation.Order.OrderId);
+        if (current is not null && reservation.AggregateVersion == current.AggregateVersion)
+        {
+            // Fresh evidence still commits one source event even when visible state is preserved.
+            // Duplicate CommandIds are handled by the command actor before computation.
+            var nextVersion = checked(current.AggregateVersion + 1);
+            reservation = reservation with
+            {
+                AggregateVersion = nextVersion,
+                Order = reservation.Order with { AggregateVersion = nextVersion },
+                Trades = reservation.Trades.Select(trade => trade with { AggregateVersion = nextVersion }).ToArray()
+            };
+        }
         return new FundManualOrderChangedCompute(
             Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, reservation, removedTradeId);
     }

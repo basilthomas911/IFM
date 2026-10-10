@@ -1,4 +1,4 @@
-﻿namespace TomasAI.IFM.UI.Net.Views.Trade
+namespace TomasAI.IFM.UI.Net.Views.Trade
 {
     partial class TradeOrderEditorForm
     {
@@ -38,7 +38,6 @@
             dtpTo = new IronCondor.DarkDateTimePicker();
             lblFrom = new Label();
             dtpFrom = new IronCondor.DarkDateTimePicker();
-            btnCompleteOrder = new Button();
             btnLoadOrder = new Button();
             btnDeleteOrder = new Button();
             btnCreateOrder = new Button();
@@ -64,7 +63,6 @@
             ddlOrderActionType = new ComboBox();
             lblTradeId = new Label();
             pnlTrades = new Panel();
-            btnChangeTradeState = new Button();
             btnRemoveTrade = new Button();
             btnAddTrade = new Button();
             lstTrades = new ListView();
@@ -159,8 +157,6 @@
             pnlTradeOrders.Controls.Add(dtpTo);
             pnlTradeOrders.Controls.Add(lblFrom);
             pnlTradeOrders.Controls.Add(dtpFrom);
-            pnlTradeOrders.Controls.Add(btnCompleteOrder);
-            pnlTradeOrders.Controls.Add(btnLoadOrder);
             pnlTradeOrders.Controls.Add(btnDeleteOrder);
             pnlTradeOrders.Controls.Add(btnCreateOrder);
             pnlTradeOrders.Controls.Add(lblTradeOrders);
@@ -214,29 +210,17 @@
             dtpFrom.TabIndex = 6;
             dtpFrom.ValueChanged += dtpFrom_ValueChanged;
             // 
-            // btnCompleteOrder
             // 
-            btnCompleteOrder.AutoSize = true;
-            btnCompleteOrder.Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            btnCompleteOrder.ForeColor = Color.Black;
-            btnCompleteOrder.Location = new Point(1260, 199);
-            btnCompleteOrder.Margin = new Padding(3, 2, 3, 2);
-            btnCompleteOrder.Name = "btnCompleteOrder";
-            btnCompleteOrder.Size = new Size(174, 42);
-            btnCompleteOrder.TabIndex = 5;
-            btnCompleteOrder.Text = "Close Order";
-            btnCompleteOrder.UseVisualStyleBackColor = true;
-            btnCompleteOrder.Click += btnCloseOrder_Click;
             // 
             // btnLoadOrder
             // 
             btnLoadOrder.Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
             btnLoadOrder.ForeColor = Color.Black;
-            btnLoadOrder.Location = new Point(1260, 46);
+            btnLoadOrder.Location = new Point(1260, 12);
             btnLoadOrder.Margin = new Padding(3, 2, 3, 2);
             btnLoadOrder.Name = "btnLoadOrder";
             btnLoadOrder.Size = new Size(174, 42);
-            btnLoadOrder.TabIndex = 4;
+            btnLoadOrder.TabIndex = 6;
             btnLoadOrder.Text = "Load Trade";
             btnLoadOrder.UseVisualStyleBackColor = true;
             btnLoadOrder.Click += btnLoadOrder_Click;
@@ -245,7 +229,7 @@
             // 
             btnDeleteOrder.Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
             btnDeleteOrder.ForeColor = Color.Black;
-            btnDeleteOrder.Location = new Point(1260, 154);
+            btnDeleteOrder.Location = new Point(1260, 94);
             btnDeleteOrder.Margin = new Padding(3, 2, 3, 2);
             btnDeleteOrder.Name = "btnDeleteOrder";
             btnDeleteOrder.Size = new Size(174, 40);
@@ -258,7 +242,7 @@
             // 
             btnCreateOrder.Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
             btnCreateOrder.ForeColor = Color.Black;
-            btnCreateOrder.Location = new Point(1260, 106);
+            btnCreateOrder.Location = new Point(1260, 46);
             btnCreateOrder.Margin = new Padding(3, 2, 3, 2);
             btnCreateOrder.Name = "btnCreateOrder";
             btnCreateOrder.Size = new Size(174, 42);
@@ -460,7 +444,7 @@
             lblTradeDate.Name = "lblTradeDate";
             lblTradeDate.Size = new Size(93, 20);
             lblTradeDate.TabIndex = 25;
-            lblTradeDate.Text = "Trade Date:";
+            lblTradeDate.Text = "Effective Date:";
             lblTradeDate.TextAlign = ContentAlignment.MiddleRight;
             // 
             // pnlTradeBlotter
@@ -527,9 +511,9 @@
             // pnlTrades
             // 
             pnlTrades.BackColor = Color.FromArgb(64, 64, 64);
-            pnlTrades.Controls.Add(btnChangeTradeState);
             pnlTrades.Controls.Add(btnRemoveTrade);
             pnlTrades.Controls.Add(btnAddTrade);
+            pnlTrades.Controls.Add(btnLoadOrder);
             pnlTrades.Controls.Add(lstTrades);
             pnlTrades.Controls.Add(label1);
             pnlTrades.Dock = DockStyle.Top;
@@ -539,19 +523,7 @@
             pnlTrades.Size = new Size(1455, 222);
             pnlTrades.TabIndex = 4;
             //
-            // btnChangeTradeState
             //
-            btnChangeTradeState.AutoSize = true;
-            btnChangeTradeState.Enabled = false;
-            btnChangeTradeState.Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            btnChangeTradeState.ForeColor = Color.Black;
-            btnChangeTradeState.Location = new Point(1260, 104);
-            btnChangeTradeState.Margin = new Padding(3, 2, 3, 2);
-            btnChangeTradeState.Name = "btnChangeTradeState";
-            btnChangeTradeState.Size = new Size(174, 42);
-            btnChangeTradeState.TabIndex = 8;
-            btnChangeTradeState.Text = "Change State";
-            btnChangeTradeState.UseVisualStyleBackColor = true;
             //
             // btnRemoveTrade
             //
@@ -559,11 +531,11 @@
             btnRemoveTrade.Enabled = false;
             btnRemoveTrade.Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
             btnRemoveTrade.ForeColor = Color.Black;
-            btnRemoveTrade.Location = new Point(1260, 58);
+            btnRemoveTrade.Location = new Point(1260, 104);
             btnRemoveTrade.Margin = new Padding(3, 2, 3, 2);
             btnRemoveTrade.Name = "btnRemoveTrade";
             btnRemoveTrade.Size = new Size(174, 42);
-            btnRemoveTrade.TabIndex = 7;
+            btnRemoveTrade.TabIndex = 8;
             btnRemoveTrade.Text = "Remove Trade";
             btnRemoveTrade.UseVisualStyleBackColor = true;
             btnRemoveTrade.Click += btnRemoveTrade_Click;
@@ -574,11 +546,11 @@
             btnAddTrade.Enabled = false;
             btnAddTrade.Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
             btnAddTrade.ForeColor = Color.Black;
-            btnAddTrade.Location = new Point(1260, 12);
+            btnAddTrade.Location = new Point(1260, 58);
             btnAddTrade.Margin = new Padding(3, 2, 3, 2);
             btnAddTrade.Name = "btnAddTrade";
             btnAddTrade.Size = new Size(174, 42);
-            btnAddTrade.TabIndex = 6;
+            btnAddTrade.TabIndex = 7;
             btnAddTrade.Text = "Add Trade...";
             btnAddTrade.UseVisualStyleBackColor = true;
             btnAddTrade.Click += btnAddTrade_Click;
@@ -586,7 +558,7 @@
             // lstTrades
             // 
             lstTrades.BackColor = Color.Black;
-            lstTrades.Columns.AddRange(new ColumnHeader[] { colTradeId, colTradeType, colTradeDate, colMaturityDate, colTradeState, colTradeAction });
+            lstTrades.Columns.AddRange(new ColumnHeader[] { colTradeId, colTradeType, colTradeDate, colTradeState, colTradeAction });
             lstTrades.Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
             lstTrades.ForeColor = Color.White;
             lstTrades.FullRowSelect = true;
@@ -615,7 +587,7 @@
             // 
             // colTradeDate
             // 
-            colTradeDate.Text = "Trade Date";
+            colTradeDate.Text = "Effective Date";
             colTradeDate.Width = 119;
             // 
             // colMaturityDate
@@ -727,7 +699,6 @@
         private System.Windows.Forms.ColumnHeader colMaturityDate;
         private System.Windows.Forms.ColumnHeader colTradeState;
         private System.Windows.Forms.ColumnHeader colTradeAction;
-        private System.Windows.Forms.Button btnCompleteOrder;
         private System.Windows.Forms.Panel pnlTradePosition;
         private System.Windows.Forms.Button btnSubmitOrder;
         private System.Windows.Forms.ComboBox ddlOrderActionType;
@@ -735,7 +706,6 @@
         private System.Windows.Forms.Label lblOrderAction;
         private System.Windows.Forms.Button btnAddTrade;
         private System.Windows.Forms.Button btnRemoveTrade;
-        private System.Windows.Forms.Button btnChangeTradeState;
         private System.Windows.Forms.Panel pnlTradeBlotter;
         private System.Windows.Forms.TextBox txtDaysToExpiry;
         private System.Windows.Forms.Label lblDaysToExpiry;

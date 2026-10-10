@@ -28,9 +28,16 @@ internal static class PositionQueryModel
         TradeStrategyKind strategyKind,
         CancellationToken cancellationToken)
     {
-        var page = await context.DbFactory.TradeDb.GetStrategyPositionHistoryAsync(
-            query.PositionId.PositionId, query.FromUtc, query.ToUtc, query.PageSize, query.PagingState, cancellationToken);
+        var positions = new List<StrategyPositionSnapshot>();
+        var pagingState = query.PagingState;
+        do
+        {
+            var page = await context.DbFactory.TradeDb.GetStrategyPositionHistoryAsync(
+                query.PositionId.PositionId, query.FromUtc, query.ToUtc, query.PageSize, pagingState, cancellationToken);
+            positions.AddRange(page.Items.Where(x => x.StrategyKind == strategyKind && x.Id == query.PositionId));
+            pagingState = page.PagingState;
+        } while (query.LoadAll && pagingState is { Length: > 0 });
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-            new ServiceResult<StrategyPositionSnapshot[]>(page.Items.Where(x => x.StrategyKind == strategyKind).ToArray()));
+            new ServiceResult<StrategyPositionSnapshot[]>(positions.ToArray()));
     }
 }

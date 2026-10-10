@@ -1,5 +1,44 @@
 # Databento Hard and Soft Recovery Implementation Plan v1.0
 
+## Current Development recovery contract - 2026-10-08
+
+This section supersedes the downstream qualification gates in the historical sections below for the enabled API recovery pipeline. Production enablement remains a separate qualification.
+
+### Soft actor recovery
+
+`LivePipelineMonitor.CheckOnceAsync` reads a health snapshot once per minute. Required actionable downstream failures get one minute of confirmation, then at most three targeted recovery attempts. ITI uses `Realtime.FuturesItiSignalRealtime`; Market Outlook uses `Realtime.MarketOutlook`. Chart bars and indicator attachments use their registered lifecycle operations.
+
+For disposable realtime actors, `LivePipelineProbe.RecoverDownstreamAsync` calls `ActorSupervisor.RestartAsync`. The supervisor constructs a fresh context, pauses old admission, retires/fences the old generation, discards its queued work, starts the replacement, and resumes admission. It never waits for the retired active handler to drain. This is logical replacement, not forced termination of a pooled thread. Financial execution actors retain their existing durable behavior.
+
+Missing Market Outlook inputs remain unhealthy evidence and can prevent new decisions, but do not restart a working consumer: replacing a consumer cannot manufacture missing source data. Optional checks cannot trigger actor or feed resets. A subsequent healthy check confirms recovery; replacement completion alone does not.
+
+### Hard feed recovery
+
+Both the live pipeline monitor and Databento watchdog call the single `ApiDatabentoRecoveryPipeline` owner. Concurrent requests are rejected immediately as already running. Accepted recovery is independent of caller cancellation and bounded by host lifetime and the overall deadline.
+
+1. Capture the existing in-memory subscriptions and authoritative value date.
+2. Fence old dataset generations and reject an uncontained old publisher send.
+3. Stop/kill the exact owned workers and confirm containment.
+4. Start replacement workers. Startup exclusively owns the control pipe through hello and manifest acceptance; health requests cannot overtake that exchange.
+5. Confirm local connection/subscription readiness and fresh provider traffic or heartbeat. Do not require a trade, a quote, or completely empty queues.
+6. Ensure the publisher is running.
+7. Admit the exact replacement generations and return session ownership to the existing lifecycle.
+
+Steps 3 through 5 get at most three replacement attempts. Startup or local-readiness failure retries after containing the whole previous candidate group. Failed containment, lost publisher isolation, invalid authority/identity, publisher startup failure, or admission failure remains terminal. After essential recovery failure or exhaustion, the existing bounded API shutdown requests exit code 42. There is no recursive recovery loop.
+
+Recovery performs no Redis/PostgreSQL/ScyllaDB probe, Supervisor reconciliation/canary event, candidate tick holding, or test storage write. Those dependencies are observed by normal operational health and their owners. Feed recovery completion does not assert every analytics/storage dependency is healthy; decision admission still uses the actual health snapshot.
+
+After a successful feed reset, clear old component retry counts and observe the rebuilt pipeline for the configured five-minute recovery window, measured from completion. Do not replace actors or escalate from pre-reset observations during that window. Remaining failures are evaluated from subsequent audits.
+
+### Evidence
+
+Once per minute, log every failing check with method, value date, component, scope, required flag, status, reason, observation/progress timestamps, attempt count, recovery state and next deadline. Log targeted attempt start and subsequent confirmed health. Hard actions retain correlation/action/duration/exception records; retries include attempt and failed action. Include Degraded and Unknown reasons in the hard request, not only Unhealthy status. Worker hello rejection reports individual identity/sequence/token-match booleans; token contents are never logged.
+
+### Verification
+
+Regression coverage includes concurrent health polling during three real synthetic worker startups, local readiness with queued records, stale-provider rejection, three bounded hard attempts, transient success on attempt three, containment/admission failures, concurrent request rejection, old retry-count suppression, missing-input suppression, and structured trigger/confirmation fields. Real Databento network recovery requires a separate live run; synthetic tests cannot prove provider availability.
+
+
 | Item | Value |
 | --- | --- |
 | Plan ID | DHR-IMP |

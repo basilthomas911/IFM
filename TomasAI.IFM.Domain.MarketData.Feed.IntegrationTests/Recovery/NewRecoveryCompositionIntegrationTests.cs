@@ -1,3 +1,6 @@
+using TomasAI.IFM.Application.Api.Server.Core.Observability.HealthChecks;
+using TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.HardRecovery;
+using TomasAI.IFM.Application.Api.Server.Core.Recovery.Shutdown;
 using System.Diagnostics;
 using Cassandra;
 using Microsoft.AspNetCore.Hosting;

@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Portfolio.Shared.Common;
+using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using System.Security.Cryptography;
 using MessagePack;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
@@ -183,41 +183,6 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
             trades => trades.All(x => x.TradeId != request.TradeId),
             cancellationToken);
 
-    /// <summary>Changes a trade lifecycle state on a manual Portfolio Fund order.</summary>
-    /// <param name="request">The scoped trade-state mutation request.</param>
-    /// <param name="cancellationToken">A token that cancels publication or projection polling.</param>
-    /// <returns>The committed canonical order composition.</returns>
-    public Task<ServiceResult<FundCompositionReservationResult>> ChangeManualTradeStateAsync(
-        ManualFundOrderTradeMutationRequest request,
-        CancellationToken cancellationToken = default) =>
-        SendManualMutationAsync(
-            new(request.PortfolioId, request.FundId),
-            ChangeManualFundOrderTradeStateCommand.Verb,
-            new ChangeManualFundOrderTradeStateCommand(request),
-            request.OrderId,
-            request.ExpectedOrderVersion + 1,
-            trades => trades.Any(x => x.TradeId == request.TradeId && x.TradeState == request.TradeState
-                && (!request.ExecutionOrderId.HasValue || x.ExecutionOrderId == request.ExecutionOrderId.Value)
-                && (!request.ExecutionTradeId.HasValue || x.ExecutionTradeId == request.ExecutionTradeId.Value)),
-            cancellationToken);
-
-    /// <summary>Closes a manual Portfolio Fund order after its closing trade completes.</summary>
-    /// <param name="request">The scoped order-close request.</param>
-    /// <param name="cancellationToken">A token that cancels publication or projection polling.</param>
-    /// <returns>The committed canonical order composition.</returns>
-    public Task<ServiceResult<FundCompositionReservationResult>> CloseManualOrderAsync(
-        ManualFundOrderMutationRequest request,
-        CancellationToken cancellationToken = default) =>
-        SendManualMutationAsync(
-            new(request.PortfolioId, request.FundId),
-            CloseManualFundOrderCommand.Verb,
-            new CloseManualFundOrderCommand(request),
-            request.OrderId,
-            request.ExpectedOrderVersion + 1,
-            _ => true,
-            cancellationToken,
-            nameof(FundCompositionState.Executed));
-
     /// <summary>Deletes an empty draft manual Portfolio Fund order and waits for its projection to disappear.</summary>
     /// <param name="request">The scoped order-deletion request.</param>
     /// <param name="cancellationToken">A token that cancels command publication or projection polling.</param>
@@ -379,8 +344,6 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
             MarkFundOrderComposingCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
             RecordFundOrderComposedCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
             RemoveManualFundOrderTradeCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
-            ChangeManualFundOrderTradeStateCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
-            CloseManualFundOrderCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
             DeleteManualFundOrderCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
             RecordFundOrderRiskOutcomeCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
             AuthorizeFundOrderRiskCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },

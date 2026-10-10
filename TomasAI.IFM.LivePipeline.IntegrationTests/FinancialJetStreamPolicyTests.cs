@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.Api.Server;
+using TomasAI.IFM.Application.Api.Server.Core.Messaging.JetStream;
 using Xunit;
 
 namespace TomasAI.IFM.LivePipeline.IntegrationTests;

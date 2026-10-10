@@ -33,8 +33,8 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
         ConfigureTradeStrategySelector();
         txtReference.ReadOnly = true;
         ddlBaseSymbol.SelectedIndexChanged += ddlBaseSymbol_SelectedIndexChanged;
-        dtpTradeDate.ValueChanged += TradeReferenceInputChanged;
-        dtpMaturityDate.ValueChanged += TradeReferenceInputChanged;
+        dtpEffectiveDate.ValueChanged += TradeReferenceInputChanged;
+
     }
 
     /// <summary>Assigns the canonical trade-order editor view model.</summary>
@@ -46,16 +46,9 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
     public void SetFundOrder(PortfolioFundOrderEditorModel fundOrder)
     {
         _openingTrade = fundOrder.Trades.FirstOrDefault(trade => trade.PrimaryTrade);
-        var tradeDate = _openingTrade?.RequestedTradeDate
-            ?? _viewModel?.ValueDate
-            ?? FuturesValueDateProvider.System.ValueDate;
-        var maturityDate = _openingTrade?.RequestedMaturityDate
-            ?? _viewModel?.BaseContracts.FirstOrDefault()?.LastTradeDate
-            ?? tradeDate;
-        dtpTradeDate.Value = tradeDate.ToDateTime(TimeOnly.MinValue);
-        dtpTradeDate.Enabled = _openingTrade is null;
-        dtpMaturityDate.Value = maturityDate.ToDateTime(TimeOnly.MinValue);
-        dtpMaturityDate.Enabled = _openingTrade is null;
+        var effectiveDate = _viewModel?.ValueDate ?? FuturesValueDateProvider.System.ValueDate;
+        dtpEffectiveDate.Value = effectiveDate.ToDateTime(TimeOnly.MinValue);
+        dtpEffectiveDate.Enabled = true;
         UpdateTradeReference();
     }
 
@@ -238,8 +231,8 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
             MessageBox.Show("A valid base contract is required", "Fund Order Trade Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return null;
         }
-        var tradeDate = DateOnly.FromDateTime(dtpTradeDate.Value);
-        var maturityDate = DateOnly.FromDateTime(dtpMaturityDate.Value);
+        var tradeDate = DateOnly.FromDateTime(dtpEffectiveDate.Value);
+        DateOnly? maturityDate = null;
         var reference = FundOrderTradeReference.Create(baseContractId, tradeDate, maturityDate);
         txtReference.Text = reference;
 
@@ -248,8 +241,9 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
             TradeId = tradeId,
             TradeFamily = tradeType.ToString(),
             TradeType = tradeType,
-            RequestedTradeDate = tradeDate,
-            RequestedMaturityDate = maturityDate,
+            EffectiveDate = tradeDate,
+            RequestedMaturityDate = null,
+            TradeDate = null, MaturityDate = null,
             TradeState = tradeState,
             TradeAction = tradeAction,
             InstructionReference = reference,
@@ -301,10 +295,6 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
     void ddlBaseSymbol_SelectedIndexChanged(object? sender, EventArgs e)
     {
         UpdateSelectorAccessibility(ddlBaseSymbol, "Base contract selector");
-        if (_openingTrade is null
-            && _baseContractMap.GetValueOrDefault($"{ddlBaseSymbol.SelectedItem}") is { } contract
-            && contract.LastTradeDate >= DateOnly.FromDateTime(dtpTradeDate.Value))
-            dtpMaturityDate.Value = contract.LastTradeDate.ToDateTime(TimeOnly.MinValue);
         UpdateTradeReference();
     }
 
@@ -319,8 +309,8 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
             ? string.Empty
             : FundOrderTradeReference.Create(
                 baseContractId,
-                DateOnly.FromDateTime(dtpTradeDate.Value),
-                DateOnly.FromDateTime(dtpMaturityDate.Value));
+                DateOnly.FromDateTime(dtpEffectiveDate.Value),
+                null);
     }
 
     static void UpdateSelectorAccessibility(ComboBox selector, string label)

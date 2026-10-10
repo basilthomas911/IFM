@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.TradeSelection;
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
-/// <summary>Construction constraints from the exact policy; version two additionally pins a reviewed bounded market universe.</summary>
+/// <summary>Construction constraints from the exact policy; version two pins a reviewed bounded market universe and version three pins a global cache policy.</summary>
 public sealed record SelectionConstructionPolicy
 {
     [JsonRequired] public short SchemaVersion { get; init; }
@@ -18,6 +18,15 @@ public sealed record SelectionConstructionPolicy
     [JsonRequired] public decimal MaximumDeltaTolerance { get; init; }
     [JsonPropertyName("marketData"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonElement? MarketData { get; init; }
+    /// <summary>Schema three pins an immutable global strategy cache policy instead of a dated provider universe.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SelectionOptionChainCachePolicy? OptionChainCache { get; init; }
+    /// <summary>Exact structure-specific global policies for a deployment containing several option structures.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SelectionStructureOptionChainCachePolicy[]? OptionChainCachePolicies { get; init; }
+    /// <summary>Resolves only the selected exact structure; never loads or substitutes a current policy.</summary>
+    public SelectionOptionChainCachePolicy? CachePolicy(CatalogKey structure) => OptionChainCache
+        ?? OptionChainCachePolicies?.SingleOrDefault(x => x.StructureId == structure.Id && x.StructureVersion == structure.Version)?.Policy;
     static readonly JsonSerializerOptions Options = new() { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow, Converters = { new TradeSelectionPolicy.CanonicalDecimalConverter() } };
     public static SelectionConstructionPolicy Read(string json)
     {
@@ -26,8 +35,13 @@ public sealed record SelectionConstructionPolicy
     }
     public string Serialize() { Validate(); return JsonSerializer.Serialize(this, Options); }
     public string Hash() => TradeSelectionPolicy.HashJson(Serialize());
-    public void Validate() => TradeSelectionContracts.Require((SchemaVersion == 1 && MarketData is null
-            || SchemaVersion == 2 && ValidMarketData())
+    public void Validate() => TradeSelectionContracts.Require((SchemaVersion == 1 && MarketData is null && OptionChainCache is null && OptionChainCachePolicies is null
+            || SchemaVersion == 2 && OptionChainCache is null && OptionChainCachePolicies is null && ValidMarketData()
+            || SchemaVersion == 3 && MarketData is null && (
+                OptionChainCache is { } cache && cache.IsValid() && OptionChainCachePolicies is null
+                || OptionChainCache is null && OptionChainCachePolicies is { Length: > 0 and <= 8 } pins
+                    && pins.All(x => x.StructureId != Guid.Empty && x.StructureVersion > 0 && x.Policy is { } policy && policy.IsValid())
+                    && pins.Select(x => (x.StructureId, x.StructureVersion)).Distinct().Count() == pins.Length))
         && ParameterSetId != Guid.Empty && Version > 0 && MaximumLegs is >= 1 and <= 4
         && MinimumDaysToExpiry >= 1 && MaximumDaysToExpiry >= MinimumDaysToExpiry && MaximumDaysToExpiry <= 730
         && MinimumWingWidth >= 0 && MaximumWingWidth >= MinimumWingWidth && MaximumWingWidth <= 10000 && DeltaUnits == "UnderlyingEquivalent" && MaximumDeltaTolerance is >= 0 and <= 1,
@@ -61,10 +75,34 @@ public sealed record SelectionConstructionPolicy
         TradeSelectionContracts.Require(structure.Legs.Length <= MaximumLegs, "TS.CONFIG.COMPOSITION_SCHEMA", "Composition policy cannot construct this leg count.");
         if (structure.Legs.Any(x => x.InstrumentClass == "FuturesOption"))
         {
+            TradeSelectionContracts.Require(SchemaVersion != 3 || CachePolicy(structure.Key) is not null,
+                "TS.CONFIG.COMPOSITION_SCHEMA", "Exact option structure cache policy is missing.");
             var settings = variant.SettingsJson;
             using var doc = JsonDocument.Parse(settings); var root = doc.RootElement;
             TradeSelectionContracts.Require(MinimumWingWidth > 0 && root.GetProperty("MinimumWingWidth").GetDecimal() >= MinimumWingWidth && root.GetProperty("MaximumWingWidth").GetDecimal() <= MaximumWingWidth
                 && root.GetProperty("BalanceTolerance").GetDecimal() <= MaximumDeltaTolerance, "TS.CONFIG.COMPOSITION_SCHEMA", "Variant and composition constraints do not agree.");
         }
     }
+}
+
+/// <summary>Pinned global cache policy from the accepted construction policy. Hash is the normalized cache parameter payload hash.</summary>
+public sealed record SelectionOptionChainCachePolicy
+{
+    [JsonRequired] public Guid ParameterSetId { get; init; }
+    [JsonRequired] public int Version { get; init; }
+    [JsonRequired] public string ConfigurationDigest { get; init; } = "";
+    [JsonRequired] public int MaximumQuoteAgeMilliseconds { get; init; } = 1000;
+    [JsonRequired] public int MaximumQuoteSkewMilliseconds { get; init; } = 250;
+    /// <summary>Checks identity, hash syntax and explicit quality bounds without loading configuration.</summary>
+    public bool IsValid() => ParameterSetId != Guid.Empty && Version > 0 && ConfigurationDigest.Length == 64
+        && ConfigurationDigest.All(Uri.IsHexDigit) && MaximumQuoteAgeMilliseconds is >= 1 and <= 5000
+        && MaximumQuoteSkewMilliseconds is >= 0 and <= 2000;
+}
+
+/// <summary>Immutable mapping from an exact catalog structure version to its global option-chain policy.</summary>
+public sealed record SelectionStructureOptionChainCachePolicy
+{
+    [JsonRequired] public Guid StructureId { get; init; }
+    [JsonRequired] public int StructureVersion { get; init; }
+    [JsonRequired] public SelectionOptionChainCachePolicy Policy { get; init; } = new();
 }

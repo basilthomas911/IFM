@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.UI.Net.Models.Portfolio;
+using TomasAI.IFM.UI.Net.Models.Portfolio;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -188,18 +188,17 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     public IAsyncOperation LoadOperation { get; }
 
     public bool CanCreateOrder => !IsBusy && SelectedFund is not null;
-    public bool CanLoadOrder => !IsBusy && SelectedFundOrder is not null && SelectedFundOrderTrade is not null;
+    public bool CanLoadOrder => !IsBusy && SelectedFundOrder is not null
+        && SelectedFundOrderTrade is { } trade && TradeMonitoringPolicy.CanLoad(trade.TradeState)
+        && trade.ExecutionOrderId > 0 && trade.ExecutionTradeId > 0;
     public bool CanDeleteOrder => !IsBusy
         && SelectedFundOrder is { } order && PortfolioFundOrderEditorPolicy.CanDeleteOrder(order);
-    public bool CanCompleteOrder => !IsBusy
-        && SelectedFundOrder is { } order && PortfolioFundOrderEditorPolicy.CanCloseOrder(order);
     public bool CanAddTrade => !IsBusy
         && SelectedFundOrder is { } order && PortfolioFundOrderEditorPolicy.CanAddTrade(order);
     public bool CanRemoveTrade => !IsBusy
         && SelectedFundOrder is { } order
         && SelectedFundOrderTrade is { } trade
         && PortfolioFundOrderEditorPolicy.CanRemoveTrade(order, trade);
-    public bool CanChangeTradeState => HasMutableOpenOrder && SelectedFundOrderTrade is not null;
     public bool CanEndOfDay => HasMutableOpenOrder && SelectedFundOrderTrade is not null;
     public bool CanSubmitOrder => HasMutableOpenOrder
         && SelectedFundOrderTrade?.TradeState == TradeState.NewTrade
@@ -375,7 +374,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         ArgumentNullException.ThrowIfNull(order);
         ArgumentNullException.ThrowIfNull(trade);
         var now = DateTime.UtcNow;
-        var maturityDate = trade.RequestedMaturityDate ?? trade.RequestedTradeDate;
+        DateOnly? maturityDate = null;
         var request = new AddManualFundOrderTradeRequest
         {
             PortfolioId = order.PortfolioId,
@@ -384,8 +383,9 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
             ExpectedOrderVersion = order.AggregateVersion,
             TradeId = trade.TradeId,
             TradeType = trade.TradeType.ToString(),
-            TradeDate = trade.RequestedTradeDate,
-            MaturityDate = maturityDate,
+            EffectiveDate = trade.EffectiveDate,
+            TradeDate = null,
+            MaturityDate = null,
             TradeState = trade.TradeState.ToString(),
             TradeAction = trade.TradeAction.ToString(),
             Reference = FundOrderTradeReference.Create(
@@ -450,59 +450,6 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         return await CompleteManualMutationAsync(
             _appRoot.Services.PortfolioFundCommands.RemoveManualTradeAsync(request, cancellationToken),
             $"Trade {tradeId} removed from Portfolio order {order.OrderId}.",
-            cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <summary>Changes a canonical manual Portfolio order trade lifecycle state.</summary>
-    /// <param name="order">The selected canonical order.</param>
-    /// <param name="tradeId">The canonical trade identifier.</param>
-    /// <param name="tradeState">The target lifecycle state.</param>
-    /// <param name="cancellationToken">A token that cancels the operation.</param>
-    /// <returns>The committed canonical composition.</returns>
-    public async Task<FundCompositionReservationResult> ChangeManualTradeStateAsync(
-        FundOrderProjectionReadModel order,
-        int tradeId,
-        TradeState tradeState,
-        CancellationToken cancellationToken = default)
-    {
-        var request = new ManualFundOrderTradeMutationRequest
-        {
-            PortfolioId = order.PortfolioId,
-            FundId = order.FundId,
-            OrderId = order.OrderId,
-            ExpectedOrderVersion = order.AggregateVersion,
-            TradeId = tradeId,
-            TradeState = tradeState.ToString(),
-            RequestedAtUtc = DateTime.UtcNow,
-        };
-        return await CompleteManualMutationAsync(
-            _appRoot.Services.PortfolioFundCommands.ChangeManualTradeStateAsync(request, cancellationToken),
-            $"Trade {tradeId} state changed to {tradeState}.",
-            cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <summary>Closes a canonical manual Portfolio order after its closing trade completes.</summary>
-    /// <param name="order">The selected canonical order.</param>
-    /// <param name="reason">The operator close reason.</param>
-    /// <param name="cancellationToken">A token that cancels the operation.</param>
-    /// <returns>The committed canonical composition.</returns>
-    public async Task<FundCompositionReservationResult> CloseManualOrderAsync(
-        FundOrderProjectionReadModel order,
-        string reason,
-        CancellationToken cancellationToken = default)
-    {
-        var request = new ManualFundOrderMutationRequest
-        {
-            PortfolioId = order.PortfolioId,
-            FundId = order.FundId,
-            OrderId = order.OrderId,
-            ExpectedOrderVersion = order.AggregateVersion,
-            Reason = reason,
-            RequestedAtUtc = DateTime.UtcNow,
-        };
-        return await CompleteManualMutationAsync(
-            _appRoot.Services.PortfolioFundCommands.CloseManualOrderAsync(request, cancellationToken),
-            $"Portfolio order {order.OrderId} closed.",
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -620,6 +567,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
             TradeId = trade.TradeId,
             ExecutionOrderId = trade.ExecutionOrderId,
             ExecutionTradeId = trade.ExecutionTradeId,
+            ExecutionAttemptId = trade.ExecutionAttemptId,
             TradeFamily = trade.TradeFamily,
             InstructionReference = trade.InstructionReference,
             LegOrdinal = trade.LegOrdinal,
@@ -629,6 +577,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
             UnderlyingRoot = trade.UnderlyingRoot,
             RequestedTradeDate = trade.RequestedTradeDate,
             RequestedMaturityDate = trade.RequestedMaturityDate,
+            TradeDate = trade.TradeDate, MaturityDate = trade.MaturityDate,
             TradeType = Enum.TryParse<TradeType>(trade.TradeType, true, out var type) ? type : TradeType.Unknown,
             TradeState = Enum.TryParse<TradeState>(trade.TradeState, true, out var state) ? state : TradeState.NewTrade,
             PrimaryTrade = trade.PrimaryTrade,
@@ -735,7 +684,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     public async Task<EstablishedTradeDefinition> LoadTradeAsync(CancellationToken cancellationToken = default)
     {
         var selected = SelectedFundOrderTrade ?? throw new InvalidOperationException("Select a trade to load.");
-        if (selected.TradeState is not (TradeState.Open or TradeState.Closed or TradeState.OrderCompleted))
+        if (!TradeMonitoringPolicy.CanLoad(selected.TradeState))
             throw new InvalidOperationException("Load Trade requires an Open or Closed trade.");
         if (selected.ExecutionOrderId <= 0 || selected.ExecutionTradeId <= 0)
             throw new InvalidOperationException("This setup trade has no persisted execution link. Its submission must be reconciled before loading.");
@@ -749,7 +698,11 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         };
         var result = await _appRoot.Services.EstablishedTrades.GetAsync(id, strategy, cancellationToken).ConfigureAwait(false);
         if (!result.Success || result.Value is null)
-            throw new InvalidOperationException(result.ErrorMessage ?? $"The established trade {id.Format()} has not been projected.");
+            throw new InvalidOperationException(string.IsNullOrWhiteSpace(result.ErrorMessage)
+                ? $"The established trade {id.Format()} is unavailable. Refresh the order's trade list."
+                : result.ErrorMessage);
+        if (result.Value.Status is not (EstablishedTradeStatus.Open or EstablishedTradeStatus.Closed))
+            throw new InvalidOperationException("Load Trade requires an established Open or Closed trade.");
         if (result.Value.Id != id || result.Value.StrategyKind != strategy)
             throw new InvalidOperationException("The returned established trade does not match the selected execution link.");
         return result.Value;
@@ -908,10 +861,8 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         OnPropertyChanged(nameof(CanCreateOrder));
         OnPropertyChanged(nameof(CanLoadOrder));
         OnPropertyChanged(nameof(CanDeleteOrder));
-        OnPropertyChanged(nameof(CanCompleteOrder));
         OnPropertyChanged(nameof(CanAddTrade));
         OnPropertyChanged(nameof(CanRemoveTrade));
-        OnPropertyChanged(nameof(CanChangeTradeState));
         OnPropertyChanged(nameof(CanEndOfDay));
         OnPropertyChanged(nameof(CanSubmitOrder));
         OnPropertyChanged(nameof(CanUseLiveFeed));

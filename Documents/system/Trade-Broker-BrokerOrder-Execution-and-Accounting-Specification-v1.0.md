@@ -1,4 +1,4 @@
-# Trade Broker, BrokerOrder, Micro-Execution, and Fund Accounting Specification v1.0
+﻿# Trade Broker, BrokerOrder, Micro-Execution, and Fund Accounting Specification v1.0
 
 **Status:** Proposed implementation specification; documentation only<br>
 **Date:** 2026-09-15<br>
@@ -369,3 +369,16 @@ Each gate publishes its exact contract tests and evidence: no duplicate broker m
 The design fixes the boundaries above. Implementation must freeze these values in versioned reference/configuration rather than silently guessing: supported combo-price sign convention and IBKR routing/TIF profile; account alias and paper/live allowlists; opening/closing micro-execution price/deadline envelopes; commission finality/provisional-cost policy; settlement timing and Portfolio posting-rule mapping; treatment of balanced partial close and unbalanced compensation; callback retention capacity; accepted manual evidence route; and account snapshot freshness gates. The chosen values become test fixtures and immutable order/profile references. None of these decisions requires broker IDs to appear in Domain trade identities.
 
 Implementation is split into the [IBKR Emulator plan](Trade-Broker-IBKR-Emulator-Implementation-Plan-v1.0.md) and the later [IBKR Live Adapter plan](Trade-Broker-IBKR-Live-Adapter-Implementation-Plan-v1.0.md). The Live adapter's first implementation gate requires tested and explicitly accepted Emulator evidence.
+
+
+## Execution-driven setup lifecycle (2026-10-09)
+
+The Trade Order editor has no Close Order or Change State override. A setup-backed submission carries `FundTradeSetupReference` (FundId, OrderId, TradeId) through Portfolio composition and the committed Trade Order. Each setup-backed order contains one strategy component and is restricted to its owning Fund.
+
+Before starting execution, the backend sends `RecordFundTradeSubmissionCommand`. After successful trade/position establishment it sends `RecordFundTradeOpeningCommand`. Unfilled rejection/cancellation sends `ReleaseFundTradeSubmissionCommand`. After confirmed closing accounting and actual position closure it sends `RecordFundTradeClosingCommand`. These commands carry execution evidence rather than an arbitrary desired state; emitted Fund source events retain the originating CommandId. Deterministic handoff identities and execution-attempt checks make repeated outcomes idempotent and reject conflicting outcomes.
+
+Opening creates Open status with actual trade date and longest leg maturity. An opposite setup uses reduce-only closing composition against the persisted opening position. Balanced partial closing preserves remaining exposure and leaves the setup active; only a complete close marks the primary Closed and the setup order Executed. A workflow close without a separate closing setup retains the opening execution identity for loading the closed trade.
+
+Confirmed settlement, commissions and realized PnL remain on the existing durable financial execution path. Monitoring snapshot drop semantics do not apply. Fund source events project ScyllaDB; the UI refreshes from those projections and sends no lifecycle overrides. Existing automated/legacy orders without a setup reference retain their existing execution behavior; missing historical links are not fabricated.
+
+New and removed public message contracts require the API and UI to run the same build. Restart them together after deploying this change. No development database reset is required.

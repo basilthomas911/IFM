@@ -71,7 +71,15 @@ async Task<int> RunWorkerAsync()
         || supervisor.ValueDate != worker.ValueDate
         || supervisor.GenerationId != generation
         || !ValidSupervisorFrame(supervisor))
+    {
+        Log.Error("{Component}.{Method} supervisor handshake rejected; Kind={Kind}; WorkerMatches={WorkerMatches}; DatasetMatches={DatasetMatches}; ValueDateMatches={ValueDateMatches}; GenerationMatches={GenerationMatches}; Sequence={Sequence}; PreviousSequence={PreviousSequence}; TokenMatches={TokenMatches}",
+            "DatasetWorker", "RunWorkerAsync", supervisor.Kind,
+            supervisor.WorkerInstanceId == worker.WorkerInstanceId, supervisor.Dataset == worker.Dataset,
+            supervisor.ValueDate == worker.ValueDate, supervisor.GenerationId == generation,
+            supervisor.Sequence, supervisorSequence,
+            CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(supervisor.BootstrapToken), Encoding.ASCII.GetBytes(bootstrapToken)));
         return 3;
+    }
 
     // Read independently of native startup/reset so losing the supervisor cancels
     // cooperative work even while a command is still executing. A bounded channel

@@ -1,6 +1,7 @@
+using TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.Contracts;
+using TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.HardRecovery;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Api.Server;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 
@@ -18,11 +19,10 @@ internal sealed class RecoveryActionFaultProbe(
     internal static readonly string[] Sequence =
     [
         nameof(CaptureRecoveryInputsAsync), nameof(FenceFailedGenerationAsync),
-        nameof(AbandonPreviousCandidateAsync), nameof(StopDatabentoWorkersAsync),
+        nameof(StopDatabentoWorkersAsync),
         nameof(StartDatabentoWorkersAsync), nameof(QualifyDatabentoAsync),
-        nameof(PrepareCandidateAsync), nameof(QualifyInfrastructureAsync),
-        nameof(ReconcileActorsAsync), nameof(StartPublisherAsync),
-        nameof(ProveDownstreamWritesAsync), nameof(AdmitGenerationAsync)
+        nameof(StartPublisherAsync),
+        nameof(AdmitGenerationAsync)
     ];
 
     internal List<string> Calls { get; } = [];
@@ -60,9 +60,6 @@ internal sealed class RecoveryActionFaultProbe(
     public Task FenceFailedGenerationAsync(ApiDatabentoRecoveryContext context, CancellationToken token) =>
         ExecuteAsync(nameof(FenceFailedGenerationAsync), context, token, inner.FenceFailedGenerationAsync);
     /// <inheritdoc />
-    public Task AbandonPreviousCandidateAsync(ApiDatabentoRecoveryContext context, CancellationToken token) =>
-        ExecuteAsync(nameof(AbandonPreviousCandidateAsync), context, token, inner.AbandonPreviousCandidateAsync);
-    /// <inheritdoc />
     public Task StopDatabentoWorkersAsync(ApiDatabentoRecoveryContext context, CancellationToken token) =>
         ExecuteAsync(nameof(StopDatabentoWorkersAsync), context, token, inner.StopDatabentoWorkersAsync);
     /// <inheritdoc />
@@ -72,20 +69,8 @@ internal sealed class RecoveryActionFaultProbe(
     public Task QualifyDatabentoAsync(ApiDatabentoRecoveryContext context, CancellationToken token) =>
         ExecuteAsync(nameof(QualifyDatabentoAsync), context, token, inner.QualifyDatabentoAsync);
     /// <inheritdoc />
-    public Task PrepareCandidateAsync(ApiDatabentoRecoveryContext context, CancellationToken token) =>
-        ExecuteAsync(nameof(PrepareCandidateAsync), context, token, inner.PrepareCandidateAsync);
-    /// <inheritdoc />
-    public Task QualifyInfrastructureAsync(ApiDatabentoRecoveryContext context, CancellationToken token) =>
-        ExecuteAsync(nameof(QualifyInfrastructureAsync), context, token, inner.QualifyInfrastructureAsync);
-    /// <inheritdoc />
-    public Task ReconcileActorsAsync(ApiDatabentoRecoveryContext context, CancellationToken token) =>
-        ExecuteAsync(nameof(ReconcileActorsAsync), context, token, inner.ReconcileActorsAsync);
-    /// <inheritdoc />
     public Task StartPublisherAsync(ApiDatabentoRecoveryContext context, CancellationToken token) =>
         ExecuteAsync(nameof(StartPublisherAsync), context, token, inner.StartPublisherAsync);
-    /// <inheritdoc />
-    public Task ProveDownstreamWritesAsync(ApiDatabentoRecoveryContext context, CancellationToken token) =>
-        ExecuteAsync(nameof(ProveDownstreamWritesAsync), context, token, inner.ProveDownstreamWritesAsync);
     /// <inheritdoc />
     public Task AdmitGenerationAsync(ApiDatabentoRecoveryContext context, CancellationToken token) =>
         ExecuteAsync(nameof(AdmitGenerationAsync), context, token, inner.AdmitGenerationAsync);

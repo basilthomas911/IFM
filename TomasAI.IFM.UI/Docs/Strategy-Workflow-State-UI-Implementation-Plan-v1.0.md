@@ -362,8 +362,9 @@ variable number of horizontal circles. Painting shall:
 
 Replace `itiPropertyGrid` with a dark `DarkTabControl` containing `Details` and `Summary`.
 
-The Details surface shall be scrollable, read-only, and capable of displaying the large typed Trade Selection, Order
-Composition, and Risk Management results without truncating fields. Reuse common dark-theme controls rather than adding
+The Details surface shall use a resizable TreeView on the left and a read-only PropertyGrid on the right.
+Workflow, ITI Signal and Workflow Pipeline roots expose nested objects, including typed Trade Selection, Order
+Composition, and Risk Management results. Expanded branches and selection survive newer workflow revisions. Reuse common dark-theme controls rather than adding
 screen-specific font or palette helpers.
 
 The Summary page contains only the approved unavailable message during this delivery.
@@ -619,3 +620,195 @@ This delivery is complete when:
 10. missed notifications recover through bounded authoritative queries;
 11. UI, architecture, serialization, integration, rendering, and affected build checks pass; and
 12. Summary remains a dependency-free unavailable placeholder with all LLM work deferred.
+
+
+## Strategy Details object browser ? 2026-10-08
+
+The Details tab uses a resizable left-hand TreeView and a right-hand read-only
+PropertyGrid. Root nodes are Workflow, ITI Signal, and Workflow Pipeline. Pipeline
+branches show Regime Discovery, Market Condition, Trade Selection, Order Composition,
+and Risk Management, retaining status colors and status tooltips. Each object node
+selects its own properties; nested input, result, status and failure objects can be
+expanded and inspected. Missing objects are explicitly unavailable.
+
+The presentation retains the immutable typed workflow view alongside the existing
+text representation. Both the Strategy tab and Strategy observation dialog use the
+same browser. No additional subscriptions or backend queries are introduced.
+
+Nested nodes are populated on expansion, with ancestor-cycle protection, a maximum
+of 16 levels and 200 displayed collection items per branch. These are display limits;
+they do not alter workflow data. The property grid exposes read-only string descriptors,
+so setters and nested collection editors cannot mutate business objects.
+
+A same-workflow revision refresh restores expanded paths and selected object paths,
+then inspects the new object instance. Identical revisions retain existing controls.
+A different workflow resets navigation; clearing or failing a selection clears stale
+properties. Rendering tests cover the three roots, five stages, read-only properties,
+revision refresh, navigation retention and clearing.
+
+
+### Details responsiveness verification ? 2026-10-08
+
+Property-grid binding is deferred until its native handle exists and the grid is
+visible. During a workflow revision rebuild, intermediate tree selections do not
+bind the inspector; the final selected node is bound once. Read-only descriptors are
+materialized once per inspection rather than reevaluating DTO getters whenever the
+grid asks for its properties. Node generation identifies an inspector refresh even
+when a stage object is reused across workflow revisions.
+
+The FlaUI regression hosts the actual browser in an STA form with Summary/Details
+tabs and representative immutable workflow objects. It binds while Details is hidden,
+selects all roots and pipeline stages, expands/collapses nodes, selects nested reason
+code leaves, verifies read-only grid values, switches tabs and applies new snapshots.
+The fixture does not submit trades or use a live backend; its revisions simulate the
+existing workflow notification binding. Observed run: 84 root/stage selections,
+12 nested leaf selections, 24 revision refreshes and 24 tab switches in 3.11 seconds.
+All 20 affected rendering and FlaUI tests passed; the view build had zero warnings
+and errors. Evidence: `.artifacts/strategy-details-flaui.log`.
+
+### Exhaustive branch verification - 2026-10-08
+
+The live FlaUI check navigated the running development UI across 20 strategy
+workflow rows. Three recursive traversals per row verified 2,100 expandable
+branches, asserting the native UI Automation Expanded and Collapsed states.
+Every expand/collapse operation completed within its five-second timeout; the
+complete test passed in 93 seconds. No hang was reproduced in this run.
+
+The representative browser regression recursively checks nested branches before
+exercising selections, revision refreshes and tab switches. The affected test run
+passed 20 tests; the live test was skipped unless explicitly enabled with
+`IFM_TEST_LIVE_STRATEGY_UI=1`, preventing normal test runs from interacting with
+a user's running application.
+
+Evidence: `.artifacts/strategy-details-live-stress.log`, the per-node audit
+`.artifacts/strategy-details-live-branches.log`, and
+`.artifacts/strategy-details-regression.log`. These checks verify the displayed
+objects and rows exercised; they do not prove an intermittent hang can never
+occur. This verification added tests without changing the browser implementation.
+
+### Unique object navigation - 2026-10-08
+
+Workflow expansion excludes the five pipeline stage objects and TriggerEvent.
+Stages are navigated only under Workflow Pipeline; the trigger is navigated
+under ITI Signal. Other workflow objects remain available under Workflow.
+The rendering regression asserts that dedicated branches are not duplicated.
+
+### Background display cache - 2026-10-08
+
+Each workflow revision prepares its complete bounded display hierarchy on a
+background task: child descriptions, formatted property values and read-only
+property descriptors. No TreeNode or Control is constructed on that task.
+Expand only attaches cached immediate children; selection binds the cached
+property descriptor. Reflection and DTO property reads no longer run in clicks.
+
+The UI shows Preparing details while a revision is built. For the same workflow,
+its previous display stays usable until the replacement is ready. Navigation is
+captured when the replacement is applied, preserving clicks made during preparation.
+Different workflow selection clears the old display. Revision generations reject
+stale results; cancellation occurs on replacement, clearing and disposal. Hidden
+views retain a prepared result until a native handle is created.
+
+Limits are 16 levels, 200 items per collection and 10,000 nodes per revision,
+with ancestor-cycle detection and visible markers for omitted objects. Only the
+current revision cache is retained. Preparation failures produce an unavailable
+message. UI control creation, property-grid binding and painting remain on the UI
+thread; this cache does not guarantee those native operations cannot be slow.
+
+Verification covers cached recursive expansion, 84 selections, 24 revision
+updates, hidden tab binding, navigation retention, rapid superseding revisions,
+clearing during preparation and repeated disposal. Build and test evidence is in
+`.artifacts/strategy-cache-build.log` and `.artifacts/strategy-cache-tests.log`.
+
+### Intermittent ITI Signal pause investigation - 2026-10-08
+
+The user reported a pause exceeding five seconds on the 18:40 workflow.
+The live UI process started after the cache assembly build; the deployed Views
+assembly matched the built assembly. Twenty targeted live checks on that workflow
+measured ITI selection at 8-20 ms and expansion at 15-57 ms. The reported pause
+was not reproduced, and its cause remains unconfirmed. Evidence:
+`.artifacts/strategy-iti-live-test.log` and `.artifacts/strategy-iti-live-latency.log`.
+A 30-second sampling trace was collected in `.artifacts/strategy-iti-freeze.nettrace`.
+
+Slow-operation warnings (event 61002) now distinguish Populate (native child
+insertion), RefreshInspector (property-grid assignment), ApplyPendingView (revision
+replacement) and UiMessageLoop (a delay elsewhere on the UI thread). Operation
+warnings are emitted only at 100 ms or more; the visible view checks message-loop
+responsiveness every 250 ms and reports gaps exceeding one second. Fields include
+Method, NodePath, WorkflowId, WorkflowRevision and ElapsedMs. No DTO payload is
+serialized. Child insertion is bracketed in BeginUpdate/EndUpdate to suppress
+repeated redraws. These diagnostics require restarting the UI to load the assembly.
+The affected rendering, FlaUI and exception logging tests passed (23 tests, two
+explicit live tests skipped). Build and verification evidence:
+`.artifacts/strategy-iti-diagnostics-build.log` and
+`.artifacts/strategy-iti-diagnostics-tests.log`.
+
+### Confirmed native hover stall and workaround - 2026-10-08
+
+The user's reproducing clicks were captured after cache deployment. The UI warning
+recorded 22.7 seconds initially and approximately 28 seconds on subsequent clicks.
+The user-click trace showed three long intervals (27.4, 27.6 and 28.1 seconds) in
+TreeView.WndProc -> Control.WmMouseMove -> native Control.DefWndProc. The minidump
+placed the native instruction in TextShaping.dll, with GDI, User32 and ComCtl32
+return addresses. Cache building, Populate and RefreshInspector were absent from
+the blocked managed stack. These observations locate the stall in Windows native
+mouse/hover text processing rather than workflow DTO traversal.
+
+Disabling native tooltips on the running tree stopped the pause in the user's
+manual expand/collapse and label-hover retest. The permanent workaround is a local
+TreeView subclass whose CreateParams sets TVS_NOTOOLTIPS (0x0080) and clears
+TVS_INFOTIP (0x0800), with ShowNodeToolTips false. This disables automatic label
+hover tips as well as custom node tips. Stage summaries remain available as the
+read-only StageSummary property instead. The exact underlying Windows text-shaping
+bug is not established; the observed failing path is avoided.
+
+The FlaUI regression now performs real mouse selection and label hover before
+checking expansion and collapse. Rendering asserts both native style bits and
+availability of StageSummary. The view built with zero warnings/errors; 23 affected
+tests passed and two opt-in live tests were skipped. The tooltip-off live mouse
+loop had a missed-glyph timeout while the UI remained responsive; it is not counted
+as a successful full loop. The user's manual no-pause confirmation provides the
+live A/B result. Current running UI was patched diagnostically; the subclass makes
+the workaround persistent on subsequent builds/restarts.
+
+Evidence: `.artifacts/strategy-iti-user-click.nettrace`,
+`.artifacts/strategy-iti-hang-stacks.log`, `.artifacts/strategy-iti-hang.dmp`,
+`.artifacts/strategy-iti-tooltip-fix-build.log`, and
+`.artifacts/strategy-iti-tooltip-fix-tests.log`. Diagnostic dumps stay in ignored
+local artifacts and must not be published as normal repository content.
+
+### Single inspector pane - 2026-10-08
+
+The right side contains only the read-only property list. PropertyGrid.HelpVisible
+is false, hiding the built-in description/help pane; its toolbar remains hidden.
+
+### Stacked Details layout - 2026-10-08
+
+The resizable split now places the object tree above the read-only property grid,
+with a horizontal divider. The workflow identity/revision banner is removed;
+identity remains inspectable through Workflow properties. A status line is shown
+only for preparation, selection guidance or an error, and hidden when ready.
+
+### Strategy workspace tabs - 2026-10-08
+
+The Strategy view now uses one horizontal splitter below its existing header.
+The graph occupies approximately one-third of the available height, and the
+workspace below occupies approximately two-thirds, subject to minimum sizes.
+The divider remains user-resizable; window resizing reapplies the default ratio.
+
+The lower workspace contains tabs in this order:
+1. Strategy Updates: the existing workflow list, with its paging and selection handlers.
+2. Details: the existing cached tree above its read-only property grid.
+3. Summary: the existing summary content.
+
+Strategy Updates is selected initially. Switching tabs retains the selected
+workflow and controls; live updates continue through the existing binding path.
+The separate graph/list splitter is removed. Layout regression checks the three
+pages, list ownership, default height ratio after resize and selection retention.
+Evidence: `.artifacts/strategy-three-tabs-build.log` and
+`.artifacts/strategy-three-tabs-tests.log`.
+
+### Model properties only - 2026-10-08
+
+The synthetic StageSummary property is removed from pipeline inspectors. Status,
+continuation, timing and failure information remain available as individual model
+properties. Native hover tooltips remain disabled.

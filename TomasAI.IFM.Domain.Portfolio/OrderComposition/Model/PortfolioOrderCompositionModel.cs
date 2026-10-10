@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Portfolio.Identity;
+using TomasAI.IFM.Domain.Portfolio.Identity;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 
@@ -22,6 +22,7 @@ public static class PortfolioOrderCompositionModel
         if (request.PortfolioId <= 0 || request.OperationId == Guid.Empty || candidate.CompositionId == Guid.Empty
             || candidate.WorkflowId == Guid.Empty || candidate.Components.Length == 0
             || candidate.DecisionEvidence is { IsValid: false }
+            || (candidate.SetupTrade is { } setup && (setup.OrderId <= 0 || setup.TradeId <= 0 || setup.FundId <= 0 || candidate.Components.Length != 1))
             || candidate.TimeInForce is not ("Day" or "GTC")
             || candidate.AlgorithmPace is not ("Patient" or "Normal" or "Urgent")
             || candidate.PositionType != PortfolioExecutionPositionType.Opening
@@ -44,6 +45,7 @@ public static class PortfolioOrderCompositionModel
         var provisional = new Dictionary<(CapacityScopeKind ScopeKind, string ScopeKey, CapacityMeasure Measure, CapacityUnit Unit), decimal>();
         foreach (var fund in book.Funds.OrderBy(value => value.FundId))
         {
+            if (candidate.SetupTrade is { } setupScope && setupScope.FundId != fund.FundId) continue;
             if (!fund.CanSpend)
             {
                 decisions.Add(new(fund.FundId, false, "FundSpendingDisabled", null));
@@ -114,6 +116,7 @@ public static class PortfolioOrderCompositionModel
                 BrokerAlgorithm = candidate.BrokerAlgorithm,
                 TimeInForce = candidate.TimeInForce,
                 AlgorithmPace = candidate.AlgorithmPace,
+                SetupTrade = candidate.SetupTrade,
                 DecisionEvidence = candidate.DecisionEvidence,
                 VolatilityEvidence = candidate.VolatilityEvidence
             });

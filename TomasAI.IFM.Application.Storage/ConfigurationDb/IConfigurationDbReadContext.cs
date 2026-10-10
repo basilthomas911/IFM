@@ -16,6 +16,9 @@ namespace TomasAI.IFM.Application.Storage.ConfigurationDb;
 /// </summary>
 public interface IConfigurationDbReadContext
 {
+    /// <summary>Gets one exact strategy position-risk version with validated payload identity and hash.</summary>
+    Task<TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.ResolvedStrategyRiskParameterSet?> GetStrategyPositionRiskVersionAsync(Guid id, int version, CancellationToken cancellationToken = default);
+
     /// <summary>Gets one exact immutable Regime Discovery version.</summary>
     /// <param name="parameterSetId">The parameter-set identifier.</param>
     /// <param name="version">The version number.</param>

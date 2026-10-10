@@ -27,9 +27,9 @@ public static class IronCondorOptionCalculator
                 || scope.EvaluatedAtUtc.UtcDateTime > atUtc || scope.Instruments.Length != 1))
             throw new ArgumentException("Four current scopes in one admitted generation and a UTC valuation instant are required.");
         if (legs.Select(leg => leg.CashMultiplier).Distinct().Count() != 1 || legs.Any(leg => leg.CashMultiplier <= 0)
-            || legs.Select(leg => leg.Expiry).Distinct().Count() != 1 || legs[0].Expiry is null
+            || legs.Any(leg => leg.Expiry is null)
             || legs.Select(leg => leg.ContractId).Distinct(StringComparer.Ordinal).Count() != 4)
-            throw new ArgumentException("Distinct exact contracts, common expiry and positive multiplier are required.");
+            throw new ArgumentException("Distinct exact contracts, each leg expiry and positive multiplier are required.");
         var calculator = new OptionCalculator();
         var prices = new IronCondorCalculatedOptionPrice[4];
         var at = new DateTimeOffset(atUtc);
@@ -66,9 +66,8 @@ public static class IronCondorOptionCalculator
         }
         var contracts = risk.Select(scope => scope.Instruments[0].Instrument.Pricing!.Contract).ToArray();
         if (contracts.Select(contract => contract.UnderlyingContractId).Distinct(StringComparer.Ordinal).Count() != 1
-            || contracts.Select(contract => contract.ExpirationUtc).Distinct().Count() != 1
             || contracts.Select(contract => contract.Currency).Distinct(StringComparer.Ordinal).Count() != 1)
-            throw new ArgumentException("The four qualified option contracts must share one underlying, expiration instant and currency.");
+            throw new ArgumentException("The four qualified option contracts must share one underlying and currency.");
         var timestamps = prices.SelectMany(leg => new[] { leg.QuoteAsOfUtc, leg.UnderlyingAsOfUtc }).ToArray();
         if (timestamps.Max() - timestamps.Min() > TimeSpan.FromSeconds(1))
             throw new ArgumentException("Four-leg pricing source timestamps are incoherent.");

@@ -8,6 +8,41 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 public sealed partial class OrderCompositionWorkerTests
 {
     [Fact]
+    public async Task Browsing_capture_keeps_pending_rows_and_prices_full_Greeks_only_when_selected()
+    {
+        using var prices = Prices(); using var feed = new ChainFeed();
+        var clock = new MutableClock();
+        await using var runtime = Runtime(Factory(feed), prices, clock);
+        var lease = Request();
+        Assert.True((await runtime.AcquireAsync(lease, default)).Active);
+        var provider = new MarketCompositionSnapshotProvider(runtime, clock);
+        var capture = new CompositionSnapshotRequest(Guid.NewGuid(), lease.ScopeId, "Daily", Generation, At, At.AddSeconds(2), true)
+            { SelectionOnly = true, AllowMissingOptionQuotes = true };
+        var pending = await provider.CaptureAsync(capture, default);
+        Assert.Null(pending.Failure);
+        Assert.Null(Assert.Single(pending.Snapshot!.Instruments).Instrument.Quote);
+        Assert.Null(Assert.Single(pending.Snapshot.Instruments).Instrument.Selection);
+        feed.Push(QuoteRecord(1));
+        await Until(() => runtime.ReadSelection("ES-option-call") is { Delta: not null });
+        var browsing = await provider.CaptureAsync(capture, default);
+        Assert.Null(browsing.Failure);
+        Assert.NotNull(Assert.Single(browsing.Snapshot!.Instruments).Instrument.Selection);
+        Assert.Null(Assert.Single(browsing.Snapshot.Instruments).Valuation);
+        var selected = await provider.CaptureAsync(capture with { RiskContractIds = ["ES-option-call"] }, default);
+        Assert.Null(selected.Failure);
+        Assert.NotNull(Assert.Single(selected.Snapshot!.Instruments).Valuation);
+        clock.Now = At.AddSeconds(10);
+        var stale = await provider.CaptureAsync(capture with { EvaluatedAtUtc = clock.Now, DeadlineUtc = clock.Now.AddSeconds(2) }, default);
+        Assert.Null(stale.Failure);
+        Assert.Null(Assert.Single(stale.Snapshot!.Instruments).Instrument.Quote);
+        Assert.Null(Assert.Single(stale.Snapshot.Instruments).Instrument.Selection);
+        var diagnostic = Assert.Single(stale.Snapshot.Instruments).Instrument;
+        Assert.Equal("QuoteAgeExceeded", diagnostic.QuoteUnavailableReason);
+        Assert.NotNull(diagnostic.LastQuoteEventAtUtc);
+        Assert.NotNull(diagnostic.LastQuoteReceivedAtUtc);
+    }
+
+    [Fact]
     public async Task Selection_capture_exports_price_delta_and_original_IV_provenance_without_full_Greeks()
     {
         using var prices = Prices(); using var feed = new ChainFeed();

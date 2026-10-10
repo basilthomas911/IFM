@@ -49,7 +49,18 @@ public sealed record MarketCompositionSnapshot(
     [property: Key(6)] DateTimeOffset EvaluatedAtUtc,
     [property: Key(7)] DateTimeOffset ValidUntilUtc,
     [property: Key(8)] ImmutableArray<CompositionInstrumentSnapshot> Instruments,
-    [property: Key(9)] string Digest);
+    [property: Key(9)] string Digest)
+{
+    /// <summary>Exact global policy used to prepare this ranking universe; absent on historical/manual snapshots.</summary>
+    [Key(10), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? StrategyOptionChainParametersJson { get; init; }
+    /// <summary>Normalized prepared direction, separate from catalog Balanced spelling.</summary>
+    [Key(11), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? StrategyOptionChainBias { get; init; }
+    /// <summary>Accepted operational value date of the prepared strategy scope.</summary>
+    [Key(12), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public DateOnly? StrategyOptionChainValueDate { get; init; }
+}
 
 [MessagePackObject]
 public sealed record OptionPricingValue(

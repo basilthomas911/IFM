@@ -14,6 +14,9 @@ using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.Services.SystemAdmin;
+using TomasAI.IFM.UI.Net.Services.Reference;
+using TomasAI.IFM.UI.Net.Services.Operations;
+using TomasAI.IFM.UI.Net.Models.Reference;
 using TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
 using TomasAI.IFM.UI.Net.Views.SystemAdmin;
 using System.Windows.Forms;
@@ -30,7 +33,10 @@ public sealed class DatabaseBackupDashboardSmokeTests
         var eventConsumer = Substitute.For<ISystemAdminUIEventConsumer>();
         var service = new DatabaseBackupService(
             Substitute.For<IDatabaseBackupCommandApi>(), queryApi, eventConsumer);
-        var viewModel = new DatabaseBackupViewModel(service);
+        var reference = Substitute.For<IReferenceDataService>();
+        reference.GetSystemAdminFunctionTypesAsync(Arg.Any<CancellationToken>()).Returns(
+            UiOperationResult<IReadOnlyList<LookupTypeUiModel>>.Success(
+                [new("SystemAdminFunctionType", "BackupDatabases", 0, "Backups", DateTime.UtcNow, "fixture")]));
         var ready = new TaskCompletionSource<(Form Form, BackupDatabasesView View, IntPtr Handle)>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         Exception? uiFailure = null;
@@ -39,16 +45,24 @@ public sealed class DatabaseBackupDashboardSmokeTests
             try
             {
                 System.Windows.Forms.Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
-                using var form = new Form
+                using var form = new SystemAdminForm(service)
                 {
-                    Text = $"IFM Database Backup Gate 9 {Guid.NewGuid():N}",
-                    Width = 1100,
-                    Height = 520
+                    Text = $"IFM Database Backup Gate 9 {Guid.NewGuid():N}"
                 };
-                var view = new BackupDatabasesView(viewModel) { Dock = DockStyle.Fill };
-                form.Controls.Add(view);
-                form.Shown += (_, _) => ready.TrySetResult((form, view, form.Handle));
-                view.Open();
+                form.LoadViewModel(new SystemAdminViewModel(reference));
+                form.Shown += async (_, _) =>
+                {
+                    try
+                    {
+                        var deadline = Stopwatch.StartNew();
+                        BackupDatabasesView? view;
+                        while ((view = form.Controls.Find("BackupDatabasesView", true).OfType<BackupDatabasesView>().SingleOrDefault()) is null && deadline.Elapsed < TimeSpan.FromSeconds(5))
+                            await Task.Delay(50);
+                        if (view is null) throw new InvalidOperationException("System Admin did not create the backup view.");
+                        ready.TrySetResult((form, view, form.Handle));
+                    }
+                    catch (Exception exception) { ready.TrySetException(exception); }
+                };
                 System.Windows.Forms.Application.Run(form);
             }
             catch (Exception exception)
@@ -88,6 +102,8 @@ public sealed class DatabaseBackupDashboardSmokeTests
             await CheckProtectionSetAsync(form, view, "core");
             controlState = await ReadControlStateAsync(form, view);
             controlState.RequestButtonEnabled.Should().BeTrue();
+            await VerifyManualControlsAsync(form, view);
+            window.FindFirstDescendant(condition => condition.ByAutomationId("BackupRestoreDrill")).Should().NotBeNull();
         }
         finally
         {
@@ -126,6 +142,33 @@ public sealed class DatabaseBackupDashboardSmokeTests
             catch (Exception exception) { completion.SetException(exception); }
         });
         await completion.Task.WaitAsync(TimeSpan.FromSeconds(25));
+    }
+
+    static async Task VerifyManualControlsAsync(Form form, BackupDatabasesView view)
+    {
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        form.BeginInvoke(() =>
+        {
+            try
+            {
+                FindControl<TabControl>(view, "BackupTabs").SelectedIndex = 1;
+                view.Dock.Should().Be(DockStyle.Fill);
+                view.Bounds.Should().Be(view.Parent!.ClientRectangle);
+                form.ClientSize = new System.Drawing.Size(860, 480);
+                form.PerformLayout(); view.PerformLayout();
+                foreach (var name in new[] { "btnRun", "ddlBackupMode", "BackupRestorePoint", "BackupRestoreTarget", "BackupValidationProfile", "BackupRestoreDrill" })
+                {
+                    var control = view.Controls.Find(name, true).Single();
+                    control.Visible.Should().BeTrue(name);
+                    var bounds = control.RectangleToScreen(control.ClientRectangle);
+                    for (var ancestor = control.Parent; ancestor is not null; ancestor = ancestor.Parent)
+                        ancestor.RectangleToScreen(ancestor.ClientRectangle).Contains(bounds).Should().BeTrue($"{name} {bounds} must fit inside {ancestor.GetType().Name}/{ancestor.Name} {ancestor.RectangleToScreen(ancestor.ClientRectangle)}");
+                }
+                completion.SetResult();
+            }
+            catch (Exception exception) { completion.SetException(exception); }
+        });
+        await completion.Task.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
     static Task<DashboardControlState> ReadControlStateAsync(Form form, BackupDatabasesView view)

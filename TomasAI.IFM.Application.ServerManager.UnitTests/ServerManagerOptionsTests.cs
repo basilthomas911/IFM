@@ -6,6 +6,30 @@ namespace TomasAI.IFM.Application.ServerManager.UnitTests;
 public sealed class ServerManagerOptionsTests
 {
     [Fact]
+    public void Development_configuration_owns_scheduler_after_api_and_ui_with_graceful_shutdown()
+    {
+        var root = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !System.IO.Directory.Exists(System.IO.Path.Combine(root.FullName, ".vscode"))) root = root.Parent;
+        root.Should().NotBeNull();
+        using var configuration = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(root!.FullName, "TomasAI.IFM.Application.ServerManager/appsettings.Development.json")));
+        var scheduler = configuration.RootElement.GetProperty("ServerManager").GetProperty("Processes").EnumerateArray().Single(p => p.TryGetProperty("Key", out var key) && key.GetString() == "scheduler");
+        scheduler.GetProperty("StartOrder").GetInt32().Should().BeGreaterThan(20);
+        scheduler.GetProperty("ShutdownMode").GetString().Should().Be("StandardInput");
+        scheduler.GetProperty("ShutdownInput").GetString().Should().Be("shutdown");
+        scheduler.GetProperty("ReadinessPipeName").GetString().Should().Be("IFM.ServerManager.Scheduler.v1");
+        scheduler.GetProperty("Arguments").EnumerateArray().Select(a => a.GetString()).Should().Contain("--server-manager-stdin-shutdown");
+    }
+
+    [Fact]
+    public void Scheduler_readiness_requires_positive_deadline()
+    {
+        var options = ValidOptions();
+        options.Processes[0].ReadinessPipeName = "fixture";
+        options.Processes[0].ReadinessTimeoutSeconds = 0;
+        options.Invoking(o => o.Validate()).Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
     public void Validate_rejects_duplicate_process_keys_case_insensitively()
     {
         var options = ValidOptions();

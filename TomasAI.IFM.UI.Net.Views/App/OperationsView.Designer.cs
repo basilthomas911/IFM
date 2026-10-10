@@ -22,7 +22,6 @@ partial class OperationsView
         lblTimeFrame = new Label();
         ddlTimeFrame = new ComboBox();
         strategySplitter = new SplitContainer();
-        strategyContentSplitter = new SplitContainer();
         itiChart = new System.Windows.Forms.DataVisualization.Charting.Chart();
         lstStrategyWorkflows = new ListView();
         colTime = new ColumnHeader();
@@ -32,6 +31,7 @@ partial class OperationsView
         colPipelineState = new ColumnHeader();
         colWorkflowEndState = new ColumnHeader();
         workflowTabs = new DarkTabControl();
+        tabStrategyUpdates = new TabPage();
         tabWorkflowDetails = new TabPage();
         tabWorkflowSummary = new TabPage();
         workflowDetails = new Strategy.StrategyWorkflowDetailsAccordion();
@@ -48,10 +48,6 @@ partial class OperationsView
         strategySplitter.Panel1.SuspendLayout();
         strategySplitter.Panel2.SuspendLayout();
         strategySplitter.SuspendLayout();
-        ((System.ComponentModel.ISupportInitialize)strategyContentSplitter).BeginInit();
-        strategyContentSplitter.Panel1.SuspendLayout();
-        strategyContentSplitter.Panel2.SuspendLayout();
-        strategyContentSplitter.SuspendLayout();
         ((System.ComponentModel.ISupportInitialize)itiChart).BeginInit();
         SuspendLayout();
         //
@@ -161,32 +157,15 @@ partial class OperationsView
         strategySplitter.Location = new Point(3, 32);
         strategySplitter.Name = "strategySplitter";
         strategySplitter.Orientation = Orientation.Horizontal;
-        strategySplitter.Panel1.Controls.Add(strategyContentSplitter);
-        strategySplitter.Panel1MinSize = 260;
+        strategySplitter.Panel1.Controls.Add(itiChart);
+        strategySplitter.Panel1MinSize = 120;
         strategySplitter.Panel2.Controls.Add(workflowTabs);
-        strategySplitter.Panel2MinSize = 120;
+        strategySplitter.Panel2MinSize = 180;
         strategySplitter.Size = new Size(513, 733);
-        strategySplitter.SplitterDistance = 490;
+        strategySplitter.SplitterDistance = 243;
         strategySplitter.SplitterWidth = 5;
         strategySplitter.TabIndex = 1;
         strategySplitter.Resize += strategySplitter_Resize;
-        //
-        // strategyContentSplitter
-        //
-        strategyContentSplitter.BackColor = Color.Black;
-        strategyContentSplitter.Dock = DockStyle.Fill;
-        strategyContentSplitter.Location = new Point(0, 0);
-        strategyContentSplitter.Name = "strategyContentSplitter";
-        strategyContentSplitter.Orientation = Orientation.Horizontal;
-        strategyContentSplitter.Panel1.Controls.Add(itiChart);
-        strategyContentSplitter.Panel1MinSize = 120;
-        strategyContentSplitter.Panel2.Controls.Add(lstStrategyWorkflows);
-        strategyContentSplitter.Panel2MinSize = 120;
-        strategyContentSplitter.Size = new Size(513, 490);
-        strategyContentSplitter.SplitterDistance = 243;
-        strategyContentSplitter.SplitterWidth = 5;
-        strategyContentSplitter.TabIndex = 0;
-        strategyContentSplitter.Resize += strategyContentSplitter_Resize;
         //
         // itiChart
         //
@@ -232,6 +211,7 @@ partial class OperationsView
         // workflowTabs
         //
         workflowTabs.BackColor = Color.Black;
+        workflowTabs.Controls.Add(tabStrategyUpdates);
         workflowTabs.Controls.Add(tabWorkflowDetails);
         workflowTabs.Controls.Add(tabWorkflowSummary);
         workflowTabs.Dock = DockStyle.Fill;
@@ -239,6 +219,14 @@ partial class OperationsView
         workflowTabs.Name = "workflowTabs";
         workflowTabs.SelectedIndex = 0;
         workflowTabs.TabIndex = 0;
+        //
+        // tabStrategyUpdates
+        //
+        tabStrategyUpdates.BackColor = Color.Black;
+        tabStrategyUpdates.Controls.Add(lstStrategyWorkflows);
+        tabStrategyUpdates.Name = "tabStrategyUpdates";
+        tabStrategyUpdates.Text = "Strategy Updates";
+        tabStrategyUpdates.UseVisualStyleBackColor = false;
         //
         // tabWorkflowDetails
         //
@@ -295,10 +283,6 @@ partial class OperationsView
         strategySplitter.Panel2.ResumeLayout(false);
         ((System.ComponentModel.ISupportInitialize)strategySplitter).EndInit();
         strategySplitter.ResumeLayout(false);
-        strategyContentSplitter.Panel1.ResumeLayout(false);
-        strategyContentSplitter.Panel2.ResumeLayout(false);
-        ((System.ComponentModel.ISupportInitialize)strategyContentSplitter).EndInit();
-        strategyContentSplitter.ResumeLayout(false);
         ((System.ComponentModel.ISupportInitialize)itiChart).EndInit();
         ResumeLayout(false);
     }
@@ -330,7 +314,6 @@ partial class OperationsView
     ComboBox ddlTimeFrame = null!;
     TableLayoutPanel pnlStrategyHeader = null!;
     SplitContainer strategySplitter = null!;
-    SplitContainer strategyContentSplitter = null!;
     System.Windows.Forms.DataVisualization.Charting.Chart itiChart = null!;
     ListView lstStrategyWorkflows = null!;
     ColumnHeader colTime = null!;
@@ -340,6 +323,7 @@ partial class OperationsView
     ColumnHeader colPipelineState = null!;
     ColumnHeader colWorkflowEndState = null!;
     TabControl workflowTabs = null!;
+    TabPage tabStrategyUpdates = null!;
     TabPage tabWorkflowDetails = null!;
     TabPage tabWorkflowSummary = null!;
     Strategy.StrategyWorkflowDetailsAccordion workflowDetails = null!;

@@ -1,0 +1,20 @@
+{
+  "SchemaVersion": 1,
+  "ParameterSetId": "1bdb3da4-4cab-4db1-a90e-f8d0e2a7a401",
+  "Version": 1,
+  "Name": "Iron Condor ES Development",
+  "StrategyKind": 4,
+  "InstrumentRoot": "ES",
+  "Environment": "Development",
+  "IronCondor": {
+    "DailyLossLimit": 1000,
+    "ScenarioHorizonSeconds": 300,
+    "AdverseFuturesMovePoints": 10,
+    "ScenarioVolatilityShiftPercentagePoints": 0,
+    "ExitForwardLossRatio": 1,
+    "WarningForwardLossRatio": 0.8,
+    "MaximumQuoteAgeSeconds": 30,
+    "ExitCommissionPerContract": 5,
+    "AdditionalExitSlippageTicksPerLeg": 1
+  }
+}

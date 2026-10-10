@@ -20,6 +20,9 @@ public sealed record PortfolioCloseOrderCandidate
     [Key(7)] public PortfolioExecutionComponent Component { get; init; } = new();
     [Key(8)] public string EvidenceHash { get; init; } = string.Empty;
     [Key(9)] public PortfolioExecutionPositionType PositionType { get; init; }
+    /// <summary>Optional explicit closing setup; otherwise inherit the opening setup.</summary>
+    [Key(10)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundTradeSetupReference? SetupTrade { get; init; }
 }
 
 [MessagePackObject]

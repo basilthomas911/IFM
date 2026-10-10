@@ -14,7 +14,8 @@ public sealed record WorkerOptionChainRequest(
     [property: Key(5)] DateTimeOffset LeaseExpiresAtUtc,
     [property: Key(6)] ImmutableArray<WorkerOptionDefinition> Options,
     [property: Key(7)] string? ExpectedContextDigest = null,
-    [property: Key(8)] bool SeparateContractConnection = false);
+    [property: Key(8)] bool SeparateContractConnection = false,
+    [property: Key(9), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] bool IndependentChainConnection = false);
 
 [MessagePackObject]
 public sealed record WorkerOptionDefinition(

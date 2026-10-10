@@ -7,6 +7,9 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 
 public interface IMarketDataQueryApi
 {
+    /// <summary>Reads one immutable global strategy option chain configuration from its ScyllaDB projection.</summary>
+    Task<ServiceResult<OptionChainCache.StrategyOptionChainParameterSet>> GetStrategyOptionChainParametersAsync(Guid setId, int version,
+        CancellationToken cancellationToken = default) => throw new NotSupportedException();
     Task<ServiceResult<EvaluatedOptionChainReadModel>> GetEvaluatedOptionChainAsync(GetEvaluatedOptionChainQuery request, CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
     Task<ServiceResult<InstrumentDefinitionPage>> GetInstrumentDefinitionsAsync(InstrumentDefinitionPageRequest request,

@@ -13,6 +13,8 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer
 
 public interface IOrderCompositionFunctionContext : IFunctionActorContext<OrderCompositionFunctionActor>
 {
+    /// <summary>Application market boundary; accepted execution continues to use its frozen snapshot.</summary>
+    TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi MarketDataApi => throw new NotSupportedException();
     IOrderComposer CalculationModel { get; }
     TimeProvider TimeProvider { get; }
     ILogger<OrderCompositionFunctionActor> Logger { get; }
@@ -33,6 +35,7 @@ public sealed class OrderCompositionFunctionContext : FunctionActorContext,
         _repository = new(() => Container.Resolve<IEventSourceFunctionStateRepository<OrderCompositionFunctionState, ExecuteOrderCompositionPipelineCommand>>());
         _projector = new(() => Container.Resolve<IFunctionProjector<OrderCompositionFunctionCompletedEvent>>());
     }
+    public TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi MarketDataApi => Container.Resolve<TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi>();
     public IOrderComposer CalculationModel { get; } = new Model.OrderComposer(new Black76ComposerPricer());
     public ILogger<OrderCompositionFunctionActor> Logger { get; }
     public TimeProvider TimeProvider { get; }

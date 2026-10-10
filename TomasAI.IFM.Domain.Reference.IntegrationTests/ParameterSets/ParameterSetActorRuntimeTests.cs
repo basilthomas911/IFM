@@ -19,6 +19,37 @@ namespace TomasAI.IFM.Domain.Reference.IntegrationTests.ParameterSets;
 [Collection(ReferenceIntegrationInfrastructureCollection.Name)]
 public sealed class ParameterSetActorRuntimeTests(ReferenceIntegrationInfrastructureFixture infrastructure)
 {
+    [Fact]
+    public async Task Global_cache_policy_actor_publication_projects_exact_payload_into_scylla()
+    {
+        var api = new ParameterSetsApi(infrastructure.ActorProducer);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        var id = Guid.NewGuid();
+        var payload = TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.StrategyOptionChainParameterDefaults.IronCondor(id, Guid.Empty, 0);
+        var created = await api.CreateAsync(new()
+        {
+            CommandId = Guid.NewGuid(), EntityId = new(id),
+            ComponentCode = "market-data.strategy-option-chain-cache", Name = payload.Name,
+            SchemaVersion = 1, PayloadJson = payload.Serialize()
+        }, deadline.Token);
+        Assert.True(created.Success, created.ErrorMessage);
+        var command = new PublishParameterVersionCommand
+        { CommandId = Guid.NewGuid(), EntityId = new(id), Version = 1, ExpectedRevision = 1, ComponentCode = "market-data.strategy-option-chain-cache",
+            Name = payload.Name, SchemaVersion = 1, PayloadJson = payload.Serialize() };
+        var published = await api.PublishAsync(command, deadline.Token);
+        Assert.True(published.Success, published.ErrorMessage);
+        Assert.True((await api.PublishAsync(command, deadline.Token)).Success);
+        var persisted = await infrastructure.MarketDataDb.ReadVersionAsync(id, 1, deadline.Token);
+        // Command acceptance precedes asynchronous read-model projection.
+        while (persisted is null && !deadline.IsCancellationRequested)
+        {
+            await Task.Delay(100, deadline.Token);
+            persisted = await infrastructure.MarketDataDb.ReadVersionAsync(id, 1, deadline.Token);
+        }
+        Assert.NotNull(persisted); Assert.Equal(payload.Hash(), persisted.Hash());
+        Assert.DoesNotContain(await infrastructure.MarketDataDb.ReadPublishedAsync("Development", deadline.Token), p => p.ParameterSetId == id);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

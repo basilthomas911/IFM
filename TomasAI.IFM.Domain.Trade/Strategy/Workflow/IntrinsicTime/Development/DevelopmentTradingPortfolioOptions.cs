@@ -59,19 +59,33 @@ public static class DevelopmentTradingPortfolioDefaults
     public static Guid ConstructionId(TimeFrameType horizon) => StableId("construction/" + horizon);
     public static Guid ActivationId(int tradingYear, TimeFrameType horizon) => StableId($"activation/{tradingYear}/{horizon}");
 
+    /// <summary>Manifest version two: Daily futures only; Weekly and Monthly use exact global option cache profiles.</summary>
     public static SelectionConstructionPolicy[] ConstructionPolicies() => DevelopmentTradingPortfolioOptions.Horizons.Select(h => new SelectionConstructionPolicy
     {
-        SchemaVersion = 1,
-        ParameterSetId = ConstructionId(h),
-        Version = 1,
-        MaximumLegs = 4,
-        MinimumDaysToExpiry = h == TimeFrameType.Daily ? 7 : h == TimeFrameType.Weekly ? 14 : 21,
-        MaximumDaysToExpiry = h == TimeFrameType.Daily ? 60 : h == TimeFrameType.Weekly ? 90 : 120,
-        MinimumWingWidth = 5,
-        MaximumWingWidth = 20,
-        DeltaUnits = "UnderlyingEquivalent",
-        MaximumDeltaTolerance = .10m
+        SchemaVersion = (short)(h == TimeFrameType.Daily ? 1 : 3),
+        ParameterSetId = ConstructionId(h), Version = 2, MaximumLegs = h == TimeFrameType.Daily ? 1 : 4,
+        MinimumDaysToExpiry = h == TimeFrameType.Daily ? 7 : 5,
+        MaximumDaysToExpiry = h == TimeFrameType.Daily ? 60 : 45,
+        MinimumWingWidth = h == TimeFrameType.Daily ? 0 : 50,
+        MaximumWingWidth = h == TimeFrameType.Daily ? 0 : 50,
+        DeltaUnits = "UnderlyingEquivalent", MaximumDeltaTolerance = .10m,
+        OptionChainCachePolicies = h == TimeFrameType.Daily ? null : OptionCacheProfiles().Select(p => new SelectionStructureOptionChainCachePolicy
+        {
+            StructureId = p.StrategyDefinitionId, StructureVersion = p.StrategyDefinitionVersion,
+            Policy = new() { ParameterSetId = p.ParameterSetId, Version = p.Version, ConfigurationDigest = p.Hash() }
+        }).ToArray()
     }).ToArray();
+
+    /// <summary>User-approved ES profiles: 50-point widths; Iron Condor 30?45/preferred45 DTE, Verticals 5?10/preferred5 DTE.</summary>
+    public static TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.StrategyOptionChainParameterSet[] OptionCacheProfiles() =>
+        new[] { "IronCondor", "CallVertical", "PutVertical" }.Select(code =>
+        {
+            var id = StrategyCatalogExamples.StableId("StrategyOptionChainCache/Development" + code);
+            var structure = StrategyCatalogExamples.StableId("Development" + code);
+            return (code == "IronCondor"
+                ? TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.StrategyOptionChainParameterDefaults.IronCondor(id, structure, 1)
+                : TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.StrategyOptionChainParameterDefaults.VerticalSpread(id, structure, 1)) with { Enabled = true };
+        }).ToArray();
 
     public static decimal[] CapitalAllocations(decimal total)
     {

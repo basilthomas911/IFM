@@ -138,6 +138,30 @@ public sealed class PortfolioWorkflowTests
         replay.Orders.Should().BeEmpty();
     }
     [Fact]
+    public void Manual_trade_effective_date_does_not_populate_execution_dates()
+    {
+        var effective = DateOnly.FromDateTime(Now);
+        var aggregate = new PortfolioFundCompositionAggregate();
+        var draft = aggregate.CreateManualDraft(new CreateManualFundOrderRequest {
+            PortfolioId = 101, PortfolioVersion = 4, FundId = 202, FundMandateVersion = 3,
+            Reference = "manual effective date", IdempotencyKey = Guid.NewGuid(), RequestedAtUtc = Now,
+            ExpiresAtUtc = Now.AddDays(1)
+        }, 16001, Now, "operator");
+        var request = new AddManualFundOrderTradeRequest {
+            PortfolioId = 101, FundId = 202, OrderId = 16001, ExpectedOrderVersion = draft.AggregateVersion,
+            TradeId = 17001, TradeType = nameof(TradeType.ShortIronCondor), EffectiveDate = effective,
+            TradeState = nameof(TradeState.NewTrade), TradeAction = nameof(TradeAction.Sell),
+            PrimaryTrade = true, BaseContractSymbol = "ES", BaseContractId = "ESZ26", RequestedAtUtc = Now
+        };
+        request.TradeDate.Should().BeNull(); request.MaturityDate.Should().BeNull();
+        var trade = aggregate.AddManualTrade(request, "operator").Trades.Should().ContainSingle().Subject;
+        trade.EffectiveDate.Should().Be(effective);
+        trade.TradeDate.Should().BeNull(); trade.MaturityDate.Should().BeNull();
+        trade.RequestedMaturityDate.Should().BeNull();
+        trade.InstructionReference.Should().Be($"ESZ26 @ {effective:yyyyMMdd}");
+    }
+
+    [Fact]
     [Trait("Category", "Portfolio")]
     public void Empty_manual_order_supports_the_complete_canonical_trade_lifecycle()
     {
@@ -204,29 +228,24 @@ public sealed class PortfolioWorkflowTests
 
         closed.Trades.Should().HaveCount(2);
         closed.Order.AggregateVersion.Should().Be(3);
-        var completed = aggregate.ChangeManualTradeState(new ManualFundOrderTradeMutationRequest
-        {
-            PortfolioId = 101,
-            FundId = 202,
-            OrderId = 16001,
-            ExpectedOrderVersion = closed.AggregateVersion,
-            TradeId = 17002,
-            TradeState = nameof(TradeState.OrderCompleted),
-            RequestedAtUtc = Now,
-        });
-        var finalized = aggregate.CloseManualOrder(new ManualFundOrderMutationRequest
-        {
-            PortfolioId = 101,
-            FundId = 202,
-            OrderId = 16001,
-            ExpectedOrderVersion = completed.AggregateVersion,
-            Reason = "operator close",
-            RequestedAtUtc = Now,
-        });
-
-        completed.Trades.Single(x => x.TradeId == 17002).TradeState.Should().Be(nameof(TradeState.OrderCompleted));
+        var attempt = Guid.NewGuid();
+        var setup = new FundTradeSetupReference { OrderId = 16001, TradeId = 17001 };
+        var opening = new FundTradeExecutionEvidence { PortfolioId = 101, FundId = 202, SetupTrade = setup,
+            ExecutionOrderId = 18001, ExecutionTradeId = 19001, ExecutionAttemptId = attempt,
+            OccurredAtUtc = Now, TradeDate = tradeDate, MaturityDate = maturityDate };
+        aggregate.RecordFundTradeSubmission(opening);
+        var established = aggregate.RecordFundTradeOpening(opening);
+        established.Trades.Single(x => x.PrimaryTrade).TradeState.Should().Be(nameof(TradeState.Open));
+        var closing = opening with { SetupTrade = new() { OrderId = 16001, TradeId = 17002 },
+            ClosingExecution = true, FullyClosed = true, OpeningExecutionTradeId = 19001, ExecutionOrderId = 18002,
+            ExecutionAttemptId = Guid.NewGuid() };
+        aggregate.RecordFundTradeSubmission(closing);
+        var finalized = aggregate.RecordFundTradeClosing(closing);
+        finalized.Trades.Single(x => x.TradeId == 17002).TradeState.Should().Be(nameof(TradeState.OrderCompleted));
+        finalized.Trades.Single(x => x.PrimaryTrade).TradeState.Should().Be(nameof(TradeState.Closed));
         finalized.Order.Status.Should().Be(nameof(FundCompositionState.Executed));
-        finalized.Order.AggregateVersion.Should().Be(5);
+        var replay = aggregate.RecordFundTradeClosing(closing);
+        replay.AggregateVersion.Should().Be(finalized.AggregateVersion);
 
     }
 

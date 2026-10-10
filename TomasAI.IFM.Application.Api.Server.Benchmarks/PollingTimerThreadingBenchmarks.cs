@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Api.Server.Core.Hosting;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using TomasAI.IFM.Domain.Application.Event;

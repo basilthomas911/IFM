@@ -3,10 +3,16 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Query.Actor;
 using TomasAI.IFM.Application.MarketData.Contracts;
 
+using System.Runtime.CompilerServices;
+using TomasAI.IFM.Shared.Util;
+
 namespace TomasAI.IFM.Domain.MarketData.Query;
 
 internal static class OptionChainWindowInputs
 {
+    sealed record StoredInputs(decimal? Price, decimal? Deviation, DateOnly? ObservationDate);
+    static readonly ConditionalWeakTable<object, AsyncReadCache<(string Contract, string Symbol, DateOnly ValueDate), StoredInputs>> Stored = new();
+
     internal static async Task<(decimal? Price, decimal? Deviation, DateOnly? ObservationDate)> GetAsync(
         IMarketDataQueryContext context, string symbol, string underlyingContractId,
         CancellationToken cancellationToken)
@@ -25,6 +31,20 @@ internal static class OptionChainWindowInputs
                 // Stored EOD and Bollinger values still support chain discovery.
             }
         }
+        var cache = Stored.GetValue(context.DbFactory, _ => new(128, TimeSpan.FromSeconds(30)));
+        var stored = await cache.GetAsync((underlyingContractId, symbol, valueDate),
+            async token =>
+            {
+                var result = await ReadStoredAsync(context, symbol, underlyingContractId, valueDate, token).ConfigureAwait(false);
+                return new StoredInputs(result.Price, result.Deviation, result.ObservationDate);
+            }, cancellationToken).ConfigureAwait(false);
+        return (price ?? stored?.Price, stored?.Deviation, stored?.ObservationDate);
+    }
+
+    static async Task<(decimal? Price, decimal? Deviation, DateOnly? ObservationDate)> ReadStoredAsync(
+        IMarketDataQueryContext context, string symbol, string underlyingContractId, DateOnly valueDate, CancellationToken cancellationToken)
+    {
+        decimal? price = null;
         var currentEod = await context.DbFactory.MarketDataDb.GetFuturesEodDataAsync(
             underlyingContractId, valueDate).ConfigureAwait(false);
         var deviationEod = currentEod;

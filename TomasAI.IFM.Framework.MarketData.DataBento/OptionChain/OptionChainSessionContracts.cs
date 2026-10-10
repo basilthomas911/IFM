@@ -9,7 +9,8 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento.OptionChain;
 public readonly record struct OptionChainSessionKey(
     string FuturesContractId,
     DateOnly MaturityDate,
-    string OptionContractId = "");
+    string OptionContractId = "",
+    string ConnectionScopeId = "");
 
 public sealed record DatabentoOptionChainRoute
 {
@@ -21,6 +22,8 @@ public sealed record DatabentoOptionChainSessionRequest
 {
     /// <summary>Gets the single option contract owning this physical connection; empty selects chain mode.</summary>
     public string OptionContractId { get; init; } = string.Empty;
+    /// <summary>Optional independent chain owner, allowing replacement coverage to coexist with manual sessions.</summary>
+    public string ConnectionScopeId { get; init; } = string.Empty;
     public required string FuturesContractId { get; init; }
     public required DateOnly ValueDate { get; init; }
     public required OptionChainSubscription Subscription { get; init; }

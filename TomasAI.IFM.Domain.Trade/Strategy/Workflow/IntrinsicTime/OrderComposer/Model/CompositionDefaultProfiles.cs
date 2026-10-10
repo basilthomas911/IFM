@@ -26,7 +26,7 @@ public static class CompositionDefaultProfiles
                 BaseParameters = Parameters(horizon) with
                 { TargetNetDelta = v.Settings.GetProperty("TargetNetDelta").GetDecimal(), BalanceTolerance = v.Settings.GetProperty("BalanceTolerance").GetDecimal() },
                 AllowedWidths = v.Settings.GetProperty("MaximumWingWidth").GetDecimal() == 0 ? [] :
-                    new[] { 5m, 10m, 15m, 20m }.Where(w => w >= v.Settings.GetProperty("MinimumWingWidth").GetDecimal()
+                    new[] { 5m, 10m, 15m, 20m, 50m }.Where(w => w >= v.Settings.GetProperty("MinimumWingWidth").GetDecimal()
                         && w <= v.Settings.GetProperty("MaximumWingWidth").GetDecimal()).ToImmutableArray(),
                 RequireSymmetricWings = v.Settings.GetProperty("SymmetricWings").GetBoolean(),
                 DeltaUnits = "UnderlyingEquivalent",

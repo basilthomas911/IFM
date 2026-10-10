@@ -100,20 +100,6 @@ public static class PortfolioFundCommandValidation
         ValidateManualTradeMutation(errors, typed.Request, typed.EntityId, typed.CommandName, false);
         return errors;
     }
-    /// <summary>Validates the ChangeManualFundOrderTradeStateCommand payload and its Fund identity.</summary>
-    public static List<ValidationError> ValidateFundCommand(this List<ValidationError> errors, ChangeManualFundOrderTradeStateCommand typed)
-    {
-        ValidateIdentity(errors, typed);
-        ValidateManualTradeMutation(errors, typed.Request, typed.EntityId, typed.CommandName, true);
-        return errors;
-    }
-    /// <summary>Validates the CloseManualFundOrderCommand payload and its Fund identity.</summary>
-    public static List<ValidationError> ValidateFundCommand(this List<ValidationError> errors, CloseManualFundOrderCommand typed)
-    {
-        ValidateIdentity(errors, typed);
-        ValidateManualOrderMutation(errors, typed.Request, typed.EntityId, typed.CommandName);
-        return errors;
-    }
     /// <summary>Validates the DeleteManualFundOrderCommand payload and its Fund identity.</summary>
     public static List<ValidationError> ValidateFundCommand(this List<ValidationError> errors, DeleteManualFundOrderCommand typed)
     {
@@ -156,6 +142,55 @@ public static class PortfolioFundCommandValidation
         ValidateExpire(errors, typed);
         return errors;
     }
+    /// <summary>Validates the identity and evidence for RecordFundTradeSubmission.</summary>
+    public static List<ValidationError> ValidateFundCommand(this List<ValidationError> errors, RecordFundTradeSubmissionCommand typed)
+    {
+        ValidateIdentity(errors, typed);
+        var evidence = typed.ExecutionEvidence;
+        if (evidence is null || evidence.PortfolioId != typed.EntityId?.PortfolioId || evidence.FundId != typed.EntityId?.FundId
+            || evidence.SetupTrade is null || evidence.SetupTrade.OrderId <= 0 || evidence.SetupTrade.TradeId <= 0
+            || evidence.ExecutionOrderId <= 0 || evidence.ExecutionTradeId <= 0 || evidence.ExecutionAttemptId == Guid.Empty
+            || evidence.OccurredAtUtc.Kind != DateTimeKind.Utc)
+            errors.Add(new($"{typed.CommandName}.ExecutionEvidence is invalid"));
+        return errors;
+    }
+    /// <summary>Validates the identity and evidence for RecordFundTradeOpening.</summary>
+    public static List<ValidationError> ValidateFundCommand(this List<ValidationError> errors, RecordFundTradeOpeningCommand typed)
+    {
+        ValidateIdentity(errors, typed);
+        var evidence = typed.ExecutionEvidence;
+        if (evidence is null || evidence.PortfolioId != typed.EntityId?.PortfolioId || evidence.FundId != typed.EntityId?.FundId
+            || evidence.SetupTrade is null || evidence.SetupTrade.OrderId <= 0 || evidence.SetupTrade.TradeId <= 0
+            || evidence.ExecutionOrderId <= 0 || evidence.ExecutionTradeId <= 0 || evidence.ExecutionAttemptId == Guid.Empty
+            || evidence.OccurredAtUtc.Kind != DateTimeKind.Utc)
+            errors.Add(new($"{typed.CommandName}.ExecutionEvidence is invalid"));
+        return errors;
+    }
+    /// <summary>Validates the identity and evidence for RecordFundTradeClosing.</summary>
+    public static List<ValidationError> ValidateFundCommand(this List<ValidationError> errors, RecordFundTradeClosingCommand typed)
+    {
+        ValidateIdentity(errors, typed);
+        var evidence = typed.ExecutionEvidence;
+        if (evidence is null || evidence.PortfolioId != typed.EntityId?.PortfolioId || evidence.FundId != typed.EntityId?.FundId
+            || evidence.SetupTrade is null || evidence.SetupTrade.OrderId <= 0 || evidence.SetupTrade.TradeId <= 0
+            || evidence.ExecutionOrderId <= 0 || evidence.ExecutionTradeId <= 0 || evidence.ExecutionAttemptId == Guid.Empty
+            || evidence.OccurredAtUtc.Kind != DateTimeKind.Utc)
+            errors.Add(new($"{typed.CommandName}.ExecutionEvidence is invalid"));
+        return errors;
+    }
+    /// <summary>Validates the identity and evidence for ReleaseFundTradeSubmission.</summary>
+    public static List<ValidationError> ValidateFundCommand(this List<ValidationError> errors, ReleaseFundTradeSubmissionCommand typed)
+    {
+        ValidateIdentity(errors, typed);
+        var evidence = typed.ExecutionEvidence;
+        if (evidence is null || evidence.PortfolioId != typed.EntityId?.PortfolioId || evidence.FundId != typed.EntityId?.FundId
+            || evidence.SetupTrade is null || evidence.SetupTrade.OrderId <= 0 || evidence.SetupTrade.TradeId <= 0
+            || evidence.ExecutionOrderId <= 0 || evidence.ExecutionTradeId <= 0 || evidence.ExecutionAttemptId == Guid.Empty
+            || evidence.OccurredAtUtc.Kind != DateTimeKind.Utc)
+            errors.Add(new($"{typed.CommandName}.ExecutionEvidence is invalid"));
+        return errors;
+    }
+
     /// <summary>Checks ValidateIdentity without changing state.</summary>
     static void ValidateIdentity(
         List<ValidationError> errors,

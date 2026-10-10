@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
@@ -47,11 +48,13 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
     IntrinsicTimeStrategyWorkflowOptions workflow,
     ILogger<DevelopmentTradingPortfolioProvisioner> logger)
 {
+    bool strategyPermissionsChanged;
     const string Principal = "IFM Development startup";
     static readonly DateTime ManifestEpoch = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
     public async Task<DevelopmentTradingPortfolioReport> EnsureAsync(CancellationToken token = default)
     {
+        strategyPermissionsChanged = false;
         options.Validate();
         if (!development.IsDevelopmentEnvironment)
             throw new InvalidOperationException("Development paper Portfolio provisioning requires the Development host environment.");
@@ -133,7 +136,7 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
             {
                 SchemaVersion = 2,
                 ParameterSetId = DevelopmentTradingPortfolioDefaults.ActivationId(now.Year, pair.Key),
-                Version = 2,
+                Version = 3,
                 PortfolioId = 0,
                 FundId = null,
                 InstrumentRoot = options.InstrumentRoot,
@@ -234,7 +237,7 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
         var existing = await queries.GetPoliciesAsync(portfolio.PortfolioId, 200, token).ConfigureAwait(false);
         if (!existing.Success || existing.Value is null) throw new InvalidOperationException("Development policy discovery failed: " + existing.ErrorMessage);
         var matches = existing.Value.Items.Where(x => x.Name == "IFM Development Paper Limits").ToArray();
-        if (matches.Length > 1) throw new InvalidOperationException("Multiple financial policies use the reserved Development policy name.");
+        if (matches.Select(x => x.PolicyId).Distinct().Count() > 1) throw new InvalidOperationException("Multiple financial policy identities use the reserved Development policy name.");
         PortfolioFinancialPolicyReadModel policy;
         if (matches.Length == 0)
         {
@@ -244,13 +247,28 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
         }
         else
         {
-            policy = matches[0];
+            policy = matches.OrderByDescending(x => x.PolicyVersion).First();
             var expected = Policy(portfolio.PortfolioId, policy.PolicyId, deployments) with
-            { OperatingState = policy.OperatingState, AggregateRevision = policy.AggregateRevision };
+            { PolicyVersion = policy.PolicyVersion, OperatingState = policy.OperatingState, AggregateRevision = policy.AggregateRevision };
             if (policy.CanonicalSha256() != expected.CanonicalSha256())
-                throw new InvalidOperationException("Existing Development financial policy differs from the configured manifest.");
+            {
+                // The approved manifest changes strategy permissions, never capital or monetary limits.
+                var prior = expected with { TradeFamilyLimits = policy.TradeFamilyLimits };
+                if (policy.PolicyVersion != 1 || policy.CanonicalSha256() != prior.CanonicalSha256()
+                    || !LegacyDeployments(policy.TradeFamilyLimits.Select(x => x.CatalogDeployment), DevelopmentTradingPortfolioOptions.Horizons))
+                    throw new InvalidOperationException("Existing Development financial policy has unrelated changes; cannot migrate automatically.");
+                strategyPermissionsChanged = true;
+                var replacement = expected with { PolicyVersion = 2, OperatingState = PortfolioFinancialPolicyState.Draft };
+                await RequireSuccess(policies.AddPolicyVersionAsync(replacement, policy.AggregateRevision, token),
+                    "Migrate Development strategy permissions").ConfigureAwait(false);
+                policy = await RequiredEventually(async () =>
+                {
+                    var result = await queries.GetPolicyAsync(policy.PolicyId, cancellationToken: token).ConfigureAwait(false);
+                    return result.Value?.PolicyVersion == 2 ? result : new ServiceResult<PortfolioFinancialPolicyReadModel>(false, 0, "Projection pending", null);
+                }, "Read migrated Development policy", token).ConfigureAwait(false);
+            }
         }
-        if (portfolio.ActivePolicyId == 0)
+        if (portfolio.ActivePolicyId == 0 || portfolio.ActivePolicyId == policy.PolicyId && portfolio.ActivePolicyVersion < policy.PolicyVersion)
         {
             var policyRevision = (await RequiredEventually(
                 () => queries.GetPolicyAsync(policy.PolicyId, cancellationToken: token),
@@ -309,7 +327,7 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
         var page = await queries.GetFundsAsync(portfolio.PortfolioId, null, 200, cancellationToken: token).ConfigureAwait(false);
         if (!page.Success || page.Value is null) throw new InvalidOperationException("Development Fund discovery failed: " + page.ErrorMessage);
         var matches = page.Value.Items.Where(x => x.FundCode == code).ToArray();
-        if (matches.Length > 1) throw new InvalidOperationException($"Multiple Funds use reserved code {code}.");
+        if (matches.Select(x => x.FundId).Distinct().Count() > 1) throw new InvalidOperationException($"Multiple Fund identities use reserved code {code}.");
         FundMandateReadModel fund;
         var portfolioRevision = await PortfolioRevisionAsync(portfolio.PortfolioId, token).ConfigureAwait(false);
         if (matches.Length == 0)
@@ -320,10 +338,30 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
             await RequireSuccess(portfolios.AddFundAsync(new(portfolio.PortfolioId, fundId), portfolioRevision, token), $"Add {horizon} Fund to Portfolio").ConfigureAwait(false);
             portfolioRevision++;
         }
-        else fund = matches[0];
+        else fund = matches.OrderByDescending(x => x.FundMandateVersion).First();
 
-        if (!fund.PermittedTradeStrategyFamilies.Select(x => x.CatalogDeployment).SequenceEqual(deployments.Cast<CatalogKey?>()))
-            throw new InvalidOperationException($"Existing {horizon} Development Fund deployment permissions differ from the manifest.");
+        if (!fund.PermittedTradeStrategyFamilies.Select(x => x.CatalogDeployment).SequenceEqual(deployments.Cast<CatalogKey?>())
+            || !fund.EligibleAssetTypes.SequenceEqual(horizon == TimeFrameType.Daily ? new[] { "Futures" } : new[] { "FuturesOption" }))
+        {
+            if (fund.FundMandateVersion != 1 || !LegacyDeployments(fund.PermittedTradeStrategyFamilies.Select(x => x.CatalogDeployment), [horizon]))
+                throw new InvalidOperationException($"Existing {horizon} Development Fund contains unrelated permissions; cannot migrate automatically.");
+            strategyPermissionsChanged = true;
+            var approved = Fund(portfolio.PortfolioId, fund.FundId, code, horizon, deployments);
+            var replacement = fund with
+            {
+                FundMandateVersion = fund.FundMandateVersion + 1,
+                PermittedTradeStrategyFamilies = approved.PermittedTradeStrategyFamilies,
+                PermittedTradeFamilies = approved.PermittedTradeFamilies,
+                EligibleAssetTypes = approved.EligibleAssetTypes
+            };
+            await RequireSuccess(funds.AddFundMandateVersionAsync(replacement, await FundRevisionAsync(portfolio.PortfolioId, fund.FundId, token), token),
+                $"Migrate {horizon} strategy permissions").ConfigureAwait(false);
+            fund = await RequiredEventually(async () =>
+            {
+                var result = await queries.GetFundAsync(portfolio.PortfolioId, fund.FundId, cancellationToken: token).ConfigureAwait(false);
+                return result.Value?.FundMandateVersion == replacement.FundMandateVersion ? result : new ServiceResult<FundMandateReadModel>(false, 0, "Projection pending", null);
+            }, "Read migrated Development Fund", token).ConfigureAwait(false);
+        }
 
         var assignments = await queries.GetAssignmentsAsync(portfolio.PortfolioId, fund.FundId, fund.FundMandateVersion, token).ConfigureAwait(false);
         if (!assignments.Success || assignments.Value is null) throw new InvalidOperationException("Development assignment discovery failed: " + assignments.ErrorMessage);
@@ -363,7 +401,18 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
             fundRevision++;
         }
 
-        if (await queries.GetFundAllocationAsync(portfolio.PortfolioId, fund.FundId, token).ConfigureAwait(false) is { Success: false })
+        var allocationRead = await queries.GetFundAllocationAsync(portfolio.PortfolioId, fund.FundId, token).ConfigureAwait(false);
+        if (allocationRead.Value is { } allocation && (allocation.FundMandateVersion != fund.FundMandateVersion || allocation.SourcePolicyVersion != policy.PolicyVersion))
+        {
+            strategyPermissionsChanged = true;
+            await RequireSuccess(portfolios.DelegateAllocationAsync(allocation with
+            {
+                PortfolioVersion = portfolio.PortfolioVersion, FundMandateVersion = fund.FundMandateVersion, AllocationVersion = allocation.AllocationVersion + 1,
+                SourcePolicyVersion = policy.PolicyVersion
+            }, portfolioRevision, token), "Migrate allocation references without changing capital").ConfigureAwait(false);
+            portfolioRevision++;
+        }
+        if (!allocationRead.Success)
         {
             await RequireSuccess(portfolios.DelegateAllocationAsync(new()
             {
@@ -386,6 +435,16 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
             portfolioRevision++;
         }
         var envelopeRead = await queries.GetFundRiskEnvelopeAsync(portfolio.PortfolioId, fund.FundId, DateTime.UtcNow, token).ConfigureAwait(false);
+        if (envelopeRead.Value is { } envelope && (envelope.FundMandateVersion != fund.FundMandateVersion || envelope.SourcePolicyVersion != policy.PolicyVersion))
+        {
+            strategyPermissionsChanged = true;
+            await RequireSuccess(portfolios.DelegateRiskEnvelopeAsync(envelope with
+            {
+                PortfolioVersion = portfolio.PortfolioVersion, FundMandateVersion = fund.FundMandateVersion, EnvelopeVersion = envelope.EnvelopeVersion + 1,
+                SourcePolicyVersion = policy.PolicyVersion
+            }, portfolioRevision, token), "Migrate risk-envelope references without changing risk limits").ConfigureAwait(false);
+            portfolioRevision++;
+        }
         if (!envelopeRead.Success)
         {
             var allocated = FundCapital(horizon);
@@ -440,7 +499,7 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
         DecisionHorizon = horizon.ToString(),
         Objective = "Exercise the production decision, composition, capacity and risk path with paper capital.",
         UnderlyingUniverse = [options.InstrumentRoot],
-        EligibleAssetTypes = ["Futures", "FuturesOption"],
+        EligibleAssetTypes = horizon == TimeFrameType.Daily ? ["Futures"] : ["FuturesOption"],
         PermittedDirections = Enum.GetNames<MarketConditionDirection>().Where(x => x != nameof(MarketConditionDirection.Undefined)).ToArray(),
         PermittedConditions = Enum.GetNames<MarketConditionType>().Where(x => x != nameof(MarketConditionType.Undefined)).ToArray(),
         PermittedTradeFamilies = deployments.Select(DevelopmentDeploymentCode).ToArray(),
@@ -460,7 +519,7 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
             var value = existing.Value.Value!;
             if (value.Environment != "Emulator")
                 throw new InvalidOperationException($"Development ledger exists in {value.Environment}; operator recovery is required.");
-            if (value.OperatingState == "NeedsRefresh")
+            if (value.OperatingState == "NeedsRefresh" || strategyPermissionsChanged && value.OperatingState == "Active")
             {
                 var refreshAuthority = await financial.PrepareFinancialAuthorityAsync(scope, new(true), token).ConfigureAwait(false);
                 var refreshAuthorityDraft = refreshAuthority.Value?.Value?.Draft
@@ -662,7 +721,9 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
         var current = await configuration.GetStrategyCatalogAsync(definition.Key, token).ConfigureAwait(false);
         if (current is null)
         {
-            var inserted = await configuration.InsertStrategyCatalogDraftAsync(definition, 0, Principal, token).ConfigureAwait(false);
+            if (definition.Key.Version > 1 && await configuration.GetStrategyCatalogAsync(definition.Key with { Version = definition.Key.Version - 1 }, token).ConfigureAwait(false) is null)
+                await EnsureCatalogAsync(definition with { Key = definition.Key with { Version = definition.Key.Version - 1 } }, now, token).ConfigureAwait(false);
+            var inserted = await configuration.InsertStrategyCatalogDraftAsync(definition, definition.Key.Version - 1, Principal, token).ConfigureAwait(false);
             if (inserted != expected) throw new InvalidOperationException("Development catalog insert returned an unexpected hash.");
             current = await configuration.GetStrategyCatalogAsync(definition.Key, token).ConfigureAwait(false);
         }
@@ -723,13 +784,22 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
     decimal FundCapital(TimeFrameType horizon) => FundCapitalByIndex(Array.IndexOf(DevelopmentTradingPortfolioOptions.Horizons, horizon));
     decimal FundCapitalByIndex(int index) => DevelopmentTradingPortfolioDefaults.CapitalAllocations(options.DevelopmentCapital)[index];
 
+    /// <summary>Recognizes only the original reserved manifest before migrating exact strategy permissions.</summary>
+    static bool LegacyDeployments(IEnumerable<CatalogKey?> actual, IEnumerable<TimeFrameType> horizons)
+    {
+        var keys = actual.ToArray();
+        var expected = horizons.SelectMany(h => new[] { "Future", "Vertical", "IronCondor" }
+            .Select(f => new CatalogKey(StrategyCatalogKind.Deployment, StrategyCatalogExamples.StableId($"Development{h}{f}"), 1))).ToArray();
+        return keys.Length == expected.Length && keys.Distinct().Count() == keys.Length && expected.All(x => keys.Contains(x));
+    }
+
     static string DevelopmentDeploymentCode(CatalogKey key)
     {
         foreach (var horizon in DevelopmentTradingPortfolioOptions.Horizons)
             foreach (var family in new[] { "Future", "Vertical", "IronCondor" })
             {
                 var code = $"Development{horizon}{family}";
-                if (key == new CatalogKey(StrategyCatalogKind.Deployment, StrategyCatalogExamples.StableId(code), 1)) return code;
+                if (key == new CatalogKey(StrategyCatalogKind.Deployment, StrategyCatalogExamples.StableId(code), 2)) return code;
             }
         throw new InvalidOperationException("Unknown Development deployment key.");
     }
@@ -754,6 +824,7 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
             var isFuture = structureCode == "Future";
             var item = StrategyCatalogExamples.New(StrategyCatalogKind.Variant, "Development" + source.Code, "Development " + source.Name) with
             {
+                Key = new(StrategyCatalogKind.Variant, StrategyCatalogExamples.StableId("Development" + source.Code), 2),
                 Parent = structures[structureCode].Key,
                 Side = source.Side,
                 Bias = source.Bias,
@@ -762,11 +833,11 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
                 VariantLegs = source.VariantLegs,
                 Settings = JsonSerializer.SerializeToElement(new
                 {
-                    TargetNetDelta = isFuture ? (source.Side == "Long" ? 1m : -1m) : source.Bias == "Balanced" ? 0m : source.Bias == "Bullish" ? .15m : -.15m,
+                    TargetNetDelta = isFuture ? (source.Side == "Long" ? 1m : -1m) : source.Bias == "Balanced" ? 0m : source.Bias == "Bullish" ? .10m : -.10m,
                     BalanceTolerance = .05m,
                     SymmetricWings = true,
-                    MinimumWingWidth = isFuture ? 0m : 5m,
-                    MaximumWingWidth = isFuture ? 0m : 20m,
+                    MinimumWingWidth = isFuture ? 0m : 50m,
+                    MaximumWingWidth = isFuture ? 0m : 50m,
                     DeltaUnits = "UnderlyingEquivalent"
                 })
             };
@@ -789,15 +860,34 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
                 (Code: "Future", Variants: new[] { "LongFuture", "ShortFuture" }, Product: futureProduct),
                 (Code: "Vertical", Variants: new[] { "BullCallDebit", "BearCallCredit", "BullPutCredit", "BearPutDebit" }, Product: optionProduct),
                 (Code: "IronCondor", Variants: variants.Keys.Where(x => x.Contains("IronCondor", StringComparison.Ordinal)).ToArray(), Product: optionProduct)
-            })
+            }.Where(group => horizon == TimeFrameType.Daily ? group.Code == "Future" : group.Code != "Future"))
             {
                 var selected = group.Variants.Select(x => variants[x]).ToArray();
                 var rules = CompositionDefaultProfiles.Create(selected, horizon, new Black76ComposerPricer().Version);
+                if (group.Code != "Future")
+                {
+                    var profiles = DevelopmentTradingPortfolioDefaults.OptionCacheProfiles();
+                    rules = rules with { VariantRules = rules.VariantRules.Select(rule =>
+                    {
+                        var variant = selected.Single(v => v.Key == rule.VariantKey);
+                        var profile = profiles.Single(p => p.StrategyDefinitionId == rule.StructureKey.Id);
+                        var row = profile.BiasRows.Single(r => r.MarketBias.ToString() == (variant.Bias == "Balanced" ? "Neutral" : variant.Bias));
+                        return rule with { AllowedWidths = [50], BaseParameters = rule.BaseParameters with
+                        {
+                            MinimumDaysToExpiry = row.MinimumDte, MaximumDaysToExpiry = row.MaximumDte, TargetDaysToExpiry = row.PreferredDte,
+                            TargetPutDelta = row.PutDelta.Target, TargetCallDelta = row.CallDelta.Target,
+                            TargetLegDelta = structures["PutVertical"].Key == rule.StructureKey ? row.PutDelta.Target : row.CallDelta.Target,
+                            LegDeltaTolerance = .03m, TargetNetDelta = row.TargetNetDelta, BalanceTolerance = row.NetDeltaTolerance
+                        } };
+                    }).ToImmutableArray() };
+                    CompositionRulesContract.Validate(rules);
+                }
                 var parameter = StrategyCatalogExamples.New(StrategyCatalogKind.ParameterSet, $"Development{horizon}{group.Code}CompositionRules", $"Development {horizon} {group.Code} composition rules") with
-                { Parent = schema.Key, Settings = JsonSerializer.SerializeToElement(rules) };
+                { Key = new(StrategyCatalogKind.ParameterSet, StrategyCatalogExamples.StableId($"Development{horizon}{group.Code}CompositionRules"), 2), Parent = schema.Key, Settings = JsonSerializer.SerializeToElement(rules) };
                 definitions.Add(parameter);
                 var deployment = StrategyCatalogExamples.New(StrategyCatalogKind.Deployment, $"Development{horizon}{group.Code}", $"Development {horizon} {group.Code}") with
                 {
+                    Key = new(StrategyCatalogKind.Deployment, StrategyCatalogExamples.StableId($"Development{horizon}{group.Code}"), 2),
                     Parent = strategy.Key,
                     Horizon = horizon,
                     Variants = selected.Select(x => x.Key).ToArray(),
@@ -806,7 +896,7 @@ public sealed class DevelopmentTradingPortfolioProvisioner(
                     PipelineParameters =
                     [
                         new("selection-policy", CatalogPipelineParameterKind.TradeSelection, selection.ParameterSetId, 1, TradeSelectionPolicy.Hash(selection)),
-                        new("composition-policy", CatalogPipelineParameterKind.OrderComposition, construction.ParameterSetId, 1, construction.Hash()),
+                        new("composition-policy", CatalogPipelineParameterKind.OrderComposition, construction.ParameterSetId, construction.Version, construction.Hash()),
                         new("risk-policy", CatalogPipelineParameterKind.RiskManagement, risk.ParameterSetId, 1, risk.Hash())
                     ],
                     Parameters = [new(CompositionRulesContract.Role, parameter.Key)]

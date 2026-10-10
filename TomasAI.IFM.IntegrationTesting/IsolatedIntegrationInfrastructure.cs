@@ -88,22 +88,22 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
 
         try
         {
-            await DockerAsync(["run", "--detach", "--name", PostgresContainer, "--label", $"ifm.integration.run={runId}",
+            await DockerAsync(["run", "--detach", "--rm", "--name", PostgresContainer, "--label", $"ifm.integration.run={runId}",
                 "--publish", "127.0.0.1::5432", "--env", $"POSTGRES_USER={PostgresUser}",
                 "--env", $"POSTGRES_PASSWORD={PostgresPassword}", "--env", $"POSTGRES_DB={PostgresDatabase}", PostgresImage]);
-            await DockerAsync(["run", "--detach", "--name", RedisContainer, "--label", $"ifm.integration.run={runId}",
+            await DockerAsync(["run", "--detach", "--rm", "--name", RedisContainer, "--label", $"ifm.integration.run={runId}",
                 "--publish", "127.0.0.1::6379", RedisImage]);
-            await DockerAsync(["run", "--detach", "--name", NatsContainer, "--label", $"ifm.integration.run={runId}",
+            await DockerAsync(["run", "--detach", "--rm", "--name", NatsContainer, "--label", $"ifm.integration.run={runId}",
                 "--publish", "127.0.0.1::4222", NatsImage, "--jetstream"]);
             if (scope == "domainactors")
-                await DockerAsync(["run", "--detach", "--name", AuxiliaryNatsContainer, "--label", $"ifm.integration.run={runId}",
+                await DockerAsync(["run", "--detach", "--rm", "--name", AuxiliaryNatsContainer, "--label", $"ifm.integration.run={runId}",
                     "--publish", "127.0.0.1::4222", NatsImage, "--jetstream"]);
             if (useScylla)
-                await DockerAsync(["run", "--detach", "--name", CqlContainer, "--label", $"ifm.integration.run={runId}",
+                await DockerAsync(["run", "--detach", "--rm", "--name", CqlContainer, "--label", $"ifm.integration.run={runId}",
                     "--publish", "127.0.0.1::9042", "--memory", "3g", ScyllaImage,
                     "--smp", "1", "--memory", "1G", "--overprovisioned", "1", "--developer-mode", "1"]);
             else
-                await DockerAsync(["run", "--detach", "--name", CqlContainer, "--label", $"ifm.integration.run={runId}",
+                await DockerAsync(["run", "--detach", "--rm", "--name", CqlContainer, "--label", $"ifm.integration.run={runId}",
                     "--publish", "127.0.0.1::9042", "--memory", "2g", "--env", "MAX_HEAP_SIZE=512M",
                     "--env", "HEAP_NEWSIZE=100M", CqlImage]);
 
@@ -160,13 +160,15 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
             throw new ArgumentException("CQL identifiers may contain only ASCII letters, digits, and underscores.", nameof(value));
     /// <inheritdoc />
     }
+    // Test images declare anonymous data volumes. Remove them with their owning containers;
+    // --rm also covers a container exiting before the fixture reaches DisposeAsync.
     public async ValueTask DisposeAsync()
     {
-        await DockerAsync(["rm", "--force", CqlContainer], allowFailure: true);
-        await DockerAsync(["rm", "--force", NatsContainer], allowFailure: true);
-        await DockerAsync(["rm", "--force", RedisContainer], allowFailure: true);
-        await DockerAsync(["rm", "--force", PostgresContainer], allowFailure: true);
-        await DockerAsync(["rm", "--force", AuxiliaryNatsContainer], allowFailure: true);
+        await DockerAsync(["rm", "--force", "--volumes", CqlContainer], allowFailure: true);
+        await DockerAsync(["rm", "--force", "--volumes", NatsContainer], allowFailure: true);
+        await DockerAsync(["rm", "--force", "--volumes", RedisContainer], allowFailure: true);
+        await DockerAsync(["rm", "--force", "--volumes", PostgresContainer], allowFailure: true);
+        await DockerAsync(["rm", "--force", "--volumes", AuxiliaryNatsContainer], allowFailure: true);
         foreach (var (name, value) in previousEnvironment)
             Environment.SetEnvironmentVariable(name, value);
         previousEnvironment.Clear();

@@ -26,7 +26,7 @@ internal static class TradeSelectionFixture
 {
     public static async Task<ExecuteTradeSelectionPipelineCommand> Command(string variantCode = "LongFuture", TimeFrameType horizon = TimeFrameType.Daily, DateTime? atUtc = null, string contractId = "ESZ6", int scopeId = 1, bool compositionReady = false, bool compositionIntegrationTiming = false,
         ExecuteMarketConditionAssessmentCommand? actualAssessmentCommand = null, StrategyStageResultEnvelope? actualAssessmentEnvelope = null,
-        TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskParameterSet? riskPolicy = null, int compositionLifetimeMilliseconds = 5000)
+        TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskParameterSet? riskPolicy = null, int compositionLifetimeMilliseconds = 5000, bool cacheDefaults = false)
     {
         var assessmentCommand = actualAssessmentCommand ?? AssessmentFixture.Command(horizon, atUtc, contractId);
         var at = actualAssessmentEnvelope is null ? assessmentCommand.RequestedAtUtc : DateTime.UtcNow;
@@ -84,6 +84,16 @@ internal static class TradeSelectionFixture
                 DeltaUnits = "UnderlyingEquivalent"
             })
         };
+        TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.StrategyOptionChainParameterSet? cacheProfile = null;
+        if (cacheDefaults)
+        {
+            cacheProfile = (builder.Code == "IronCondor"
+                ? TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.StrategyOptionChainParameterDefaults.IronCondor(Guid.NewGuid(), structure.Key.Id, structure.Key.Version)
+                : TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.StrategyOptionChainParameterDefaults.VerticalSpread(Guid.NewGuid(), structure.Key.Id, structure.Key.Version)) with { Enabled = true };
+            variant = variant with { Settings = JsonSerializer.SerializeToElement(new
+            { TargetNetDelta = variant.Bias == "Balanced" ? 0m : variant.Bias == "Bullish" ? .10m : -.10m,
+                BalanceTolerance = .05m, SymmetricWings = true, MinimumWingWidth = 50m, MaximumWingWidth = 50m, DeltaUnits = "UnderlyingEquivalent" }) };
+        }
         var strategy = examples.Single(x => x.Key.Kind == StrategyCatalogKind.Strategy) with { Structures = [structure.Key] };
         var composition = new SelectionConstructionPolicy
         {
@@ -98,6 +108,10 @@ internal static class TradeSelectionFixture
             DeltaUnits = "UnderlyingEquivalent",
             MaximumDeltaTolerance = .1m
         };
+        if (cacheProfile is not null) composition = composition with
+        { SchemaVersion = 3, MinimumDaysToExpiry = cacheProfile.BiasRows[0].MinimumDte, MaximumDaysToExpiry = cacheProfile.BiasRows[0].MaximumDte,
+            MinimumWingWidth = 50, MaximumWingWidth = 50,
+            OptionChainCache = new() { ParameterSetId = cacheProfile.ParameterSetId, Version = 1, ConfigurationDigest = cacheProfile.Hash() } };
         var selectionRef = new SelectionPipelinePolicyReference { Kind = CatalogPipelineParameterKind.TradeSelection, Id = common.ParameterSetId, Version = 1, PayloadSha256 = TradeSelectionPolicy.Hash(common) };
         var deployment = StrategyCatalogExamples.New(StrategyCatalogKind.Deployment, "TestDeployment", "Test deployment") with
         {
@@ -122,6 +136,14 @@ internal static class TradeSelectionFixture
                     VariantRules = [authored.VariantRules[0] with { BaseParameters = authored.VariantRules[0].BaseParameters with
                 { LoadingMilliseconds = 15000, ExecutionMilliseconds = 15000, CandidateLifetimeMilliseconds = compositionLifetimeMilliseconds, MaximumQuoteAgeMilliseconds = 5000 } }]
                 };
+            if (cacheProfile is not null)
+            {
+                var row = cacheProfile.BiasRows.Single(x => x.MarketBias.ToString() == (variant.Bias == "Balanced" ? "Neutral" : variant.Bias));
+                authored = authored with { VariantRules = [authored.VariantRules[0] with { AllowedWidths = [50], BaseParameters = authored.VariantRules[0].BaseParameters with
+                { MinimumDaysToExpiry = row.MinimumDte, MaximumDaysToExpiry = row.MaximumDte, TargetDaysToExpiry = row.PreferredDte,
+                    TargetPutDelta = row.PutDelta.Target, TargetCallDelta = row.CallDelta.Target,
+                    TargetLegDelta = builder.Code == "PutVertical" ? row.PutDelta.Target : row.CallDelta.Target, LegDeltaTolerance = .03m } }] };
+            }
             var settings = JsonSerializer.SerializeToElement(authored);
             var schema = StrategyCatalogExamples.New(StrategyCatalogKind.ParameterSchema, "CompositionRulesSchema", "Composition rules schema") with
             { Settings = TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CompositionRulesSchema.Settings(), Capabilities = [new("validator", "OrderCompositionRules", 1)] };
@@ -144,7 +166,7 @@ internal static class TradeSelectionFixture
         config.GetEffectiveTradeSelectionVersionAsync(common.ParameterSetId, 1, selectionRef.PayloadSha256, at, Arg.Any<CancellationToken>()).Returns(new ResolvedTradeSelectionParameterSet(common, selectionRef.PayloadSha256, ConfigurationParameterSetStatus.Published, at.AddDays(-1), null));
         config.GetPublishedStrategyDeploymentAsync(deployment.Key, at, Arg.Any<CancellationToken>()).Returns(graph);
         config.GetSelectionPipelinePolicyAsync(CatalogPipelineParameterKind.TradeSelection, common.ParameterSetId, 1, Arg.Any<CancellationToken>()).Returns(new SelectionPipelinePolicySnapshot { Kind = CatalogPipelineParameterKind.TradeSelection, Id = common.ParameterSetId, Version = 1, SchemaVersion = 1, PayloadJson = TradeSelectionPolicy.Serialize(common), PayloadSha256 = selectionRef.PayloadSha256, Status = CatalogLifecycleStatus.Published, EffectiveFromUtc = at.AddDays(-1) });
-        config.GetSelectionPipelinePolicyAsync(CatalogPipelineParameterKind.OrderComposition, composition.ParameterSetId, 1, Arg.Any<CancellationToken>()).Returns(new SelectionPipelinePolicySnapshot { Kind = CatalogPipelineParameterKind.OrderComposition, Id = composition.ParameterSetId, Version = 1, SchemaVersion = 1, PayloadJson = composition.Serialize(), PayloadSha256 = composition.Hash(), Status = CatalogLifecycleStatus.Published, EffectiveFromUtc = at.AddDays(-1) });
+        config.GetSelectionPipelinePolicyAsync(CatalogPipelineParameterKind.OrderComposition, composition.ParameterSetId, 1, Arg.Any<CancellationToken>()).Returns(new SelectionPipelinePolicySnapshot { Kind = CatalogPipelineParameterKind.OrderComposition, Id = composition.ParameterSetId, Version = 1, SchemaVersion = composition.SchemaVersion, PayloadJson = composition.Serialize(), PayloadSha256 = composition.Hash(), Status = CatalogLifecycleStatus.Published, EffectiveFromUtc = at.AddDays(-1) });
         if (riskPolicy is not null)
             config.GetSelectionPipelinePolicyAsync(CatalogPipelineParameterKind.RiskManagement, riskPolicy.ParameterSetId, riskPolicy.Version, Arg.Any<CancellationToken>())
                 .Returns(new SelectionPipelinePolicySnapshot

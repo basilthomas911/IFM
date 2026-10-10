@@ -34,7 +34,8 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
         foreach (var item in snapshot.Instruments.Where(x => x.Instrument.Pricing is not null))
         {
             token.ThrowIfCancellationRequested();
-            valuations.Add(item.Instrument.ContractId, pricer.Calculate(item.Instrument, snapshot.EvaluatedAtUtc));
+            valuations.Add(item.Instrument.ContractId, pricer is Black76ComposerPricer && item.Valuation is { } prepared
+                ? Black76ComposerPricer.Prepared(prepared) : pricer.Calculate(item.Instrument, snapshot.EvaluatedAtUtc));
         }
         var features = new Dictionary<CompositionFeature, decimal>
         {
@@ -54,6 +55,7 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
                 features[CompositionFeature.IvPercentile] = percentile;
         }
         var resolved = CompositionParameterResolver.Resolve(rule, features, token);
+        resolved = StrategyOptionChainCompositionPolicy.Apply(c, rule, resolved);
         var p = resolved.Values;
         ValidateSnapshot(snapshot, c, p);
         CompositionBindingResolver.ValidateResolved(c, p, rule);
@@ -64,6 +66,7 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
         int generated = 0, eligible = 0;
         CompositionCandidate? best = null;
         CompositionRanking? bestRank = null;
+        var globalRow = StrategyOptionChainCompositionPolicy.Row(c);
         var collections = closed ? Enumerable.Empty<(CompositionInstrumentSnapshot Instrument, int Sign)[]>() : binding.BuilderCode == "Future"
             ? EsFuturesOrderComposer.Enumerate(snapshot, p, intent.Side)
             : OptionCandidates(snapshot, binding.BuilderCode, intent.Side, rule, token);
@@ -71,7 +74,7 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
         {
             token.ThrowIfCancellationRequested();
             Require(++generated <= 4096, "OC.CALCULATION.LIMIT");
-            var (candidate, ranking, reason) = Build(c, resolved, rule, legs, valuations, enforceAge);
+            var (candidate, ranking, reason) = Build(c, resolved, rule, legs, valuations, enforceAge, globalRow);
             if (candidate is null)
             {
                 rejected[reason!] = rejected.GetValueOrDefault(reason!) + 1;
@@ -145,7 +148,7 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
 
     (CompositionCandidate? Candidate, CompositionRanking? Ranking, string? Reason) Build(
         ExecuteOrderCompositionPipelineCommand c, CompositionResolvedParameters resolved, CompositionVariantRules rule,
-        (CompositionInstrumentSnapshot Instrument, int Sign)[] input, Dictionary<string, CompositionValuation> values, bool enforceAge)
+        (CompositionInstrumentSnapshot Instrument, int Sign)[] input, Dictionary<string, CompositionValuation> values, bool enforceAge, TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.OptionStrategyBiasParameters? globalRow)
     {
         static (CompositionCandidate?, CompositionRanking?, string) Reject(string code) => (null, null, "OC.CANDIDATE." + code);
         var p = resolved.Values; var intent = c.CompositionBinding.Selected;
@@ -154,6 +157,12 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
         var instruments = input.Select(x => x.Instrument.Instrument).ToArray();
         var expiration = option ? instruments[0].Pricing!.Contract.ExpirationUtc.UtcDateTime : instruments[0].FutureDefinition!.LastTradingUtc.UtcDateTime;
         var dte = (decimal)(expiration - c.EvaluatedAtUtc).TotalDays;
+        if (option && globalRow is not null)
+        {
+            var timezone = TimeZoneInfo.FindSystemTimeZoneById(instruments[0].Pricing!.Calendar.TimeZoneId);
+            var expiryDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(new DateTimeOffset(expiration, TimeSpan.Zero), timezone).DateTime);
+            dte = expiryDate.DayNumber - (c.MarketSnapshot.StrategyOptionChainValueDate ?? throw new CompositionException("OC.CONFIG.CACHE_VALUE_DATE_MISSING")).DayNumber;
+        }
         if (option && (dte < p.MinimumDaysToExpiry || dte > p.MaximumDaysToExpiry)) return Reject("NO_EXPIRY");
         decimal multiplier = option ? instruments[0].Pricing!.Contract.Multiplier : instruments[0].FutureDefinition!.Multiplier;
         if (option)
@@ -174,6 +183,9 @@ public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderC
         tick = pricer.Tick(instruments[0], limit, false);
         limit = decimal.Floor(limit / tick) * tick;
         decimal worst = limit + p.MaximumAdverseMoveTicks * tick;
+        if (globalRow is not null && (worst < 0 && -worst < globalRow.MinimumNetCredit
+            || worst > 0 && globalRow.MaximumNetDebit is { } maximumDebit && worst > maximumDebit))
+            return Reject("GLOBAL_PRICE_BOUND");
         var worstTick = pricer.Tick(instruments[0], worst, false);
         worst = decimal.Floor(worst / worstTick) * worstTick;
         if (worst > natural || natural - best > p.MaximumComboSpreadTicks * tick) return Reject("PREMIUM");

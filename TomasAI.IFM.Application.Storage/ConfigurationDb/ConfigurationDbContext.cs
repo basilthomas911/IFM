@@ -420,6 +420,41 @@ public sealed class ConfigurationDbContext(
     static string Sha256(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
 
+    /// <inheritdoc />
+    public async Task InsertStrategyPositionRiskDraftAsync(
+        TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.StrategyRiskParameterSet policy,
+        string description, string createdBy, CancellationToken cancellationToken = default)
+    {
+        policy.Validate();
+        await dbFactory.ConfigurationDb
+            .Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.InsertStrategyPositionRiskDraft)}",
+                ConfigurationDbSql.InsertStrategyPositionRiskDraft)
+            .SetParameters(new InsertConfigurationDraft(policy.ParameterSetId, policy.Version, checked((short)policy.SchemaVersion), 0,
+                policy.Serialize(), policy.Hash(), description, DateTime.UtcNow, createdBy))
+            .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.ResolvedStrategyRiskParameterSet?> GetStrategyPositionRiskVersionAsync(
+        Guid id, int version, CancellationToken cancellationToken = default)
+    {
+        return await dbFactory.ConfigurationDb
+            .Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.GetStrategyPositionRiskVersion)}",
+                ConfigurationDbSql.GetStrategyPositionRiskVersion)
+            .SetParameters(new GetConfiguration(id, version))
+            .ExecuteSingleAsync(row =>
+            {
+                var policy = TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.StrategyRiskParameterSet.Read(row.GetString(6));
+                if (policy.ParameterSetId != row.GetGuid(0) || policy.Version != row.GetInt(1)
+                    || policy.SchemaVersion != row.GetInt(2) || policy.Hash() != row.GetString(7))
+                    throw new InvalidDataException("StrategyRiskParameterSet.IDENTITY_OR_HASH_MISMATCH");
+                return new TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.ResolvedStrategyRiskParameterSet(policy, row.GetString(7),
+                    (ConfigurationParameterSetStatus)row.GetInt(3),
+                    row.IsNull(4) ? null : DateTime.SpecifyKind(row.GetDateTime(4), DateTimeKind.Utc),
+                    row.IsNull(5) ? null : DateTime.SpecifyKind(row.GetDateTime(5), DateTimeKind.Utc));
+            }, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Creates a validated draft in the existing Risk policy table. Publication and deployment binding remain explicit.</summary>
     public async Task InsertRiskManagementDraftAsync(RiskParameterSet policy, string description, string createdBy, CancellationToken token = default)
     {

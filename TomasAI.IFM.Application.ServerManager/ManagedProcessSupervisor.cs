@@ -273,7 +273,7 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
 
         foreach (var argument in definition.Arguments)
         {
-            startInfo.ArgumentList.Add(argument);
+            startInfo.ArgumentList.Add(Environment.ExpandEnvironmentVariables(argument));
         }
 
         foreach (var variable in definition.EnvironmentVariables)
@@ -334,6 +334,36 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
         ManagedProcessDefinition definition,
         CancellationToken cancellationToken)
     {
+        if (!string.IsNullOrWhiteSpace(definition.ReadinessPipeName))
+        {
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(TimeSpan.FromSeconds(definition.ReadinessTimeoutSeconds));
+            var dashboardClient = new SchedulerPipeClient(new SchedulerClientOptions { PipeName = definition.ReadinessPipeName, ConnectTimeoutMilliseconds = 1000 });
+            try
+            {
+                while (true)
+                {
+                    deadline.Token.ThrowIfCancellationRequested();
+                    if (!IsRunning(definition.Key)) throw new InvalidOperationException($"Process '{definition.Key}' exited before scheduler readiness.");
+                    try
+                    {
+                        var dashboard = await dashboardClient.GetDashboardAsync(deadline.Token).ConfigureAwait(false);
+                        if (dashboard.Health.DatabaseAvailable && dashboard.Health.QuartzAvailable && dashboard.Health.SchedulingStarted)
+                        {
+                            WriteLifecycle(definition, "Scheduler readiness confirmed: database, Quartz and scheduling are available.");
+                            return;
+                        }
+                    }
+                    catch (IOException) { }
+                    await Task.Delay(definition.ReadinessPollIntervalMilliseconds, deadline.Token).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new TimeoutException($"Process '{definition.Key}' did not become ready within {definition.ReadinessTimeoutSeconds} seconds.");
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(definition.ReadinessUri))
         {
             return;

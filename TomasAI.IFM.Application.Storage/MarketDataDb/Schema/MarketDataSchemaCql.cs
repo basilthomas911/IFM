@@ -2,6 +2,13 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 
 internal static class MarketDataSchemaCql
 {
+    public const string CreateStrategyOptionChainParameterVersion = """
+CREATE TABLE IF NOT EXISTS strategy_option_chain_parameter_version (set_id uuid,version int,payload text,PRIMARY KEY ((set_id),version));
+""";
+    public const string CreateStrategyOptionChainParameterCurrent = """
+CREATE TABLE IF NOT EXISTS strategy_option_chain_parameter_current (environment text,set_id uuid,version int,revision bigint,published boolean,payload text,PRIMARY KEY ((environment),set_id,version));
+""";
+
     public const string CreateRecoveryProbeTable = """
 CREATE TABLE IF NOT EXISTS ifm_recovery_probe (
     probe_id uuid PRIMARY KEY,

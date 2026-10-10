@@ -483,7 +483,9 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
                 _viewModel.ValueDate,
                 [.. _viewModel.BaseContracts],
                 _referenceDataService,
-                brokerEnvironment: TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Emulator));
+                brokerEnvironment: string.Equals(_appRoot.AppEnvironment, "Development", StringComparison.OrdinalIgnoreCase)
+                    ? TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Emulator
+                    : TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Live));
         });
         switch (navigationResult)
         {
@@ -498,7 +500,10 @@ public partial class IFMAppView : DarkTradingForm, IForm<IFMAppView>, IFormContr
                             var tabPage = tabTradeBlotter.TabPages[index];
                             _tradeBlotter = dlg.LoadedTrade is { } establishedTrade
                                 ? TradeBlotterFactory.CreateEstablished(tabPage, _appRoot, dlg.Fund, dlg.FundOrder,
-                                    dlg.FundOrderTrade, establishedTrade, [.. _viewModel.BaseContracts])
+                                    dlg.FundOrderTrade, establishedTrade, [.. _viewModel.BaseContracts],
+                                    brokerEnvironment: string.Equals(_appRoot.AppEnvironment, "Development", StringComparison.OrdinalIgnoreCase)
+                                        ? TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Emulator
+                                        : TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Live)
                                 : TradeBlotterFactory.Create(
                                 tabPage,
                                 _appRoot,

@@ -167,9 +167,10 @@ public sealed class TradeOrderEditorViewModelTests
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task LoadTradeAsync_UsesPersistedExecutionIdentity_AndRejectsUnlinkedSetup(bool linked)
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task LoadTradeAsync_UsesPersistedExecutionIdentity_AndRejectsUnlinkedSetup(bool linked, bool unavailable)
     {
         var firstOrder = new FundOrderProjectionReadModel
         {
@@ -257,8 +258,13 @@ public sealed class TradeOrderEditorViewModelTests
         var establishedQueries = Substitute.For<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IEstablishedTradeQueryApi>();
         services.EstablishedTrades.Returns(establishedQueries);
         establishedQueries.GetAsync(actualId, TradeStrategyKind.IronCondor, Arg.Any<CancellationToken>())
-            .Returns(new ServiceOk<EstablishedTradeDefinition>(actualTrade));
-        if (linked)
+            .Returns(new ServiceOk<EstablishedTradeDefinition>(unavailable ? null! : actualTrade));
+        if (unavailable)
+        {
+            await FluentActions.Awaiting(() => viewModel.LoadTradeAsync()).Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("*established trade*unavailable*Refresh*");
+        }
+        else if (linked)
         {
             (await viewModel.LoadTradeAsync()).Should().BeSameAs(actualTrade);
             await establishedQueries.Received(1).GetAsync(actualId, TradeStrategyKind.IronCondor, Arg.Any<CancellationToken>());
@@ -474,6 +480,10 @@ public sealed class TradeOrderEditorViewModelTests
         };
 
         await viewModel.AddManualTradeAsync(order, trade);
+        await commands.Received(1).AddManualTradeAsync(
+            Arg.Is<AddManualFundOrderTradeRequest>(r => r.EffectiveDate == trade.EffectiveDate
+                && r.TradeDate == null && r.MaturityDate == null), Arg.Any<CancellationToken>());
+
 
         viewModel.SelectedFundOrder.Should().NotBeNull();
         viewModel.SelectedFundOrder!.OrderId.Should().Be(16201);
@@ -532,7 +542,7 @@ public sealed class TradeOrderEditorViewModelTests
         await commands.Received(1).AddManualTradeAsync(
             Arg.Is<AddManualFundOrderTradeRequest>(request =>
                 request.BaseContractId == "ESZ26" &&
-                request.Reference == "ESZ26 @ 20260918 - 20260918"),
+                request.Reference == "ESZ26 @ 20260918" && request.TradeDate == null && request.MaturityDate == null),
             Arg.Any<CancellationToken>());
         viewModel.LastError.Should().BeEquivalentTo(new
         {

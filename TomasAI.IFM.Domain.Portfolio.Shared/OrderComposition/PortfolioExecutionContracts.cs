@@ -1,4 +1,4 @@
-﻿using MessagePack;
+using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
 namespace TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
@@ -122,4 +122,7 @@ public sealed record PortfolioExecutionOrderInstruction
     /// <summary>Exact immutable market inputs accepted for this financial decision.</summary>
     [Key(25)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketDecisionEvidence? DecisionEvidence { get; init; }
+    /// <summary>Source setup identity; absent on legacy and fully automated orders.</summary>
+    [Key(26)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundTradeSetupReference? SetupTrade { get; init; }
 }

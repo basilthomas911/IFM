@@ -1,4 +1,5 @@
-﻿using TomasAI.IFM.Domain.Trade.Shared;
+﻿using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
 using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 
@@ -12,14 +13,18 @@ public sealed class TradeOrderConfirmationViewModel : ObservableObject
     TradeFillType _selectedTradeFillType = TradeFillType.Manual;
 
     /// <summary>Creates confirmation state for a fully calculated trade order.</summary>
-    public TradeOrderConfirmationViewModel(TradeOrderReadModel tradeOrder)
+    public TradeOrderConfirmationViewModel(TradeOrderReadModel tradeOrder, IReadOnlyList<TradeOrderConfirmationLeg>? legs = null)
     {
         TradeOrder = tradeOrder ?? throw new ArgumentNullException(nameof(tradeOrder));
         _selectedTradeFillType = tradeOrder.TradeFillType;
+        Legs = legs?.ToArray() ?? [];
     }
 
     /// <summary>Gets the order presented for confirmation.</summary>
     public TradeOrderReadModel TradeOrder { get; }
+
+    /// <summary>Gets the confirmation legs in Broker Trade display order.</summary>
+    public IReadOnlyList<TradeOrderConfirmationLeg> Legs { get; }
 
     /// <summary>Gets supported fill-source choices.</summary>
     public IReadOnlyList<TradeFillType> TradeFillTypes => AvailableFillTypes;

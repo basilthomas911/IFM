@@ -56,6 +56,28 @@ public sealed partial class OrderCompositionWorkerTests
     }
 
     [Fact]
+    public async Task Independent_background_chain_and_replacement_preserve_manual_and_business_owners()
+    {
+        using var prices = Prices(); using var manual = new ChainFeed(); using var background = new ChainFeed(); using var replacement = new ChainFeed();
+        var factory = Substitute.For<IDatabentoFeedFactory>();
+        factory.CreateOptionChainFeed(Arg.Any<DatabentoFeedOptions>()).Returns(manual, background, replacement);
+        await using var runtime = Runtime(factory, prices);
+        var original = Request(); Assert.True((await runtime.AcquireAsync(original, default)).Active);
+        var cache = original with { ScopeId = "cache", LeaseId = Guid.NewGuid(), IndependentChainConnection = true };
+        Assert.True((await runtime.AcquireAsync(cache, default)).Active);
+        var next = cache with { ScopeId = "expanded-cache", LeaseId = Guid.NewGuid() };
+        Assert.True((await runtime.AcquireAsync(next, default)).Active);
+        await runtime.ReleaseAsync(new(cache.ScopeId, cache.LeaseId, Generation), default);
+        Assert.Equal(1, background.Stops); Assert.Equal(0, manual.Stops); Assert.Equal(0, replacement.Stops);
+        await runtime.ReleaseAsync(new(next.ScopeId, next.LeaseId, Generation), default);
+        Assert.Equal(1, replacement.Stops); Assert.Equal(0, manual.Stops);
+        await runtime.ReleaseAsync(new(original.ScopeId, original.LeaseId, Generation), default);
+        Assert.Equal(1, manual.Stops);
+        var wire = TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.Shared.Serialize(cache);
+        Assert.True(TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.Shared.Deserialize<WorkerOptionChainRequest>(wire!)!.IndependentChainConnection);
+    }
+
+    [Fact]
     public async Task Provider_clock_lead_preserves_native_times_but_prices_with_local_option_receipt()
     {
         using var prices = Prices(); using var feed = new ChainFeed(); var clock = new MutableClock();

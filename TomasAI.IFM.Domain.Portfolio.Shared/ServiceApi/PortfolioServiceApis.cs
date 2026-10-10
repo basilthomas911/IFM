@@ -104,12 +104,6 @@ public interface IPortfolioFundCommandApi
     /// <summary>Removes an economically inactive trade from a manual Portfolio Fund order.</summary>
     Task<ServiceResult<FundCompositionReservationResult>> RemoveManualTradeAsync(
         ManualFundOrderTradeMutationRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Changes a trade lifecycle state on a manual Portfolio Fund order.</summary>
-    Task<ServiceResult<FundCompositionReservationResult>> ChangeManualTradeStateAsync(
-        ManualFundOrderTradeMutationRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Closes a manual Portfolio Fund order after its closing trade completes.</summary>
-    Task<ServiceResult<FundCompositionReservationResult>> CloseManualOrderAsync(
-        ManualFundOrderMutationRequest request, CancellationToken cancellationToken = default);
     /// <summary>Deletes an empty draft manual Portfolio Fund order.</summary>
     /// <param name="request">The scoped order-deletion request.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>

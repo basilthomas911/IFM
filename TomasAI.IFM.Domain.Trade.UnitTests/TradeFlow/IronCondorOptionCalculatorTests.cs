@@ -43,6 +43,24 @@ public sealed class IronCondorOptionCalculatorTests
     }
 
     [Fact]
+    public void Mixed_leg_expiries_use_each_contract_time_to_expiry()
+    {
+        var (legs, risk) = Evidence();
+        var original = IronCondorOptionCalculator.Calculate(legs, risk, At.UtcDateTime);
+        legs[0] = legs[0] with { Expiry = legs[0].Expiry!.Value.AddDays(5) };
+        var item = risk[0].Instruments[0];
+        var context = item.Instrument.Pricing!;
+        var contract = context.Contract with { ExpirationUtc = context.Contract.ExpirationUtc.AddDays(5),
+            LastTradingUtc = context.Contract.LastTradingUtc.AddDays(5) };
+        risk[0] = risk[0] with { Instruments = [item with {
+            Instrument = item.Instrument with { Pricing = context with { Contract = contract } } }] };
+        var updated = IronCondorOptionCalculator.Calculate(legs, risk, At.UtcDateTime);
+        updated.OptionLegPrices[0].TheoreticalPrice.Should().NotBe(original.OptionLegPrices[0].TheoreticalPrice);
+        updated.OptionLegPrices.Skip(1).Select(x => x.TheoreticalPrice).Should()
+            .Equal(original.OptionLegPrices.Skip(1).Select(x => x.TheoreticalPrice));
+    }
+
+    [Fact]
     public void Stale_missing_or_retired_leg_evidence_never_returns_a_partial_spread()
     {
         var (legs, risk) = Evidence();

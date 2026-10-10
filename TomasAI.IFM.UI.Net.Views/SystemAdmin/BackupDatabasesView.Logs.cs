@@ -8,7 +8,7 @@ public partial class BackupDatabasesView
     readonly TabControl _sources = new() { Name = "BackupSourceSetupTabs", Dock = DockStyle.Fill };
     readonly TreeView _tree = new() { Name = "BackupLogTree", Dock = DockStyle.Fill, BackColor = Color.Black, ForeColor = Color.White, HideSelection = false };
     readonly TextBox _output = new() { Name = "BackupStandardOutput", Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, WordWrap = false, ScrollBars = ScrollBars.Both, BackColor = Color.Black, ForeColor = Color.White };
-    readonly Button _moreOutputButton = new() { Name = "BackupMoreOutput", Text = "Refresh / more output", AutoSize = true };
+    readonly Button _moreOutputButton = new() { Name = "BackupMoreOutput", Text = "Refresh logs / output", AutoSize = true };
     readonly Button _cancelBackup = new() { Name = "BackupCancel", Text = "Cancel selected backup", AutoSize = true, Enabled = false };
     readonly Label _logStatus = new() { AutoSize = true, ForeColor = Color.White };
     readonly ImageList _statusImages = new() { ImageSize = new(16, 16), ColorDepth = ColorDepth.Depth32Bit };
@@ -46,10 +46,12 @@ public partial class BackupDatabasesView
         var split = new SplitContainer { Dock = DockStyle.Fill, BackColor = Color.Black };
         split.SizeChanged += (_, _) => { if (split.Width > 300) split.SplitterDistance = split.Width / 2; };
         split.Panel1.Controls.Add(_tree);
-        var right = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1, BackColor = Color.Black };
-        right.RowStyles.Add(new(SizeType.Percent, 100)); right.RowStyles.Add(new(SizeType.Absolute, 42));
-        var toolbar = new FlowLayoutPanel { Dock = DockStyle.Fill }; toolbar.Controls.Add(_moreOutputButton); toolbar.Controls.Add(_cancelBackup); toolbar.Controls.Add(_logStatus);
-        right.Controls.Add(_output, 0, 0); right.Controls.Add(toolbar, 0, 1); split.Panel2.Controls.Add(right);
+        var right = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1, BackColor = Color.Black };
+        right.ColumnStyles.Add(new(SizeType.Percent, 100));
+        right.RowStyles.Add(new(SizeType.Percent, 100)); right.RowStyles.Add(new(SizeType.Absolute, 42)); right.RowStyles.Add(new(SizeType.Absolute, 40));
+        var toolbar = new FlowLayoutPanel { Dock = DockStyle.Fill }; toolbar.Controls.Add(_moreOutputButton); toolbar.Controls.Add(_cancelBackup);
+        _logStatus.Dock = DockStyle.Fill; _logStatus.AutoSize = false;
+        right.Controls.Add(_output, 0, 0); right.Controls.Add(toolbar, 0, 1); right.Controls.Add(_logStatus, 0, 2); split.Panel2.Controls.Add(right);
         logs.Controls.Add(split); setup.Controls.Add(_sources);
         _sources.TabPages.Add(new TabPage("AWS Backup") { Tag = BackupSource.AwsCloud, BackColor = Color.Black });
         _sources.TabPages.Add(new TabPage("Local Workstation") { Tag = BackupSource.LocalWorkstation, BackColor = Color.Black });
@@ -73,7 +75,7 @@ public partial class BackupDatabasesView
             if (args.Node?.Tag is DatabaseLeaf leaf && leaf.Operation is not null) await ReadLogAsync(_outputCancellation.Token);
             else _logStatus.Text = "Select a database leaf. Gray means no operation for this database in the selected run.";
         };
-        _moreOutputButton.Click += async (_, _) => await ReadLogAsync(_outputCancellation.Token);
+        _moreOutputButton.Click += async (_, _) => await RefreshLogsAsync();
         _cancelBackup.Click += async (_, _) =>
         {
             if (_tree.SelectedNode?.Tag is not DatabaseLeaf { Operation: { Kind: DatabaseRecoveryOperationKind.Backup } operation }) return;
@@ -106,6 +108,10 @@ public partial class BackupDatabasesView
                 if (!_continuations.ContainsKey(source)) _continuations[source] = result.Value.Continuation;
             }
             BuildLogTree();
+            if (!_history.Values.Any(operations => operations.Count > 0))
+                _logStatus.Text = "No recorded backup runs. Open Setup > Local Workstation to request a backup. Disposable test runs are separate from this history.";
+            else if (_tree.SelectedNode is null)
+                _logStatus.Text = "Select a PostgreSQL or ScyllaDB leaf to see phases and output. Manual backup and restore: Setup > Local Workstation.";
             if (_tree.SelectedNode?.Tag is DatabaseLeaf { Operation: not null }) await ReadLogAsync(_outputCancellation.Token);
         }
         catch (OperationCanceledException) { }

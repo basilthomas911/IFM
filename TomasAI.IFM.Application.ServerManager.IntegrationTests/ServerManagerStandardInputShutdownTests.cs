@@ -1,8 +1,7 @@
+using TomasAI.IFM.Application.Api.Server.Core.Hosting.ServerManager;
 using FluentAssertions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
-using TomasAI.IFM.Application.Api.Server;
-
 namespace TomasAI.IFM.Application.ServerManager.IntegrationTests;
 
 public sealed class ServerManagerStandardInputShutdownTests

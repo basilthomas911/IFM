@@ -1,4 +1,10 @@
-﻿using System.Reflection;
+using TomasAI.IFM.Application.Api.Server.Core.Startup.Schema;
+using TomasAI.IFM.Domain.Portfolio.Persistence;
+using TomasAI.IFM.Domain.Portfolio.Workflow;
+using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
+using System.Reflection;
 using System.Collections.Concurrent;
 using TomasAI.IFM.Domain.Trade.Shared.Futures;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
@@ -117,7 +123,10 @@ public sealed class BrokerUiHost : IAsyncLifetime
         await transactions.ExecuteAsync(async (db, token) => {
             foreach(var stream in new[] { "Portfolio.1", "PortfolioFund.1.4", "PortfolioFinancialPolicy.1.3" }) {
                 var id = Guid.NewGuid();
-                await db.AppendAsync(stream,id,new PortfolioCreatedEvent(Guid.NewGuid(),id,1,DateTime.UtcNow,"SyntheticFlaUI",new()),0,token);
+                if (stream == "PortfolioFund.1.4")
+                    await db.AppendAsync(stream,id,new FundMandateCreatedEvent(Guid.NewGuid(),id,1,DateTime.UtcNow,"SyntheticFlaUI",
+                        new() { PortfolioId = 1, FundId = 4, FundMandateVersion = 1 }),0,token);
+                else await db.AppendAsync(stream,id,new PortfolioCreatedEvent(Guid.NewGuid(),id,1,DateTime.UtcNow,"SyntheticFlaUI",new()),0,token);
             }
             return true;
         });
@@ -171,6 +180,7 @@ public sealed class BrokerUiHost : IAsyncLifetime
 public sealed class BrokerTradeLifecycleFlaUiTests(BrokerUiHost host)
 {
     static int contractSequence;
+    [Fact] public Task Setup_closes_from_confirmed_opposite_execution_without_manual_state_commands() => RunLifecycleAsync(TradeType.ShortIronCondor, true, TradeAction.Buy, BrokerOrderType.Limit, false, true);
     [Fact] public Task Offline_condor_simulation_completes_through_ui_actors_and_accounting() => RunLifecycleAsync(TradeType.ShortIronCondor, true, TradeAction.Buy, BrokerOrderType.Limit, true);
     [Fact] public Task Futures_publications_after_fill() => Fresh_screen_places_updates_and_cancels_or_fills_via_emulator(TradeType.FuturesOutright, true, TradeAction.Buy, BrokerOrderType.Limit);
     [Fact] public Task Condor_publications_after_fill() => Fresh_screen_places_updates_and_cancels_or_fills_via_emulator(TradeType.ShortIronCondor, true, TradeAction.Buy, BrokerOrderType.Limit);
@@ -190,7 +200,7 @@ public sealed class BrokerTradeLifecycleFlaUiTests(BrokerUiHost host)
     [InlineData(TradeType.FuturesOutright, true, TradeAction.Buy, BrokerOrderType.Market)]
     [InlineData(TradeType.ShortIronCondor, true, TradeAction.Buy, BrokerOrderType.Market)]
     public Task Fresh_screen_places_updates_and_cancels_or_fills_via_emulator(TradeType type, bool fill, TradeAction action, BrokerOrderType orderType) => RunLifecycleAsync(type,fill,action,orderType,false);
-    private async Task RunLifecycleAsync(TradeType type, bool fill, TradeAction action, BrokerOrderType orderType, bool simulate)
+    private async Task RunLifecycleAsync(TradeType type, bool fill, TradeAction action, BrokerOrderType orderType, bool simulate, bool exerciseClose = false)
     {
         var root = Substitute.For<IAppRoot>();
         var services = Substitute.For<IUiServiceCatalog>(); root.Services.Returns(services);
@@ -233,12 +243,29 @@ public sealed class BrokerTradeLifecycleFlaUiTests(BrokerUiHost host)
             return new PortfolioFinancialApi(host.Producer).EvaluateAsync(request, call.Arg<CancellationToken>());
         });
         services.PortfolioTradeOrders.Returns(new PortfolioTradeOrderService(approvals,new TradeOrderLifecycleApi(host.Producer)));
-        var trade = new PortfolioFundOrderTradeEditorModel { PortfolioId = 1, FundId = 4, OrderId = 10, TradeId = 1,
+        var trade = new PortfolioFundOrderTradeEditorModel { PortfolioId = 1, FundId = 4, OrderId = 50000 + sequence, TradeId = 60000 + sequence, PrimaryTrade = true,
             TradeState = TradeState.NewTrade, TradeType = type, TradeAction = action,
             BaseContractId = underlying.ContractId, BaseContractSymbol = "ES", UnderlyingRoot = "ES",
             RequestedTradeDate = DateOnly.FromDateTime(DateTime.UtcNow), RequestedMaturityDate = expiry };
         var fund = new PortfolioFundEditorModel(4,"Synthetic FlaUI Fund","",0,false,DateTime.UtcNow,"test");
-        var fundOrder = new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel { PortfolioId = 1,FundId = 4,OrderId = 10 });
+        var fundOrder = new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel { PortfolioId = 1,FundId = 4,OrderId = trade.OrderId });
+        var store = host.Host.Services.GetRequiredService<Container>().GetInstance<IPortfolioEventStore>();
+        var fundId = new PortfolioFundId(1,4);
+        var fundAggregate = await store.LoadFundAsync(fundId);
+        var setupAggregate = new PortfolioFundCompositionAggregate();
+        var now = DateTime.UtcNow;
+        var draft = setupAggregate.CreateManualDraft(new() { PortfolioId = 1, PortfolioVersion = 1, FundId = 4,
+            FundMandateVersion = 1, Reference = "Synthetic setup", IdempotencyKey = Guid.NewGuid(), RequestedAtUtc = now,
+            ExpiresAtUtc = now.AddDays(1) }, trade.OrderId, now, "SyntheticFlaUI");
+        var setup = setupAggregate.AddManualTrade(new() { PortfolioId = 1, FundId = 4, OrderId = trade.OrderId,
+            TradeId = trade.TradeId, ExpectedOrderVersion = draft.AggregateVersion, TradeType = type.ToString(),
+            TradeState = nameof(TradeState.NewTrade), TradeAction = action.ToString(), PrimaryTrade = true,
+            EffectiveDate = trade.RequestedTradeDate, BaseContractSymbol = "ES", BaseContractId = underlying.ContractId,
+            Reference = "Synthetic setup", RequestedAtUtc = now }, "SyntheticFlaUI");
+        var reserved = new FundCompositionReservedEvent(Guid.NewGuid(),Guid.NewGuid(),fundAggregate.Revision+1,now,"SyntheticFlaUI",setup);
+        await store.AppendFundAsync(fundId,reserved,fundAggregate.Revision);
+        var fundQueries = new PortfolioQueryApi(host.Producer);
+        services.PortfolioQueries.Returns(portfolio); // Reference lookups remain synthetic; canonical assertions use real query actors.
         var ready = new TaskCompletionSource<Form>(TaskCreationOptions.RunContinuationsAsynchronously);
         EsTradeBlotterControl? blotter = null; Task<Guid>? submitting = null;
         var ui = new Thread(() => {
@@ -384,6 +411,54 @@ public sealed class BrokerTradeLifecycleFlaUiTests(BrokerUiHost host)
                 await BrokerUiHost.Wait(async()=> (await databases.TradeDb.GetTradeOrderAsync(submitted.Id))?.Status == TradeOrderStatus.Completed);
                 await BrokerUiHost.Wait(() => Task.FromResult(notifiedTrades.ContainsKey(submitted.Id.OrderId)
                     && notifiedPositions.ContainsKey(submitted.Id.OrderId)));
+                await BrokerUiHost.Wait(async () => (await fundQueries.GetTradeAsync(trade.TradeId)).Value?.TradeState == nameof(TradeState.Open));
+                var linked = (await fundQueries.GetTradeAsync(trade.TradeId)).Value!;
+                Assert.Equal(submitted.Id.OrderId, linked.ExecutionOrderId);
+                Assert.Equal(submitted.Components.Single().ReservedTradeId, linked.ExecutionTradeId);
+                Assert.NotNull(linked.TradeDate); Assert.Equal(expiry, linked.MaturityDate);
+                if (exerciseClose)
+                {
+                    var positionId = StrategyPositionId.Create(new(1,4,linked.ExecutionOrderId,linked.ExecutionTradeId),strategy);
+                    var positionQueries = new StrategyPositionQueryApi(host.Producer);
+                    StrategyPositionSnapshot? position = null;
+                    await BrokerUiHost.Wait(async () => { position = (await positionQueries.GetCurrentAsync(positionId,strategy)).Value; return position?.IsOpen == true; });
+                    var reference = position!.ToPortfolioPosition();
+                    var component = submitted.Components.Single().ToPortfolioComponent() with
+                    {
+                        ComponentId = Guid.NewGuid(), ReservedTradeId = linked.ExecutionTradeId, PermitBalancedPartialAcceptance = false,
+                        SignedNetDebitLimit = 100m, MinimumSignedNetDebitLimit = -100m, MaximumSignedNetDebitLimit = 100m,
+                        Legs = submitted.Components.Single().ToPortfolioComponent().Legs.Select(leg => leg with { SignedQuantity = -leg.SignedQuantity }).ToArray()
+                    };
+                    var closing = await new PortfolioTradeOrderService(new PortfolioFinancialApi(host.Producer),new TradeOrderLifecycleApi(host.Producer))
+                        .SubmitClosingAsync(1,new() { CompositionId = Guid.NewGuid(), WorkflowId = new(reference.Id,submitted.ValueDate,Guid.NewGuid()),
+                            Position = reference, StrategyKind = (PortfolioExecutionStrategyKind)strategy, ValueDate = submitted.ValueDate,
+                            ValidUntilUtc = DateTime.UtcNow.AddMinutes(5), Origin = "SyntheticFlaUIClosing", Component = component,
+                            EvidenceHash = new('b',64), PositionType = PortfolioExecutionPositionType.Closing },ExecutionChannel.Broker);
+                    foreach(var leg in closing.TradeOrders.Single().Components.Single().Legs)
+                        await host.Broker.PublishMarketQuoteAsync(new(leg.ContractId,9.9m,9.95m,100,100,DateTime.UtcNow,2,2));
+                    await BrokerUiHost.Wait(async () => (await fundQueries.GetTradeAsync(trade.TradeId)).Value?.TradeState == nameof(TradeState.Closed));
+                    Assert.Equal(nameof(TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionState.Executed),(await fundQueries.GetOrderAsync(trade.OrderId)).Value!.Status);
+                    await BrokerUiHost.Wait(async () => (await positionQueries.GetCurrentAsync(positionId,strategy)).Value?.IsOpen == false);
+                    var final = (await positionQueries.GetCurrentAsync(positionId,strategy)).Value!;
+                    Assert.Equal(StrategyPositionPhase.Close,final.Phase);
+                    Assert.All(final.Legs,leg=>Assert.Equal(0,leg.SignedQuantity));
+                    Assert.NotEmpty(final.ClosingFills);
+                    var history = await positionQueries.GetHistoryAsync(positionId,strategy,DateTime.UtcNow.AddHours(-1),DateTime.UtcNow.AddMinutes(1));
+                    Assert.True(history.Success);
+                    Assert.Contains(history.Value!,row=>row.Phase==StrategyPositionPhase.Open);
+                    Assert.Contains(history.Value!,row=>row.Phase==StrategyPositionPhase.Close);
+                    var financial = new PortfolioFinancialApi(host.Producer);
+                    var scope = new FinancialReadScope { PortfolioId = 1, FundId = 4,
+                        Access = new("SyntheticFlaUI", ["PortfolioAdministrator"], [1]) };
+                    var transactions = await financial.GetFundTransactionsPageAsync(scope, new(100));
+                    Assert.True(transactions.Success, transactions.ErrorMessage);
+                    Assert.Contains(transactions.Value!.Value!.Items,
+                        row => row.Transaction.TransactionKind == LedgerTransactionKind.RealizedPnl);
+                    var trialBalance = await financial.GetTrialBalanceAsync(scope, new());
+                    Assert.True(trialBalance.Success, trialBalance.ErrorMessage);
+                    Assert.True(trialBalance.Value!.Value!.Balanced);
+
+                }
             }
             await BrokerUiHost.Wait(()=>Task.FromResult(Find("orderExecutionNotificationStatus").Name.StartsWith(fill ? "Filled" : "Cancelled")));
             Assert.False(Find("brokerPreviewUpdateLimit").IsEnabled); Assert.False(Find("brokerPreviewCancelUnfilled").IsEnabled);

@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Portfolio.Identity;
+using TomasAI.IFM.Domain.Portfolio.Identity;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 
@@ -37,6 +37,10 @@ public static class PortfolioCloseOrderCompositionModel
             book.Funds.All(fund => fund.FundId != position.Id.FundId))
             throw new InvalidOperationException("The target position is outside this Portfolio financial authority.");
 
+        if (candidate.SetupTrade is { } setup && (setup.FundId != position.Id.FundId || setup.OrderId <= 0 || setup.TradeId <= 0 ||
+            openingOrder.SetupTrade is { } openingSetup && openingSetup.OrderId != setup.OrderId))
+            throw new InvalidOperationException("Closing setup does not match the opening order's Fund and setup order.");
+
         ValidateOpeningOrder(openingOrder, position);
         ValidateReduceOnly(candidate.Component, position);
 
@@ -51,6 +55,7 @@ public static class PortfolioCloseOrderCompositionModel
             ValueDate = candidate.ValueDate,
             ValidUntilUtc = candidate.ValidUntilUtc,
             Origin = candidate.Origin,
+            SetupTrade = candidate.SetupTrade ?? openingOrder.SetupTrade,
             Components = [candidate.Component with { Legs = [.. candidate.Component.Legs] }],
             DefinitionHash = candidate.EvidenceHash,
             BrokerAccountAlias = openingOrder.BrokerAccountAlias,

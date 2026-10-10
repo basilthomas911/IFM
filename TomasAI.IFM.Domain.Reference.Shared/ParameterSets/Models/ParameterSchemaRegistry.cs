@@ -18,6 +18,7 @@ public sealed record ParameterSchemaDefinition(
 /// <summary>Compiled schema authority shared by authoring, queries and database registration.</summary>
 public sealed class ParameterSchemaRegistry
 {
+    public const string StrategyOptionChainCacheComponent = "market-data.strategy-option-chain-cache";
     public const string RegimeComponent = "strategy-workflow.regime-discovery";
     public const string FuturesItiSignalComponent = "market-data-analytics.futures-iti-signal";
     public const string OptionVolatilitySeriesComponent = "option-volatility.series";
@@ -67,6 +68,7 @@ public sealed class ParameterSchemaRegistry
             VerticalSpreadMarketSelectionComponent,
             CurrentVerticalSpreadMarketSelectionSchemaVersion,
             typeof(VerticalSpreadMarketSelectionParameterSet));
+        registry.RegisterStrict(StrategyOptionChainCacheComponent, 1, typeof(TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.StrategyOptionChainParameterSet));
         return registry;
     }
 
@@ -127,12 +129,14 @@ public sealed class ParameterSchemaRegistry
         }
         catch (JsonException) { return false; }
     }
+    static Type? CollectionElement(Type type) => type.IsArray ? type.GetElementType()
+        : type.IsGenericType && type.GetGenericTypeDefinition() == typeof(System.Collections.Immutable.ImmutableArray<>) ? type.GetGenericArguments()[0] : null;
     static bool Known(JsonElement value, Type type, int schemaVersion, NullabilityInfo? nullability = null)
     {
         var nullable = Nullable.GetUnderlyingType(type);
         if (value.ValueKind == JsonValueKind.Null) return nullable is not null || nullability?.ReadState == NullabilityState.Nullable;
         type = nullable ?? type;
-        if (type.IsArray) return value.EnumerateArray().All(item => Known(item, type.GetElementType()!, schemaVersion, nullability?.ElementType));
+        if (CollectionElement(type) is { } element) return value.EnumerateArray().All(item => Known(item, element, schemaVersion, nullability?.ElementType));
         if (value.ValueKind != JsonValueKind.Object) return true;
         var properties = Properties(type, schemaVersion).ToDictionary(x => x.Name, StringComparer.Ordinal);
         return value.EnumerateObject().All(property => properties.TryGetValue(property.Name, out var known) && Known(property.Value, known.PropertyType, schemaVersion, Nullability.GetOrAdd(known, property => new NullabilityInfoContext().Create(property))));
@@ -146,7 +150,7 @@ public sealed class ParameterSchemaRegistry
         if (type == typeof(bool)) return new() { { "type", "boolean" } };
         if (type == typeof(decimal) || type == typeof(double) || type == typeof(float)) return new() { { "type", "number" } };
         if (type.IsPrimitive) return new() { { "type", "integer" } };
-        if (type.IsArray) return new() { { "type", "array" }, { "items", Shape(type.GetElementType()!, schemaVersion) } };
+        if (CollectionElement(type) is { } element) return new() { { "type", "array" }, { "items", Shape(element, schemaVersion) } };
         return new() { { "type", "object" }, { "additionalProperties", true }, { "properties", Properties(type, schemaVersion).ToDictionary(x => x.Name, x => (object?)Shape(x.PropertyType, schemaVersion), StringComparer.Ordinal) } };
     }
     static Dictionary<string, object?> ShapeWithNullability(Type type, int schemaVersion, NullabilityInfo? nullability = null)
@@ -159,7 +163,7 @@ public sealed class ParameterSchemaRegistry
         else if (type == typeof(bool)) shape = new() { { "type", "boolean" } };
         else if (type == typeof(decimal) || type == typeof(double) || type == typeof(float)) shape = new() { { "type", "number" } };
         else if (type.IsPrimitive) shape = new() { { "type", "integer" } };
-        else if (type.IsArray) shape = new() { { "type", "array" }, { "items", ShapeWithNullability(type.GetElementType()!, schemaVersion, nullability?.ElementType) } };
+        else if (CollectionElement(type) is { } element) shape = new() { { "type", "array" }, { "items", ShapeWithNullability(element, schemaVersion, nullability?.ElementType) } };
         else shape = new(){{"type","object"},{"additionalProperties",true},{"properties",Properties(type,schemaVersion).ToDictionary(property=>property.Name,
             property=>(object?)ShapeWithNullability(property.PropertyType,schemaVersion,Nullability.GetOrAdd(property,p=>new NullabilityInfoContext().Create(p))),StringComparer.Ordinal)}};
         return nullability?.ReadState == NullabilityState.Nullable ? NullableShape(shape) : shape;
@@ -182,10 +186,10 @@ public sealed class ParameterSchemaRegistry
         {
             try { JsonSerializer.Deserialize(value.GetRawText(), type); valid = value.ValueKind == JsonValueKind.Number; } catch (JsonException) { valid = false; }
         }
-        else if (type.IsArray)
+        else if (CollectionElement(type) is { } element)
         {
             valid = value.ValueKind == JsonValueKind.Array;
-            if (valid) { var index = 0; foreach (var item in value.EnumerateArray()) Check(item, type.GetElementType()!, path + "/" + index++, issues, schemaVersion, strictNullability, nullability?.ElementType); }
+            if (valid) { var index = 0; foreach (var item in value.EnumerateArray()) Check(item, element, path + "/" + index++, issues, schemaVersion, strictNullability, nullability?.ElementType); }
         }
         else
         {

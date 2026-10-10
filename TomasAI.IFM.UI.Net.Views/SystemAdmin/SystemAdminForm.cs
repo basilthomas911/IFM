@@ -71,6 +71,7 @@ public partial class SystemAdminForm : DarkTradingForm, IForm<SystemAdminForm>, 
         if (sysAdminFuncType != null && _controlMap.ContainsKey(sysAdminFuncType.ShortCode))
         {
             var control = _controlMap[sysAdminFuncType.ShortCode]();
+            control.Dock = DockStyle.Fill;
             ((IFormControl)control).Open();
             pnlSystemAdmin.Controls.Add(control);
         }

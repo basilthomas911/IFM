@@ -31,15 +31,15 @@ if (-not $NoBuild) {
     }
 }
 
+if (-not $NoBuild) {
+    & dotnet publish (Join-Path $repositoryRoot "TomasAI.IFM.Application.ServerManager.SchedulerHost/TomasAI.IFM.Application.ServerManager.SchedulerHost.csproj") -m:1 -c Debug --no-self-contained -o (Join-Path $repositoryRoot ".artifacts/scheduled-tasks/development/Host") --nologo
+    if ($LASTEXITCODE -ne 0) { throw "Scheduler Host publish failed." }
+}
+
 $managerPath = Join-Path $repositoryRoot `
     "TomasAI.IFM.Application.ServerManager\bin\Debug\net10.0-windows7.0\IFMServerManager.exe"
 if (-not (Test-Path -LiteralPath $managerPath)) {
     throw "Development Server Manager was not found at '$managerPath'. Build without -NoBuild first."
-}
-
-$schedulerSettings = Join-Path $repositoryRoot ".artifacts/scheduled-tasks/development/scheduler.settings.json"
-if (Test-Path -LiteralPath $schedulerSettings) {
-    & (Join-Path $repositoryRoot "scripts/ScheduledTasks/Start-IFMDevelopmentScheduler.ps1")
 }
 
 $priorEnvironment = [Environment]::GetEnvironmentVariable("DOTNET_ENVIRONMENT")

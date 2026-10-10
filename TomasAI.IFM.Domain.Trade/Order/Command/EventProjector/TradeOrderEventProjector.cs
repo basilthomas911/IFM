@@ -31,6 +31,9 @@ public sealed class TradeOrderEventProjector : ConventionalEventProjector<TradeO
     {
         await context.DbFactory.TradeDb.UpsertTradeOrderAsync(changed.TradeOrderDefinition).ConfigureAwait(false);
         if (changed.TradeOrderDefinition.Status != TradeOrderStatus.Executing || changed.ExecutionAttemptId == Guid.Empty) return;
+        await TomasAI.IFM.Domain.Trade.Order.Execution.Command.EventProjector.FundExecutionLifecycle.SubmittedAsync(
+            context.ActorService, changed.TradeOrderDefinition, changed.ExecutionAttemptId,
+            changed.ReceivedOn.Kind == DateTimeKind.Utc ? changed.ReceivedOn : DateTime.UtcNow).ConfigureAwait(false);
         var executionId = new OrderExecutionId(
             changed.TradeOrderDefinition.Id, changed.ExecutionAttemptId);
         var command = new StartOrderExecutionCommand

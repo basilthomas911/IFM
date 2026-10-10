@@ -12,6 +12,18 @@ namespace TomasAI.IFM.Domain.Portfolio.UnitTests.OrderComposition;
 public sealed class PortfolioOrderCompositionModelTests
 {
     [Fact]
+    public async Task Manual_setup_is_only_executed_by_its_owning_fund()
+    {
+        var original = Request();
+        var request = original with { Body = original.Body with { SetupTrade = new() { OrderId = 100, TradeId = 200, FundId = 11 } } };
+        var book = Book(true, true, true);
+        var result = await PortfolioOrderCompositionModel.EvaluateAsync(request, book, 7, Financial(book), new TestIdentityAllocator());
+        result.TradeOrders.Should().ContainSingle();
+        result.TradeOrders.Single().Id.FundId.Should().Be(11);
+        result.TradeOrders.Single().SetupTrade.Should().Be(request.Body.SetupTrade);
+    }
+
+    [Fact]
     public async Task Eligible_funds_each_receive_one_order_and_disabled_funds_are_preserved_as_decisions()
     {
         var request = Request();

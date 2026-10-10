@@ -70,6 +70,28 @@ public sealed class TradePlanStorageTests(TradePlanStorageFixture fixture)
         scalar.Should().Be((42m, 0.5, 0.7, "Unavailable"));
     }
 
+    [Fact]
+    public async Task Daily_risk_snapshot_and_scalar_schema_preserve_broker_currency_and_policy()
+    {
+        var policy = TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.StrategyRiskParameterSet.CreateIronCondorDevelopmentDefault();
+        var plan = Plan(Random.Shared.Next(4_200_001, 4_500_000), 1, -400m, material: true);
+        plan = plan with { IronCondorTradePlanSnapshot = new() {
+            Position = plan.Position, ActionDateTime = plan.CalculatedAtUtc, SequenceId = 1,
+            DailyPnl = -400, ForwardLoss = 1100, ForwardLossRatio = 1.1, DailyLossLimit = 1000,
+            Currency = "USD", NetGamma = .001, PutForwardPrice = -20, CallForwardPrice = -15,
+            StrategyRiskParameterSet = policy, RiskParameterSetHash = policy.Hash(), CalculationStatus = "Complete",
+            Legs = [new() { ContractId = "fixture", ForwardPrice = 20 }] } };
+        plan = plan with { ContentHash = TradePlanContractIdentity.PlanHash(plan) };
+        await fixture.TradePlanDb.ProjectMaterialAsync(plan);
+        var restored = await fixture.TradePlanDb.GetCurrentAsync(plan.Position.Id, plan.Position.StrategyKind, plan.ValueDate);
+        restored.Should().BeEquivalentTo(plan);
+        var scalar = await fixture.TradePlanDb.Database
+            .Use("DailyRiskReadback", "SELECT dailyPnl,forwardLoss,forwardLossRatio,currency,riskParameterSetHash FROM iron_condor_trade_plan WHERE portfolioId=? AND fundId=? AND orderId=? AND tradeId=? AND positionId=? AND valueDate=? AND planRevision=?;")
+            .SetParameters(new MonitoringReadbackParameters(plan))
+            .ExecuteSingleAsync(record => (record.GetDecimal(0), record.GetDecimal(1), record.GetDouble(2), record.GetString(3), record.GetString(4)));
+        scalar.Should().Be((-400m, 1100m, 1.1, "USD", policy.Hash()));
+    }
+
     readonly record struct MonitoringReadbackParameters(StrategyTradePlanSnapshot Plan) : IBindValue
     {
         public object Bind() => new object?[] { Plan.Position.Id.Trade.PortfolioId, Plan.Position.Id.Trade.FundId,

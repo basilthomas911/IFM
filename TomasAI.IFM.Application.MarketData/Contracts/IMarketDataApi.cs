@@ -30,6 +30,9 @@ public readonly record struct FuturesTermStructureContracts(
 /// </remarks>
 public interface IMarketDataApi
 {
+    /// <summary>Reads prepared strategy option snapshots immediately without acquiring market data.</summary>
+    IOptionChainCache OptionChainCache => UnavailableOptionChainCache.Instance;
+
     /// <summary>
     /// Resolves the provider market-instrument identity already associated with a canonical
     /// domain contract in the active market-data epoch.

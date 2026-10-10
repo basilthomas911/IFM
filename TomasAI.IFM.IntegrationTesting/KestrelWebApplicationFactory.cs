@@ -13,7 +13,7 @@ public class KestrelWebApplicationFactory<TEntryPoint> : WebApplicationFactory<T
     where TEntryPoint : class
 {
     const string ActorRuntimeStartupSignalTypeName =
-        "TomasAI.IFM.Application.Api.Server.IActorRuntimeStartupSignal";
+        "TomasAI.IFM.Application.Api.Server.Core.Startup.Actors.IActorRuntimeStartupSignal";
 
     static readonly Lazy<KestrelWebApplicationFactory<TEntryPoint>> Shared =
         new(() => new KestrelWebApplicationFactory<TEntryPoint>(useOwnHost: true));

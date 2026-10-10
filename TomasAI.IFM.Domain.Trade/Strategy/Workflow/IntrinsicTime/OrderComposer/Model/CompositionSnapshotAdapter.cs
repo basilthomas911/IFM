@@ -39,7 +39,7 @@ public static class CompositionSnapshotAdapter
     {
         var converted = new DomainPricing.MarketCompositionSnapshot(x.SchemaVersion, x.SnapshotId, x.ScopeId,
             x.ScopeToken, x.Horizon, x.GenerationId, x.EvaluatedAtUtc, x.ValidUntilUtc,
-            x.Instruments.Select(From).ToImmutableArray(), "");
+            x.Instruments.Select(From).ToImmutableArray(), "") { StrategyOptionChainParametersJson = x.StrategyOptionChainParametersJson, StrategyOptionChainBias = x.StrategyOptionChainBias, StrategyOptionChainValueDate = x.StrategyOptionChainValueDate };
         return converted with { Digest = TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.CompositionSemanticHash.Compute(converted) };
     }
     /// <summary>Converts a domain snapshot and seals the digest for its application pricing representation.</summary>
@@ -49,7 +49,7 @@ public static class CompositionSnapshotAdapter
     {
         var converted = new AppPricing.MarketCompositionSnapshot(x.SchemaVersion, x.SnapshotId, x.ScopeId,
             x.ScopeToken, x.Horizon, x.GenerationId, x.EvaluatedAtUtc, x.ValidUntilUtc,
-            x.Instruments.Select(To).ToImmutableArray(), "");
+            x.Instruments.Select(To).ToImmutableArray(), "") { StrategyOptionChainParametersJson = x.StrategyOptionChainParametersJson, StrategyOptionChainBias = x.StrategyOptionChainBias, StrategyOptionChainValueDate = x.StrategyOptionChainValueDate };
         return converted with { Digest = AppPricing.PricingSemanticHash.Compute(converted) };
     }
     public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingConvention From(TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingConvention x) => new()

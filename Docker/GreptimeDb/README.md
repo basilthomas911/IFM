@@ -64,3 +64,32 @@ SHOW TABLES;
 Structured method names and business arguments are retained in `log_attributes`; service identity is in `resource_attributes`. These are JSON attributes, not automatically separate indexed columns.
 
 References: [GreptimeDB Collector configuration](https://docs.greptime.com/user-guide/ingest-data/for-observability/otel-collector/) and [retention policies](https://docs.greptime.com/user-guide/manage-data/overview/).
+
+## API/UI lifetime garbage collection history
+
+Both app entry points start `ProcessGcStatisticsRecorder` before application initialization. Every
+five seconds it saves cumulative CLR collection counts (Gen 0/1/2), approximate allocated bytes,
+total GC pause time, uptime, working set and the last collection's heap/fragmentation/LOH sizes.
+Counts are since process start, not since the previous sample. Differences between observations
+provide interval counts, allocation rates and pause ratios. No forced GC or heap dump is used.
+
+History is newline-delimited JSON, one file per service/process start, under
+`.artifacts/telemetry/gc` when `IFM_REPOSITORY_ROOT` is set. Otherwise it uses the user's local
+application-data `IFM/telemetry/gc` directory. Configure `Telemetry:GcHistory:OutputDirectory`,
+`Enabled`, `SampleIntervalSeconds` (default 5) and `RetentionDays` (default 30). Startup removes
+expired history files. The final `Stopped` observation is saved on normal exit. Forced process
+termination cannot execute a final write; the most recent durable sample remains, normally within
+five seconds of termination. File write failures are reported at most once per minute and do not
+stop trading. This captures no retrospectively reconstructed history for an earlier app run.
+
+The OTel meter `TomasAI.IFM.ProcessGc` exports `ifm.process.gc.collections` (generation tag),
+`ifm.process.gc.allocated.bytes`, `ifm.process.gc.pause.seconds`, uptime and memory gauges.
+The UI now owns and disposes an OTel metric provider, alongside its existing log sink. Both API/UI
+resource attributes include `service.instance.id`, `process.pid` and `process.start_time` so restarts
+remain distinct. Existing Collector export stores these metrics in `ifm_metrics` with 30-day TTL;
+traces remain disabled. Local history also remains available during a Collector/storage outage.
+
+Use `scripts/Development/Get-IFMGcStatistics.ps1` for the latest lifetime totals. Include
+`-IncludeStopped` to examine the most recent saved runs after shutdown. UTC sample timestamps and
+run IDs can be compared with scheduled market-open/close run timestamps; GC tracking itself does
+not start or stop with the market session.

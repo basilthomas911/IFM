@@ -24,6 +24,11 @@ public sealed class SharedPolicyTests
                 || typeof(IDatabaseBackupQuery).IsAssignableFrom(type))
             .OrderBy(static type => type.FullName)
             .ToArray();
+        contracts.Should().HaveCount(122);
+        // Logs/Setup added two query contracts; keep the original 120-contract compatibility gate unchanged.
+        var addedQueries = new[] { typeof(GetDatabaseBackupLogQuery), typeof(GetDatabaseBackupSetupQuery) };
+        contracts.Should().Contain(addedQueries);
+        contracts = contracts.Except(addedQueries).ToArray();
         contracts.Should().HaveCount(120);
         var shape = string.Join("\n", contracts.Select(type => type.FullName + ":" + string.Join(",",
             type.GetProperties(BindingFlags.Instance | BindingFlags.Public)

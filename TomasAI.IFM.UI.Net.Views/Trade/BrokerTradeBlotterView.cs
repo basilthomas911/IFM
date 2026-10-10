@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.TradeBroker.Contracts;
@@ -107,6 +107,9 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     private bool _marketSelectionEditedManually;
     private bool _spreadDefaultsLoaded;
     private bool _bindingSpreadDefaults;
+    private readonly string _chainSubscriptionOwner = Guid.NewGuid().ToString("N");
+    private long _chainSelectionStarted;
+    private bool _chainReadyReported;
     private readonly System.Windows.Forms.Timer _chainRefreshTimer = new() { Interval = 1000 };
     private bool _displayedFrozenPreview;
 
@@ -976,6 +979,8 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
         if (roots.Length == 0) return;
+        _chainSelectionStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+        _chainReadyReported = false;
         var loadVersion = ++_optionChainLoadVersion;
         _marketSelectionLabel.Text = $"Loading {selected.Value:dd MMM yy} option chain...";
         ServiceResult<FuturesOptionContractReadModel[]>[] results;
@@ -1084,6 +1089,9 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         ExpiryDate = expiry,
         StandardDeviationAmount = _standardDeviationAmount,
         StandardDeviationMultiplier = 2.5,
+        SubscriptionOwnerId = _chainSubscriptionOwner,
+        SpreadWingWidth = _strategy == TradeBlotterStrategy.IronCondor
+            ? Math.Max(_callSpreadWidth.Value, _putSpreadWidth.Value) : _spreadWidth.Value,
         RequiredContractIds = _selectedMarketContractIds,
         AllowFrozenEmulatorPreview = _capabilities.Environment == AppBrokerEnvironment.Emulator && !_liveFeedEnabled,
         FrozenEmulatorPreviewOnly = _capabilities.Environment == AppBrokerEnvironment.Emulator && !_liveFeedEnabled
@@ -1100,8 +1108,8 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
 
     private async Task ReleaseEvaluatedChainAsync()
     {
-        if (_activeEvaluatedExpiry is not { } expiry) return;
-        await ReleaseEvaluatedChainAsync(expiry);
+        var expiry = _activeEvaluatedExpiry ?? (_expirationSelector.SelectedItem as ExpiryChoice)?.Value;
+        if (expiry is not null) await ReleaseEvaluatedChainAsync(expiry.Value);
     }
 
     private async Task ReleaseEvaluatedChainAsync(DateOnly expiry)
@@ -1139,6 +1147,9 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             byStrike[contract.Strike] = pair;
         }
         TryApplyDefaultOptionSpreadSelection(chain);
+        // A selected wing may have only a definition in the first response. Preserve its row with pending prices.
+        foreach (var definition in _availableOptionContracts.Where(x => _selectedMarketContracts.Contains(x.ContractId)))
+            byStrike.TryAdd((decimal)definition.StrikePrice, (null, null));
         var strikes = byStrike.Keys.ToArray();
         Array.Sort(strikes);
         var nextRows = new List<OptionChainDisplayRow>(strikes.Length);
@@ -1153,8 +1164,8 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
                 PutDelta: FormatDelta(pair.Put?.Delta),
                 PutOi: FormatCount(pair.Put?.OpenInterest),
                 PutVolume: FormatCount(pair.Put?.Volume),
-                CallContractId: pair.Call?.ContractId,
-                PutContractId: pair.Put?.ContractId,
+                CallContractId: pair.Call?.ContractId ?? PendingContract(strike, true),
+                PutContractId: pair.Put?.ContractId ?? PendingContract(strike, false),
                 CallEvaluated: pair.Call,
                 PutEvaluated: pair.Put));
         }
@@ -1192,6 +1203,19 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             }
         }
         RefreshSelectedLegRows();
+        if (_isNewTrade) RefreshBrokerTradeSelection();
+        var ready = _selectedMarketContracts.Count == MaximumSelectedLegs
+            && _selectedMarketContracts.All(id => chain.Contracts.Any(x => x.ContractId == id
+                && x.Bid is not null && x.Ask is not null && x.Delta is not null && !x.IsStale && (x.GreeksValid || x.SelectionValid)));
+        // The worker exposes readiness via captures. Poll faster during initial readiness, bounded to five seconds.
+        _chainRefreshTimer.Interval = ready || _chainSelectionStarted != 0
+            && System.Diagnostics.Stopwatch.GetElapsedTime(_chainSelectionStarted) >= TimeSpan.FromSeconds(5) ? 1000 : 100;
+        if (ready && !_chainReadyReported && _chainSelectionStarted != 0)
+        {
+            _chainReadyReported = true;
+            UiExceptionReporter.ReportOptionChainReady(_chainSubscriptionOwner, chain.ExpiryDate,
+                string.Join(',', _selectedMarketContractIds), System.Diagnostics.Stopwatch.GetElapsedTime(_chainSelectionStarted).TotalMilliseconds);
+        }
         if (chain.UnderlyingPrice is { } underlyingPrice)
             SetTextIfChanged(_lastPriceValue, underlyingPrice.ToString("0.00"));
         var representativeIv = RepresentativeImpliedVolatility(chain);
@@ -1212,9 +1236,14 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         SetSelectionText(_liquiditySelector, chain.WindowMethod);
     }
 
+    private string? PendingContract(decimal strike, bool call) => _availableOptionContracts
+        .Where(x => (decimal)x.StrikePrice == strike && x.OptionType.StartsWith(call ? "C" : "P", StringComparison.OrdinalIgnoreCase))
+        .OrderByDescending(x => _selectedMarketContracts.Contains(x.ContractId)).Select(x => x.ContractId).FirstOrDefault();
+
     private void TryApplyDefaultOptionSpreadSelection(EvaluatedOptionChainReadModel chain)
     {
-        if (!_spreadDefaultsLoaded || _marketSelectionEditedManually) return;
+        if (!_spreadDefaultsLoaded || _marketSelectionEditedManually
+            || _defaultSelectionExpiry == chain.ExpiryDate && _selectedMarketContracts.Count == MaximumSelectedLegs) return;
         if (_strategy == TradeBlotterStrategy.VerticalSpread)
         {
             TryApplyDefaultVerticalSelection(chain);
@@ -1934,6 +1963,9 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         }
         if (enabled)
         {
+            _chainSelectionStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+            _chainReadyReported = false;
+            _chainRefreshTimer.Interval = 100;
             ResetChainRequestCancellation();
             _chainRefreshTimer.Start();
             await RefreshEvaluatedChainAsync();
